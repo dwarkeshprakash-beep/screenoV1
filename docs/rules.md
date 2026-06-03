@@ -1,75 +1,51 @@
-# Library Rules & Architecture — Screeno
+# Rules — Screeno
 
-> Claude Code must read this before installing any package or writing any code.
-> This project is built for a beginner developer. Every rule here exists for a reason.
-
----
-
-## The one rule for libraries
-
-**Only install a library if writing it yourself would take more than a day and the result would be worse.**
-
-If an external API has a REST endpoint → use `fetch`. No SDK needed.
-If a task can be done in 20 lines of plain JavaScript → write it. No library.
+> Claude Code reads this before writing any code or installing any package.
+> One file. All rules. No exceptions.
 
 ---
 
-## Approved libraries — ONLY these, nothing else
+## 1. Library rules
 
-### Frontend (3 packages)
+**The rule:** Only install a library if writing it yourself would take more than a day and the result would be worse.
 
-| Package | What it does | Why we need it |
-|---|---|---|
-| `react` + `react-dom` | The UI framework | The whole frontend is React |
-| `react-router-dom` | Page routing | No built-in browser alternative |
-| `lucide-react` | Icons | Already installed, tiny, tree-shakable |
-
-**Everything else — NO.** No axios, no framer-motion, no zustand, no tanstack-query,
-no shadcn, no tailwind, no radix. Use plain CSS and the browser's built-in `fetch`.
-
-### Backend (8 packages)
-
-| Package | What it does | Why we need it |
-|---|---|---|
-| `express` | HTTP server framework | The whole backend is Express |
-| `pg` | PostgreSQL driver | Connects to Supabase — no alternative |
-| `jsonwebtoken` | Sign + verify JWT tokens | Node crypto has no JWT built-in |
-| `bcryptjs` | Hash passwords | Node crypto cannot do bcrypt |
-| `multer` | Parse file uploads | Parses multipart form data |
-| `cors` | Set CORS headers | 40 lines of headers, not worth writing |
-| `dotenv` | Load `.env` file | Makes env vars explicit |
-| `cookie-parser` | Read cookies | Parses HttpOnly refresh token cookie |
-
-**Everything else — install when the feature needs it, not before.**
-
----
-
-## What we removed and why
-
-| Removed package | Use this instead |
+### Approved frontend packages (3 only)
+| Package | Why |
 |---|---|
-| `axios` | `fetch` — built into every browser and Node 18+ |
-| `groq-sdk` | `fetch` to `https://api.groq.com/openai/v1/chat/completions` |
-| `@google/generative-ai` | `fetch` to the Gemini REST API |
-| `cloudinary` | `fetch` + `FormData` to the Cloudinary REST API |
-| `resend` | `fetch` to `https://api.resend.com/emails` |
-| `node-cron` | `setInterval` or a simple interval function |
-| `mssql` | Add when switching to SQL Server (Phase 2) |
-| `@huggingface/transformers` | Add in Phase 2 for local Whisper transcription |
+| `react` + `react-dom` | The framework |
+| `react-router-dom` | Routing — no built-in alternative |
+| `lucide-react` | Icons — tree-shakable, already installed |
+
+### Approved backend packages (8 only)
+| Package | Why |
+|---|---|
+| `express` | The framework |
+| `pg` | PostgreSQL driver — no alternative |
+| `jsonwebtoken` | JWT signing — no built-in |
+| `bcryptjs` | Password hashing — no built-in |
+| `multer` | File upload parsing |
+| `cors` | CORS headers |
+| `dotenv` | Load `.env` file |
+| `cookie-parser` | Read HttpOnly refresh token cookie |
+
+### Never install without discussion
+`axios` → use `fetch` (built-in)
+`groq-sdk` → use `fetch` to call the Groq REST API
+`@google/generative-ai` → use `fetch` to call the Gemini REST API
+`cloudinary` → use `fetch` + `FormData` to call Cloudinary REST API
+`resend` → use `fetch` to call Resend REST API
+`node-cron` → use `setInterval`
+`mssql` → add in Phase 2 only (SQL Server switch)
+`@huggingface/transformers` → add in Phase 2 only (local Whisper)
 
 ### The fetch pattern (replaces all removed SDKs)
-
 ```js
-// backend/src/services/llm.service.js
-// This is how we call Groq without their SDK — plain fetch, dead simple
-
-async function askGroq(messages, systemPrompt) {
-  // Build the request to Groq's OpenAI-compatible API
+// Every external API call looks like this — no SDK needed
+async function callGroq(messages, systemPrompt) {
   const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      // API key from .env — never hardcode this
       'Authorization': `Bearer ${process.env.GROQ_API_KEY}`
     },
     body: JSON.stringify({
@@ -81,72 +57,62 @@ async function askGroq(messages, systemPrompt) {
     })
   })
 
-  // Check if the request worked
+  // Always check if the request actually worked
   if (!response.ok) {
-    throw new Error(`Groq API error: ${response.status}`)
+    throw new Error(`Groq API failed: ${response.status}`)
   }
 
   const data = await response.json()
-
-  // Return just the text content
   return data.choices[0].message.content
 }
 ```
 
-Same exact pattern works for Gemini, Cloudinary, and Resend — just change the URL and body shape.
+### Checklist before `npm install anything`
+- [ ] Can I do this with `fetch` + 20 lines? If yes → write it
+- [ ] Is this package maintained (last commit < 6 months)? If no → do not use
+- [ ] Does it pull in many sub-dependencies? If yes → do not use
+- [ ] Is it in the approved list above? If no → stop and discuss
 
 ---
 
-## Architecture — MVC + Service Layer
+## 2. Architecture — MVC + Service Layer
 
 ```
-HTTP Request
-     ↓
-┌─────────────────────────────────────────────────────────────┐
-│  ROUTE (Controller)  — backend/src/routes/                  │
-│  Job: receive request, call service, send response          │
-│  Rule: NO SQL here, NO business logic here                  │
-└──────────────────────────┬──────────────────────────────────┘
-                           ↓
-┌─────────────────────────────────────────────────────────────┐
-│  SERVICE  — backend/src/services/                           │
-│  Job: all business decisions and logic                      │
-│  Rule: NO SQL here, NO req/res objects here                 │
-└──────────────────────────┬──────────────────────────────────┘
-                           ↓
-┌─────────────────────────────────────────────────────────────┐
-│  REPOSITORY  — backend/src/repositories/                    │
-│  Job: all SQL queries                                       │
-│  Rule: ONLY SQL here, no logic, no decisions                │
-└──────────────────────────┬──────────────────────────────────┘
-                           ↓
-                       Database
+Request
+   ↓
+Route (Controller)  → receives HTTP, calls service, sends response. NO SQL. NO logic.
+   ↓
+Service             → all business logic and decisions. NO SQL. NO req/res.
+   ↓
+Repository          → ALL SQL queries. Nothing else.
+   ↓
+Database
 ```
 
-**How to know where code goes:**
-- "Does it touch the database?" → Repository
-- "Does it make a decision based on data?" → Service
-- "Does it receive a request or send a response?" → Route
+**Quick test — where does this code go?**
+- Touches the database → Repository
+- Makes a decision based on data → Service
+- Receives a request or sends a response → Route
 
-### Example of correct separation
-
+### Correct example
 ```js
-// ✅ CORRECT
-
-// routes/team.routes.js — only HTTP
-router.get('/', async (req, res) => {
-  const members = await teamService.getTeam(req.user.companyId)
-  res.json({ success: true, data: members })
+// routes/team.routes.js — HTTP only
+router.get('/', authMiddleware, async (req, res) => {
+  try {
+    const members = await teamService.getTeam(req.user.companyId)
+    res.json({ success: true, data: members })
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'Could not load team' })
+  }
 })
 
-// services/team.service.js — only logic
+// services/team.service.js — logic only
 async function getTeam(companyId) {
   const members = await teamRepository.getByCompany(companyId)
-  // Add business logic here — e.g. sort by status, filter inactive
   return members.filter(m => m.status === 'active')
 }
 
-// repositories/team.repository.js — only SQL
+// repositories/team.repository.js — SQL only
 async function getByCompany(companyId) {
   return db.query(
     'SELECT * FROM users WHERE company_id = @companyId ORDER BY first_name',
@@ -155,93 +121,338 @@ async function getByCompany(companyId) {
 }
 ```
 
+### Wrong example
 ```js
-// ❌ WRONG — SQL inside a route
-
+// ❌ SQL inside a route — never do this
 router.get('/', async (req, res) => {
-  // This mixes HTTP handling with database access — do not do this
-  const result = await db.query('SELECT * FROM users WHERE company_id = @id', { id: req.user.companyId })
-  res.json(result)
+  const rows = await db.query('SELECT * FROM users WHERE...')
+  res.json(rows)
 })
 ```
 
 ---
 
-## Frontend architecture — Component hierarchy
+## 3. Error handling
 
-```
-Page                       ← one per route, composes components, fetches data
-  └── Section Component    ← one logical section of a page
-        └── Shared Component ← Button, Card, Badge, Input, etc.
-```
-
-**Before building any new component, check `frontend/src/components/shared/`.
-If a similar component exists there — use it, do not build a new one.**
-
-Decision rule:
-- Will this be used by more than one role or page? → `shared/`
-- Is it specific to manager screens only? → `manager/`
-- Is it specific to the interview flow? → `interview/`
-
----
-
-## CSS rules — no libraries, plain CSS with tokens
-
-```css
-/* CORRECT — uses design tokens from tokens.css */
-.button-primary {
-  background: var(--brand-500);
-  color: var(--fg-on-brand);
-  border-radius: var(--radius-md);
-}
-
-/* WRONG — hardcoded hex color */
-.button-primary {
-  background: #5B4FE9;
-}
-```
-
-The full token set is in `tokens.css` at the project root.
-Every CSS value that is a color, font, spacing, shadow, or radius must use a token.
-
----
-
-## Code style rules — beginner-readable always
+### Backend — never leak internal errors to the frontend
 
 ```js
-// Every function gets a comment above it explaining what it does
-// and what it returns
+// ❌ WRONG — exposes database error details to the user
+res.status(500).json({ error: err.message })
+// err.message might be: "relation 'usres' does not exist" — leaks DB info
 
+// ✅ CORRECT — safe message for user, real error only in server logs
+console.error('getTeam failed:', err)  // logs to server only
+res.status(500).json({ success: false, error: 'Could not load team' })
+```
+
+### Backend — consistent response shape (always the same)
+```js
+// Every success response
+res.json({ success: true, data: result })
+res.status(201).json({ success: true, data: created })
+
+// Every error response
+res.status(400).json({ success: false, error: 'Email is required' })
+res.status(401).json({ success: false, error: 'Not authenticated' })
+res.status(403).json({ success: false, error: 'Not authorized' })
+res.status(404).json({ success: false, error: 'Not found' })
+res.status(500).json({ success: false, error: 'Something went wrong' })
+// Note: 500 errors NEVER include technical details
+```
+
+### Frontend — always handle errors from API calls
+```js
+// ❌ WRONG — crashes if the API fails
+const data = await api.getTeam()
+setMembers(data)
+
+// ✅ CORRECT — always wrap in try/catch, always set error state
+async function loadTeam() {
+  setLoading(true)
+  setError(null)
+  try {
+    const res = await fetch('/api/team', {
+      headers: { 'Authorization': `Bearer ${token}` }
+    })
+    if (!res.ok) throw new Error('Failed to load team')
+    const data = await res.json()
+    setMembers(data.data)
+  } catch (err) {
+    // Show a message the user can understand — not a technical error
+    setError('Could not load team members. Please try again.')
+  } finally {
+    setLoading(false)
+  }
+}
+```
+
+### Frontend — handle 401 (expired JWT) on every API call
+```js
+// frontend/src/services/api.js
+// Centralise ALL API calls here so 401 handling is in one place
+
+async function request(endpoint, options = {}) {
+  const token = localStorage.getItem('accessToken')
+
+  const response = await fetch(`${import.meta.env.VITE_API_URL}${endpoint}`, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      // Attach JWT if we have one
+      ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+      ...options.headers,
+    },
+    // Always send cookies (for refresh token)
+    credentials: 'include',
+  })
+
+  // JWT expired — redirect to login
+  if (response.status === 401) {
+    localStorage.removeItem('accessToken')
+    window.location.href = '/login'
+    return
+  }
+
+  // Any other error — throw so the calling component can catch it
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}))
+    throw new Error(err.error || 'Request failed')
+  }
+
+  return response.json()
+}
+
+// All API functions use this one request helper
+export const getTeam = () => request('/api/team')
+export const scheduleInterview = (data) => request('/api/schedule', {
+  method: 'POST',
+  body: JSON.stringify(data)
+})
+```
+
+### Never swallow errors silently
+```js
+// ❌ WRONG — error disappears, no one knows it happened
+try {
+  await doSomething()
+} catch (err) {
+  // nothing here — bug becomes invisible
+}
+
+// ✅ CORRECT — always at least log it
+try {
+  await doSomething()
+} catch (err) {
+  console.error('doSomething failed:', err)
+  // and show user a message if they need to know
+  setError('Something went wrong. Please try again.')
+}
+```
+
+---
+
+## 4. Security rules
+
+### Passwords and tokens — never log them, never send them
+```js
+// ❌ WRONG
+console.log('User logged in:', user)        // logs the password hash
+console.log('Token:', token)                // logs a valid JWT
+
+// ✅ CORRECT — log only what you need to debug
+console.log('User logged in:', user.email)
+console.log('Token issued for user:', user.id)
+```
+
+### Always validate input before using it
+```js
+// ❌ WRONG — trusts whatever the frontend sends
+router.post('/schedule', async (req, res) => {
+  const interview = await interviewService.create(req.body)
+  res.json({ success: true, data: interview })
+})
+
+// ✅ CORRECT — check required fields first
+router.post('/schedule', async (req, res) => {
+  const { candidateId, type, difficulty } = req.body
+
+  // Validate required fields — return 400 if anything is missing
+  if (!candidateId) return res.status(400).json({ success: false, error: 'candidateId is required' })
+  if (!type) return res.status(400).json({ success: false, error: 'type is required' })
+  if (!difficulty) return res.status(400).json({ success: false, error: 'difficulty is required' })
+
+  const interview = await interviewService.create(req.body)
+  res.json({ success: true, data: interview })
+})
+```
+
+### JWT must not contain sensitive data
+```js
+// ❌ WRONG — password hash in the token (even hashed, don't do this)
+const token = jwt.sign({ id: user.id, email: user.email, password: user.password }, secret)
+
+// ✅ CORRECT — only what is needed for auth decisions
+const token = jwt.sign(
+  { id: user.id, role: user.role, companyId: user.company_id },
+  process.env.JWT_SECRET,
+  { expiresIn: '15m' }
+)
+```
+
+### Always use parameterized queries — never concatenate SQL
+```js
+// ❌ WRONG — SQL injection vulnerability
+const rows = await db.query(`SELECT * FROM users WHERE email = '${email}'`)
+
+// ✅ CORRECT — parameterized, safe
+const rows = await db.query('SELECT * FROM users WHERE email = @email', { email })
+```
+
+### Environment variables — never hardcode secrets
+```js
+// ❌ WRONG
+const secret = 'my_jwt_secret_123'
+const apiKey = 'gsk_abc123xyz'
+
+// ✅ CORRECT — always from environment
+const secret = process.env.JWT_SECRET
+const apiKey = process.env.GROQ_API_KEY
+```
+
+---
+
+## 5. Database rules
+
+### Never call the database in a loop (N+1 query problem)
+```js
+// ❌ WRONG — runs one query per candidate = 100 queries for 100 candidates
+const candidates = await candidateRepository.getAll()
+for (const candidate of candidates) {
+  candidate.latestReport = await reportRepository.getLatest(candidate.id) // N extra queries
+}
+
+// ✅ CORRECT — one query that gets everything
+const candidatesWithReports = await candidateRepository.getAllWithLatestReport()
+// SQL: SELECT c.*, r.overall_score FROM candidates c LEFT JOIN reports r ON ...
+```
+
+### Keep SQL readable — one query per function, no clever one-liners
+```js
+// ❌ WRONG — impossible to read and debug
+const r = await db.query(`SELECT u.*,d.name dn FROM users u JOIN departments d ON u.department_id=d.id WHERE u.company_id=@c AND u.status='active' ORDER BY u.first_name`, {c: id})
+
+// ✅ CORRECT — formatted SQL, obvious what it does
+const rows = await db.query(
+  `SELECT
+     u.id,
+     u.first_name,
+     u.last_name,
+     u.email,
+     u.role,
+     d.name AS department_name
+   FROM users u
+   LEFT JOIN departments d ON u.department_id = d.id
+   WHERE u.company_id = @companyId
+     AND u.status = 'active'
+   ORDER BY u.first_name`,
+  { companyId }
+)
+```
+
+---
+
+## 6. CSS rules
+
+### Always use design tokens — never hardcode values
+```css
+/* ❌ WRONG */
+.button { background: #5B4FE9; border-radius: 8px; }
+
+/* ✅ CORRECT */
+.button { background: var(--brand-500); border-radius: var(--radius-md); }
+```
+
+Tokens are in `tokens.css` at the project root. Every color, font, spacing, and shadow has a token.
+
+---
+
+## 7. Code style rules
+
+### Every function gets a JSDoc comment
+```js
 /**
  * Get all active team members for a company
- * @param {number} companyId - the company ID from the JWT
- * @returns {Promise<Array>} - array of user rows from the database
+ * @param {number} companyId - the company ID from the logged-in user's JWT
+ * @returns {Promise<Array>} - array of user objects, sorted by first name
  */
 async function getTeam(companyId) {
-  // Get members from repository — only active ones (deleted = null)
   const members = await teamRepository.getByCompany(companyId)
-
-  // Sort by first name so the list is always alphabetical
   return members.sort((a, b) => a.first_name.localeCompare(b.first_name))
 }
 ```
 
-Rules:
-- `const` and `let` always — never `var`
-- `async/await` always — never `.then().catch()`
-- One file per component or service
-- Max ~150 lines per file — split if longer
-- Comments explain WHY, not just WHAT the code does
-- Every component: loading state, error state, empty state
+### Component structure — always this order
+```jsx
+function ComponentName({ prop1, prop2 }) {
+  // 1. State — always at the top
+  const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState(null)
+
+  // 2. Effects
+  useEffect(() => { loadData() }, [])
+
+  // 3. Handlers
+  async function loadData() { ... }
+  function handleClick() { ... }
+
+  // 4. Early returns for special states
+  if (loading) return <div className="loading">Loading...</div>
+  if (error) return <div className="error">{error}</div>
+  if (!data) return <div className="empty">Nothing here yet</div>
+
+  // 5. Main render — always last
+  return ( <div>...</div> )
+}
+```
+
+### console.log rules
+```js
+// ✅ Keep during development — but mark so you remember to remove
+console.log('DEBUG:', data)  // remove before committing
+
+// ✅ Keep permanently — server-side error logging
+console.error('getTeam failed:', err)
+
+// ❌ Remove before committing — debug logs in production slow the app
+console.log('user:', user)
+console.log('response:', response)
+```
+
+**Before every git commit:** search for `console.log` and remove the ones that are not error logging.
 
 ---
 
-## When to add a new library (checklist)
+## 8. Definition of done
 
-Before running `npm install anything`, answer all of these:
+A feature is NOT done until every item on this list is checked.
 
-- [ ] Can I do this with `fetch` + 20 lines of code? If yes → write it
-- [ ] Is this package maintained (last commit < 6 months ago)? If no → do not use
-- [ ] Does it have zero or few dependencies itself? If it pulls in 50 packages → do not use
-- [ ] Does it solve a problem that genuinely cannot be solved in a day? If no → write it
-- [ ] Is it listed in the approved list above? If no → discuss before installing
+### Backend endpoint checklist
+- [ ] Input validated — required fields checked, 400 returned if missing
+- [ ] Auth checked — JWT validated, role checked if needed
+- [ ] SQL is parameterized — no string concatenation
+- [ ] Error logged on server — `console.error` in catch block
+- [ ] User-safe error returned — no internal error details in response
+- [ ] Consistent response shape — `{ success: true, data: ... }`
+- [ ] Tested with REST Client / Postman — happy path + error cases
+
+### Frontend component checklist
+- [ ] Loading state — spinner or skeleton shown while fetching
+- [ ] Error state — readable message shown if API call fails
+- [ ] Empty state — message shown if data array is empty
+- [ ] All functions have JSDoc comments
+- [ ] Under 150 lines — split if longer
+- [ ] No hardcoded colors — all use CSS variables
+- [ ] Works on page refresh — not just on navigation
+- [ ] Mobile responsive (or shows blocker if desktop-only intentionally)

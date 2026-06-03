@@ -1,7 +1,24 @@
-# CLAUDE.md — Screeno
+# CLAUDE.md
 
-> Auto-loaded every Claude Code session. Under 200 lines. See `docs/INDEX.md` for links to all other files.
-> Read BRAIN.md first. It shows what is built, what is in progress, and which files are involved.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+> Auto-loaded every Claude Code session. See `docs/INDEX.md` for links to all other files.
+> Read BRAIN.md first — it shows what is built, what is in progress, and which files are involved.
+
+---
+
+## Dev commands
+
+```bash
+# Frontend — Vite dev server at http://localhost:5173
+cd frontend && npm run dev
+cd frontend && npm run build
+cd frontend && npm run lint
+
+# Backend — Express on port 4000
+cd backend && node server.js           # one-shot
+cd backend && npx nodemon server.js    # auto-reload on file change
+```
 
 ---
 ## What this project is
@@ -15,7 +32,7 @@ AI interview platform. Managers schedule AI voice interviews and exams for team 
 ## Tech stack
 
 ```
-Frontend    React 18 (JSX only — no TypeScript), React Router v6, Axios, CSS + tokens.css
+Frontend    React 19 (JSX only — no TypeScript), React Router v6, Axios, CSS + tokens.css
 Backend     Node.js 20 + Express (single service)
 Database    Supabase (PostgreSQL) — current. SQL Server (SSMS) — future option.
             Two DB connection files exist — switch via DB_TYPE env var.
@@ -40,6 +57,16 @@ Package:  pg (node-postgres)
 ```
 
 Full connection setup: `.claude/skills/db-access.md`
+
+---
+
+## Build state
+
+The backend `src/` folder does not exist yet — only `backend/package.json` is in place.
+
+The frontend Vite scaffold is the default welcome page (`App.jsx` is placeholder). The real implementation has not started.
+
+**Prototype files** — `frontend/src/screens/` and `frontend/src/pages/` contain v2 prototype screens (e.g. `v2-manager.jsx`, `v2-candidate.jsx`). These use inline styles and `window.V2` globals. Use them as **visual and behavioral reference only** — do not extend or copy them. Build the real implementation from scratch using the component architecture below and `tokens.css` for all styling.
 
 ---
 

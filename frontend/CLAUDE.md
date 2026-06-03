@@ -6,7 +6,7 @@
 
 ## Frontend stack
 
-- React 18 with JSX (no TypeScript, no `.tsx` files)
+- React 19 with JSX (no TypeScript, no `.tsx` files)
 - Plain CSS with design tokens from `tokens.css`
 - React Router v6 for navigation
 - Axios for API calls
@@ -179,7 +179,7 @@ All API calls go through `src/services/api.js`. Never call `fetch` or `axios` di
 import axios from 'axios'
 
 const client = axios.create({
-  baseURL: process.env.REACT_APP_API_URL,
+  baseURL: import.meta.env.VITE_API_URL,  // Vite: env vars must be prefixed VITE_
   withCredentials: true, // sends HttpOnly cookie for refresh token
 })
 

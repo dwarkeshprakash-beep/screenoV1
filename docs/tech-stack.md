@@ -8,7 +8,7 @@ Why each technology was chosen and what was considered.
 
 | Technology | Why chosen |
 |---|---|
-| **React 18 + JSX** | Most widely used, huge community, easy to find help. JSX (not TypeScript) for beginner-friendly readability. |
+| **React 19 + JSX** | Most widely used, huge community, easy to find help. JSX (not TypeScript) for beginner-friendly readability. |
 | **React Router v6** | Standard routing, built-in protected routes, clean nested layout support |
 | **Axios** | Cleaner API calls than raw fetch, automatic JSON parsing, easy interceptors for auth |
 | **CSS Variables (tokens.css)** | Design tokens already defined, consistent theming, no extra library needed |

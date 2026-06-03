@@ -1,121 +1,113 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
+// frontend/src/App.jsx
+// Root router — all routes for manager, candidate, and interviewer flows.
 
+import { Routes, Route, Navigate } from 'react-router-dom'
+
+// Layouts
+import AppLayout from './components/layout/AppLayout'
+import CandidateLayout from './components/layout/CandidateLayout'
+
+// Auth
+import LoginPage from './pages/auth/LoginPage'
+
+// Manager pages
+import DashboardPage from './pages/manager/DashboardPage'
+import TeamPage from './pages/manager/TeamPage'
+import MemberProfilePage from './pages/manager/MemberProfilePage'
+import SchedulePage from './pages/manager/SchedulePage'
+import ReportsPage from './pages/manager/ReportsPage'
+import TemplatesPage from './pages/manager/TemplatesPage'
+import ManagerProfilePage from './pages/manager/ManagerProfilePage'
+
+// Candidate pages
+import InterviewLandingPage from './pages/candidate/InterviewLandingPage'
+import DeviceCheckPage from './pages/candidate/DeviceCheckPage'
+import ConsentPage from './pages/candidate/ConsentPage'
+import AIInterviewPage from './pages/candidate/AIInterviewPage'
+import ExamPage from './pages/candidate/ExamPage'
+import DonePage from './pages/candidate/DonePage'
+import CandidateDashboardPage from './pages/candidate/CandidateDashboardPage'
+
+// Interviewer pages
+import InterviewerDashboard from './pages/interviewer/InterviewerDashboard'
+import LiveRoomPage from './pages/interviewer/LiveRoomPage'
+import ScorecardPage from './pages/interviewer/ScorecardPage'
+
+// ── Guard: redirect to /login if no token ────────────────────
+function RequireAuth({ children, role }) {
+  const token = localStorage.getItem('accessToken')
+  if (!token) return <Navigate to="/login" replace />
+
+  if (role) {
+    try {
+      const user = JSON.parse(localStorage.getItem('user') || '{}')
+      if (user.role && user.role !== role) return <Navigate to="/login" replace />
+    } catch {
+      return <Navigate to="/login" replace />
+    }
+  }
+
+  return children
+}
+
+// ── App routes ───────────────────────────────────────────────
 function App() {
-  const [count, setCount] = useState(0)
-
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+    <Routes>
+      {/* Public */}
+      <Route path="/login" element={<LoginPage />} />
 
-      <div className="ticks"></div>
+      {/* Manager — sidebar layout, auth required */}
+      <Route
+        path="/manager"
+        element={<RequireAuth role="manager"><AppLayout role="manager" /></RequireAuth>}
+      >
+        <Route index element={<Navigate to="dashboard" replace />} />
+        <Route path="dashboard"    element={<DashboardPage />} />
+        <Route path="team"         element={<TeamPage />} />
+        <Route path="team/:id"     element={<MemberProfilePage />} />
+        <Route path="schedule"     element={<SchedulePage />} />
+        <Route path="reports"      element={<ReportsPage />} />
+        <Route path="templates"    element={<TemplatesPage />} />
+        <Route path="profile"      element={<ManagerProfilePage />} />
+      </Route>
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
+      {/* Candidate dashboard (logged-in candidates) */}
+      <Route
+        path="/candidate/dashboard"
+        element={<RequireAuth role="candidate"><CandidateDashboardPage /></RequireAuth>}
+      />
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+      {/* Interviewer — sidebar layout, auth required */}
+      <Route
+        path="/interviewer"
+        element={<RequireAuth role="interviewer"><AppLayout role="interviewer" /></RequireAuth>}
+      >
+        <Route index element={<Navigate to="dashboard" replace />} />
+        <Route path="dashboard"        element={<InterviewerDashboard />} />
+        <Route path="scorecard/:id"    element={<ScorecardPage />} />
+      </Route>
+
+      {/* Interviewer live room — full screen, no sidebar */}
+      <Route
+        path="/interviewer/live/:id"
+        element={<RequireAuth role="interviewer"><LiveRoomPage /></RequireAuth>}
+      />
+
+      {/* Candidate interview flow — no auth needed (magic link validates on landing) */}
+      <Route path="/interview/:token" element={<CandidateLayout />}>
+        <Route index                   element={<InterviewLandingPage />} />
+        <Route path="device-check"     element={<DeviceCheckPage />} />
+        <Route path="consent"          element={<ConsentPage />} />
+        <Route path="ai"               element={<AIInterviewPage />} />
+        <Route path="exam"             element={<ExamPage />} />
+        <Route path="done"             element={<DonePage />} />
+      </Route>
+
+      {/* Root redirect */}
+      <Route path="/" element={<Navigate to="/login" replace />} />
+      <Route path="*" element={<Navigate to="/login" replace />} />
+    </Routes>
   )
 }
 
