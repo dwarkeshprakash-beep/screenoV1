@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 48" width="200" height="48" role="img" aria-label="Screeno">
+  <defs>
+    <linearGradient id="screenoMark" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#5B4FE9"></stop>
+      <stop offset="100%" stop-color="#4A3FCE"></stop>
+    </linearGradient>
+  </defs>
+  
+  <g transform="translate(4, 8)">
+    <rect x="0" y="0" width="32" height="32" rx="8" fill="url(#screenoMark)"></rect>
+    <rect x="7" y="9" width="18" height="4" rx="2" fill="#FFFFFF" opacity="0.95"></rect>
+    <rect x="7" y="19" width="18" height="4" rx="2" fill="#FFFFFF" opacity="0.65"></rect>
+    <circle cx="22" cy="11" r="1.2" fill="#5B4FE9"></circle>
+  </g>
+  
+  <text x="46" y="32" font-family="Inter, ui-sans-serif, system-ui, sans-serif" font-size="22" font-weight="700" letter-spacing="-0.02em" fill="#0F172A">Screeno</text>
+</svg>

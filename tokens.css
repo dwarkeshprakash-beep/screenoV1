@@ -1,0 +1,307 @@
+/* ============================================================
+   Screeno Design System — Color & Type Tokens
+   ============================================================ */
+
+/* ----------  Fonts  ----------
+   Inter is self-hosted from /fonts/. The brand uses Inter's optical-size variants:
+   - "Inter"          → 18pt files, for default UI text (≤24px)
+   - "Inter Display"  → 28pt files, for large headings / display (≥24px)
+   JetBrains Mono is loaded from Google Fonts (no self-hosted files provided). */
+
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap");
+@font-face { font-family: "Inter Display"; font-style: normal; font-weight: 400 800; src: local("Inter"); }
+
+/* Inter — 18pt (default UI family) */
+/* Inter Display — 28pt (large headlines, display scale ≥24px) */
+/* Global defaults */
+html, body {
+  font-family: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+code, kbd, pre, samp, .ds-code {
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+:root {
+  /* -----------------------------------------------------------
+     COLOR — Brand
+     ----------------------------------------------------------- */
+  --brand-50:  #EFEDFD;
+  --brand-100: #DEDAFB;
+  --brand-200: #BDB4F6;
+  --brand-300: #9C8FF2;
+  --brand-400: #7B69ED;
+  --brand-500: #5B4FE9;   /* Primary brand */
+  --brand-600: #4A3FCE;
+  --brand-700: #3A31A3;
+  --brand-800: #2A2378;
+  --brand-900: #1A164D;
+
+  /* COLOR — Semantic */
+  --danger-50:   #FFEDE6;
+  --danger-100:  #FFD4C2;
+  --danger-500:  #FF5C35;   /* Reject / errors */
+  --danger-600:  #E0451F;
+  --danger-700:  #B53618;
+
+  --success-50:  #ECFDF5;
+  --success-100: #D1FAE5;
+  --success-500: #059669;   /* Pass / completed */
+  --success-600: #047857;
+  --success-700: #065F46;
+
+  --warning-50:  #FFFBEB;
+  --warning-100: #FEF3C7;
+  --warning-500: #D97706;   /* Pending / maybe */
+  --warning-600: #B45309;
+  --warning-700: #92400E;
+
+  --info-50:     #EFF6FF;
+  --info-500:    #2563EB;
+  --info-600:    #1D4ED8;
+
+  /* COLOR — Neutrals (slate) */
+  --slate-50:  #F8FAFC;
+  --slate-100: #F1F5F9;
+  --slate-200: #E2E8F0;
+  --slate-300: #CBD5E1;
+  --slate-400: #94A3B8;
+  --slate-500: #6B7280;
+  --slate-600: #4B5563;
+  --slate-700: #374151;
+  --slate-800: #1F2937;
+  --slate-900: #0F172A;
+
+  /* COLOR — Surfaces */
+  --bg-page:        #F8FAFC;
+  --bg-surface:     #FFFFFF;
+  --bg-surface-alt: #F1F5F9;
+  --bg-sidebar:     #0F172A;
+  --bg-overlay:     rgba(15, 23, 42, 0.5);
+
+  /* COLOR — Borders */
+  --border-default: #E2E8F0;
+  --border-strong:  #CBD5E1;
+  --border-focus:   #5B4FE9;
+  --border-sidebar: #1E293B;
+
+  /* COLOR — Text */
+  --fg-primary:   #0F172A;
+  --fg-body:      #374151;
+  --fg-muted:     #6B7280;
+  --fg-subtle:    #94A3B8;
+  --fg-on-brand:  #FFFFFF;
+  --fg-on-dark:   #FFFFFF;
+  --fg-on-dark-muted: #94A3B8;
+  --fg-link:      #5B4FE9;
+
+  /* COLOR — Status pills (candidate pipeline) */
+  --status-applied-bg:  #EFF6FF;
+  --status-applied-fg:  #1D4ED8;
+  --status-screen-bg:   #F3F0FF;
+  --status-screen-fg:   #4A3FCE;
+  --status-interview-bg:#FFFBEB;
+  --status-interview-fg:#B45309;
+  --status-offer-bg:    #ECFDF5;
+  --status-offer-fg:    #047857;
+  --status-rejected-bg: #FFEDE6;
+  --status-rejected-fg: #B53618;
+
+  /* -----------------------------------------------------------
+     TYPE — Family
+     ----------------------------------------------------------- */
+  --font-sans:    "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-display: "Inter Display", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono:    "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* TYPE — Weight */
+  --fw-regular: 400;
+  --fw-medium:  500;
+  --fw-semibold:600;
+  --fw-bold:    700;
+
+  /* TYPE — Size scale */
+  --fs-xs:   12px;
+  --fs-sm:   13px;
+  --fs-base: 14px;
+  --fs-md:   15px;
+  --fs-lg:   16px;
+  --fs-xl:   18px;
+  --fs-2xl:  20px;
+  --fs-3xl:  24px;
+  --fs-4xl:  30px;
+  --fs-5xl:  36px;
+  --fs-6xl:  48px;
+
+  /* TYPE — Line height */
+  --lh-tight:   1.15;
+  --lh-snug:    1.3;
+  --lh-normal:  1.5;
+  --lh-relaxed: 1.65;
+
+  /* TYPE — Letter spacing */
+  --tracking-tight:  -0.02em;
+  --tracking-normal: 0;
+  --tracking-wide:   0.04em;
+  --tracking-caps:   0.08em;
+
+  /* -----------------------------------------------------------
+     SPACING (4px base)
+     ----------------------------------------------------------- */
+  --space-0:  0;
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  20px;
+  --space-6:  24px;
+  --space-8:  32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-20: 80px;
+
+  /* RADIUS */
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+  --radius-full: 9999px;
+
+  /* SHADOWS — soft, layered */
+  --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-sm: 0 1px 3px rgba(15, 23, 42, 0.06), 0 1px 2px rgba(15, 23, 42, 0.04);
+  --shadow-md: 0 4px 12px rgba(15, 23, 42, 0.06), 0 2px 4px rgba(15, 23, 42, 0.04);
+  --shadow-lg: 0 12px 32px rgba(15, 23, 42, 0.08), 0 4px 8px rgba(15, 23, 42, 0.04);
+  --shadow-xl: 0 24px 48px rgba(15, 23, 42, 0.12);
+  --shadow-focus: 0 0 0 3px rgba(91, 79, 233, 0.18);
+  --shadow-focus-danger: 0 0 0 3px rgba(255, 92, 53, 0.18);
+
+  /* MOTION */
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-emphasized: cubic-bezier(0.3, 0, 0, 1);
+  --dur-fast: 120ms;
+  --dur-base: 180ms;
+  --dur-slow: 280ms;
+}
+
+/* ============================================================
+   SEMANTIC TYPE — apply via class names
+   ============================================================ */
+
+.ds-display {
+  font-family: var(--font-display);
+  font-size: var(--fs-6xl);
+  line-height: var(--lh-tight);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--tracking-tight);
+  color: var(--fg-primary);
+}
+
+.ds-h1 {
+  font-family: var(--font-display);
+  font-size: var(--fs-4xl);
+  line-height: var(--lh-tight);
+  font-weight: var(--fw-bold);
+  letter-spacing: var(--tracking-tight);
+  color: var(--fg-primary);
+}
+
+.ds-h2 {
+  font-family: var(--font-display);
+  font-size: var(--fs-3xl);
+  line-height: var(--lh-snug);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--tracking-tight);
+  color: var(--fg-primary);
+}
+
+.ds-h3 {
+  font-family: var(--font-sans);
+  font-size: var(--fs-xl);
+  line-height: var(--lh-snug);
+  font-weight: var(--fw-semibold);
+  color: var(--fg-primary);
+}
+
+.ds-h4 {
+  font-family: var(--font-sans);
+  font-size: var(--fs-lg);
+  line-height: var(--lh-snug);
+  font-weight: var(--fw-semibold);
+  color: var(--fg-primary);
+}
+
+.ds-body {
+  font-family: var(--font-sans);
+  font-size: var(--fs-base);
+  line-height: var(--lh-relaxed);
+  font-weight: var(--fw-regular);
+  color: var(--fg-body);
+}
+
+.ds-body-lg {
+  font-family: var(--font-sans);
+  font-size: var(--fs-lg);
+  line-height: var(--lh-relaxed);
+  color: var(--fg-body);
+}
+
+.ds-small {
+  font-family: var(--font-sans);
+  font-size: var(--fs-sm);
+  line-height: var(--lh-normal);
+  color: var(--fg-muted);
+}
+
+.ds-caption {
+  font-family: var(--font-sans);
+  font-size: var(--fs-xs);
+  line-height: var(--lh-normal);
+  color: var(--fg-muted);
+}
+
+.ds-eyebrow {
+  font-family: var(--font-sans);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-semibold);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  color: var(--fg-muted);
+}
+
+.ds-label {
+  font-family: var(--font-sans);
+  font-size: var(--fs-sm);
+  font-weight: var(--fw-medium);
+  color: var(--fg-primary);
+}
+
+.ds-code,
+code,
+kbd {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  background: var(--slate-100);
+  color: var(--slate-800);
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-default);
+}
+
+.ds-link {
+  color: var(--fg-link);
+  text-decoration: none;
+  font-weight: var(--fw-medium);
+}
+.ds-link:hover { text-decoration: underline; }
+
+/* Base reset for previews */
+.ds-reset, .ds-reset * { box-sizing: border-box; }
+.ds-reset {
+  font-family: var(--font-sans);
+  color: var(--fg-body);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}

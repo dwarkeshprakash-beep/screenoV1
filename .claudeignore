@@ -1,0 +1,70 @@
+# Claude Code ignores everything in this file
+# These files and folders will NOT be read into context
+
+# Dependencies (large, Claude doesn't need to read these)
+node_modules/
+.pnp/
+
+# Build output (not source code)
+build/
+dist/
+out/
+.next/
+
+# Cache
+.turbo/
+.cache/
+*.tsbuildinfo
+
+# Lock files (large, low signal for Claude)
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Environment files (never share secrets with Claude)
+.env
+.env.local
+.env.production
+.env.*.local
+
+# Binary and media files
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.svg
+*.ico
+*.woff
+*.woff2
+*.ttf
+*.mp4
+*.webm
+*.mp3
+*.wav
+*.pdf
+
+# Logs
+*.log
+logs/
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test output
+coverage/
+test-results/
+
+# SQL Server
+*.mdf
+*.ldf
+*.bak
+
+# The v2 prototype files (reference only, not production code)
+# Remove this line once prototype is fully ported
+frontend/src/v2/
+
+# Large migration files (reference database-schema.md instead)
+# Comment this out when actively working on migrations
+# backend/migrations/
