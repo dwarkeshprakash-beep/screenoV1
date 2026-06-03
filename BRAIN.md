@@ -50,15 +50,18 @@ Last updated: 2026-06-03
 - [x] Scorecard form
 
 ## Active feature (what is being built RIGHT NOW)
-Feature: Phase 1 complete — all screens + all APIs built.
+Feature: End-to-end testing complete. Ready for Phase 2.
 
-**Before testing end-to-end:**
-1. Run Supabase migrations (if not done): `docs/database-schema.md`
-2. Run migration `backend/migrations/002_notes_csv.sql` in Supabase SQL Editor
-3. Run migration `backend/migrations/003_exam_questions.sql` in Supabase SQL Editor
-4. For SQL Server: run `002_notes_csv_sqlserver.sql` + `003_exam_questions_sqlserver.sql` in SSMS
-5. Set real `LIVEKIT_URL` in `backend/.env` (from app.livekit.io)
-6. Test auth flow → team CRUD → candidate interview → exam → reports
+**Phase 2 tasks:**
+1. AI question generation — real LLM call (Groq → Gemini fallback) for AI voice interviews
+2. Email test — send a real magic link email via Resend
+3. Report PDF generation — generate PDF report and upload to Cloudinary
+4. Frontend integration test — log in through the UI, create team member, schedule, take exam
+
+## Test credentials (Supabase)
+- Manager login: `manager@psspl.com` / `Test@1234`
+- Company: PSSPL (id=1)
+- DB aligned via `backend/setup-db.js` (safe to re-run)
 
 ## Key decisions made
 - DB: Supabase (PostgreSQL) active, SQL Server ready (DB_TYPE=sqlserver to switch)
@@ -157,6 +160,24 @@ backend/migrations/003_exam_questions_sqlserver.sql ← SSMS: same
 4. Test auth flow end-to-end
 
 ## Handoff prompts (latest at top)
+
+### 2026-06-03 — End-to-end testing complete
+All backend APIs tested and passing (22 endpoints). Three bugs found and fixed:
+
+**Bugs fixed:**
+- `candidate.repository.js` — `CASE WHEN @resume_url IS NOT NULL` needed `::text` cast (PostgreSQL type inference error)
+- `candidate.repository.js` — `create()` now uses `ON CONFLICT DO UPDATE SET deleted=NULL` to reactivate soft-deleted records
+- `interview.repository.js` — INSERT now includes `scheduled_by` (NOT NULL column from HRMS schema)
+- `interview.repository.js` — added `getByCandidate(candidateId)` function
+- `candidate.routes.js` — fixed `GET /api/candidate/interviews` placeholder that used `getByCompany(0)`
+
+**DB alignment done (run `node backend/setup-db.js` — idempotent):**
+- Created: `companies`, `templates`, `candidate_notes` tables
+- Added columns: `users.company_id`, `users.deleted`, `refresh_tokens.revoked`, all missing interview/candidate/report columns
+- Seeded: PSSPL company (id=1), test manager user (see credentials above)
+- Made `users.emp_number` nullable (so Screeno users without emp numbers can be inserted)
+
+**Next:** Phase 2 — AI question generation, email send, report PDF, frontend UI test.
 
 ### 2026-06-03 — Phase 1 feature gaps filled
 All missing Phase 1 features implemented. Build passes (948KB, includes LiveKit).

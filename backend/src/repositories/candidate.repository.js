@@ -61,11 +61,19 @@ async function getById(id) {
  * @returns {Promise<Object>}
  */
 async function create(data) {
+  // ON CONFLICT reactivates a soft-deleted record for the same company+email
   const rows = await db.query(
     `INSERT INTO candidates
        (company_id, manager_id, first_name, last_name, email, phone, type, source)
      VALUES
        (@company_id, @manager_id, @first_name, @last_name, @email, @phone, @type, @source)
+     ON CONFLICT (company_id, email)
+     DO UPDATE SET
+       deleted     = NULL,
+       first_name  = EXCLUDED.first_name,
+       last_name   = EXCLUDED.last_name,
+       phone       = EXCLUDED.phone,
+       manager_id  = EXCLUDED.manager_id
      RETURNING *`,
     {
       company_id: data.companyId,
@@ -97,7 +105,7 @@ async function update(id, data) {
        phone        = COALESCE(@phone, phone),
        resume_url   = COALESCE(@resume_url, resume_url),
        resume_text  = COALESCE(@resume_text, resume_text),
-       resume_updated = CASE WHEN @resume_url IS NOT NULL THEN NOW() ELSE resume_updated END
+       resume_updated = CASE WHEN @resume_url::text IS NOT NULL THEN NOW() ELSE resume_updated END
      WHERE id = @id AND deleted IS NULL
      RETURNING *`,
     {
