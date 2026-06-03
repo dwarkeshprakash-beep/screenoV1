@@ -1,0 +1,10 @@
+{
+  "env": {
+    "PATH": "C:\\Users\\dwarkesh.vajjala\\AppData\\Local\\Programs\\Git\\cmd;C:\\Users\\dwarkesh.vajjala\\AppData\\Local\\Programs\\Git\\bin;$PATH"
+  },
+  "permissions": {
+    "allow": [
+      "Bash(git *)"
+    ]
+  }
+}
