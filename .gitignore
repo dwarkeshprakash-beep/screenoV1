@@ -1,0 +1,42 @@
+# Dependencies — never commit these
+node_modules/
+.pnp/
+
+# Environment files — NEVER commit real .env files
+.env
+.env.local
+.env.production
+.env.*.local
+# Keep .env.example — that one is safe to commit
+
+# Build output
+frontend/build/
+frontend/dist/
+backend/dist/
+
+# Logs
+*.log
+npm-debug.log*
+logs/
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editor
+.vscode/settings.json
+.idea/
+*.suo
+*.user
+
+# SQL Server data files
+*.mdf
+*.ldf
+*.bak
+
+# Test output
+coverage/
+
+# Vite cache
+frontend/.vite/
