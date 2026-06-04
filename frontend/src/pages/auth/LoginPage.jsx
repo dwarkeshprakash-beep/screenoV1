@@ -28,8 +28,8 @@ function ScreenoLogo({ size = 44 }) {
 }
 
 const DEMO_ACCOUNTS = [
-  { label: 'Kiran Patel', sub: 'Manager · Acme Corp', badge: 'manager',     initials: 'KP', color: '#5B4FE9', email: 'kiran@acmecorp.com',  password: 'demo123' },
-  { label: 'Anand Rao',   sub: 'Tech Interviewer · Acme', badge: 'interviewer', initials: 'AR', color: '#2563EB', email: 'anand@acmecorp.com',  password: 'demo123' },
+  { label: 'Kiran Oza',       sub: 'Manager · Prakash Infotech',       badge: 'manager',     initials: 'KO', color: '#5B4FE9', email: 'kiran.oza@prakashinfotech.com',       password: 'Admin@1234' },
+  { label: 'Dwarkesh Vajjala', sub: 'Tech Interviewer · Prakash Infotech', badge: 'interviewer', initials: 'DV', color: '#2563EB', email: 'dwarkesh.vajjala@prakashinfotech.com', password: 'Admin@1234' },
 ]
 
 function DemoButton({ account, onSelect }) {

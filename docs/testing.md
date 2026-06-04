@@ -26,11 +26,15 @@ curl http://localhost:4000/health
 
 **Test credentials (Supabase)**
 
-| Role    | Email                | Password   |
-|---------|----------------------|------------|
-| Manager | manager@psspl.com    | Test@1234  |
+| Role        | Name              | Email                                      | Password     |
+|-------------|-------------------|--------------------------------------------|--------------|
+| Manager     | Kiran Oza         | kiran.oza@prakashinfotech.com              | Admin@1234   |
+| Interviewer | Dwarkesh Vajjala  | dwarkesh.vajjala@prakashinfotech.com       | Admin@1234   |
+| Candidate   | Raj Rathod        | raj.rathod@prakashinfotech.com             | magic link   |
 
-**Test candidate:** created via Schedule Interview on any team member.
+**Note:** `manager@psspl.com / Test@1234` is the original dev seed account — still works.
+
+**Test candidate:** Raj Rathod is in the `candidates` table. Manager schedules an interview → Raj gets a magic link email. Open the link to start the interview.
 
 ---
 
