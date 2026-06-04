@@ -40,3 +40,9 @@ coverage/
 
 # Vite cache
 frontend/.vite/
+# Playwright test artifacts
+ss-*.png
+screenshot-*.png
+vite-log.txt
+vite-err.txt
+

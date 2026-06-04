@@ -50,13 +50,19 @@ Last updated: 2026-06-03
 - [x] Scorecard form
 
 ## Active feature (what is being built RIGHT NOW)
-Feature: End-to-end testing complete. Ready for Phase 2.
+Feature: Phase 2 in progress.
 
 **Phase 2 tasks:**
-1. AI question generation — real LLM call (Groq → Gemini fallback) for AI voice interviews
-2. Email test — send a real magic link email via Resend
-3. Report PDF generation — generate PDF report and upload to Cloudinary
-4. Frontend integration test — log in through the UI, create team member, schedule, take exam
+1. [ ] AI question generation — real LLM call (Groq → Gemini fallback) for AI voice interviews
+2. [ ] Email test — send a real magic link email via Resend
+3. [ ] Report PDF generation — generate PDF report and upload to Cloudinary
+4. [x] Frontend integration test — PASSED (2026-06-04, Playwright + Chromium, 16/16 checks)
+
+**Frontend test findings (2026-06-04):**
+- Login → dashboard → team CRUD → schedule modal → candidate landing → device check — all pass
+- `InterviewLandingPage.jsx:39` overwrites `localStorage.accessToken` with candidate session token.
+  Not a production bug (different browsers per role) but breaks same-browser multi-role testing.
+- Profile endpoint (`GET /api/profile`) works correctly with a fresh manager JWT.
 
 ## Test credentials (Supabase)
 - Manager login: `manager@psspl.com` / `Test@1234`
