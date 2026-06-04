@@ -12,18 +12,21 @@ const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000'
  */
 async function request(endpoint, options = {}) {
   const token = localStorage.getItem('accessToken')
+  const { skipAuthRedirect, ...fetchOptions } = options
 
   const response = await fetch(`${BASE_URL}${endpoint}`, {
-    ...options,
+    ...fetchOptions,
     headers: {
       'Content-Type': 'application/json',
       ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-      ...options.headers,
+      ...fetchOptions.headers,
     },
     credentials: 'include',
   })
 
-  if (response.status === 401) {
+  // 401 on auth endpoints (login) = wrong credentials — let the caller handle it
+  // 401 on any other endpoint = session expired — redirect to login
+  if (response.status === 401 && !skipAuthRedirect) {
     localStorage.removeItem('accessToken')
     localStorage.removeItem('user')
     window.location.href = '/login'
@@ -40,7 +43,7 @@ async function request(endpoint, options = {}) {
 
 // ── AUTH ──────────────────────────────────────────────────────
 export const login = (email, password) =>
-  request('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) })
+  request('/api/auth/login', { method: 'POST', body: JSON.stringify({ email, password }), skipAuthRedirect: true })
 
 export const logout = () =>
   request('/api/auth/logout', { method: 'POST' })
