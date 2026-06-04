@@ -1,28 +1,26 @@
 import { useNavigate, useLocation } from 'react-router-dom'
-import { LayoutDashboard, Users, Share2, LayoutTemplate, ScanSearch, Calendar, BarChart3, LogOut, Settings } from 'lucide-react'
-import * as api from '../../services/api'
+import { LayoutDashboard, Users, LayoutTemplate, ScanSearch, Calendar, BarChart3, Settings, BookOpen, Video, CheckSquare } from 'lucide-react'
 
 const MANAGER_NAV = [
   {
     section: 'TEAM',
     items: [
-      { to: '/manager/dashboard', icon: LayoutDashboard, label: 'Team Overview' },
-      { to: '/manager/team',      icon: Users,           label: 'My Team' },
-      { to: '#',                  icon: Share2,          label: 'Referrals' },
+      { to: '/manager/dashboard',       icon: LayoutDashboard, label: 'Team Overview' },
+      { to: '/manager/team',            icon: Users,           label: 'My Team' },
     ],
   },
   {
     section: 'TOOLS',
     items: [
-      { to: '/manager/templates', icon: LayoutTemplate, label: 'Templates' },
-      { to: '/manager/reports',   icon: ScanSearch,     label: 'Resume Analyzer' },
+      { to: '/manager/templates',       icon: LayoutTemplate,  label: 'Templates' },
+      { to: '/manager/resume-analyzer', icon: ScanSearch,      label: 'Resume Analyzer' },
     ],
   },
   {
     section: 'SHARED',
     items: [
-      { to: '/manager/schedule', icon: Calendar,  label: 'Schedule' },
-      { to: '/manager/reports',  icon: BarChart3, label: 'Reports' },
+      { to: '/manager/schedule',        icon: Calendar,        label: 'Schedule' },
+      { to: '/manager/reports',         icon: BarChart3,       label: 'Reports' },
     ],
   },
 ]
@@ -31,47 +29,29 @@ const IV_NAV = [
   {
     section: 'INTERVIEWS',
     items: [
-      { to: '/interviewer/dashboard', icon: LayoutDashboard, label: 'My Dashboard' },
+      { to: '/interviewer/dashboard',   icon: LayoutDashboard, label: 'My Dashboard' },
+      { to: '#',                        icon: BookOpen,        label: 'Interview Prep' },
+      { to: '#',                        icon: Video,           label: 'Live Room' },
+      { to: '#',                        icon: CheckSquare,     label: 'Scorecard' },
     ],
   },
 ]
-
-const sectionHeaderStyle = {
-  fontSize: 10,
-  fontWeight: 600,
-  letterSpacing: '0.1em',
-  textTransform: 'uppercase',
-  color: '#475569',
-  padding: '14px 10px 6px',
-}
 
 function getInitials(name) {
   if (!name) return '?'
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase()
 }
 
-function Sidebar({ role = 'manager' }) {
-  const navigate = useNavigate()
-  const location = useLocation()
+function Sidebar({ role = 'manager', onLogout }) {
+  const navigate  = useNavigate()
+  const location  = useLocation()
   const nav = role === 'manager' ? MANAGER_NAV : IV_NAV
 
   let user = {}
-  try {
-    const stored = localStorage.getItem('user')
-    if (stored) user = JSON.parse(stored)
-  } catch {}
+  try { const s = localStorage.getItem('user'); if (s) user = JSON.parse(s) } catch {}
 
-  const userName = user.first_name && user.last_name
-    ? `${user.first_name} ${user.last_name}`
-    : user.name || user.email || 'User'
+  const userName = [user.first_name, user.last_name].filter(Boolean).join(' ') || user.name || user.email || 'User'
   const userRole = role === 'manager' ? 'Manager' : 'Interviewer'
-
-  async function handleLogout() {
-    try { await api.logout() } catch {}
-    localStorage.removeItem('accessToken')
-    localStorage.removeItem('user')
-    navigate('/login')
-  }
 
   return (
     <aside style={{
@@ -81,35 +61,34 @@ function Sidebar({ role = 'manager' }) {
       display: 'flex',
       flexDirection: 'column',
       position: 'sticky',
-      top: 0,
-      height: '100vh',
+      top: 76,
+      height: 'calc(100vh - 76px)',
       borderRight: '1px solid #1E293B',
       flexShrink: 0,
     }}>
       <div style={{ flex: 1, padding: '8px 10px', overflowY: 'auto' }}>
         {nav.map((sec, si) => (
           <div key={si}>
-            <div style={sectionHeaderStyle}>{sec.section}</div>
+            <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#475569', padding: '14px 10px 6px' }}>
+              {sec.section}
+            </div>
             {sec.items.map(({ to, icon: Icon, label }) => {
-              const isActive = to !== '#' && location.pathname === to
+              const isActive = to !== '#' && (location.pathname === to || (to.length > 10 && location.pathname.startsWith(to)))
               return (
                 <div
                   key={to + label}
                   onClick={() => to !== '#' && navigate(to)}
                   style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 10,
-                    padding: '9px 12px',
-                    borderRadius: 7,
-                    fontSize: 13,
-                    fontWeight: 500,
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '9px 12px', borderRadius: 7,
+                    fontSize: 13, fontWeight: 500,
                     color: isActive ? '#FFF' : '#94A3B8',
                     background: isActive ? '#5B4FE9' : 'transparent',
                     cursor: to !== '#' ? 'pointer' : 'default',
                     marginBottom: 2,
                     boxShadow: isActive ? '0 4px 12px rgba(91,79,233,0.3)' : 'none',
                     transition: 'all 120ms cubic-bezier(0.2,0,0,1)',
+                    opacity: to === '#' ? 0.45 : 1,
                   }}
                   onMouseEnter={e => {
                     if (!isActive && to !== '#') {
@@ -133,38 +112,19 @@ function Sidebar({ role = 'manager' }) {
         ))}
       </div>
 
+      {/* User footer */}
       <div
-        onClick={() => navigate(role === 'manager' ? '/manager/profile' : '#')}
+        onClick={() => role === 'manager' && navigate('/manager/profile')}
         style={{
-          padding: '12px 14px',
-          borderTop: '1px solid #1E293B',
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          flexShrink: 0,
+          padding: '12px 14px', borderTop: '1px solid #1E293B',
+          display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0,
           cursor: role === 'manager' ? 'pointer' : 'default',
           transition: 'background 120ms',
         }}
-        onMouseEnter={e => {
-          if (role === 'manager') e.currentTarget.style.background = 'rgba(255,255,255,0.05)'
-        }}
-        onMouseLeave={e => {
-          e.currentTarget.style.background = 'transparent'
-        }}
+        onMouseEnter={e => { if (role === 'manager') e.currentTarget.style.background = 'rgba(255,255,255,0.05)' }}
+        onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
       >
-        <div style={{
-          width: 36,
-          height: 36,
-          borderRadius: 9999,
-          background: '#5B4FE9',
-          color: '#FFF',
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          fontWeight: 700,
-          fontSize: 13,
-          flexShrink: 0,
-        }}>
+        <div style={{ width: 36, height: 36, borderRadius: 9999, background: '#5B4FE9', color: '#FFF', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 13, flexShrink: 0 }}>
           {getInitials(userName)}
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
@@ -173,36 +133,6 @@ function Sidebar({ role = 'manager' }) {
         </div>
         <Settings size={13} color="#64748B" />
       </div>
-
-      <button
-        onClick={handleLogout}
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 10,
-          padding: '10px 14px',
-          margin: '0 10px 10px',
-          borderRadius: 7,
-          fontSize: 13,
-          fontWeight: 500,
-          color: '#94A3B8',
-          background: 'transparent',
-          border: 'none',
-          cursor: 'pointer',
-          transition: 'background 120ms',
-        }}
-        onMouseEnter={e => {
-          e.currentTarget.style.background = 'rgba(255,255,255,0.06)'
-          e.currentTarget.style.color = '#FFF'
-        }}
-        onMouseLeave={e => {
-          e.currentTarget.style.background = 'transparent'
-          e.currentTarget.style.color = '#94A3B8'
-        }}
-      >
-        <LogOut size={15} />
-        Logout
-      </button>
     </aside>
   )
 }

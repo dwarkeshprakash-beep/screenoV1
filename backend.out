@@ -1,0 +1,4 @@
+◇ injected env (25) from .env // tip: ⌘ override existing { override: true }
+◇ injected env (0) from .env // tip: ⌘ suppress logs { quiet: true }
+[db] Connected to: Supabase (PostgreSQL)
+[server] Running on http://localhost:4000

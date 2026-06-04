@@ -18,6 +18,7 @@ import SchedulePage from './pages/manager/SchedulePage'
 import ReportsPage from './pages/manager/ReportsPage'
 import TemplatesPage from './pages/manager/TemplatesPage'
 import ManagerProfilePage from './pages/manager/ManagerProfilePage'
+import ResumeAnalyzerPage from './pages/manager/ResumeAnalyzerPage'
 
 // Candidate pages
 import InterviewLandingPage from './pages/candidate/InterviewLandingPage'
@@ -68,8 +69,9 @@ function App() {
         <Route path="team/:id"     element={<MemberProfilePage />} />
         <Route path="schedule"     element={<SchedulePage />} />
         <Route path="reports"      element={<ReportsPage />} />
-        <Route path="templates"    element={<TemplatesPage />} />
-        <Route path="profile"      element={<ManagerProfilePage />} />
+        <Route path="templates"         element={<TemplatesPage />} />
+        <Route path="resume-analyzer"   element={<ResumeAnalyzerPage />} />
+        <Route path="profile"           element={<ManagerProfilePage />} />
       </Route>
 
       {/* Candidate dashboard (logged-in candidates) */}
