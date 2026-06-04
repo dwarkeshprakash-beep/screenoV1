@@ -60,6 +60,14 @@ function MemberProfilePage() {
   const [newNote, setNewNote]       = useState('')
   const [saving, setSaving]         = useState(false)
 
+  // Transcript tab state
+  const [transcript, setTranscript]         = useState(null)
+  const [transcriptLoading, setTranscriptLoading] = useState(false)
+
+  // Exam tab state
+  const [examResults, setExamResults]     = useState(null)
+  const [examLoading, setExamLoading]     = useState(false)
+
   useEffect(() => { load() }, [id])
 
   // Fetch notes when Notes tab is active
@@ -67,6 +75,36 @@ function MemberProfilePage() {
     if (tab !== 4) return
     setNotesLoading(true)
     api.getMemberNotes(id).then(r => setNotes(r.data)).catch(() => {}).finally(() => setNotesLoading(false))
+  }, [tab, id])
+
+  // Fetch transcript when Transcript tab is active
+  useEffect(() => {
+    if (tab !== 2 || transcript !== null) return
+    setTranscriptLoading(true)
+    api.getMemberInterviews(id)
+      .then(r => {
+        const aiInterview = (r.data || []).find(i => i.type === 'ai_voice' && i.status === 'completed')
+        if (!aiInterview) { setTranscript([]); return }
+        return api.getInterviewTranscript(aiInterview.id)
+      })
+      .then(r => { if (r) setTranscript(r.data || []) })
+      .catch(() => setTranscript([]))
+      .finally(() => setTranscriptLoading(false))
+  }, [tab, id])
+
+  // Fetch exam results when Exam tab is active
+  useEffect(() => {
+    if (tab !== 3 || examResults !== null) return
+    setExamLoading(true)
+    api.getMemberInterviews(id)
+      .then(r => {
+        const exam = (r.data || []).find(i => i.type === 'exam' && i.status === 'completed')
+        if (!exam) { setExamResults([]); return }
+        return api.getInterviewTranscript(exam.id)
+      })
+      .then(r => { if (r) setExamResults(r.data || []) })
+      .catch(() => setExamResults([]))
+      .finally(() => setExamLoading(false))
   }, [tab, id])
 
   async function load() {
@@ -229,15 +267,66 @@ function MemberProfilePage() {
                   <p style={{ fontSize: 13, color: 'var(--fg-body)', lineHeight: 1.6, margin: 0 }}>{report.summary}</p>
                 </div>
               )}
+              {report.pdf_url && (
+                <div style={{ marginTop: 20 }}>
+                  <a
+                    href={report.pdf_url}
+                    download
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', background: 'var(--brand-500)', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}
+                  >
+                    <Download size={13} /> Download Report PDF
+                  </a>
+                </div>
+              )}
             </div>
           ) : <EmptyState message="No report available yet. Schedule an interview to generate one." />
         )}
 
         {/* Transcript */}
-        {tab === 2 && <EmptyState message="No transcript available. Interview must be completed first." />}
+        {tab === 2 && (
+          transcriptLoading ? <Spinner /> :
+          !transcript || transcript.length === 0 ? (
+            <EmptyState message="No transcript available. An AI interview must be completed first." />
+          ) : (
+            <div style={{ maxWidth: 700 }}>
+              <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 16 }}>Interview Transcript</div>
+              {transcript.map((qa, i) => (
+                <div key={i} style={{ marginBottom: 20, paddingBottom: 20, borderBottom: i < transcript.length - 1 ? '1px solid var(--border-default)' : 'none' }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--brand-600)', marginBottom: 6 }}>
+                    Q{i + 1}: {qa.question}
+                  </div>
+                  <div style={{ fontSize: 14, color: 'var(--fg-body)', lineHeight: 1.6, padding: '10px 14px', background: 'var(--bg-surface-alt)', borderRadius: 8 }}>
+                    {qa.answer_text || <span style={{ color: 'var(--fg-muted)', fontStyle: 'italic' }}>No answer recorded.</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
+        )}
 
         {/* Exam */}
-        {tab === 3 && <EmptyState message="No exam results yet." />}
+        {tab === 3 && (
+          examLoading ? <Spinner /> :
+          !examResults || examResults.length === 0 ? (
+            <EmptyState message="No exam results yet. An exam must be completed first." />
+          ) : (
+            <div style={{ maxWidth: 700 }}>
+              <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 16 }}>Exam Results</div>
+              {examResults.map((qa, i) => (
+                <div key={i} style={{ marginBottom: 16, padding: '14px 16px', border: '1px solid var(--border-default)', borderRadius: 8, background: 'var(--bg-surface-alt)' }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8 }}>
+                    Q{i + 1}: {qa.question}
+                  </div>
+                  <div style={{ fontSize: 13, color: 'var(--fg-muted)' }}>
+                    Answer: <span style={{ color: 'var(--fg-body)', fontWeight: 500 }}>{qa.answer_text || '—'}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
+        )}
 
         {/* Notes */}
         {tab === 4 && (

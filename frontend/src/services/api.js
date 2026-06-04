@@ -57,6 +57,7 @@ export const getTeamStats = () => request('/api/team/stats')
 export const getTeamActivity = () => request('/api/team/activity')
 export const getMember = (id) => request(`/api/team/member/${id}`)
 export const getMemberNotes = (id) => request(`/api/team/member/${id}/notes`)
+export const getMemberInterviews = (id) => request(`/api/team/member/${id}/interviews`)
 export const addMemberNote = (id, note) => request(`/api/team/member/${id}/notes`, { method: 'POST', body: JSON.stringify({ note }) })
 export const addMember = (data) => request('/api/team/member', { method: 'POST', body: JSON.stringify(data) })
 export const updateMember = (id, data) => request(`/api/team/member/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
@@ -74,6 +75,8 @@ export const getAvailableSlots = (token) => request(`/api/schedule/slots/${token
 // ── TEMPLATES ────────────────────────────────────────────────
 export const getTemplates = () => request('/api/templates')
 export const createTemplate = (data) => request('/api/templates', { method: 'POST', body: JSON.stringify(data) })
+export const updateTemplate = (id, data) => request(`/api/templates/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
+export const deleteTemplate = (id) => request(`/api/templates/${id}`, { method: 'DELETE' })
 
 // ── REPORTS ───────────────────────────────────────────────────
 export const getTeamReports = () => request('/api/reports/team')
@@ -109,6 +112,7 @@ export const saveAnswer = (id, formData) => {
 
 // ── CANDIDATE ─────────────────────────────────────────────────
 export const getCandidateInterviews = () => request('/api/candidate/interviews')
+export const getCandidateOwnReport = () => request('/api/candidate/report')
 
 // ── INTERVIEWER ───────────────────────────────────────────────
 export const getInterviewerSchedule = (date) =>

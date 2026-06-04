@@ -5,6 +5,7 @@ const express = require('express')
 const authMiddleware = require('../middleware/auth')
 const requireRole = require('../middleware/role')
 const teamService = require('../services/team.service')
+const interviewRepository = require('../repositories/interview.repository')
 
 const router = express.Router()
 
@@ -96,6 +97,17 @@ router.delete('/member/:id', async (req, res) => {
   } catch (err) {
     console.error('DELETE /team/member/:id failed:', err)
     res.status(500).json({ success: false, error: 'Could not remove member' })
+  }
+})
+
+// GET /api/team/member/:id/interviews — all interviews for a candidate
+router.get('/member/:id/interviews', async (req, res) => {
+  try {
+    const interviews = await interviewRepository.getByCandidate(parseInt(req.params.id, 10))
+    res.json({ success: true, data: interviews })
+  } catch (err) {
+    console.error('GET /team/member/:id/interviews failed:', err)
+    res.status(500).json({ success: false, error: 'Could not load interviews' })
   }
 })
 

@@ -2,7 +2,7 @@
 // Team reports — list with score bars and view buttons.
 
 import { useState, useEffect } from 'react'
-import { Search } from 'lucide-react'
+import { Search, Download } from 'lucide-react'
 import Spinner from '../../components/shared/Spinner'
 import ErrorMessage from '../../components/shared/ErrorMessage'
 import EmptyState from '../../components/shared/EmptyState'
@@ -128,6 +128,19 @@ function ReportsPage() {
               <div>
                 <div style={{ fontWeight: 600, marginBottom: 8 }}>Summary</div>
                 <p style={{ fontSize: 13, color: 'var(--fg-body)', lineHeight: 1.6, margin: 0 }}>{viewReport.summary}</p>
+              </div>
+            )}
+            {viewReport.pdf_url && (
+              <div style={{ marginTop: 16 }}>
+                <a
+                  href={viewReport.pdf_url}
+                  download
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', background: 'var(--brand-500)', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}
+                >
+                  <Download size={13} /> Download Report PDF
+                </a>
               </div>
             )}
           </div>

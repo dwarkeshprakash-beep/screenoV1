@@ -83,6 +83,7 @@ async function getTeamReports(companyId) {
        r.communication,
        r.summary,
        r.strengths,
+       r.pdf_url,
        r.created AS report_date
      FROM candidates c
      LEFT JOIN reports r ON r.candidate_id = c.id AND r.status = 'ready'

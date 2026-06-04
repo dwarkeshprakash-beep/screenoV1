@@ -5,6 +5,8 @@ const express = require('express')
 const authMiddleware = require('../middleware/auth')
 const upload = require('../middleware/upload')
 const interviewService = require('../services/interview.service')
+const attemptRepository = require('../repositories/attempt.repository')
+const answerRepository = require('../repositories/answer.repository')
 
 const router = express.Router()
 
@@ -78,6 +80,20 @@ router.post('/:id/proctoring', async (req, res) => {
   } catch (err) {
     console.error('POST /interviews/:id/proctoring failed:', err)
     res.status(500).json({ success: false, error: 'Could not log proctoring event' })
+  }
+})
+
+// GET /api/interviews/:id/transcript — Q&A for the latest completed attempt
+router.get('/:id/transcript', async (req, res) => {
+  try {
+    const interviewId = parseInt(req.params.id, 10)
+    const attempt = await attemptRepository.getLatest(interviewId)
+    if (!attempt) return res.json({ success: true, data: [] })
+    const qa = await answerRepository.getAllForAttempt(attempt.id)
+    res.json({ success: true, data: qa })
+  } catch (err) {
+    console.error('GET /interviews/:id/transcript failed:', err)
+    res.status(500).json({ success: false, error: 'Could not load transcript' })
   }
 })
 

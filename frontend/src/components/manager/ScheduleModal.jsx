@@ -1,7 +1,7 @@
 // components/manager/ScheduleModal.jsx
 // 4-step modal to schedule an AI interview.
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Modal from '../shared/Modal'
 import Button from '../shared/Button'
 import * as api from '../../services/api'
@@ -62,14 +62,19 @@ const label = (text) => (
  * 4-step schedule modal.
  * @param {boolean} open
  * @param {Function} onClose
- * @param {Object|null} member - pre-selected member (or null for bulk)
+ * @param {Object|null} member - pre-selected member (or null for bulk or template use)
  * @param {Array} selectedIds - for bulk schedule
+ * @param {Object|null} template - pre-fills form when opened from TemplatesPage
  * @param {Function} onDone
  */
-function ScheduleModal({ open, onClose, member, selectedIds = [], onDone }) {
+function ScheduleModal({ open, onClose, member, selectedIds = [], template, onDone }) {
   const [step, setStep]     = useState(1)
   const [loading, setLoading] = useState(false)
   const [error, setError]   = useState(null)
+
+  // Member picker — used when opened from TemplatesPage with no pre-selected member
+  const [teamList, setTeamList]     = useState([])
+  const [pickedMember, setPickedMember] = useState(null)
 
   const [form, setForm] = useState({
     mode: 'internal_monthly',
@@ -84,12 +89,36 @@ function ScheduleModal({ open, onClose, member, selectedIds = [], onDone }) {
     difficulty: 'medium',
   })
 
+  // Pre-fill form from template when modal opens
+  useEffect(() => {
+    if (!open) return
+    if (template) {
+      setForm(f => ({
+        ...f,
+        maxAttempts: template.attempts || 3,
+        focusAreas: template.description || '',
+      }))
+    }
+    // Load team for member picker if no member pre-selected
+    if (!member && selectedIds.length === 0) {
+      api.getTeam().then(r => setTeamList(r.data || [])).catch(() => {})
+    }
+  }, [open])
+
   const set = (key, val) => setForm(f => ({ ...f, [key]: val }))
+
+  // Resolved member: pre-selected prop or picked from dropdown
+  const resolvedMember = member || pickedMember
 
   async function handleSubmit() {
     setLoading(true)
     setError(null)
-    const ids = member ? [member.id] : selectedIds
+    const ids = resolvedMember ? [resolvedMember.id] : selectedIds
+    if (!ids.length) {
+      setError('Please select a team member.')
+      setLoading(false)
+      return
+    }
     try {
       await Promise.all(ids.map(candidateId =>
         api.createSchedule({ ...form, candidateId, type: 'ai_voice' })
@@ -106,6 +135,7 @@ function ScheduleModal({ open, onClose, member, selectedIds = [], onDone }) {
   function handleClose() {
     setStep(1)
     setError(null)
+    setPickedMember(null)
     onClose()
   }
 
@@ -220,6 +250,25 @@ function ScheduleModal({ open, onClose, member, selectedIds = [], onDone }) {
       {/* Step 4: Confirm */}
       {step === 4 && (
         <div>
+          {/* Member picker — only shown when no member was pre-selected */}
+          {!member && selectedIds.length === 0 && (
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Send to *</label>
+              <select
+                style={{ ...fieldStyle, marginBottom: 0 }}
+                value={pickedMember ? pickedMember.id : ''}
+                onChange={e => {
+                  const m = teamList.find(t => t.id === parseInt(e.target.value, 10))
+                  setPickedMember(m || null)
+                }}
+              >
+                <option value="">Select a team member…</option>
+                {teamList.map(m => (
+                  <option key={m.id} value={m.id}>{m.first_name} {m.last_name} ({m.email})</option>
+                ))}
+              </select>
+            </div>
+          )}
           <div style={{ background: 'var(--bg-surface-alt)', borderRadius: 10, padding: 16, marginBottom: 16, fontSize: 13 }}>
             <div style={{ fontWeight: 600, marginBottom: 10 }}>Interview Summary</div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, color: 'var(--fg-body)' }}>
@@ -232,7 +281,11 @@ function ScheduleModal({ open, onClose, member, selectedIds = [], onDone }) {
             </div>
           </div>
           <div style={{ fontSize: 13, color: 'var(--fg-muted)', marginBottom: 16 }}>
-            {member ? `Sending to: ${member.first_name} ${member.last_name} (${member.email})` : `Sending to ${selectedIds.length} selected member${selectedIds.length !== 1 ? 's' : ''}`}
+            {resolvedMember
+              ? `Sending to: ${resolvedMember.first_name} ${resolvedMember.last_name} (${resolvedMember.email})`
+              : selectedIds.length > 0
+                ? `Sending to ${selectedIds.length} selected member${selectedIds.length !== 1 ? 's' : ''}`
+                : 'No member selected — please select one above.'}
           </div>
           {error && <p style={{ color: 'var(--danger-500)', fontSize: 13, marginBottom: 12 }}>{error}</p>}
         </div>

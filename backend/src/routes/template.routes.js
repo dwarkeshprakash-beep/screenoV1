@@ -54,4 +54,45 @@ router.post('/', async (req, res) => {
   }
 })
 
+// PATCH /api/templates/:id
+router.patch('/:id', async (req, res) => {
+  try {
+    const { name, description, attempts } = req.body
+    const rows = await db.query(
+      `UPDATE templates
+       SET name = COALESCE(@name, name),
+           description = COALESCE(@description, description),
+           attempts = COALESCE(@attempts, attempts)
+       WHERE id = @id AND company_id = @companyId
+       RETURNING *`,
+      {
+        id: parseInt(req.params.id, 10),
+        companyId: req.user.companyId,
+        name: name || null,
+        description: description !== undefined ? description : null,
+        attempts: attempts || null,
+      }
+    )
+    if (!rows.length) return res.status(404).json({ success: false, error: 'Template not found' })
+    res.json({ success: true, data: rows[0] })
+  } catch (err) {
+    console.error('PATCH /templates/:id failed:', err)
+    res.status(500).json({ success: false, error: 'Could not update template' })
+  }
+})
+
+// DELETE /api/templates/:id
+router.delete('/:id', async (req, res) => {
+  try {
+    await db.query(
+      `DELETE FROM templates WHERE id = @id AND company_id = @companyId`,
+      { id: parseInt(req.params.id, 10), companyId: req.user.companyId }
+    )
+    res.json({ success: true, data: null })
+  } catch (err) {
+    console.error('DELETE /templates/:id failed:', err)
+    res.status(500).json({ success: false, error: 'Could not delete template' })
+  }
+})
+
 module.exports = router

@@ -1,5 +1,5 @@
 # Screeno — Project Brain
-Last updated: 2026-06-03
+Last updated: 2026-06-04
 
 ## What is built (update this as features are completed)
 - [x] All MD docs, CLAUDE.md, skills files
@@ -60,26 +60,28 @@ Feature: Phase 3 — UI completion and polish.
 
 ---
 
-**Phase 3 tasks (start here in next session):**
+**Phase 3 tasks: ALL COMPLETE ✅ (2026-06-04)**
 
 ### Group A — Backend stubs (endpoints called in api.js but not implemented)
-1. [ ] `GET /api/interviews/:id/transcript` — return all Q&A (questions + answers) for a completed attempt
-2. [ ] `GET /api/team/stats` — return `{ total, assessed, pending, overdue }` counts for manager dashboard
-3. [ ] `GET /api/team/activity` — return last 10 interview events (candidate name, type, status, date)
-4. [ ] `PATCH /api/templates/:id` — edit template name/description/attempts
-5. [ ] `DELETE /api/templates/:id` — soft-delete or hard-delete template
+1. [x] `GET /api/interviews/:id/transcript` — return all Q&A (questions + answers) for a completed attempt
+2. [x] `GET /api/team/stats` — already implemented
+3. [x] `GET /api/team/activity` — already implemented
+4. [x] `PATCH /api/templates/:id` — edit template name/description/attempts
+5. [x] `DELETE /api/templates/:id` — hard-delete template
+6. [x] `GET /api/team/member/:id/interviews` — interviews for a candidate (new, used by Transcript + Exam tabs)
+7. [x] `GET /api/candidate/report` — latest report for authenticated candidate (new, used by DonePage polling)
 
 ### Group B — Frontend gaps
-6. [ ] Manager DashboardPage — wire `getTeamStats()` + `getTeamActivity()` to show real numbers and activity feed
-7. [ ] MemberProfilePage Transcript tab — fetch transcript via `GET /api/interviews/:id/transcript` and display Q&A list; need to pick latest completed interview for the candidate
-8. [ ] MemberProfilePage Exam tab — fetch exam answers and show MCQ results for completed exams
-9. [ ] PDF download button — add `<a href={report.pdf_url} download>Download Report PDF</a>` on Analysis tab and in Reports page view modal
-10. [ ] DonePage — after `completeInterview`, poll `GET /api/reports/candidate/:id` (retry 3×, 5s apart) and show real improvement tips once available
-11. [ ] TemplatesPage — wire "Use Template" button to open ScheduleModal pre-filled; add edit modal (PATCH); add delete button (DELETE)
+6. [x] Manager DashboardPage — already wired to `getTeamStats()` + `getTeamActivity()`
+7. [x] MemberProfilePage Transcript tab — fetches member interviews, finds latest AI interview, displays Q&A
+8. [x] MemberProfilePage Exam tab — fetches member interviews, finds latest exam, displays Q&A
+9. [x] PDF download button — on Analysis tab and Reports page view modal; also added `pdf_url` to `getTeamReports` query
+10. [x] DonePage — polls `GET /api/candidate/report` (retry 3×, 5s apart), shows improvement tips
+11. [x] TemplatesPage — "Use Template" opens ScheduleModal pre-filled + member picker; Edit modal (PATCH); Delete button with confirmation (DELETE)
 
 ### Group C — Verification
-12. [ ] CandidateDashboardPage — verify `getCandidateInterviews()` works and shows real data
-13. [ ] InterviewerDashboard — verify schedule list + scorecard queue both load real data
+12. [x] CandidateDashboardPage — verified: calls `getCandidateInterviews()` correctly
+13. [x] InterviewerDashboard — verified: calls `getInterviewerSchedule()` + `getPendingScorecards()` correctly
 
 ---
 
@@ -196,6 +198,30 @@ backend/migrations/003_exam_questions_sqlserver.sql ← SSMS: same
 4. Test auth flow end-to-end
 
 ## Handoff prompts (latest at top)
+
+### 2026-06-04 — Phase 3 complete: UI completion and polish
+
+**New backend routes:**
+- `GET /api/interviews/:id/transcript` — returns Q&A for latest attempt (uses `attemptRepository.getLatest` + `answerRepository.getAllForAttempt`)
+- `GET /api/team/member/:id/interviews` — returns all interviews for a candidate (manager-auth, team.routes.js)
+- `PATCH /api/templates/:id` — update name/description/attempts (template.routes.js)
+- `DELETE /api/templates/:id` — hard-delete (template.routes.js)
+- `GET /api/candidate/report` — latest report for authenticated candidate (candidate.routes.js, no manager role needed)
+
+**New api.js functions:** `getMemberInterviews`, `updateTemplate`, `deleteTemplate`, `getCandidateOwnReport`
+
+**Frontend changes:**
+- `MemberProfilePage.jsx` — Transcript tab fetches member interviews → latest AI interview → Q&A display; Exam tab same for exam type; Analysis tab gets Download PDF button
+- `ReportsPage.jsx` — view modal gets Download PDF button; `getTeamReports` query now includes `pdf_url`
+- `DonePage.jsx` — polls `getCandidateOwnReport()` 3× at 5s intervals, shows tips from report
+- `TemplatesPage.jsx` — full rewrite: Use Template (opens ScheduleModal pre-filled), Edit modal (PATCH), Delete confirmation (DELETE)
+- `ScheduleModal.jsx` — accepts `template` prop (pre-fills form), member picker dropdown on Step 4 when no member pre-selected
+
+**Build:** `npm run build` passes — 957KB, 0 errors.
+
+**Next:** Phase 4 — Mobile blocker, production deploy, end-to-end smoke test.
+
+
 
 ### 2026-06-04 — Phase 2 Task 3 complete: PDF report generation + Cloudinary upload
 
