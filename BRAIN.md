@@ -50,13 +50,43 @@ Last updated: 2026-06-03
 - [x] Scorecard form
 
 ## Active feature (what is being built RIGHT NOW)
-Feature: Phase 2 in progress.
+Feature: Phase 3 — UI completion and polish.
 
-**Phase 2 tasks:**
-1. [x] AI question generation — real LLM call (Groq → Gemini fallback) for AI voice interviews
-2. [x] Email test — send a real magic link email via Resend
-3. [x] Report PDF generation — generate PDF report and upload to Cloudinary
-4. [x] Frontend integration test — PASSED (2026-06-04, Playwright + Chromium, 16/16 checks)
+**Phase 2 tasks: ALL COMPLETE ✅**
+1. [x] AI question generation — real LLM call (Groq → Gemini fallback)
+2. [x] Email — real magic link via Resend
+3. [x] Report PDF — generated + uploaded to Cloudinary
+4. [x] Frontend integration test — PASSED (2026-06-04, 16/16 checks)
+
+---
+
+**Phase 3 tasks (start here in next session):**
+
+### Group A — Backend stubs (endpoints called in api.js but not implemented)
+1. [ ] `GET /api/interviews/:id/transcript` — return all Q&A (questions + answers) for a completed attempt
+2. [ ] `GET /api/team/stats` — return `{ total, assessed, pending, overdue }` counts for manager dashboard
+3. [ ] `GET /api/team/activity` — return last 10 interview events (candidate name, type, status, date)
+4. [ ] `PATCH /api/templates/:id` — edit template name/description/attempts
+5. [ ] `DELETE /api/templates/:id` — soft-delete or hard-delete template
+
+### Group B — Frontend gaps
+6. [ ] Manager DashboardPage — wire `getTeamStats()` + `getTeamActivity()` to show real numbers and activity feed
+7. [ ] MemberProfilePage Transcript tab — fetch transcript via `GET /api/interviews/:id/transcript` and display Q&A list; need to pick latest completed interview for the candidate
+8. [ ] MemberProfilePage Exam tab — fetch exam answers and show MCQ results for completed exams
+9. [ ] PDF download button — add `<a href={report.pdf_url} download>Download Report PDF</a>` on Analysis tab and in Reports page view modal
+10. [ ] DonePage — after `completeInterview`, poll `GET /api/reports/candidate/:id` (retry 3×, 5s apart) and show real improvement tips once available
+11. [ ] TemplatesPage — wire "Use Template" button to open ScheduleModal pre-filled; add edit modal (PATCH); add delete button (DELETE)
+
+### Group C — Verification
+12. [ ] CandidateDashboardPage — verify `getCandidateInterviews()` works and shows real data
+13. [ ] InterviewerDashboard — verify schedule list + scorecard queue both load real data
+
+---
+
+**Phase 4 tasks (after Phase 3 complete):**
+1. [ ] Mobile blocker — interview pages show "please use a desktop" on screens < 768px (required by PRD)
+2. [ ] Production deploy — frontend to Vercel, backend to Railway/Render, .env secrets configured
+3. [ ] End-to-end smoke test on production URL
 
 **Frontend test findings (2026-06-04):**
 - Login → dashboard → team CRUD → schedule modal → candidate landing → device check — all pass
