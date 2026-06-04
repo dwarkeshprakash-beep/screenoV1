@@ -1,8 +1,11 @@
 // backend/src/services/email.service.js
 // Transactional email via Resend REST API (plain fetch, no SDK).
+// RESEND_FROM env var sets the sender. Use 'onboarding@resend.dev' for dev/testing
+// (no domain verification needed). Switch to 'Screeno <noreply@yourdomain.com>'
+// once the domain is verified in Resend.
 
 const RESEND_API = 'https://api.resend.com/emails'
-const FROM = 'Screeno <noreply@screeno.app>'
+const FROM = process.env.RESEND_FROM || 'onboarding@resend.dev'
 
 /**
  * Send a raw email via Resend.
@@ -10,11 +13,12 @@ const FROM = 'Screeno <noreply@screeno.app>'
  * @returns {Promise<void>}
  */
 async function sendEmail(payload) {
+  const apiKey = (process.env.RESEND_API_KEY || '').trim()
   const response = await fetch(RESEND_API, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
+      'Authorization': `Bearer ${apiKey}`,
     },
     body: JSON.stringify({
       from: FROM,

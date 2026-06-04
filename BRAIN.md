@@ -54,7 +54,7 @@ Feature: Phase 2 in progress.
 
 **Phase 2 tasks:**
 1. [x] AI question generation — real LLM call (Groq → Gemini fallback) for AI voice interviews
-2. [ ] Email test — send a real magic link email via Resend
+2. [x] Email test — send a real magic link email via Resend
 3. [ ] Report PDF generation — generate PDF report and upload to Cloudinary
 4. [x] Frontend integration test — PASSED (2026-06-04, Playwright + Chromium, 16/16 checks)
 
@@ -166,6 +166,21 @@ backend/migrations/003_exam_questions_sqlserver.sql ← SSMS: same
 4. Test auth flow end-to-end
 
 ## Handoff prompts (latest at top)
+
+### 2026-06-04 — Phase 2 Task 2 complete: magic link email via Resend
+
+**Bugs fixed:**
+- `interview.repository.js:getById` — added `LEFT JOIN users u ON u.id = i.manager_id` so `interview.manager_email` is now populated. `generateReport` in `interview.service.js` uses this to notify the manager when a report is ready.
+- `.env` — removed leading space from `RESEND_API_KEY` (same class of bug as GROQ/GEMINI keys).
+- `email.service.js` — added `.trim()` on `RESEND_API_KEY` read (defensive); replaced hardcoded `FROM = 'Screeno <noreply@screeno.app>'` with `process.env.RESEND_FROM || 'onboarding@resend.dev'`.
+
+**Email flow (now functional end-to-end):**
+`POST /api/schedule` → `scheduleService.createSchedule` → `emailService.sendMagicLink(candidate.email, …)` → Resend REST API → candidate inbox.
+
+**Resend domain note:**  
+`RESEND_FROM=onboarding@resend.dev` (set in `.env`) works without domain verification but Resend restricts delivery to the account owner's email in this mode. For full delivery to any candidate email, verify a domain in the Resend dashboard and change `RESEND_FROM` to `Screeno <noreply@yourdomain.com>`.
+
+**Next:** Phase 2 Task 3 — Report PDF generation (generate PDF and upload to Cloudinary).
 
 ### 2026-06-04 — Phase 2 Task 1 complete: AI question generation wired
 `interview.service.js` was already calling `llmService.generateQuestions` — the wiring was in place.

@@ -51,9 +51,12 @@ async function create(data) {
  */
 async function getById(id) {
   const rows = await db.query(
-    `SELECT i.*, c.first_name AS candidate_first, c.last_name AS candidate_last, c.email AS candidate_email
+    `SELECT i.*,
+            c.first_name AS candidate_first, c.last_name AS candidate_last, c.email AS candidate_email,
+            u.email AS manager_email
      FROM interviews i
      LEFT JOIN candidates c ON c.id = i.candidate_id
+     LEFT JOIN users u ON u.id = i.manager_id
      WHERE i.id = @id`,
     { id }
   )
