@@ -25,8 +25,8 @@ const PORT = process.env.PORT || 4000
 
 // ── MIDDLEWARE ────────────────────────────────────────────────
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:5173',
-  credentials: true,          // allow HttpOnly refresh token cookie
+  origin: (origin, cb) => cb(null, true),
+  credentials: true,
 }))
 
 app.use(express.json())
