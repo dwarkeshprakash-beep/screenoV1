@@ -12,7 +12,7 @@ async function callGroq(systemPrompt, userPrompt) {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
+      'Authorization': `Bearer ${(process.env.GROQ_API_KEY || '').trim()}`,
     },
     body: JSON.stringify({
       model: 'llama-3.3-70b-versatile',
@@ -39,7 +39,7 @@ async function callGroq(systemPrompt, userPrompt) {
  * @returns {Promise<string>}
  */
 async function callGemini(prompt) {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${process.env.GEMINI_API_KEY}`
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${(process.env.GEMINI_API_KEY || '').trim()}`
   const response = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

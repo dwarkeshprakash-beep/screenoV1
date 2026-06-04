@@ -53,7 +53,7 @@ Last updated: 2026-06-03
 Feature: Phase 2 in progress.
 
 **Phase 2 tasks:**
-1. [ ] AI question generation — real LLM call (Groq → Gemini fallback) for AI voice interviews
+1. [x] AI question generation — real LLM call (Groq → Gemini fallback) for AI voice interviews
 2. [ ] Email test — send a real magic link email via Resend
 3. [ ] Report PDF generation — generate PDF report and upload to Cloudinary
 4. [x] Frontend integration test — PASSED (2026-06-04, Playwright + Chromium, 16/16 checks)
@@ -166,6 +166,20 @@ backend/migrations/003_exam_questions_sqlserver.sql ← SSMS: same
 4. Test auth flow end-to-end
 
 ## Handoff prompts (latest at top)
+
+### 2026-06-04 — Phase 2 Task 1 complete: AI question generation wired
+`interview.service.js` was already calling `llmService.generateQuestions` — the wiring was in place.
+Two bugs blocking real API calls were fixed:
+
+**Bugs fixed:**
+- `.env` — `GROQ_API_KEY` and `GEMINI_API_KEY` had leading spaces (`= gsk_...`). dotenv preserves whitespace, so `Bearer  gsk_...` (double space) caused 401s on every call. Removed the spaces.
+- `llm.service.js` — added `.trim()` to both env var reads (`GROQ_API_KEY`, `GEMINI_API_KEY`) as a defensive guard.
+- `setup-db.js` — added `candidates.resume_text TEXT` migration (column is in the official schema docs but was missing from the `ALTER TABLE` alignment block).
+
+**Full question generation flow (now functional):**
+`POST /api/interviews/:id/start` → `interview.routes.js` → `interviewService.startInterview` → `llmService.generateQuestions` (Groq Llama 3.3 70B → Gemini 2.0 Flash fallback) → `questionRepository.createMany` → returns `{ interviewId, attemptId, questions, firstQuestion, mode, transcriptionMode }`
+
+**Next:** Phase 2 Task 2 — send real magic link email via Resend. Note: `interview.service.js:generateReport` uses `interview.manager_email` which is undefined — `getById` doesn't join the users table. Fix `interview.repository.js:getById` to include manager email before the email phase.
 
 ### 2026-06-03 — End-to-end testing complete
 All backend APIs tested and passing (22 endpoints). Three bugs found and fixed:

@@ -74,6 +74,7 @@ async function main() {
 
   await run('candidates.company_id column', `ALTER TABLE candidates ADD COLUMN IF NOT EXISTS company_id INT DEFAULT 1`)
   await run('candidates.manager_id column', `ALTER TABLE candidates ADD COLUMN IF NOT EXISTS manager_id INT`)
+  await run('candidates.resume_text column', `ALTER TABLE candidates ADD COLUMN IF NOT EXISTS resume_text TEXT`)
   await run('candidates.resume_updated column', `ALTER TABLE candidates ADD COLUMN IF NOT EXISTS resume_updated TIMESTAMPTZ`)
   await run('candidates.source column', `ALTER TABLE candidates ADD COLUMN IF NOT EXISTS source VARCHAR(50) DEFAULT 'manual'`)
   await run('candidates.status column', `ALTER TABLE candidates ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'active'`)
