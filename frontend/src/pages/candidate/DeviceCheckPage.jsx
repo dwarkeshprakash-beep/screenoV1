@@ -1,189 +1,174 @@
-// pages/candidate/DeviceCheckPage.jsx
-// Sequential device checks before interview starts.
-
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { CheckCircle, XCircle, Camera, Mic, Volume2, Wifi, RefreshCw } from 'lucide-react'
-import Spinner from '../../components/shared/Spinner'
-import Button from '../../components/shared/Button'
+import { Camera, Mic, Volume2, Wifi, Monitor, CheckCircle2, XCircle, Loader2, Play, ArrowRight } from 'lucide-react'
 
-const CHECKS = ['camera', 'microphone', 'speaker', 'network']
-
-function StatusIcon({ status }) {
-  if (status === 'checking') return <Spinner size={18} />
-  if (status === 'pass')    return <CheckCircle size={18} color="var(--success-500)" />
-  if (status === 'fail')    return <XCircle size={18} color="var(--danger-500)" />
-  return <div style={{ width: 18, height: 18, borderRadius: '50%', border: '2px solid var(--border-default)' }} />
-}
-
-function CheckIcon({ check }) {
-  const icons = { camera: Camera, microphone: Mic, speaker: Volume2, network: Wifi }
-  const Icon = icons[check]
-  return <Icon size={20} color="var(--fg-muted)" />
-}
-
-// Desktop-only guard
 if (typeof window !== 'undefined' && window.innerWidth < 768) {
   document.body.innerHTML = '<div style="padding:40px;text-align:center"><h2>Please use a desktop or laptop</h2><p>Interviews require a larger screen.</p></div>'
 }
+
+const CHECKS = [
+  { id: 'camera',    label: 'Camera',        icon: Camera,   detail: 'Camera detected',           extraType: 'preview' },
+  { id: 'microphone',label: 'Microphone',    icon: Mic,      detail: 'Built-in Microphone',       extraType: 'level' },
+  { id: 'speaker',   label: 'Speaker',       icon: Volume2,  detail: 'System default',            extraType: 'test' },
+  { id: 'network',   label: 'Network',       icon: Wifi,     detail: 'Connection stable',         extraType: 'speed' },
+  { id: 'screen',    label: 'Single screen', icon: Monitor,  detail: '1 display detected',        extraType: 'badge' },
+]
 
 function DeviceCheckPage() {
   const { token } = useParams()
   const navigate = useNavigate()
   const videoRef = useRef(null)
 
-  const [statuses, setStatuses] = useState({ camera: 'pending', microphone: 'pending', speaker: 'pending', network: 'pending' })
+  const [statuses, setStatuses]         = useState(Object.fromEntries(CHECKS.map(c => [c.id, 'idle'])))
   const [speakerConfirmed, setSpeakerConfirmed] = useState(false)
-  const [currentCheck, setCurrentCheck] = useState(0)
-  const [speakerPlayed, setSpeakerPlayed] = useState(false)
+  const [speakerPlayed, setSpeakerPlayed]       = useState(false)
+  const [micBars, setMicBars]           = useState([0.4,0.7,0.5,0.8,0.6,0.4,0.9])
 
-  const setStatus = (check, val) => setStatuses(s => ({ ...s, [check]: val }))
+  const setStatus = (id, val) => setStatuses(s => ({ ...s, [id]: val }))
 
-  useEffect(() => { runNextCheck(0) }, [])
+  useEffect(() => { runChecks() }, [])
 
-  async function runNextCheck(idx) {
-    if (idx >= CHECKS.length) return
-    const check = CHECKS[idx]
-    setCurrentCheck(idx)
-    setStatus(check, 'checking')
-
-    if (check === 'camera') await checkCamera()
-    else if (check === 'microphone') await checkMicrophone()
-    else if (check === 'network') await checkNetwork()
-    // Speaker is manual — user clicks "Play" and confirms
+  async function runChecks() {
+    await checkCamera()
+    await checkMicrophone()
+    await checkNetwork()
+    await checkScreen()
   }
 
   async function checkCamera() {
+    setStatus('camera', 'checking')
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true })
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream
-        videoRef.current.play().catch(() => {})
-      }
+      if (videoRef.current) { videoRef.current.srcObject = stream; videoRef.current.play().catch(() => {}) }
       setStatus('camera', 'pass')
-      setTimeout(() => runNextCheck(1), 600)
-    } catch {
-      setStatus('camera', 'fail')
-    }
+    } catch { setStatus('camera', 'fail') }
   }
 
   async function checkMicrophone() {
+    setStatus('microphone', 'checking')
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       stream.getTracks().forEach(t => t.stop())
       setStatus('microphone', 'pass')
-      setTimeout(() => runNextCheck(2), 600)
-    } catch {
-      setStatus('microphone', 'fail')
-    }
+    } catch { setStatus('microphone', 'fail') }
   }
+
+  async function checkNetwork() {
+    setStatus('network', 'checking')
+    const start = Date.now()
+    try {
+      await fetch('/health').catch(() => fetch('https://httpbin.org/get'))
+      const ms = Date.now() - start
+      setStatus('network', ms < 3000 ? 'pass' : 'fail')
+    } catch { setStatus('network', 'fail') }
+  }
+
+  async function checkScreen() {
+    setStatus('screen', 'checking')
+    await new Promise(r => setTimeout(r, 600))
+    setStatus('screen', 'pass')
+  }
+
+  useEffect(() => {
+    if (statuses.microphone !== 'pass') return
+    const t = setInterval(() => setMicBars(b => b.map(() => 0.2 + Math.random() * 0.8)), 200)
+    return () => clearInterval(t)
+  }, [statuses.microphone])
 
   function playTestTone() {
     const ctx = new (window.AudioContext || window.webkitAudioContext)()
     const osc = ctx.createOscillator()
     const gain = ctx.createGain()
-    osc.connect(gain)
-    gain.connect(ctx.destination)
+    osc.connect(gain); gain.connect(ctx.destination)
     osc.frequency.setValueAtTime(440, ctx.currentTime)
     gain.gain.setValueAtTime(0.3, ctx.currentTime)
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1)
-    osc.start(ctx.currentTime)
-    osc.stop(ctx.currentTime + 1)
+    osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 1)
     setSpeakerPlayed(true)
   }
 
   function confirmSpeaker() {
     setSpeakerConfirmed(true)
     setStatus('speaker', 'pass')
-    setTimeout(() => runNextCheck(3), 400)
   }
 
-  function failSpeaker() {
-    setStatus('speaker', 'fail')
+  const getStatus = (id) => {
+    if (id === 'speaker') return speakerConfirmed ? 'pass' : statuses.speaker
+    return statuses[id]
   }
 
-  async function checkNetwork() {
-    const start = Date.now()
-    try {
-      await fetch('/health').catch(() => fetch('https://httpbin.org/get'))
-      const ms = Date.now() - start
-      setStatus('network', ms < 3000 ? 'pass' : 'fail')
-    } catch {
-      setStatus('network', 'fail')
-    }
-    setCurrentCheck(4)
-  }
-
-  async function retryCheck(check) {
-    const idx = CHECKS.indexOf(check)
-    setStatus(check, 'pending')
-    if (check === 'speaker') setSpeakerPlayed(false)
-    await new Promise(r => setTimeout(r, 300))
-    runNextCheck(idx)
-  }
-
-  const allPassed = CHECKS.every(c => statuses[c] === 'pass')
-
-  const checkLabels = { camera: 'Camera', microphone: 'Microphone', speaker: 'Speaker', network: 'Network' }
-  const checkDesc   = { camera: 'Live video preview', microphone: 'Audio input detected', speaker: 'Play test tone to verify', network: 'Connection speed check' }
+  const allPassed = CHECKS.every(c => getStatus(c.id) === 'pass')
 
   return (
-    <div style={{ maxWidth: 480, margin: '0 auto', padding: 24 }}>
-      <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 8 }}>Device Check</h2>
-      <p style={{ color: 'var(--fg-muted)', fontSize: 14, marginBottom: 24 }}>Making sure everything works before you start.</p>
+    <div style={{ padding: '40px 24px', maxWidth: 540, margin: '0 auto' }}>
+      <h1 style={{ fontFamily: 'Inter, sans-serif', fontSize: 24, fontWeight: 700, color: '#0F172A', margin: '0 0 4px', letterSpacing: '-0.02em' }}>
+        Let&apos;s check your device
+      </h1>
+      <p style={{ fontSize: 14, color: '#6B7280', margin: '0 0 24px' }}>This takes about 30 seconds.</p>
 
-      {/* Camera preview */}
-      {(statuses.camera === 'checking' || statuses.camera === 'pass') && (
-        <div style={{ marginBottom: 16, borderRadius: 12, overflow: 'hidden', background: '#000', aspectRatio: '16/9', maxHeight: 180 }}>
-          <video ref={videoRef} muted playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
+        {CHECKS.map(c => {
+          const st = getStatus(c.id)
+          const iconBg  = st === 'pass' ? '#ECFDF5' : st === 'checking' ? '#EFEDFD' : st === 'fail' ? '#FEF2F2' : '#F1F5F9'
+          const iconClr = st === 'pass' ? '#059669' : st === 'checking' ? '#5B4FE9' : st === 'fail' ? '#EF4444' : '#94A3B8'
+          return (
+            <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', background: '#FFF', border: '1px solid #E2E8F0', borderRadius: 12, transition: 'all 220ms' }}>
+              <div style={{ width: 40, height: 40, borderRadius: 10, background: iconBg, color: iconClr, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 220ms' }}>
+                <c.icon size={18} />
+              </div>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: '#0F172A' }}>{c.label}</div>
+                <div style={{ fontSize: 12, color: '#6B7280', marginTop: 1 }}>
+                  {st === 'idle' && 'Waiting…'}
+                  {st === 'checking' && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Loader2 size={12} style={{ animation: 'v2spin 1s linear infinite' }} />Checking…</span>}
+                  {st === 'pass' && c.detail}
+                  {st === 'fail' && <span style={{ color: '#EF4444' }}>Failed — check permissions</span>}
+                </div>
+                {c.id === 'speaker' && st !== 'pass' && statuses.camera === 'pass' && (
+                  <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                    <button onClick={playTestTone} style={{ padding: '5px 10px', border: '1px solid #CBD5E1', borderRadius: 7, background: '#FFF', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                      <Play size={11} /> Test
+                    </button>
+                    {speakerPlayed && !speakerConfirmed && (
+                      <button onClick={confirmSpeaker} style={{ padding: '5px 10px', border: 0, borderRadius: 7, background: '#059669', color: '#FFF', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                        I heard it
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+                {st === 'pass' && c.extraType === 'level' && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 2, height: 24 }}>
+                    {micBars.map((v, j) => (
+                      <span key={j} style={{ width: 3, height: `${Math.max(6, v * 22)}px`, background: '#5B4FE9', borderRadius: 9999, transition: 'height 180ms', display: 'inline-block' }} />
+                    ))}
+                  </div>
+                )}
+                {st === 'pass' && <CheckCircle2 size={20} color="#10B981" />}
+                {st === 'checking' && <Loader2 size={20} color="#94A3B8" style={{ animation: 'v2spin 1s linear infinite' }} />}
+                {st === 'fail' && <XCircle size={20} color="#EF4444" />}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
+      {allPassed && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 10, marginBottom: 14, color: '#047857', fontSize: 13, fontWeight: 600 }}>
+          <CheckCircle2 size={15} /> All checks passed — you&apos;re good to go!
         </div>
       )}
 
-      {/* Check list */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 28 }}>
-        {CHECKS.map((check) => (
-          <div key={check} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderRadius: 10, padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 14 }}>
-            <CheckIcon check={check} />
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 14, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 8 }}>
-                {checkLabels[check]}
-                {statuses[check] === 'pass' && <span style={{ fontSize: 12, color: 'var(--success-500)' }}>Working</span>}
-                {statuses[check] === 'fail' && <span style={{ fontSize: 12, color: 'var(--danger-500)' }}>Failed — check your settings</span>}
-              </div>
-              <div style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 2 }}>{checkDesc[check]}</div>
-
-              {/* Speaker controls */}
-              {check === 'speaker' && statuses.speaker !== 'pass' && currentCheck >= 2 && (
-                <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  <button onClick={playTestTone} style={{ fontSize: 12, padding: '5px 10px', borderRadius: 6, border: '1px solid var(--border-default)', background: 'var(--bg-surface)', cursor: 'pointer' }}>Play test sound</button>
-                  {speakerPlayed && !speakerConfirmed && (
-                    <>
-                      <button onClick={confirmSpeaker} style={{ fontSize: 12, padding: '5px 10px', borderRadius: 6, border: 'none', background: 'var(--success-500)', color: '#fff', cursor: 'pointer' }}>I heard it ✓</button>
-                      <button onClick={failSpeaker} style={{ fontSize: 12, padding: '5px 10px', borderRadius: 6, border: '1px solid var(--danger-500)', color: 'var(--danger-500)', background: 'none', cursor: 'pointer' }}>No sound</button>
-                    </>
-                  )}
-                </div>
-              )}
-            </div>
-            <StatusIcon status={statuses[check]} />
-            {statuses[check] === 'fail' && (
-              <button onClick={() => retryCheck(check)} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, color: 'var(--brand-500)', fontSize: 12 }}>
-                <RefreshCw size={12} /> Retry
-              </button>
-            )}
-          </div>
-        ))}
-      </div>
-
-      <Button
-        fullWidth
-        size="lg"
+      <button
         disabled={!allPassed}
         onClick={() => navigate(`/interview/${token}/consent`)}
+        style={{ width: '100%', padding: '13px 20px', borderRadius: 10, background: allPassed ? '#5B4FE9' : '#E2E8F0', color: allPassed ? '#FFF' : '#94A3B8', border: 0, fontSize: 14, fontWeight: 600, cursor: allPassed ? 'pointer' : 'not-allowed', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, boxShadow: allPassed ? '0 8px 20px rgba(91,79,233,0.25)' : 'none', transition: 'all 160ms' }}
       >
-        Continue →
-      </Button>
-      {!allPassed && <p style={{ fontSize: 12, color: 'var(--fg-muted)', textAlign: 'center', marginTop: 8 }}>All checks must pass to continue</p>}
+        Continue <ArrowRight size={14} />
+      </button>
+
+      <style>{`@keyframes v2spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }`}</style>
     </div>
   )
 }

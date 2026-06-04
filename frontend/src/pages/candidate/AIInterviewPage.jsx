@@ -1,84 +1,31 @@
-// pages/candidate/AIInterviewPage.jsx
-// The AI interview room — waveform, question display, recording controls.
-
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { RotateCcw, SkipForward, AlertTriangle, Video, VideoOff } from 'lucide-react'
+import { Mic, MicOff, PhoneOff, Sparkles, Volume2, Ear, Loader2, Circle, Square, Check, Clock, Timer, Info, AlertTriangle } from 'lucide-react'
 import useInterview from '../../hooks/useInterview'
 import useProctoring from '../../hooks/useProctoring'
 
-// Desktop-only guard
-function DesktopGuard({ children }) {
-  if (window.innerWidth < 768) {
-    return (
-      <div style={{ padding: 40, textAlign: 'center' }}>
-        <h2>Please use a desktop or laptop</h2>
-        <p>Interviews require a larger screen for the best experience.</p>
-      </div>
-    )
-  }
-  return children
-}
-
-// Animated waveform circle
-function WaveformCircle({ phase }) {
-  const configs = {
-    loading:     { color: 'var(--slate-300)', pulse: false, label: 'Loading…' },
-    ai_speaking: { color: 'var(--brand-500)', pulse: true,  label: 'AI is speaking…' },
-    listening:   { color: 'var(--success-500)', pulse: false, label: 'Your turn' },
-    recording:   { color: 'var(--danger-500)', pulse: true,  label: 'Recording…' },
-    processing:  { color: 'var(--warning-500)', pulse: true,  label: 'Processing…' },
-    paused:      { color: 'var(--warning-500)', pulse: false, label: 'Paused' },
-    ended:       { color: 'var(--success-500)', pulse: false, label: 'Complete' },
-    error:       { color: 'var(--danger-500)', pulse: false, label: 'Error' },
-  }
-  const c = configs[phase] || configs.loading
-
+const AV_COLORS = [
+  {bg:'#EDE9FE',fg:'#5B21B6'},{bg:'#FED7AA',fg:'#9A3412'},{bg:'#A7F3D0',fg:'#065F46'},
+  {bg:'#BFDBFE',fg:'#1E40AF'},{bg:'#FBCFE8',fg:'#9D174D'},{bg:'#FDE68A',fg:'#854D0E'},
+  {bg:'#C7D2FE',fg:'#3730A3'},{bg:'#FCA5A5',fg:'#7F1D1D'},
+]
+function V2Av({ name = '', size = 32 }) {
+  const initials = name.trim().split(/\s+/).map(w => w[0]).join('').slice(0,2).toUpperCase() || '?'
+  const c = AV_COLORS[name.charCodeAt(0) % AV_COLORS.length]
   return (
-    <div style={{ textAlign: 'center', marginBottom: 24 }}>
-      <div style={{ position: 'relative', display: 'inline-block' }}>
-        {/* Outer pulse ring */}
-        {c.pulse && (
-          <div style={{
-            position: 'absolute', inset: -20,
-            borderRadius: '50%',
-            border: `3px solid ${c.color}`,
-            opacity: 0.3,
-            animation: 'pulse 1.5s ease-in-out infinite',
-          }} />
-        )}
-        <div style={{
-          width: 180, height: 180,
-          borderRadius: '50%',
-          border: `5px solid ${c.color}`,
-          background: `${c.color}12`,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          transition: 'border-color 0.3s, background 0.3s',
-        }}>
-          <div style={{ width: 60, height: 60, borderRadius: '50%', background: c.color, opacity: phase === 'recording' ? 1 : 0.4 }} />
-        </div>
-      </div>
-      <p style={{ marginTop: 16, fontSize: 15, color: 'var(--fg-muted)', fontWeight: 500 }}>{c.label}</p>
-
-      <style>{`
-        @keyframes pulse {
-          0%, 100% { transform: scale(1); opacity: 0.3; }
-          50%       { transform: scale(1.15); opacity: 0.1; }
-        }
-      `}</style>
+    <div style={{ width: size, height: size, borderRadius: '50%', background: c.bg, color: c.fg, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: size * 0.38, flexShrink: 0 }}>
+      {initials}
     </div>
   )
 }
+
+function clk(s) { return `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}` }
 
 function AIInterviewPage() {
   const { token } = useParams()
   const navigate = useNavigate()
 
-  // Load session from localStorage
-  const session = (() => {
-    try { return JSON.parse(localStorage.getItem('interviewSession') || '{}') } catch { return {} }
-  })()
-
+  const session = (() => { try { return JSON.parse(localStorage.getItem('interviewSession') || '{}') } catch { return {} } })()
   const { interviewId, mode } = session
 
   const {
@@ -87,142 +34,220 @@ function AIInterviewPage() {
   } = useInterview(interviewId, mode)
 
   const [violation, setViolation] = useState(null)
-  const [showTranscript, setShowTranscript] = useState(false)
+  const [muted, setMuted]         = useState(false)
+  const [remaining, setRemaining] = useState(25 * 60)
+  const [recElapsed, setRecEl]    = useState(0)
   const cameraVideoRef = useRef(null)
+  const txRef          = useRef(null)
 
-  useProctoring(interviewId, (type) => {
-    pause()
-    setViolation(type)
-  })
+  useProctoring(interviewId, (type) => { pause(); setViolation(type) })
 
-  // Start interview on mount
-  useEffect(() => {
-    if (interviewId) startInterview()
-  }, [interviewId])
-
-  // Redirect when done
-  useEffect(() => {
-    if (phase === 'ended') {
-      navigate(`/interview/${token}/done`)
-    }
-  }, [phase])
-
-  // Start camera preview
+  useEffect(() => { if (interviewId) startInterview() }, [interviewId])
+  useEffect(() => { if (phase === 'ended') navigate(`/interview/${token}/done`) }, [phase])
   useEffect(() => {
     navigator.mediaDevices.getUserMedia({ video: true }).then(stream => {
-      if (cameraVideoRef.current) {
-        cameraVideoRef.current.srcObject = stream
-        cameraVideoRef.current.play().catch(() => {})
-      }
+      if (cameraVideoRef.current) { cameraVideoRef.current.srcObject = stream; cameraVideoRef.current.play().catch(() => {}) }
     }).catch(() => {})
   }, [])
 
-  function handleResumeViolation() {
-    setViolation(null)
-    resume()
-  }
+  useEffect(() => {
+    if (phase === 'ended' || violation) return
+    const t = setInterval(() => setRemaining(r => Math.max(0, r - 1)), 1000)
+    return () => clearInterval(t)
+  }, [phase, violation])
 
-  if (!interviewId) {
-    return (
-      <div style={{ padding: 40, textAlign: 'center' }}>
-        <p style={{ color: 'var(--danger-500)' }}>No interview session found. Please use your magic link.</p>
-      </div>
-    )
-  }
+  useEffect(() => {
+    if (phase !== 'recording' || violation) return
+    const t = setInterval(() => setRecEl(e => e + 1), 1000)
+    return () => clearInterval(t)
+  }, [phase, violation])
 
-  if (interviewError) {
-    return (
-      <div style={{ padding: 40, textAlign: 'center' }}>
-        <p style={{ color: 'var(--danger-500)' }}>{interviewError}</p>
-      </div>
-    )
-  }
+  useEffect(() => { if (txRef.current) txRef.current.scrollTop = txRef.current.scrollHeight }, [transcript, phase])
+
+  if (!interviewId) return <div style={{ padding: 40, textAlign: 'center', color: '#EF4444' }}>No interview session found. Please use your magic link.</div>
+  if (interviewError) return <div style={{ padding: 40, textAlign: 'center', color: '#EF4444' }}>{interviewError}</div>
+
+  const isRecording  = phase === 'recording'
+  const isProcessing = phase === 'processing'
+  const isDone       = phase === 'ended'
+  const isListening  = phase === 'listening'
+
+  const aiState = isRecording ? 'listening' : isProcessing ? 'thinking' : 'speaking'
+  const orbConfig = {
+    speaking:  { bg: 'linear-gradient(135deg,#DEDAFB,#5B4FE9 70%,#4A3FCE)', shadow: '0 12px 36px rgba(91,79,233,0.35)', label: 'Asking…',     Icon: Volume2,  labelColor: '#5B4FE9' },
+    thinking:  { bg: 'radial-gradient(circle at 35% 30%,#DEDAFB,#5B4FE9 90%)', shadow: '0 12px 28px rgba(91,79,233,0.18)', label: 'Processing…', Icon: Loader2, labelColor: '#94A3B8' },
+    listening: { bg: 'radial-gradient(circle at 35% 30%,#D1FAE5,#059669 75%)', shadow: '0 12px 28px rgba(5,150,105,0.32)', label: 'Listening…',  Icon: Ear,     labelColor: '#059669' },
+  }[aiState]
+
+  const candidateName = session.candidateName || 'You'
 
   return (
-    <DesktopGuard>
-      <div style={{ height: '100%', display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 440px', minHeight: 'calc(100vh - 60px)', position: 'relative' }}>
 
-        {/* Integrity violation overlay */}
-        {violation && (
-          <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <div style={{ background: 'var(--bg-surface)', borderRadius: 16, padding: 40, maxWidth: 400, textAlign: 'center' }}>
-              <AlertTriangle size={40} color="var(--warning-500)" style={{ marginBottom: 16 }} />
-              <h3 style={{ marginBottom: 8 }}>You switched windows</h3>
-              <p style={{ color: 'var(--fg-muted)', fontSize: 14, marginBottom: 24 }}>This has been recorded. Please keep the interview tab active.</p>
-              <button onClick={handleResumeViolation} style={{ padding: '12px 24px', background: 'var(--brand-500)', color: '#fff', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>
-                I understand — resume interview
-              </button>
+      {violation && (
+        <div style={{ position: 'absolute', inset: 0, background: 'rgba(15,23,42,0.7)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: '#FFF', borderRadius: 16, padding: '32px 28px', maxWidth: 420, textAlign: 'center', boxShadow: '0 24px 48px rgba(15,23,42,0.24)' }}>
+            <div style={{ width: 56, height: 56, borderRadius: 9999, background: '#FEF2F2', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: 14 }}>
+              <AlertTriangle size={26} color="#EF4444" />
             </div>
+            <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 20, fontWeight: 700, color: '#0F172A', marginBottom: 8 }}>Tab switch detected</div>
+            <p style={{ fontSize: 13, color: '#6B7280', lineHeight: 1.6, margin: '0 0 20px' }}>
+              Leaving this tab during the interview is logged and may affect your evaluation. The interview is paused until you return.
+            </p>
+            <button onClick={() => { setViolation(null); resume() }} style={{ width: '100%', padding: '12px 20px', background: '#5B4FE9', color: '#FFF', border: 0, borderRadius: 10, fontWeight: 600, fontSize: 14, cursor: 'pointer' }}>
+              Resume interview
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 48px', gap: 22, background: '#FFF', borderRight: '1px solid #E2E8F0', position: 'relative', overflow: 'hidden' }}>
+        <div style={{ position: 'absolute', width: 480, height: 480, borderRadius: 9999, background: 'radial-gradient(circle,rgba(91,79,233,0.08) 0%,transparent 70%)', filter: 'blur(30px)' }} />
+
+        <div style={{ position: 'absolute', top: 16, left: 16, display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, fontWeight: 600 }}>
+          <span style={{ width: 7, height: 7, borderRadius: 9999, background: isRecording ? '#EF4444' : '#94A3B8', animation: isRecording ? 'v2pulse 1.4s ease-in-out infinite' : 'none', display: 'inline-block' }} />
+          <span style={{ color: isRecording ? '#EF4444' : '#94A3B8' }}>{isRecording ? 'RECORDING' : 'STANDBY'}</span>
+        </div>
+
+        <div style={{ position: 'absolute', top: 14, right: 16, display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: 'monospace', fontSize: 13, fontWeight: 700, color: remaining < 120 ? '#EF4444' : '#0F172A', background: '#F1F5F9', padding: '5px 10px', borderRadius: 8 }}>
+          <Clock size={13} /> {clk(remaining)} left
+        </div>
+
+        <div style={{ position: 'relative', width: 160, height: 160, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          {aiState === 'listening' && [0, 1, 2].map(i => (
+            <span key={i} style={{ position: 'absolute', width: 150, height: 150, borderRadius: 9999, border: '2px solid #059669', animation: `v2ring 2.4s ease-out ${i * 800}ms infinite`, opacity: 0, display: 'inline-block' }} />
+          ))}
+          <div style={{ width: 130, height: 130, borderRadius: 9999, background: orbConfig.bg, boxShadow: orbConfig.shadow, display: 'flex', alignItems: 'center', justifyContent: 'center', animation: violation ? 'none' : 'v2orbpulse 2s ease-in-out infinite', position: 'relative' }}>
+            <div style={{ position: 'absolute', inset: 0, borderRadius: 9999, background: 'radial-gradient(circle at 35% 30%,rgba(255,255,255,0.5) 0%,transparent 40%)' }} />
+            <Sparkles size={46} color="#FFF" style={{ position: 'relative', zIndex: 1 }} />
+          </div>
+        </div>
+
+        <div style={{ textAlign: 'center' }}>
+          <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#5B4FE9', marginBottom: 4 }}>
+            Screeno AI · Question {(currentIndex || 0) + 1} of {totalQuestions || '?'}
+          </div>
+          <div style={{ fontSize: 13, color: orbConfig.labelColor, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+            <orbConfig.Icon size={14} style={{ animation: aiState === 'thinking' ? 'v2spin 1.2s linear infinite' : 'none' }} />
+            {orbConfig.label}
+          </div>
+        </div>
+
+        {currentQuestion && (
+          <div style={{ width: '100%', maxWidth: 440, background: '#FAFAFE', border: '1px solid #DEDAFB', borderRadius: 14, padding: '18px 20px', textAlign: 'center' }}>
+            <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#5B4FE9', marginBottom: 8 }}>
+              {currentQuestion.phase || 'Question'}
+            </div>
+            <div style={{ fontSize: 16, color: '#0F172A', lineHeight: 1.5, fontWeight: 500 }}>
+              {isDone ? 'That\'s the last question — thanks! You can end the interview now.' : currentQuestion.text}
+            </div>
+            {!isDone && isRecording && (
+              <div style={{ marginTop: 12, fontSize: 12, color: '#94A3B8', display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: 'monospace' }}>
+                <Timer size={13} /> Recording {clk(recElapsed)}
+              </div>
+            )}
           </div>
         )}
 
-        {/* Main content */}
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '24px 20px', gap: 0 }}>
-          <WaveformCircle phase={phase} />
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, height: 40 }}>
+          {[...Array(16)].map((_, i) => (
+            <span key={i} style={{ width: 4, height: 34, borderRadius: 9999, background: isRecording ? '#059669' : aiState === 'speaking' ? '#5B4FE9' : '#CBD5E1', animation: violation || isProcessing ? 'none' : `v2wave 1.2s ease-in-out ${i * 70}ms infinite`, transform: 'scaleY(0.25)', transformOrigin: 'center', display: 'inline-block' }} />
+          ))}
+        </div>
 
-          {/* Current question card */}
-          {currentQuestion && (
-            <div style={{ maxWidth: 560, width: '100%', background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderLeft: '4px solid var(--brand-500)', borderRadius: 12, padding: 20, marginBottom: 24, boxShadow: 'var(--shadow-md)' }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--brand-500)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 8 }}>
-                Question {currentIndex + 1}{totalQuestions > 0 ? ` of ${totalQuestions}` : ''}
-              </div>
-              <p style={{ fontSize: 16, color: 'var(--fg-primary)', margin: 0, lineHeight: 1.6 }}>{currentQuestion.text}</p>
-            </div>
-          )}
-
-          {/* Controls */}
-          <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-            {phase === 'listening' && (
-              <button
-                onClick={startRecording}
-                style={{ padding: '14px 32px', background: 'var(--success-500)', color: '#fff', border: 'none', borderRadius: 12, fontSize: 16, fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 12px rgba(5,150,105,0.35)' }}
-              >
-                ● Start Answer
-              </button>
-            )}
-
-            {phase === 'recording' && (
-              <button
-                onClick={stopRecording}
-                style={{ padding: '14px 32px', background: 'var(--danger-500)', color: '#fff', border: 'none', borderRadius: 12, fontSize: 16, fontWeight: 700, cursor: 'pointer', boxShadow: '0 4px 12px rgba(255,92,53,0.35)', animation: 'pulse 1s infinite' }}
-              >
-                ■ Stop Answer
-              </button>
-            )}
-
-            {(phase === 'listening' || phase === 'recording') && (
-              <button onClick={repeatQuestion} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 16px', background: 'transparent', border: '1px solid var(--border-default)', borderRadius: 10, fontSize: 13, cursor: 'pointer', color: 'var(--fg-muted)' }}>
-                <RotateCcw size={14} /> Repeat
-              </button>
-            )}
-          </div>
-
-          {/* Transcript toggle */}
-          <button
-            onClick={() => setShowTranscript(s => !s)}
-            style={{ marginTop: 20, background: 'none', border: 'none', cursor: 'pointer', fontSize: 13, color: 'var(--brand-500)' }}
-          >
-            {showTranscript ? 'Hide transcript' : 'Show transcript'}
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          <button onClick={() => setMuted(m => !m)} style={{ width: 52, height: 52, borderRadius: 9999, background: muted ? '#FEF2F2' : '#FFF', border: `1px solid ${muted ? '#FECACA' : '#CBD5E1'}`, color: muted ? '#EF4444' : '#0F172A', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 120ms' }}>
+            {muted ? <MicOff size={20} /> : <Mic size={20} />}
           </button>
 
-          {showTranscript && transcript.length > 0 && (
-            <div style={{ maxWidth: 560, width: '100%', maxHeight: 200, overflowY: 'auto', marginTop: 12, background: 'var(--bg-surface-alt)', borderRadius: 10, padding: 16 }}>
-              {transcript.map((t, i) => (
-                <div key={i} style={{ marginBottom: 12 }}>
-                  <div style={{ fontSize: 12, color: 'var(--brand-500)', fontWeight: 600, marginBottom: 2 }}>Q: {t.question}</div>
-                  <div style={{ fontSize: 13, color: 'var(--fg-body)' }}>A: {t.answer}</div>
+          {isListening && (
+            <button onClick={startRecording} style={{ height: 52, padding: '0 26px', borderRadius: 9999, background: '#059669', color: '#FFF', border: 0, fontSize: 14, fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 8, boxShadow: '0 6px 16px rgba(5,150,105,0.3)' }}>
+              <Circle size={16} fill="#FFF" /> Start answer
+            </button>
+          )}
+          {isRecording && (
+            <button onClick={stopRecording} style={{ height: 52, padding: '0 26px', borderRadius: 9999, background: '#EF4444', color: '#FFF', border: 0, fontSize: 14, fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 8, boxShadow: '0 6px 16px rgba(239,68,68,0.3)', animation: 'v2recpulse 1.6s ease-in-out infinite' }}>
+              <Square size={15} fill="#FFF" /> Stop answer · {clk(recElapsed)}
+            </button>
+          )}
+          {isProcessing && (
+            <button disabled style={{ height: 52, padding: '0 26px', borderRadius: 9999, background: '#E2E8F0', color: '#64748B', border: 0, fontSize: 14, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+              <Loader2 size={16} style={{ animation: 'v2spin 1s linear infinite' }} /> Processing…
+            </button>
+          )}
+          {isDone && (
+            <button onClick={() => navigate(`/interview/${token}/done`)} style={{ height: 52, padding: '0 26px', borderRadius: 9999, background: '#5B4FE9', color: '#FFF', border: 0, fontSize: 14, fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 8, boxShadow: '0 6px 16px rgba(91,79,233,0.3)' }}>
+              <Check size={16} /> Finish &amp; submit
+            </button>
+          )}
+
+          <button onClick={() => navigate(`/interview/${token}/done`)} style={{ width: 52, height: 52, borderRadius: 9999, background: '#FFF', border: '1px solid #FFD4C2', color: '#E0451F', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+            <PhoneOff size={20} />
+          </button>
+        </div>
+
+        <p style={{ fontSize: 11, color: '#94A3B8', textAlign: 'center', maxWidth: 340, lineHeight: 1.6 }}>
+          Press <strong>Start answer</strong> when you&apos;re ready, and <strong>Stop</strong> when done.
+        </p>
+
+        <div style={{ position: 'absolute', bottom: 14, left: 14, width: 84, height: 84, borderRadius: 9999, background: 'linear-gradient(135deg,#475569,#1E293B)', border: '3px solid #FFF', boxShadow: '0 8px 20px rgba(15,23,42,0.2)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <video ref={cameraVideoRef} muted playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', flexDirection: 'column', background: '#FFF' }}>
+        <div style={{ padding: '16px 24px', borderBottom: '1px solid #F1F5F9' }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#5B4FE9', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Live transcript</div>
+          <div style={{ fontSize: 12, color: '#94A3B8', marginTop: 2 }}>Builds as the interview goes</div>
+        </div>
+        <div ref={txRef} style={{ flex: 1, overflowY: 'auto', padding: '20px 24px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {transcript.map((t, i) => (
+            <div key={i} style={{ display: 'flex', gap: 12 }}>
+              {t.who === 'ai' || !t.who ? (
+                <div style={{ width: 30, height: 30, borderRadius: 9999, background: '#EFEDFD', color: '#5B4FE9', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <Sparkles size={14} />
                 </div>
-              ))}
+              ) : <V2Av name={candidateName} size={30} />}
+              <div style={{ flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: (!t.who || t.who === 'ai') ? '#5B4FE9' : '#0F172A' }}>
+                    {(!t.who || t.who === 'ai') ? 'Screeno AI' : candidateName}
+                  </span>
+                </div>
+                <div style={{ fontSize: 14, color: '#374151', lineHeight: 1.65 }}>
+                  {t.question || t.answer || t.text || ''}
+                </div>
+              </div>
+            </div>
+          ))}
+          {isRecording && (
+            <div style={{ display: 'flex', gap: 12, opacity: 0.7 }}>
+              <V2Av name={candidateName} size={30} />
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#0F172A', marginBottom: 4 }}>{candidateName} · transcribing…</div>
+                <div style={{ display: 'flex', gap: 4, padding: '8px 0' }}>
+                  {[0, 1, 2].map(i => <span key={i} style={{ width: 6, height: 6, borderRadius: 9999, background: '#94A3B8', animation: `v2pulsedot 1.4s ease-in-out ${i * 0.2}s infinite`, display: 'inline-block' }} />)}
+                </div>
+              </div>
             </div>
           )}
         </div>
-
-        {/* Camera preview (bottom left) */}
-        <div style={{ position: 'fixed', bottom: 24, left: 24 }}>
-          <video ref={cameraVideoRef} muted playsInline style={{ width: 100, height: 100, borderRadius: '50%', objectFit: 'cover', border: '3px solid #fff', boxShadow: 'var(--shadow-md)', background: '#000' }} />
+        <div style={{ padding: '14px 24px', borderTop: '1px solid #F1F5F9', fontSize: 12, color: '#6B7280', display: 'flex', alignItems: 'center', gap: 6 }}>
+          <Info size={13} color="#94A3B8" />
+          Question {(currentIndex || 0) + 1} of {totalQuestions || '?'} · {clk(remaining)} remaining
         </div>
       </div>
-    </DesktopGuard>
+
+      <style>{`
+        @keyframes v2wave { 0%,100%{transform:scaleY(0.2);opacity:0.8} 50%{transform:scaleY(1);opacity:1} }
+        @keyframes v2ring { 0%{transform:scale(0.6);opacity:0.7} 100%{transform:scale(1.8);opacity:0} }
+        @keyframes v2orbpulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.04)} }
+        @keyframes v2pulse { 0%,100%{opacity:0.4;transform:scale(1)} 50%{opacity:1;transform:scale(1.15)} }
+        @keyframes v2pulsedot { 0%,100%{opacity:0.4} 50%{opacity:1} }
+        @keyframes v2recpulse { 0%,100%{box-shadow:0 6px 16px rgba(239,68,68,0.3)} 50%{box-shadow:0 6px 22px rgba(239,68,68,0.55)} }
+        @keyframes v2spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+      `}</style>
+    </div>
   )
 }
 

@@ -1,15 +1,27 @@
-// pages/candidate/ExamPage.jsx
-// Exam runner — navigates through MCQ and open-text questions with a countdown timer.
-// Submits all answers at once when the candidate clicks Submit or the timer runs out.
-
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { Clock, ArrowRight, Code2 } from 'lucide-react'
 import * as api from '../../services/api'
 import Spinner from '../../components/shared/Spinner'
 import ErrorMessage from '../../components/shared/ErrorMessage'
 
-// ── Desktop guard ─────────────────────────────────────────────
-function DesktopGuard({ children }) {
+function clk(s) {
+  return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
+}
+
+function ExamPage() {
+  const { token } = useParams()
+  const navigate  = useNavigate()
+
+  const [exam, setExam]           = useState(null)
+  const [loading, setLoading]     = useState(true)
+  const [error, setError]         = useState(null)
+  const [currentIdx, setCurrentIdx] = useState(0)
+  const [answers, setAnswers]     = useState({})
+  const [submitting, setSubmitting] = useState(false)
+  const [timeLeft, setTimeLeft]   = useState(3600)
+  const [submitted, setSubmitted] = useState(false)
+
   if (window.innerWidth < 768) {
     return (
       <div style={{ padding: 40, textAlign: 'center' }}>
@@ -18,144 +30,13 @@ function DesktopGuard({ children }) {
       </div>
     )
   }
-  return children
-}
 
-// ── MCQ option cards ──────────────────────────────────────────
-function MCQOptions({ question, answers, setAnswers }) {
-  const opts = Array.isArray(question.options) ? question.options : []
-  const selected = answers[question.id]?.selectedOption
-
-  return (
-    <div style={{ marginTop: 20 }}>
-      {opts.map((opt, i) => (
-        <div
-          key={i}
-          onClick={() =>
-            setAnswers(prev => ({ ...prev, [question.id]: { selectedOption: i } }))
-          }
-          style={{
-            padding: '12px 16px',
-            marginBottom: 8,
-            borderRadius: 8,
-            cursor: 'pointer',
-            border: `2px solid ${selected === i ? 'var(--brand-500)' : 'var(--border-default)'}`,
-            background: selected === i ? 'var(--brand-50)' : 'var(--bg-surface)',
-            transition: 'border-color 0.15s, background 0.15s',
-          }}
-        >
-          <span style={{ fontSize: 13, color: 'var(--fg-body)' }}>
-            {String.fromCharCode(65 + i)}. {opt}
-          </span>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-// ── Single question card ──────────────────────────────────────
-function QuestionCard({ question, answers, setAnswers, current, total }) {
-  const isOpen = question.question_type !== 'mcq'
-  const answerText = answers[question.id]?.answerText || ''
-
-  return (
-    <div
-      style={{
-        maxWidth: 620,
-        width: '100%',
-        background: 'var(--bg-surface)',
-        border: '1px solid var(--border-default)',
-        borderLeft: '4px solid var(--brand-500)',
-        borderRadius: 12,
-        padding: 24,
-        boxShadow: 'var(--shadow-md)',
-      }}
-    >
-      {/* Phase / order label */}
-      <div
-        style={{
-          fontSize: 11,
-          fontWeight: 600,
-          color: 'var(--brand-500)',
-          letterSpacing: '0.06em',
-          textTransform: 'uppercase',
-          marginBottom: 10,
-        }}
-      >
-        Question {current} of {total}
-        {question.phase ? ` · ${question.phase}` : ''}
-      </div>
-
-      {/* Question text */}
-      <p style={{ fontSize: 16, color: 'var(--fg-primary)', margin: 0, lineHeight: 1.65 }}>
-        {question.text}
-      </p>
-
-      {/* Answer area */}
-      {isOpen ? (
-        <textarea
-          value={answerText}
-          onChange={e =>
-            setAnswers(prev => ({
-              ...prev,
-              [question.id]: { answerText: e.target.value },
-            }))
-          }
-          placeholder="Type your answer here…"
-          rows={5}
-          style={{
-            marginTop: 20,
-            width: '100%',
-            padding: '10px 14px',
-            fontSize: 14,
-            color: 'var(--fg-body)',
-            background: 'var(--bg-surface-alt)',
-            border: '1px solid var(--border-default)',
-            borderRadius: 8,
-            resize: 'vertical',
-            outline: 'none',
-            boxSizing: 'border-box',
-            fontFamily: 'inherit',
-            lineHeight: 1.5,
-          }}
-        />
-      ) : (
-        <MCQOptions question={question} answers={answers} setAnswers={setAnswers} />
-      )}
-    </div>
-  )
-}
-
-// ── Main page ─────────────────────────────────────────────────
-function ExamPage() {
-  const { token } = useParams()
-  const navigate = useNavigate()
-
-  // Core data
-  const [exam, setExam] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-
-  // Navigation
-  const [currentIdx, setCurrentIdx] = useState(0)
-
-  // Answers keyed by question id: { [id]: { selectedOption?, answerText? } }
-  const [answers, setAnswers] = useState({})
-
-  // Submission
-  const [submitting, setSubmitting] = useState(false)
-
-  // Countdown — 60 minutes default
-  const [timeLeft, setTimeLeft] = useState(3600)
-
-  // ── Load exam on mount ─────────────────────────────────────
   useEffect(() => {
     api.getExam(token)
       .then(r => { setExam(r.data); setLoading(false) })
       .catch(err => { setError(err.message); setLoading(false) })
   }, [token])
 
-  // ── Submit handler ─────────────────────────────────────────
   const handleSubmit = useCallback(async () => {
     if (submitting) return
     setSubmitting(true)
@@ -166,6 +47,7 @@ function ExamPage() {
         answerText: a.answerText || '',
       }))
       await api.submitExam(token, answerList)
+      setSubmitted(true)
       navigate(`/interview/${token}/done`)
     } catch (err) {
       alert('Submit failed: ' + err.message)
@@ -173,180 +55,155 @@ function ExamPage() {
     }
   }, [submitting, answers, token, navigate])
 
-  // ── Countdown timer — starts once exam data arrives ────────
   useEffect(() => {
     if (!exam) return
     const interval = setInterval(() => {
       setTimeLeft(t => {
-        if (t <= 1) {
-          clearInterval(interval)
-          handleSubmit()
-          return 0
-        }
+        if (t <= 1) { clearInterval(interval); handleSubmit(); return 0 }
         return t - 1
       })
     }, 1000)
     return () => clearInterval(interval)
-  }, [exam]) // intentionally excludes handleSubmit to avoid restarting on every answer change
+  }, [exam])
 
-  // ── Helpers ────────────────────────────────────────────────
-  const formatTime = (s) =>
-    `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
+  if (loading) return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}><Spinner /></div>
+  if (error)   return <div style={{ padding: 40, maxWidth: 480, margin: '0 auto' }}><ErrorMessage message={error} /></div>
+  if (!exam)   return null
 
   const questions = exam?.questions || []
-  const total = questions.length
-  const current = questions[currentIdx] || null
-  const isLast = currentIdx === total - 1
+  const total     = questions.length
+  const current   = questions[currentIdx] || null
+  const isLast    = currentIdx === total - 1
+  const answeredCount = Object.keys(answers).length
 
-  // ── Render ─────────────────────────────────────────────────
   return (
-    <DesktopGuard>
-      {loading && (
-        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
-          <Spinner />
+    <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', height: 'calc(100vh - 56px)', background: '#F8FAFC' }}>
+      {/* Left palette */}
+      <div style={{ borderRight: '1px solid #E2E8F0', background: '#FFF', padding: 18, display: 'flex', flexDirection: 'column', gap: 16, overflowY: 'auto' }}>
+        {/* Timer */}
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontFamily: 'monospace', fontSize: 16, fontWeight: 700, color: timeLeft < 300 ? '#EF4444' : '#0F172A', background: '#F1F5F9', padding: '8px 12px', borderRadius: 8, justifyContent: 'center' }}>
+          <Clock size={15} />{clk(timeLeft)}
         </div>
-      )}
 
-      {!loading && error && (
-        <div style={{ padding: 40, maxWidth: 480, margin: '0 auto' }}>
-          <ErrorMessage message={error} />
-        </div>
-      )}
-
-      {!loading && !error && exam && (
-        <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
-
-          {/* ── Top bar ──────────────────────────────────────── */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '0 28px',
-              height: 56,
-              borderBottom: '1px solid var(--border-default)',
-              background: 'var(--bg-surface)',
-              flexShrink: 0,
-            }}
-          >
-            <span style={{ fontWeight: 700, fontSize: 16, color: 'var(--fg-primary)' }}>
-              Exam
-            </span>
-
-            <span style={{ fontSize: 14, color: 'var(--fg-muted)' }}>
-              Q {currentIdx + 1} / {total}
-            </span>
-
-            <span
-              style={{
-                fontSize: 15,
-                fontWeight: 700,
-                fontVariantNumeric: 'tabular-nums',
-                color: timeLeft < 300 ? 'var(--danger-500)' : 'var(--fg-primary)',
-              }}
-            >
-              {formatTime(timeLeft)}
-            </span>
-          </div>
-
-          {/* ── Question area ─────────────────────────────────── */}
-          <div
-            style={{
-              flex: 1,
-              overflowY: 'auto',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'flex-start',
-              padding: '40px 24px',
-            }}
-          >
-            {total === 0 && (
-              <p style={{ color: 'var(--fg-muted)', fontSize: 15 }}>
-                No questions found for this exam.
-              </p>
-            )}
-
-            {current && (
-              <QuestionCard
-                question={current}
-                answers={answers}
-                setAnswers={setAnswers}
-                current={currentIdx + 1}
-                total={total}
-              />
-            )}
-          </div>
-
-          {/* ── Bottom navigation ─────────────────────────────── */}
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              padding: '16px 28px',
-              borderTop: '1px solid var(--border-default)',
-              background: 'var(--bg-surface)',
-              flexShrink: 0,
-            }}
-          >
-            {/* Previous */}
-            <button
-              disabled={currentIdx === 0}
-              onClick={() => setCurrentIdx(i => i - 1)}
-              style={{
-                padding: '10px 24px',
-                borderRadius: 8,
-                border: '1px solid var(--border-default)',
-                background: 'transparent',
-                color: currentIdx === 0 ? 'var(--fg-disabled)' : 'var(--fg-body)',
-                fontSize: 14,
-                cursor: currentIdx === 0 ? 'default' : 'pointer',
-                fontWeight: 500,
-              }}
-            >
-              Previous
-            </button>
-
-            {/* Next or Submit */}
-            {isLast ? (
+        {/* Question grid */}
+        <div>
+          <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#94A3B8', marginBottom: 8 }}>Questions</div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5,1fr)', gap: 6 }}>
+            {questions.map((q, i) => (
               <button
-                disabled={submitting}
-                onClick={handleSubmit}
+                key={q.id}
+                onClick={() => setCurrentIdx(i)}
                 style={{
-                  padding: '10px 28px',
-                  borderRadius: 8,
-                  border: 'none',
-                  background: submitting ? 'var(--brand-300)' : 'var(--brand-500)',
-                  color: '#fff',
-                  fontSize: 14,
-                  fontWeight: 600,
-                  cursor: submitting ? 'default' : 'pointer',
+                  aspectRatio: '1', borderRadius: 8, fontFamily: 'inherit', fontSize: 13, fontWeight: 700, cursor: 'pointer',
+                  border: `1px solid ${currentIdx === i ? '#5B4FE9' : answers[q.id] != null ? '#A7F3D0' : '#E2E8F0'}`,
+                  background: currentIdx === i ? '#5B4FE9' : answers[q.id] != null ? '#ECFDF5' : '#FFF',
+                  color: currentIdx === i ? '#FFF' : answers[q.id] != null ? '#047857' : '#6B7280',
                 }}
               >
-                {submitting ? 'Submitting…' : 'Submit Exam'}
+                {i + 1}
               </button>
-            ) : (
-              <button
-                onClick={() => setCurrentIdx(i => i + 1)}
-                style={{
-                  padding: '10px 28px',
-                  borderRadius: 8,
-                  border: 'none',
-                  background: 'var(--brand-500)',
-                  color: '#fff',
-                  fontSize: 14,
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
-              >
-                Next
-              </button>
-            )}
+            ))}
           </div>
         </div>
-      )}
-    </DesktopGuard>
+
+        <div style={{ marginTop: 'auto', fontSize: 12, color: '#6B7280' }}>{answeredCount}/{total} answered</div>
+
+        <button
+          onClick={handleSubmit}
+          disabled={submitting}
+          style={{ padding: '11px 0', borderRadius: 9, background: submitting ? '#94A3B8' : '#5B4FE9', color: '#FFF', border: 0, fontWeight: 600, fontSize: 13, cursor: submitting ? 'not-allowed' : 'pointer' }}
+        >
+          {submitting ? 'Submitting…' : 'Submit exam'}
+        </button>
+      </div>
+
+      {/* Main question area */}
+      <div style={{ overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        {current && (
+          <div style={{ padding: '32px 40px', overflowY: 'auto', flex: 1 }}>
+            <div style={{ maxWidth: 680 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: '#5B4FE9', marginBottom: 8 }}>
+                Question {currentIdx + 1} of {total}
+                {current.phase ? ` · ${current.phase}` : ''}
+              </div>
+
+              <h2 style={{ fontSize: 20, fontWeight: 600, color: '#0F172A', lineHeight: 1.5, margin: '0 0 22px' }}>
+                {current.text}
+              </h2>
+
+              {/* MCQ options */}
+              {current.question_type === 'mcq' || current.options?.length > 0 ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  {(current.options || []).map((opt, oi) => {
+                    const sel = answers[current.id]?.selectedOption === oi
+                    return (
+                      <button
+                        key={oi}
+                        onClick={() => setAnswers(a => ({ ...a, [current.id]: { selectedOption: oi } }))}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px',
+                          borderRadius: 10, textAlign: 'left', fontFamily: 'inherit', cursor: 'pointer',
+                          border: `1px solid ${sel ? '#5B4FE9' : '#E2E8F0'}`,
+                          background: sel ? '#F3F0FF' : '#FFF', transition: 'all 120ms',
+                        }}
+                      >
+                        <span style={{ width: 24, height: 24, borderRadius: 9999, flexShrink: 0, border: `1.5px solid ${sel ? '#5B4FE9' : '#CBD5E1'}`, background: sel ? '#5B4FE9' : '#FFF', color: '#FFF', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 700 }}>
+                          {sel ? '✓' : String.fromCharCode(65 + oi)}
+                        </span>
+                        <span style={{ fontSize: 14, color: '#0F172A' }}>{opt}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              ) : (
+                <textarea
+                  rows={6}
+                  value={answers[current.id]?.answerText || ''}
+                  onChange={e => setAnswers(a => ({ ...a, [current.id]: { answerText: e.target.value } }))}
+                  placeholder="Type your answer here…"
+                  style={{ width: '100%', padding: '12px 14px', border: '1px solid #CBD5E1', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', lineHeight: 1.6, outline: 'none', resize: 'vertical', boxSizing: 'border-box' }}
+                  onFocus={e => { e.target.style.borderColor = '#5B4FE9'; e.target.style.boxShadow = '0 0 0 3px rgba(91,79,233,0.18)' }}
+                  onBlur={e => { e.target.style.borderColor = '#CBD5E1'; e.target.style.boxShadow = 'none' }}
+                />
+              )}
+
+              {/* Navigation */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 28 }}>
+                <button
+                  onClick={() => setCurrentIdx(i => Math.max(0, i - 1))}
+                  disabled={currentIdx === 0}
+                  style={{ padding: '10px 18px', borderRadius: 8, border: '1px solid #CBD5E1', background: '#FFF', color: currentIdx === 0 ? '#CBD5E1' : '#374151', fontWeight: 600, fontSize: 13, cursor: currentIdx === 0 ? 'not-allowed' : 'pointer' }}
+                >
+                  Previous
+                </button>
+                {isLast ? (
+                  <button
+                    onClick={handleSubmit}
+                    disabled={submitting}
+                    style={{ padding: '10px 18px', borderRadius: 8, border: 0, background: '#5B4FE9', color: '#FFF', fontWeight: 600, fontSize: 13, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                  >
+                    Submit exam <ArrowRight size={13} />
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setCurrentIdx(i => i + 1)}
+                    style={{ padding: '10px 18px', borderRadius: 8, border: 0, background: '#5B4FE9', color: '#FFF', fontWeight: 600, fontSize: 13, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                  >
+                    Next <ArrowRight size={13} />
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {total === 0 && (
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <p style={{ color: '#94A3B8', fontSize: 15 }}>No questions found for this exam.</p>
+          </div>
+        )}
+      </div>
+    </div>
   )
 }
 

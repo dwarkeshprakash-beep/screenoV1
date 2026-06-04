@@ -1,29 +1,33 @@
-// pages/candidate/CandidateDashboardPage.jsx
-// Candidate self-service dashboard.
-
 import { useState, useEffect } from 'react'
-import { Calendar, CheckCircle, Star, RotateCcw } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Calendar, CheckCircle2, TrendingUp, Repeat2, Info } from 'lucide-react'
 import Spinner from '../../components/shared/Spinner'
-import ErrorMessage from '../../components/shared/ErrorMessage'
-import EmptyState from '../../components/shared/EmptyState'
 import * as api from '../../services/api'
 import { formatDate } from '../../utils/helpers'
 
-function StatCard({ icon: Icon, value, label }) {
+const AV_COLORS = [
+  {bg:'#EDE9FE',fg:'#5B21B6'},{bg:'#FED7AA',fg:'#9A3412'},{bg:'#A7F3D0',fg:'#065F46'},
+  {bg:'#BFDBFE',fg:'#1E40AF'},{bg:'#FBCFE8',fg:'#9D174D'},{bg:'#FDE68A',fg:'#854D0E'},
+  {bg:'#C7D2FE',fg:'#3730A3'},{bg:'#FCA5A5',fg:'#7F1D1D'},
+]
+function V2Av({ name = '', size = 32 }) {
+  const initials = name.trim().split(/\s+/).map(w => w[0]).join('').slice(0,2).toUpperCase() || '?'
+  const c = AV_COLORS[name.charCodeAt(0) % AV_COLORS.length]
   return (
-    <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderRadius: 'var(--radius-lg)', padding: '18px 20px', display: 'flex', gap: 14, alignItems: 'center', boxShadow: 'var(--shadow-sm)' }}>
-      <div style={{ width: 40, height: 40, borderRadius: 10, background: 'var(--brand-50)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Icon size={18} color="var(--brand-500)" />
-      </div>
-      <div>
-        <div style={{ fontSize: 24, fontWeight: 700, lineHeight: 1.1 }}>{value ?? '—'}</div>
-        <div style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 2 }}>{label}</div>
-      </div>
+    <div style={{ width: size, height: size, borderRadius: '50%', background: c.bg, color: c.fg, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: size * 0.38, flexShrink: 0 }}>
+      {initials}
     </div>
   )
 }
 
+const PREP_TIPS = [
+  { phase: 'Before Interview', items: ['Run device check', 'Test microphone in a quiet room', 'Review your resume and key projects', 'Research the company and role'] },
+  { phase: 'During Interview', items: ['Stay focused — do not switch tabs', 'Speak clearly and take your time', 'Ask for clarification if needed', 'Structure answers with examples'] },
+  { phase: 'After Interview',  items: ['Review your feedback report', 'Work on highlighted improvement areas', 'Prepare for the next round'] },
+]
+
 function CandidateDashboardPage() {
+  const navigate = useNavigate()
   const [interviews, setInterviews] = useState([])
   const [loading, setLoading]       = useState(true)
   const [error, setError]           = useState(null)
@@ -39,7 +43,7 @@ function CandidateDashboardPage() {
     try {
       const res = await api.getCandidateInterviews()
       setInterviews(res.data || [])
-    } catch (err) {
+    } catch {
       setError('Could not load your interviews.')
     } finally {
       setLoading(false)
@@ -48,53 +52,112 @@ function CandidateDashboardPage() {
 
   const upcoming  = interviews.filter(i => i.status === 'scheduled')
   const completed = interviews.filter(i => i.status === 'completed')
+  const avgScore  = completed.length ? (completed.reduce((s, c) => s + (c.score || 0), 0) / completed.length).toFixed(1) : 'N/A'
+  const firstName = user.name ? user.name.split(' ')[0] : 'there'
 
-  if (loading) return <div style={{ padding: 40 }}><Spinner /></div>
-  if (error) return <ErrorMessage message={error} />
+  if (loading) return <div style={{ padding: 40, display: 'flex', justifyContent: 'center' }}><Spinner /></div>
+  if (error) return <div style={{ padding: 40, color: '#EF4444', fontSize: 14 }}>{error}</div>
 
   return (
-    <div style={{ maxWidth: 900, margin: '0 auto', padding: '28px 20px' }}>
-      <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 4 }}>Welcome back{user.name ? `, ${user.name.split(' ')[0]}` : ''}!</h1>
-      <p style={{ color: 'var(--fg-muted)', fontSize: 14, marginBottom: 24 }}>Here's your interview overview.</p>
-
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 14, marginBottom: 28 }}>
-        <StatCard icon={Calendar}     value={upcoming.length}  label="Upcoming" />
-        <StatCard icon={CheckCircle}  value={completed.length} label="Completed" />
-        <StatCard icon={Star}         value="—"                label="Avg Score" />
-        <StatCard icon={RotateCcw}    value={interviews.length} label="Total Attempts" />
+    <div style={{ padding: '24px 28px', maxWidth: 1200 }}>
+      <div style={{ marginBottom: 28 }}>
+        <h1 style={{ fontSize: 26, fontWeight: 700, color: '#0F172A', letterSpacing: '-0.02em', margin: 0 }}>Welcome back, {firstName}!</h1>
+        <p style={{ fontSize: 14, color: '#64748B', marginTop: 4, marginBottom: 0 }}>Here&apos;s your interview overview</p>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-        <div>
-          <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>Upcoming Interviews</h2>
-          {upcoming.length === 0 ? (
-            <EmptyState message="No upcoming interviews." />
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {upcoming.map(i => (
-                <div key={i.id} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderRadius: 10, padding: '14px 16px' }}>
-                  <div style={{ fontSize: 14, fontWeight: 500 }}>{i.type === 'ai_voice' ? 'AI Interview' : 'Exam'}</div>
-                  <div style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 2 }}>Scheduled · {formatDate(i.created)}</div>
-                </div>
-              ))}
+      <div style={{ background: '#DBEAFE', border: '1px solid #93C5FD', borderRadius: 10, padding: '12px 16px', marginBottom: 24, display: 'flex', alignItems: 'center', gap: 12 }}>
+        <Info size={16} color="#1E40AF" style={{ flexShrink: 0 }} />
+        <p style={{ fontSize: 13, color: '#1E40AF', margin: 0 }}>
+          You have {upcoming.length} upcoming scheduled interview{upcoming.length !== 1 ? 's' : ''}. Make sure to complete the device check before starting.
+        </p>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14, marginBottom: 28 }}>
+        {[
+          { icon: Calendar,     label: 'Upcoming Interviews', value: upcoming.length,   sub: 'Scheduled for you' },
+          { icon: CheckCircle2, label: 'Completed',           value: completed.length,  sub: 'Interviews finished' },
+          { icon: TrendingUp,   label: 'Average Score',       value: avgScore,          sub: 'Your performance' },
+          { icon: Repeat2,      label: 'Total Attempts',      value: `${completed.length}/${interviews.length}`, sub: 'Practice sessions' },
+        ].map((s, i) => (
+          <div key={i} style={{ background: '#FFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: '16px 20px', boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+              <p style={{ fontSize: 12, fontWeight: 500, color: '#64748B', margin: 0, lineHeight: 1.4 }}>{s.label}</p>
+              <s.icon size={16} color="#94A3B8" />
             </div>
-          )}
+            <p style={{ fontSize: 28, fontWeight: 700, color: '#0F172A', margin: '0 0 4px', letterSpacing: '-0.02em' }}>{s.value}</p>
+            <p style={{ fontSize: 12, color: '#94A3B8', margin: 0 }}>{s.sub}</p>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24, marginBottom: 28 }}>
+        <div>
+          <h2 style={{ fontSize: 15, fontWeight: 700, color: '#0F172A', marginBottom: 16 }}>Upcoming Interviews</h2>
+          {upcoming.length === 0 ? (
+            <div style={{ background: '#FFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: '32px 20px', textAlign: 'center' }}>
+              <p style={{ fontSize: 13, color: '#94A3B8', margin: 0 }}>No upcoming interviews.</p>
+            </div>
+          ) : upcoming.map(u => (
+            <div key={u.id} style={{ background: '#FFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: 16, marginBottom: 12, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 }}>
+                <div>
+                  <p style={{ fontSize: 14, fontWeight: 700, color: '#0F172A', margin: 0 }}>{u.job_title || 'Interview'}</p>
+                  <p style={{ fontSize: 12, color: '#64748B', margin: '3px 0 0' }}>{u.company_name || ''}</p>
+                </div>
+                <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 6, background: '#EFEDFD', color: '#5B4FE9' }}>Scheduled</span>
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
+                <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 9999, background: '#EFEDFD', color: '#5B4FE9', fontWeight: 600 }}>
+                  {u.type === 'ai_voice' ? 'AI Voice' : u.type === 'exam' ? 'Coding Exam' : 'Interview'}
+                </span>
+                <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 9999, background: '#F1F5F9', color: '#475569', fontWeight: 500 }}>
+                  {u.duration || '45 min'}
+                </span>
+              </div>
+              <div style={{ fontSize: 12, color: '#475569', marginBottom: 12 }}>
+                {formatDate(u.scheduled_at || u.created)}
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={() => navigate(`/interview/${u.magic_token}/device-check`)} style={{ flex: 1, padding: '8px 14px', background: '#FFF', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 12, fontWeight: 600, color: '#374151', cursor: 'pointer' }}>
+                  Device Check
+                </button>
+                <button onClick={() => navigate(`/interview/${u.magic_token}`)} style={{ flex: 2, padding: '8px 14px', background: '#0F172A', border: 0, borderRadius: 7, fontSize: 12, fontWeight: 600, color: '#FFF', cursor: 'pointer' }}>
+                  Start Interview →
+                </button>
+              </div>
+            </div>
+          ))}
         </div>
 
         <div>
-          <h2 style={{ fontSize: 16, fontWeight: 600, marginBottom: 12 }}>Completed Interviews</h2>
-          {completed.length === 0 ? (
-            <EmptyState message="No completed interviews yet." />
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {completed.map(i => (
-                <div key={i.id} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderRadius: 10, padding: '14px 16px' }}>
-                  <div style={{ fontSize: 14, fontWeight: 500 }}>{i.type === 'ai_voice' ? 'AI Interview' : 'Exam'}</div>
-                  <div style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 2 }}>Completed · {formatDate(i.created)}</div>
+          <h2 style={{ fontSize: 15, fontWeight: 700, color: '#0F172A', marginBottom: 16 }}>Recent Performance</h2>
+          <div style={{ background: '#FFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: 16, marginBottom: 20, boxShadow: '0 1px 3px rgba(0,0,0,0.04)' }}>
+            {completed.length === 0 ? (
+              <p style={{ fontSize: 13, color: '#94A3B8', margin: 0, textAlign: 'center', padding: '20px 0' }}>No reports available yet</p>
+            ) : completed.map((c, i) => (
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 0', borderBottom: i < completed.length - 1 ? '1px solid #F1F5F9' : 0 }}>
+                <div>
+                  <p style={{ fontSize: 13, fontWeight: 600, color: '#0F172A', margin: 0 }}>
+                    {c.type === 'ai_voice' ? 'AI Screening' : 'Exam'}
+                  </p>
+                  <p style={{ fontSize: 11, color: '#94A3B8', margin: '2px 0 0' }}>{formatDate(c.created)}</p>
                 </div>
-              ))}
+                <div style={{ fontSize: 20, fontWeight: 700, color: (c.score || 0) >= 4 ? '#059669' : '#D97706' }}>
+                  {c.score || '—'}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <h2 style={{ fontSize: 15, fontWeight: 700, color: '#0F172A', marginBottom: 12 }}>Interview Preparation Tips</h2>
+          {PREP_TIPS.map((t, i) => (
+            <div key={i} style={{ marginBottom: 14 }}>
+              <p style={{ fontSize: 13, fontWeight: 700, color: '#0F172A', margin: '0 0 6px' }}>{t.phase}</p>
+              <ul style={{ margin: 0, paddingLeft: 18 }}>
+                {t.items.map((it, j) => <li key={j} style={{ fontSize: 12, color: '#475569', lineHeight: 1.8 }}>{it}</li>)}
+              </ul>
             </div>
-          )}
+          ))}
         </div>
       </div>
     </div>

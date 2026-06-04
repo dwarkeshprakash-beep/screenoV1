@@ -1,59 +1,58 @@
-// pages/manager/ManagerProfilePage.jsx
-// Logged-in manager's own profile — view name/email, edit name, change password.
-
 import { useState, useEffect } from 'react'
-import Avatar from '../../components/shared/Avatar'
-import Button from '../../components/shared/Button'
+import { ArrowLeft, KeyRound } from 'lucide-react'
 import Spinner from '../../components/shared/Spinner'
 import ErrorMessage from '../../components/shared/ErrorMessage'
 import * as api from '../../services/api'
 
-// ── Helpers ──────────────────────────────────────────────────
+const AV_COLORS = [
+  { bg: '#EDE9FE', fg: '#5B21B6' }, { bg: '#FED7AA', fg: '#9A3412' },
+  { bg: '#A7F3D0', fg: '#065F46' }, { bg: '#BFDBFE', fg: '#1E40AF' },
+  { bg: '#FBCFE8', fg: '#9D174D' }, { bg: '#FDE68A', fg: '#854D0E' },
+  { bg: '#C7D2FE', fg: '#3730A3' }, { bg: '#FCA5A5', fg: '#7F1D1D' },
+]
 
-function RoleBadge({ role }) {
-  const colors = {
-    manager:     { bg: 'var(--brand-50)',   color: 'var(--brand-700)'   },
-    interviewer: { bg: 'var(--success-50)', color: 'var(--success-700)' },
-    candidate:   { bg: 'var(--slate-100)',  color: 'var(--fg-muted)'    },
-  }
-  const style = colors[role] || colors.candidate
+function avHash(s) {
+  let h = 0
+  for (let i = 0; i < (s || '').length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0
+  return Math.abs(h)
+}
+
+function Avatar({ name = '?', size = 64 }) {
+  const c = AV_COLORS[avHash(name) % AV_COLORS.length]
+  const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase()
   return (
-    <span style={{
-      padding: '3px 10px',
-      borderRadius: 99,
-      background: style.bg,
-      color: style.color,
-      fontSize: 12,
-      fontWeight: 600,
-      textTransform: 'capitalize',
-    }}>
-      {role}
-    </span>
+    <div style={{ width: size, height: size, borderRadius: 9999, flexShrink: 0, background: c.bg, color: c.fg, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: Math.round(size * 0.38), letterSpacing: '-0.01em', boxShadow: '0 0 0 2px #FFF, 0 0 0 4px #DEDAFB' }}>
+      {initials}
+    </div>
   )
 }
 
-// ── Page ─────────────────────────────────────────────────────
+function Toggle({ on, onClick }) {
+  return (
+    <button onClick={onClick} style={{ width: 40, height: 23, borderRadius: 9999, border: 0, cursor: 'pointer', flexShrink: 0, background: on ? '#5B4FE9' : '#CBD5E1', position: 'relative', transition: 'background 160ms', padding: 0 }}>
+      <span style={{ position: 'absolute', top: 2, left: on ? 19 : 2, width: 19, height: 19, borderRadius: 9999, background: '#FFF', boxShadow: '0 1px 3px rgba(15,23,42,0.2)', transition: 'left 160ms cubic-bezier(0.2,0,0,1)' }} />
+    </button>
+  )
+}
 
 function ManagerProfilePage() {
-  // ── Data state ───────────────────────────────────────────
   const [profile, setProfile]   = useState(null)
   const [loading, setLoading]   = useState(true)
   const [error, setError]       = useState(null)
+  const [tab, setTab]           = useState('profile')
+  const [form, setForm]         = useState({})
+  const [saving, setSaving]     = useState(false)
+  const [saved, setSaved]       = useState(false)
+  const [nameError, setNameError] = useState(null)
 
-  // ── Name edit state ──────────────────────────────────────
-  const [firstName, setFirstName]   = useState('')
-  const [lastName, setLastName]     = useState('')
-  const [saving, setSaving]         = useState(false)
-  const [nameSuccess, setNameSuccess] = useState(false)
-  const [nameError, setNameError]   = useState(null)
-
-  // ── Password state ───────────────────────────────────────
   const [currentPassword, setCurrentPassword]   = useState('')
   const [newPassword, setNewPassword]           = useState('')
   const [confirmPassword, setConfirmPassword]   = useState('')
   const [pwSaving, setPwSaving]                 = useState(false)
   const [pwSuccess, setPwSuccess]               = useState(false)
   const [pwError, setPwError]                   = useState(null)
+
+  const [notifs, setNotifs] = useState({ notifyEmail: true, notifyInApp: true, notifyResults: false, notifyReminders: true, twoFactor: false })
 
   useEffect(() => { loadProfile() }, [])
 
@@ -63,8 +62,17 @@ function ManagerProfilePage() {
     try {
       const res = await api.getManagerProfile()
       setProfile(res.data)
-      setFirstName(res.data.first_name || '')
-      setLastName(res.data.last_name || '')
+      const d = res.data
+      setForm({
+        name: `${d.first_name || ''} ${d.last_name || ''}`.trim(),
+        title: d.title || d.job_title || '',
+        email: d.email || '',
+        phone: d.phone || '',
+        department: d.department || '',
+        team: d.team || '',
+        loc: d.location || d.loc || '',
+        timezone: d.timezone || '',
+      })
     } catch (err) {
       setError('Could not load profile. Please try again.')
     } finally {
@@ -72,17 +80,18 @@ function ManagerProfilePage() {
     }
   }
 
-  async function handleSaveName(e) {
+  async function handleSave(e) {
     e.preventDefault()
     setSaving(true)
-    setNameSuccess(false)
+    setSaved(false)
     setNameError(null)
     try {
+      const parts = form.name.trim().split(/\s+/)
+      const firstName = parts[0] || ''
+      const lastName = parts.slice(1).join(' ')
       const res = await api.updateManagerProfile({ firstName, lastName })
       setProfile(res.data)
-      setFirstName(res.data.first_name || '')
-      setLastName(res.data.last_name || '')
-      setNameSuccess(true)
+      setSaved(true)
     } catch (err) {
       setNameError(err.message)
     } finally {
@@ -94,14 +103,8 @@ function ManagerProfilePage() {
     e.preventDefault()
     setPwSuccess(false)
     setPwError(null)
-    if (newPassword !== confirmPassword) {
-      setPwError('New passwords do not match.')
-      return
-    }
-    if (newPassword.length < 6) {
-      setPwError('New password must be at least 6 characters.')
-      return
-    }
+    if (newPassword !== confirmPassword) { setPwError('New passwords do not match.'); return }
+    if (newPassword.length < 6) { setPwError('New password must be at least 6 characters.'); return }
     setPwSaving(true)
     try {
       await api.updateManagerProfile({ currentPassword, newPassword })
@@ -116,102 +119,140 @@ function ManagerProfilePage() {
     }
   }
 
-  // ── Render ───────────────────────────────────────────────
   if (loading) return <div style={{ padding: 40 }}><Spinner /></div>
-  if (error)   return <ErrorMessage message={error} />
+  if (error) return <ErrorMessage message={error} />
 
-  const inputStyle = {
-    width: '100%',
-    padding: '9px 12px',
-    border: '1px solid var(--border-default)',
-    borderRadius: 'var(--radius-md)',
-    fontSize: 14,
-    color: 'var(--fg-body)',
-    background: 'var(--bg-surface)',
-    boxSizing: 'border-box',
-    fontFamily: 'inherit',
-  }
+  const cardStyle = { background: '#FFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 20, boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }
+  const eyebrowStyle = { fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#5B4FE9' }
 
-  const sectionStyle = {
-    background: 'var(--bg-surface)',
-    border: '1px solid var(--border-default)',
-    borderRadius: 'var(--radius-lg)',
-    padding: '20px 24px',
-    marginBottom: 20,
-    boxShadow: 'var(--shadow-sm)',
-  }
+  const profileFields = [
+    { k: 'name', label: 'Full name' },
+    { k: 'title', label: 'Job title' },
+    { k: 'email', label: 'Email' },
+    { k: 'phone', label: 'Phone' },
+    { k: 'department', label: 'Department' },
+    { k: 'team', label: 'Team' },
+    { k: 'loc', label: 'Location' },
+    { k: 'timezone', label: 'Timezone' },
+  ]
 
-  const labelStyle = {
-    display: 'block',
-    fontSize: 13,
-    fontWeight: 500,
-    color: 'var(--fg-muted)',
-    marginBottom: 6,
-  }
+  const notifOptions = [
+    { k: 'notifyEmail',     label: 'Email notifications',    desc: 'Pipeline updates and weekly digests' },
+    { k: 'notifyInApp',     label: 'In-app notifications',   desc: 'Show the bell badge for new activity' },
+    { k: 'notifyResults',   label: 'Report ready alerts',    desc: 'Notify me when an AI report is generated' },
+    { k: 'notifyReminders', label: 'Scorecard reminders',    desc: 'Nudge me about overdue scorecards' },
+  ]
 
   return (
-    <div style={{ maxWidth: 520 }}>
-      <div style={{ fontSize: 22, fontWeight: 700, color: 'var(--fg-primary)', marginBottom: 24 }}>
-        My Profile
-      </div>
+    <div style={{ maxWidth: 760 }}>
+      <button onClick={() => window.history.back()} style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'transparent', border: 0, color: '#5B4FE9', fontWeight: 500, fontSize: 13, cursor: 'pointer', marginBottom: 20, fontFamily: 'inherit' }}>
+        <ArrowLeft size={16} /> Back
+      </button>
 
-      {/* Identity card */}
-      <div style={{ ...sectionStyle, display: 'flex', alignItems: 'center', gap: 20 }}>
-        <Avatar name={`${profile.first_name} ${profile.last_name}`} size={56} />
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
+        <Avatar name={form.name || 'M'} size={64} />
         <div>
-          <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--fg-primary)' }}>
-            {profile.first_name} {profile.last_name}
-          </div>
-          <div style={{ fontSize: 13, color: 'var(--fg-muted)', marginTop: 2 }}>{profile.email}</div>
-          <div style={{ marginTop: 8 }}><RoleBadge role={profile.role} /></div>
+          <h1 style={{ fontSize: 24, fontWeight: 700, color: '#0F172A', margin: 0, letterSpacing: '-0.02em' }}>{form.name}</h1>
+          <p style={{ fontSize: 13, color: '#6B7280', marginTop: 3 }}>{form.title}{form.department ? ` · ${form.department}` : ''}</p>
         </div>
       </div>
 
-      {/* Edit name */}
-      <div style={sectionStyle}>
-        <div style={{ fontWeight: 600, marginBottom: 16 }}>Edit Name</div>
-        <form onSubmit={handleSaveName}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
-            <div>
-              <label style={labelStyle}>First name</label>
-              <input style={inputStyle} value={firstName} onChange={e => setFirstName(e.target.value)} required />
-            </div>
-            <div>
-              <label style={labelStyle}>Last name</label>
-              <input style={inputStyle} value={lastName} onChange={e => setLastName(e.target.value)} />
-            </div>
-          </div>
-          {nameError   && <div style={{ color: 'var(--danger-600)', fontSize: 13, marginBottom: 10 }}>{nameError}</div>}
-          {nameSuccess && <div style={{ color: 'var(--success-700)', fontSize: 13, marginBottom: 10 }}>Name updated successfully.</div>}
-          <Button type="submit" variant="primary" size="sm" disabled={saving}>
-            {saving ? 'Saving…' : 'Save Name'}
-          </Button>
-        </form>
+      <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid #E2E8F0', marginBottom: 20 }}>
+        {[{ id: 'profile', label: 'Profile' }, { id: 'settings', label: 'Account settings' }].map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)} style={{ background: 'transparent', border: 0, padding: '10px 14px', fontSize: 13, fontWeight: tab === t.id ? 600 : 500, color: tab === t.id ? '#3A31A3' : '#6B7280', borderBottom: tab === t.id ? '2px solid #5B4FE9' : '2px solid transparent', marginBottom: -1, cursor: 'pointer', fontFamily: 'inherit' }}>
+            {t.label}
+          </button>
+        ))}
       </div>
 
-      {/* Change password */}
-      <div style={sectionStyle}>
-        <div style={{ fontWeight: 600, marginBottom: 16 }}>Change Password</div>
-        <form onSubmit={handleChangePassword}>
-          <div style={{ marginBottom: 12 }}>
-            <label style={labelStyle}>Current password</label>
-            <input type="password" style={inputStyle} value={currentPassword} onChange={e => setCurrentPassword(e.target.value)} required autoComplete="current-password" />
+      {tab === 'profile' && (
+        <form onSubmit={handleSave}>
+          <div style={cardStyle}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+              {profileFields.map(f => (
+                <div key={f.k}>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 5 }}>{f.label}</label>
+                  <input
+                    value={form[f.k] || ''}
+                    onChange={e => { setForm(prev => ({ ...prev, [f.k]: e.target.value })); setSaved(false) }}
+                    style={{ width: '100%', padding: '9px 12px', border: '1px solid #CBD5E1', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+                    onFocus={e => { e.target.style.borderColor = '#5B4FE9'; e.target.style.boxShadow = '0 0 0 3px rgba(91,79,233,0.18)' }}
+                    onBlur={e => { e.target.style.borderColor = '#CBD5E1'; e.target.style.boxShadow = 'none' }}
+                  />
+                </div>
+              ))}
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 18 }}>
+              <button type="submit" disabled={saving} style={{ background: saving ? '#E2E8F0' : '#5B4FE9', color: saving ? '#94A3B8' : '#FFF', border: 0, borderRadius: 8, fontWeight: 600, padding: '8px 14px', fontSize: 13, cursor: saving ? 'not-allowed' : 'pointer' }}>
+                {saving ? 'Saving…' : 'Save changes'}
+              </button>
+              {saved && <span style={{ fontSize: 13, color: '#047857' }}>Profile saved</span>}
+              {nameError && <span style={{ fontSize: 13, color: '#B53618' }}>{nameError}</span>}
+            </div>
           </div>
-          <div style={{ marginBottom: 12 }}>
-            <label style={labelStyle}>New password</label>
-            <input type="password" style={inputStyle} value={newPassword} onChange={e => setNewPassword(e.target.value)} required autoComplete="new-password" />
-          </div>
-          <div style={{ marginBottom: 16 }}>
-            <label style={labelStyle}>Confirm new password</label>
-            <input type="password" style={inputStyle} value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} required autoComplete="new-password" />
-          </div>
-          {pwError   && <div style={{ color: 'var(--danger-600)', fontSize: 13, marginBottom: 10 }}>{pwError}</div>}
-          {pwSuccess && <div style={{ color: 'var(--success-700)', fontSize: 13, marginBottom: 10 }}>Password changed successfully.</div>}
-          <Button type="submit" variant="primary" size="sm" disabled={pwSaving}>
-            {pwSaving ? 'Saving…' : 'Change Password'}
-          </Button>
         </form>
-      </div>
+      )}
+
+      {tab === 'settings' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <div style={cardStyle}>
+            <div style={eyebrowStyle}>Notifications</div>
+            <div style={{ marginTop: 8 }}>
+              {notifOptions.map((o, i) => (
+                <div key={o.k} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0', borderTop: i ? '1px solid #F1F5F9' : '0' }}>
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#0F172A' }}>{o.label}</div>
+                    <div style={{ fontSize: 12, color: '#6B7280', marginTop: 1 }}>{o.desc}</div>
+                  </div>
+                  <Toggle on={notifs[o.k]} onClick={() => setNotifs(prev => ({ ...prev, [o.k]: !prev[o.k] }))} />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div style={cardStyle}>
+            <div style={eyebrowStyle}>Security</div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0' }}>
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: '#0F172A' }}>Two-factor authentication</div>
+                <div style={{ fontSize: 12, color: '#6B7280', marginTop: 1 }}>Require a code at sign-in</div>
+              </div>
+              <Toggle on={notifs.twoFactor} onClick={() => setNotifs(prev => ({ ...prev, twoFactor: !prev.twoFactor }))} />
+            </div>
+            <div style={{ paddingTop: 12, borderTop: '1px solid #F1F5F9' }}>
+              <form onSubmit={handleChangePassword}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 12 }}>
+                  {[
+                    { label: 'Current password', value: currentPassword, setter: setCurrentPassword, auto: 'current-password' },
+                    { label: 'New password',      value: newPassword,     setter: setNewPassword,     auto: 'new-password' },
+                    { label: 'Confirm password',  value: confirmPassword, setter: setConfirmPassword,  auto: 'new-password' },
+                  ].map(f => (
+                    <div key={f.label}>
+                      <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 5 }}>{f.label}</label>
+                      <input
+                        type="password"
+                        value={f.value}
+                        onChange={e => f.setter(e.target.value)}
+                        autoComplete={f.auto}
+                        style={{ width: '100%', padding: '9px 12px', border: '1px solid #CBD5E1', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
+                        onFocus={e => { e.target.style.borderColor = '#5B4FE9'; e.target.style.boxShadow = '0 0 0 3px rgba(91,79,233,0.18)' }}
+                        onBlur={e => { e.target.style.borderColor = '#CBD5E1'; e.target.style.boxShadow = 'none' }}
+                      />
+                    </div>
+                  ))}
+                </div>
+                {pwError && <div style={{ color: '#B53618', fontSize: 13, marginBottom: 10 }}>{pwError}</div>}
+                {pwSuccess && <div style={{ color: '#047857', fontSize: 13, marginBottom: 10 }}>Password changed successfully.</div>}
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button type="submit" disabled={pwSaving} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#FFF', color: '#0F172A', border: '1px solid #CBD5E1', borderRadius: 8, fontWeight: 600, padding: '8px 14px', fontSize: 13, cursor: pwSaving ? 'not-allowed' : 'pointer' }}>
+                    <KeyRound size={13} /> {pwSaving ? 'Saving…' : 'Change password'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

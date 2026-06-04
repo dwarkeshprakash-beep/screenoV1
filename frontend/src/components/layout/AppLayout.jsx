@@ -1,48 +1,38 @@
-// AppLayout — two-column shell: sidebar left, page content right.
-// Used by all manager and interviewer pages.
-
-import { Outlet, useLocation } from 'react-router-dom'
+import { Outlet, useLocation, useParams } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import TopBar from './TopBar'
 
-// Map URL paths to readable page titles shown in the TopBar
 const PAGE_TITLES = {
-  '/manager/dashboard':  'Dashboard',
-  '/manager/team':       'Team',
-  '/manager/schedule':   'Schedule',
-  '/manager/reports':    'Reports',
-  '/manager/templates':  'Templates',
-  '/interviewer/dashboard': 'Dashboard',
+  '/manager/dashboard':          { title: 'Team Overview',    subtitle: 'Your team at a glance' },
+  '/manager/team':               { title: 'My Team',          subtitle: 'Manage team members' },
+  '/manager/schedule':           { title: 'Schedule',         subtitle: 'Upcoming interviews and sessions' },
+  '/manager/reports':            { title: 'Reports',          subtitle: 'Analytics and insights' },
+  '/manager/templates':          { title: 'Templates',        subtitle: 'Interview and exam templates' },
+  '/manager/profile':            { title: 'My Profile',       subtitle: 'Account settings' },
+  '/interviewer/dashboard':      { title: 'My Dashboard',     subtitle: 'Upcoming interviews' },
 }
 
-/**
- * @param {string} role - 'manager' or 'interviewer'
- */
+function getPageInfo(pathname) {
+  if (PAGE_TITLES[pathname]) return PAGE_TITLES[pathname]
+  if (pathname.startsWith('/manager/team/')) return { title: 'Member Profile', subtitle: 'Team member details' }
+  return { title: '', subtitle: '' }
+}
+
 function AppLayout({ role = 'manager' }) {
   const location = useLocation()
-  const title = PAGE_TITLES[location.pathname] || ''
-
-  // Read user info from localStorage (set by auth on login)
-  let user = {}
-  try {
-    const stored = localStorage.getItem('user')
-    if (stored) user = JSON.parse(stored)
-  } catch {
-    // ignore parse error
-  }
+  const { title, subtitle } = getPageInfo(location.pathname)
 
   return (
     <div style={{ display: 'flex', minHeight: '100vh' }}>
       <Sidebar role={role} />
 
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        <TopBar title={title} user={user} />
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+        <TopBar title={title} subtitle={subtitle} />
 
         <main style={{
           flex: 1,
-          overflowY: 'auto',
-          padding: '28px',
-          background: 'var(--bg-page)',
+          padding: '24px 28px',
+          background: '#F8FAFC',
         }}>
           <Outlet />
         </main>

@@ -1,45 +1,50 @@
-// pages/manager/ReportsPage.jsx
-// Team reports — list with score bars and view buttons.
-
 import { useState, useEffect } from 'react'
-import { Search, Download } from 'lucide-react'
+import { Filter, Download } from 'lucide-react'
 import Spinner from '../../components/shared/Spinner'
 import ErrorMessage from '../../components/shared/ErrorMessage'
 import EmptyState from '../../components/shared/EmptyState'
-import Avatar from '../../components/shared/Avatar'
-import Modal from '../../components/shared/Modal'
-import Button from '../../components/shared/Button'
 import * as api from '../../services/api'
 import { formatDate } from '../../utils/helpers'
 
-function MiniBar({ value, max = 10, color = 'var(--brand-500)' }) {
-  const pct = value ? Math.round((value / max) * 100) : 0
+const AV_COLORS = [
+  { bg: '#EDE9FE', fg: '#5B21B6' }, { bg: '#FED7AA', fg: '#9A3412' },
+  { bg: '#A7F3D0', fg: '#065F46' }, { bg: '#BFDBFE', fg: '#1E40AF' },
+  { bg: '#FBCFE8', fg: '#9D174D' }, { bg: '#FDE68A', fg: '#854D0E' },
+  { bg: '#C7D2FE', fg: '#3730A3' }, { bg: '#FCA5A5', fg: '#7F1D1D' },
+]
+
+function avHash(s) {
+  let h = 0
+  for (let i = 0; i < (s || '').length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0
+  return Math.abs(h)
+}
+
+function Avatar({ name = '?', size = 32 }) {
+  const c = AV_COLORS[avHash(name) % AV_COLORS.length]
+  const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase()
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-      <div style={{ width: 60, height: 5, background: 'var(--slate-100)', borderRadius: 3, overflow: 'hidden' }}>
-        <div style={{ height: '100%', width: `${pct}%`, background: color, borderRadius: 3 }} />
-      </div>
-      <span style={{ fontSize: 11, color: 'var(--fg-muted)' }}>{value != null ? value : '—'}</span>
+    <div style={{ width: size, height: size, borderRadius: 9999, flexShrink: 0, background: c.bg, color: c.fg, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: Math.round(size * 0.38), letterSpacing: '-0.01em' }}>
+      {initials}
     </div>
   )
 }
 
-function ScoreBadge({ score }) {
-  if (!score) return <span style={{ fontSize: 13, color: 'var(--fg-muted)' }}>—</span>
-  const color = score >= 7 ? 'var(--success-500)' : score >= 5 ? 'var(--warning-500)' : 'var(--danger-500)'
+function DecisionBadge({ decision }) {
+  const map = {
+    pass:    { label: 'Pass',    bg: '#ECFDF5', fg: '#047857' },
+    maybe:   { label: 'Maybe',   bg: '#FFFBEB', fg: '#B45309' },
+    pending: { label: 'Pending', bg: '#F1F5F9', fg: '#6B7280' },
+  }
+  const d = map[decision] || map.pending
   return (
-    <span style={{ padding: '4px 10px', borderRadius: 99, background: `${color}18`, color, fontSize: 14, fontWeight: 700 }}>
-      {score}/10
-    </span>
+    <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 9999, background: d.bg, color: d.fg }}>{d.label}</span>
   )
 }
 
 function ReportsPage() {
-  const [reports, setReports]   = useState([])
-  const [loading, setLoading]   = useState(true)
-  const [error, setError]       = useState(null)
-  const [search, setSearch]     = useState('')
-  const [viewReport, setViewReport] = useState(null)
+  const [reports, setReports] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError]     = useState(null)
 
   useEffect(() => { load() }, [])
 
@@ -56,96 +61,107 @@ function ReportsPage() {
     }
   }
 
-  const filtered = reports.filter(r => {
-    if (!search) return true
-    const name = `${r.first_name} ${r.last_name}`.toLowerCase()
-    return name.includes(search.toLowerCase())
-  })
-
   if (loading) return <div style={{ padding: 40 }}><Spinner /></div>
   if (error) return <ErrorMessage message={error} />
 
+  const cardStyle = { background: '#FFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 20, boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }
+  const thStyle = { textAlign: 'left', padding: '11px 16px', fontSize: 11, fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: '#94A3B8', borderBottom: '1px solid #E2E8F0' }
+  const btnSecondary = { background: '#FFF', color: '#0F172A', border: '1px solid #CBD5E1', borderRadius: 8, fontWeight: 600, padding: '5px 10px', fontSize: 12, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }
+
+  const statCards = [
+    { label: 'Total interviews', value: reports.length,                                            sub: 'This quarter' },
+    { label: 'Pass rate',        value: reports.length ? `${Math.round(reports.filter(r => r.decision === 'pass').length / reports.length * 100)}%` : '—', sub: `${reports.filter(r => r.decision === 'pass').length} of ${reports.length}` },
+    { label: 'Avg score',        value: reports.length ? (reports.reduce((a, r) => a + (r.overall_score || 0), 0) / reports.length).toFixed(1) : '—', sub: '↑ vs last month' },
+    { label: 'Reports pending',  value: reports.filter(r => !r.decision || r.decision === 'pending').length, sub: 'Send after attempt' },
+  ]
+
   return (
-    <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
-        <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0 }}>Reports</h1>
-        <div style={{ position: 'relative' }}>
-          <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--fg-muted)' }} />
-          <input type="text" placeholder="Search by name…" value={search} onChange={e => setSearch(e.target.value)} style={{ padding: '8px 12px 8px 30px', border: '1px solid var(--border-default)', borderRadius: 8, fontSize: 13, outline: 'none', width: 220 }} />
-        </div>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div>
+        <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#5B4FE9' }}>MANAGER · REPORTS</div>
+        <h1 style={{ fontSize: 26, fontWeight: 700, color: '#0F172A', margin: '6px 0', letterSpacing: '-0.02em' }}>Reports</h1>
       </div>
 
-      {filtered.length === 0 ? (
-        <EmptyState message={search ? 'No results for this search.' : 'No reports yet. Reports are generated after interviews complete.'} />
-      ) : (
-        <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderRadius: 'var(--radius-lg)', overflow: 'hidden', boxShadow: 'var(--shadow-sm)' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14 }}>
+        {statCards.map((s, i) => (
+          <div key={i} style={{ ...cardStyle, padding: 16 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#6B7280' }}>{s.label}</div>
+            <div style={{ fontSize: 26, fontWeight: 700, color: '#0F172A', letterSpacing: '-0.02em', lineHeight: 1.1, marginTop: 4 }}>{s.value}</div>
+            <div style={{ fontSize: 12, color: '#059669', fontWeight: 500, marginTop: 2 }}>{s.sub}</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ ...cardStyle, padding: 0, overflow: 'hidden' }}>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid #F1F5F9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: '#0F172A' }}>Candidate reports</div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button style={btnSecondary}><Filter size={12} /> Filter</button>
+            <button style={btnSecondary}><Download size={12} /> Export all</button>
+          </div>
+        </div>
+
+        {reports.length === 0 ? (
+          <EmptyState message="No reports yet. Reports are generated after interviews complete." />
+        ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
-              <tr>
-                {['Candidate', 'Confidence', 'Knowledge', 'Communication', 'Overall', ''].map((h, i) => (
-                  <th key={i} style={{ padding: '10px 16px', fontSize: 11, fontWeight: 600, color: 'var(--fg-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: 'left', borderBottom: '1px solid var(--border-default)' }}>{h}</th>
+              <tr style={{ background: '#F8FAFC' }}>
+                {['CANDIDATE', 'ROLE', 'ATTEMPTS', 'DATE', 'OVERALL', 'JD MATCH', 'DECISION', ''].map(h => (
+                  <th key={h} style={thStyle}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {filtered.map((r, i) => (
-                <tr key={r.candidate_id} style={{ borderBottom: i < filtered.length - 1 ? '1px solid var(--border-default)' : 'none' }}>
-                  <td style={{ padding: '12px 16px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                      <Avatar name={`${r.first_name} ${r.last_name}`} size={32} />
-                      <div>
-                        <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--fg-primary)' }}>{r.first_name} {r.last_name}</div>
-                        {r.report_date && <div style={{ fontSize: 12, color: 'var(--fg-muted)' }}>{formatDate(r.report_date)}</div>}
+              {reports.map((r, i) => {
+                const name = `${r.first_name || ''} ${r.last_name || ''}`.trim() || r.name || 'Unknown'
+                const overall = r.overall_score != null ? r.overall_score / 2 : null
+                const jdMatch = r.jd_match != null ? r.jd_match : null
+
+                return (
+                  <tr key={r.candidate_id || i}
+                    style={{ cursor: 'pointer', transition: 'background 120ms' }}
+                    onMouseEnter={e => e.currentTarget.style.background = '#F8FAFC'}
+                    onMouseLeave={e => e.currentTarget.style.background = '#FFF'}
+                  >
+                    <td style={{ padding: '14px 16px', borderBottom: '1px solid #F1F5F9' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                        <Avatar name={name} size={32} />
+                        <div style={{ fontWeight: 600, color: '#0F172A' }}>{name}</div>
                       </div>
-                    </div>
-                  </td>
-                  <td style={{ padding: '12px 16px' }}><MiniBar value={r.confidence} /></td>
-                  <td style={{ padding: '12px 16px' }}><MiniBar value={r.tech_knowledge} color="var(--info-500)" /></td>
-                  <td style={{ padding: '12px 16px' }}><MiniBar value={r.communication} color="var(--success-500)" /></td>
-                  <td style={{ padding: '12px 16px' }}><ScoreBadge score={r.overall_score} /></td>
-                  <td style={{ padding: '12px 16px' }}>
-                    <Button variant="secondary" size="sm" onClick={() => setViewReport(r)}>View Report</Button>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                    <td style={{ padding: '14px 16px', borderBottom: '1px solid #F1F5F9', color: '#6B7280' }}>{r.role || '—'}</td>
+                    <td style={{ padding: '14px 16px', borderBottom: '1px solid #F1F5F9', fontFamily: 'monospace', fontWeight: 600, color: '#0F172A' }}>{r.attempts || 1}</td>
+                    <td style={{ padding: '14px 16px', borderBottom: '1px solid #F1F5F9', color: '#6B7280' }}>{r.report_date ? formatDate(r.report_date) : '—'}</td>
+                    <td style={{ padding: '14px 16px', borderBottom: '1px solid #F1F5F9' }}>
+                      {overall != null ? (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontFamily: 'monospace', fontWeight: 700, color: overall >= 4 ? '#047857' : overall >= 3 ? '#B45309' : '#B53618' }}>{overall.toFixed(1)}</span>
+                          <span style={{ flex: 1, height: 4, background: '#F1F5F9', borderRadius: 9999, overflow: 'hidden', display: 'inline-block', width: 48 }}>
+                            <span style={{ display: 'block', height: '100%', width: `${(overall / 5) * 100}%`, background: '#5B4FE9', borderRadius: 9999 }} />
+                          </span>
+                        </div>
+                      ) : <span style={{ color: '#94A3B8' }}>—</span>}
+                    </td>
+                    <td style={{ padding: '14px 16px', borderBottom: '1px solid #F1F5F9' }}>
+                      {jdMatch != null
+                        ? <span style={{ fontFamily: 'monospace', fontWeight: 700, color: jdMatch >= 75 ? '#047857' : jdMatch >= 60 ? '#B45309' : '#B53618' }}>{jdMatch}%</span>
+                        : <span style={{ color: '#94A3B8' }}>—</span>
+                      }
+                    </td>
+                    <td style={{ padding: '14px 16px', borderBottom: '1px solid #F1F5F9' }}>
+                      <DecisionBadge decision={r.decision} />
+                    </td>
+                    <td style={{ padding: '14px 16px', borderBottom: '1px solid #F1F5F9' }}>
+                      <button style={btnSecondary}>View report</button>
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
-        </div>
-      )}
-
-      <Modal open={!!viewReport} onClose={() => setViewReport(null)} title={viewReport ? `Report — ${viewReport.first_name} ${viewReport.last_name}` : ''} size="md">
-        {viewReport && (
-          <div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
-              {[['Overall', viewReport.overall_score], ['Confidence', viewReport.confidence], ['Tech Knowledge', viewReport.tech_knowledge], ['Communication', viewReport.communication]].map(([lbl, val]) => (
-                <div key={lbl} style={{ padding: 12, background: 'var(--bg-surface-alt)', borderRadius: 8 }}>
-                  <div style={{ fontSize: 12, color: 'var(--fg-muted)', marginBottom: 4 }}>{lbl}</div>
-                  <div style={{ fontSize: 20, fontWeight: 700 }}>{val != null ? `${val}/10` : '—'}</div>
-                </div>
-              ))}
-            </div>
-            {viewReport.summary && (
-              <div>
-                <div style={{ fontWeight: 600, marginBottom: 8 }}>Summary</div>
-                <p style={{ fontSize: 13, color: 'var(--fg-body)', lineHeight: 1.6, margin: 0 }}>{viewReport.summary}</p>
-              </div>
-            )}
-            {viewReport.pdf_url && (
-              <div style={{ marginTop: 16 }}>
-                <a
-                  href={viewReport.pdf_url}
-                  download
-                  target="_blank"
-                  rel="noreferrer"
-                  style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '8px 16px', background: 'var(--brand-500)', color: '#fff', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}
-                >
-                  <Download size={13} /> Download Report PDF
-                </a>
-              </div>
-            )}
-          </div>
         )}
-      </Modal>
+      </div>
     </div>
   )
 }

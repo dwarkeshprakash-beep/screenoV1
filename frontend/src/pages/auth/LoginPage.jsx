@@ -1,87 +1,11 @@
-// pages/auth/LoginPage.jsx
-// Login screen — dark navy design with demo accounts + email/password form.
-
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import * as api from '../../services/api'
 
-// Screeno logo — two purple rectangles
-function ScreenoLogo({ size = 44 }) {
-  return (
-    <div style={{ position: 'relative', width: size, height: size, display: 'inline-block' }}>
-      <div style={{
-        position: 'absolute',
-        top: size * 0.15, left: size * 0.1,
-        width: size * 0.7, height: size * 0.28,
-        background: 'var(--brand-500)',
-        borderRadius: 4,
-      }} />
-      <div style={{
-        position: 'absolute',
-        top: size * 0.52, left: size * 0.22,
-        width: size * 0.7, height: size * 0.28,
-        background: 'var(--brand-400)',
-        borderRadius: 4,
-      }} />
-    </div>
-  )
-}
-
 const DEMO_ACCOUNTS = [
-  { label: 'Kiran Oza',       sub: 'Manager · Prakash Infotech',       badge: 'manager',     initials: 'KO', color: '#5B4FE9', email: 'kiran.oza@prakashinfotech.com',       password: 'Admin@1234' },
-  { label: 'Dwarkesh Vajjala', sub: 'Tech Interviewer · Prakash Infotech', badge: 'interviewer', initials: 'DV', color: '#2563EB', email: 'dwarkesh.vajjala@prakashinfotech.com', password: 'Admin@1234' },
+  { role: 'manager',     name: 'Kiran Oza',         sub: 'Manager · Prakash Infotech',        initials: 'KO', bgColor: '#EDE9FE', fgColor: '#5B21B6', badgeBg: '#3730A3', badgeFg: '#C7D2FE', badge: 'manager',     email: 'kiran.oza@prakashinfotech.com',         password: 'Admin@1234' },
+  { role: 'interviewer', name: 'Dwarkesh Vajjala',  sub: 'Tech Interviewer · Prakash Infotech', initials: 'DV', bgColor: '#BFDBFE', fgColor: '#1E40AF', badgeBg: '#1E3A5F', badgeFg: '#93C5FD', badge: 'interviewer', email: 'dwarkesh.vajjala@prakashinfotech.com',   password: 'Admin@1234' },
 ]
-
-function DemoButton({ account, onSelect }) {
-  const [hovered, setHovered] = useState(false)
-  return (
-    <button
-      type="button"
-      onClick={() => onSelect(account)}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        width: '100%',
-        display: 'flex',
-        alignItems: 'center',
-        gap: 12,
-        padding: '12px 14px',
-        background: '#0F172A',
-        border: `1px solid ${hovered ? 'var(--brand-500)' : '#334155'}`,
-        borderRadius: 10,
-        cursor: 'pointer',
-        transition: 'border-color 0.15s',
-        textAlign: 'left',
-      }}
-    >
-      <div style={{
-        width: 36, height: 36,
-        borderRadius: '50%',
-        background: account.color,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        color: '#fff', fontSize: 13, fontWeight: 700,
-        flexShrink: 0,
-      }}>
-        {account.initials}
-      </div>
-      <div style={{ flex: 1 }}>
-        <div style={{ color: '#fff', fontSize: 14, fontWeight: 600 }}>{account.label}</div>
-        <div style={{ color: '#94A3B8', fontSize: 12 }}>{account.sub}</div>
-      </div>
-      <span style={{
-        fontSize: 11, fontWeight: 600,
-        padding: '2px 8px',
-        borderRadius: 99,
-        background: account.badge === 'manager' ? '#3730A3' : '#1E3A5F',
-        color: account.badge === 'manager' ? '#C7D2FE' : '#93C5FD',
-        letterSpacing: '0.04em',
-        textTransform: 'uppercase',
-      }}>
-        {account.badge}
-      </span>
-    </button>
-  )
-}
 
 function LoginPage() {
   const navigate = useNavigate()
@@ -91,9 +15,6 @@ function LoginPage() {
   const [loading, setLoading]   = useState(false)
   const [error, setError]       = useState(null)
 
-  /**
-   * Submit login form — store access token and route by role.
-   */
   async function handleSubmit(e) {
     e.preventDefault()
     setError(null)
@@ -102,34 +23,29 @@ function LoginPage() {
       const result = await api.login(email, password)
       localStorage.setItem('accessToken', result.data.accessToken)
       localStorage.setItem('user', JSON.stringify(result.data.user))
-
       const role = result.data.user.role
-      if (role === 'manager')     navigate('/manager/dashboard')
+      if (role === 'manager')          navigate('/manager/dashboard')
       else if (role === 'interviewer') navigate('/interviewer/dashboard')
-      else navigate('/login')
-    } catch (err) {
+      else                             navigate('/login')
+    } catch {
       setError('Invalid email or password. Please try again.')
     } finally {
       setLoading(false)
     }
   }
 
-  /**
-   * Click a demo account button — auto-fill and submit.
-   */
   function selectDemo(account) {
     setEmail(account.email)
     setPassword(account.password)
-    // Submit immediately
     setError(null)
     setLoading(true)
     api.login(account.email, account.password).then(result => {
       localStorage.setItem('accessToken', result.data.accessToken)
       localStorage.setItem('user', JSON.stringify(result.data.user))
       const role = result.data.user.role
-      if (role === 'manager')     navigate('/manager/dashboard')
+      if (role === 'manager')          navigate('/manager/dashboard')
       else if (role === 'interviewer') navigate('/interviewer/dashboard')
-      else navigate('/login')
+      else                             navigate('/login')
     }).catch(() => {
       setEmail(account.email)
       setPassword(account.password)
@@ -137,7 +53,6 @@ function LoginPage() {
     }).finally(() => setLoading(false))
   }
 
-  // Input style for dark card
   const inputStyle = {
     width: '100%',
     padding: '10px 14px',
@@ -151,113 +66,79 @@ function LoginPage() {
   }
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      background: '#0F172A',
-      padding: 16,
-    }}>
+    <div style={{ minHeight: '100vh', background: '#0F172A', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
       <div style={{ width: '100%', maxWidth: 440 }}>
-        {/* Logo + wordmark */}
-        <div style={{ textAlign: 'center', marginBottom: 28 }}>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 12 }}>
-            <ScreenoLogo size={44} />
-            <span style={{ color: '#fff', fontSize: 28, fontWeight: 700, letterSpacing: '-0.02em' }}>
-              Screeno
-            </span>
+
+        <div style={{ textAlign: 'center', marginBottom: 40 }}>
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+            <div style={{ width: 44, height: 44, borderRadius: 12, background: 'linear-gradient(135deg,#5B4FE9,#4A3FCE)', position: 'relative' }}>
+              <div style={{ position: 'absolute', left: 11, top: 14, width: 22, height: 3, background: '#FFF', borderRadius: 2, opacity: 0.95 }} />
+              <div style={{ position: 'absolute', left: 11, top: 21, width: 22, height: 3, background: '#FFF', borderRadius: 2, opacity: 0.6 }} />
+            </div>
+            <span style={{ fontSize: 28, fontWeight: 700, color: '#FFF', letterSpacing: '-0.025em' }}>Screeno</span>
           </div>
-          <p style={{ color: '#64748B', fontSize: 14, marginTop: 6 }}>
-            AI-powered hiring platform
-          </p>
+          <p style={{ fontSize: 14, color: '#64748B' }}>AI-powered hiring platform</p>
         </div>
 
-        {/* Card */}
-        <div style={{
-          background: '#1E293B',
-          border: '1px solid #334155',
-          borderRadius: 16,
-          padding: 28,
-        }}>
-          {/* Demo accounts */}
-          <p style={{ color: '#64748B', fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: 12 }}>
-            Demo Accounts
-          </p>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 20 }}>
+        <div style={{ background: '#1E293B', border: '1px solid #334155', borderRadius: 16, padding: 28 }}>
+          <p style={{ fontSize: 13, fontWeight: 600, color: '#94A3B8', letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: 18 }}>Demo Accounts</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
             {DEMO_ACCOUNTS.map(a => (
               <DemoButton key={a.email} account={a} onSelect={selectDemo} />
             ))}
           </div>
 
-          {/* Divider */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
             <div style={{ flex: 1, height: 1, background: '#334155' }} />
             <span style={{ color: '#475569', fontSize: 12 }}>or sign in with email</span>
             <div style={{ flex: 1, height: 1, background: '#334155' }} />
           </div>
 
-          {/* Email + password form */}
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             <div>
-              <label style={{ color: '#94A3B8', fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 6 }}>
-                Email
-              </label>
-              <input
-                type="email"
-                placeholder="you@company.com"
-                value={email}
-                onChange={e => setEmail(e.target.value)}
-                required
-                style={inputStyle}
-              />
+              <label style={{ color: '#94A3B8', fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 6 }}>Email</label>
+              <input type="email" placeholder="you@company.com" value={email} onChange={e => setEmail(e.target.value)} required style={inputStyle} />
             </div>
             <div>
-              <label style={{ color: '#94A3B8', fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 6 }}>
-                Password
-              </label>
-              <input
-                type="password"
-                placeholder="••••••••"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                required
-                style={inputStyle}
-              />
+              <label style={{ color: '#94A3B8', fontSize: 13, fontWeight: 500, display: 'block', marginBottom: 6 }}>Password</label>
+              <input type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} required style={inputStyle} />
             </div>
 
-            {error && (
-              <p style={{ fontSize: 13, color: 'var(--danger-500)' }}>{error}</p>
-            )}
+            {error && <p style={{ fontSize: 13, color: '#EF4444' }}>{error}</p>}
 
-            <button
-              type="submit"
-              disabled={loading}
-              style={{
-                width: '100%',
-                padding: '12px',
-                background: 'var(--brand-500)',
-                color: '#fff',
-                border: 'none',
-                borderRadius: 8,
-                fontSize: 14,
-                fontWeight: 600,
-                cursor: loading ? 'not-allowed' : 'pointer',
-                opacity: loading ? 0.7 : 1,
-                marginTop: 4,
-              }}
-            >
+            <button type="submit" disabled={loading} style={{ width: '100%', padding: 12, background: '#5B4FE9', color: '#fff', border: 'none', borderRadius: 8, fontSize: 14, fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1, marginTop: 4 }}>
               {loading ? 'Signing in...' : 'Sign in →'}
             </button>
           </form>
 
-          {/* Security note */}
-          <p style={{ color: '#475569', fontSize: 12, textAlign: 'center', marginTop: 16 }}>
-            🔒 Secure end-to-end encrypted
-          </p>
+          <p style={{ color: '#475569', fontSize: 12, textAlign: 'center', marginTop: 16 }}>Secure end-to-end encrypted</p>
         </div>
       </div>
     </div>
+  )
+}
+
+function DemoButton({ account, onSelect }) {
+  const [hovered, setHovered] = useState(false)
+  return (
+    <button
+      type="button"
+      onClick={() => onSelect(account)}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', background: '#0F172A', border: `1px solid ${hovered ? '#5B4FE9' : '#334155'}`, borderRadius: 10, cursor: 'pointer', textAlign: 'left', transition: 'border-color 150ms', width: '100%' }}
+    >
+      <div style={{ width: 40, height: 40, borderRadius: '50%', background: account.bgColor, color: account.fgColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 14, flexShrink: 0 }}>
+        {account.initials}
+      </div>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontSize: 14, fontWeight: 600, color: '#FFF' }}>{account.name}</div>
+        <div style={{ fontSize: 12, color: '#64748B', marginTop: 1 }}>{account.sub}</div>
+      </div>
+      <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 8px', borderRadius: 6, background: account.badgeBg, color: account.badgeFg, letterSpacing: '0.04em', textTransform: 'capitalize' }}>
+        {account.badge}
+      </span>
+    </button>
   )
 }
 
