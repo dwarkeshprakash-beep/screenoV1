@@ -92,4 +92,16 @@ async function getTeamReports(companyId) {
   )
 }
 
-module.exports = { create, getByCandidate, getLatestByCandidate, getTeamReports }
+/**
+ * Save the Cloudinary PDF URL on a report row.
+ * @param {number} id
+ * @param {string} pdfUrl
+ */
+async function updatePdfUrl(id, pdfUrl) {
+  await db.query(
+    `UPDATE reports SET pdf_url = @pdfUrl WHERE id = @id`,
+    { id, pdfUrl }
+  )
+}
+
+module.exports = { create, getByCandidate, getLatestByCandidate, getTeamReports, updatePdfUrl }

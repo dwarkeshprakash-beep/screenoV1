@@ -11,6 +11,8 @@ const candidateRepository = require('../repositories/candidate.repository')
 const llmService = require('./llm.service')
 const transcriptionService = require('./transcription.service')
 const emailService = require('./email.service')
+const pdfService = require('./pdf.service')
+const storageService = require('./storage.service')
 
 /**
  * Start an interview — validate, create attempt, generate questions.
@@ -170,12 +172,18 @@ ${qaText}`
 
   const reportData = await llmService.generateReport(prompt)
 
-  await reportRepository.create({
+  const savedReport = await reportRepository.create({
     interviewId,
     attemptId,
     candidateId: interview.candidate_id,
     ...reportData,
   })
+
+  // Generate PDF and upload to Cloudinary — fire-and-forget, don't block email notify
+  pdfService.generateReportPdf({ candidate, interview, report: savedReport })
+    .then(buffer => storageService.uploadReport(buffer, savedReport.id))
+    .then(({ url }) => reportRepository.updatePdfUrl(savedReport.id, url))
+    .catch(err => console.error('PDF generation/upload failed:', err))
 
   // Notify manager
   const managerEmail = interview.manager_email

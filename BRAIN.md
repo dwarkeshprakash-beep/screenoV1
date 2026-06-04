@@ -55,7 +55,7 @@ Feature: Phase 2 in progress.
 **Phase 2 tasks:**
 1. [x] AI question generation — real LLM call (Groq → Gemini fallback) for AI voice interviews
 2. [x] Email test — send a real magic link email via Resend
-3. [ ] Report PDF generation — generate PDF report and upload to Cloudinary
+3. [x] Report PDF generation — generate PDF report and upload to Cloudinary
 4. [x] Frontend integration test — PASSED (2026-06-04, Playwright + Chromium, 16/16 checks)
 
 **Frontend test findings (2026-06-04):**
@@ -166,6 +166,23 @@ backend/migrations/003_exam_questions_sqlserver.sql ← SSMS: same
 4. Test auth flow end-to-end
 
 ## Handoff prompts (latest at top)
+
+### 2026-06-04 — Phase 2 Task 3 complete: PDF report generation + Cloudinary upload
+
+**New files:**
+- `backend/src/services/pdf.service.js` — builds A4 PDF from report data using pdfkit (scores, bar charts, summary, strengths, tips, JD excerpt, footer)
+- `backend/migrations/004_report_pdf_url.sql` — Supabase: `ALTER TABLE reports ADD COLUMN IF NOT EXISTS pdf_url TEXT`
+- `backend/migrations/004_report_pdf_url_sqlserver.sql` — SSMS equivalent
+
+**Changed files:**
+- `backend/src/services/storage.service.js` — added `uploadReport(buffer, reportId)` to `screeno/reports` folder
+- `backend/src/repositories/report.repository.js` — added `updatePdfUrl(id, pdfUrl)`
+- `backend/src/services/interview.service.js` — after `reportRepository.create()`, chains `pdfService.generateReportPdf → storageService.uploadReport → reportRepository.updatePdfUrl` (all fire-and-forget, non-blocking)
+- `backend/package.json` — added `pdfkit` dependency
+
+**DB note:** `reports.pdf_url` column is already handled by `setup-db.js` (line 116). Run `node backend/setup-db.js` if the column doesn't exist yet.
+
+**Phase 2 status:** All 4 tasks complete — AI questions ✅, email ✅, PDF ✅, frontend test ✅
 
 ### 2026-06-04 — Phase 2 Task 2 complete: magic link email via Resend
 

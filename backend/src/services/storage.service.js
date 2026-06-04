@@ -35,6 +35,30 @@ async function uploadResume(buffer, originalName) {
 }
 
 /**
+ * Upload a PDF report buffer to Cloudinary under screeno/reports.
+ * @param {Buffer} buffer
+ * @param {number|string} reportId - used to build a stable public_id
+ * @returns {Promise<{ url: string, publicId: string }>}
+ */
+async function uploadReport(buffer, reportId) {
+  return new Promise((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      {
+        folder: 'screeno/reports',
+        resource_type: 'raw',
+        public_id: `report_${reportId}_${Date.now()}`,
+        format: 'pdf',
+      },
+      (error, result) => {
+        if (error) return reject(error)
+        resolve({ url: result.secure_url, publicId: result.public_id })
+      }
+    )
+    stream.end(buffer)
+  })
+}
+
+/**
  * Delete a file from Cloudinary by its public ID.
  * @param {string} publicId
  */
@@ -42,4 +66,4 @@ async function deleteFile(publicId) {
   await cloudinary.uploader.destroy(publicId, { resource_type: 'raw' })
 }
 
-module.exports = { uploadResume, deleteFile }
+module.exports = { uploadResume, uploadReport, deleteFile }
