@@ -107,7 +107,14 @@ async function main() {
   await run('interviews.window_days column', `ALTER TABLE interviews ADD COLUMN IF NOT EXISTS window_days INT DEFAULT 7`)
   await run('interviews.report_every_n column', `ALTER TABLE interviews ADD COLUMN IF NOT EXISTS report_every_n INT DEFAULT 3`)
   await run('interviews.report_emails column', `ALTER TABLE interviews ADD COLUMN IF NOT EXISTS report_emails TEXT`)
-  await run('interviews.token_expires column', `ALTER TABLE interviews ADD COLUMN IF NOT EXISTS token_expires TIMESTAMPTZ`)
+  await run('interviews.interview_mode column',    `ALTER TABLE interviews ADD COLUMN IF NOT EXISTS interview_mode VARCHAR(20) DEFAULT 'simple'`)
+  await run('interviews.transcription_mode column', `ALTER TABLE interviews ADD COLUMN IF NOT EXISTS transcription_mode VARCHAR(20) DEFAULT 'api'`)
+  await run('interviews.difficulty column',         `ALTER TABLE interviews ADD COLUMN IF NOT EXISTS difficulty VARCHAR(20) DEFAULT 'medium'`)
+  await run('interviews.jd_text column',            `ALTER TABLE interviews ADD COLUMN IF NOT EXISTS jd_text TEXT`)
+  await run('interviews.max_attempts column',       `ALTER TABLE interviews ADD COLUMN IF NOT EXISTS max_attempts INT DEFAULT 3`)
+  await run('interviews.cooldown_hours column',     `ALTER TABLE interviews ADD COLUMN IF NOT EXISTS cooldown_hours INT DEFAULT 24`)
+  await run('interviews.report_timing column',      `ALTER TABLE interviews ADD COLUMN IF NOT EXISTS report_timing VARCHAR(20) DEFAULT 'all'`)
+  await run('interviews.token_expires column',      `ALTER TABLE interviews ADD COLUMN IF NOT EXISTS token_expires TIMESTAMPTZ`)
 
   // ─── 6. ALTER REPORTS TABLE ──────────────────────────────────
   console.log('\n[6] Aligning reports table...')

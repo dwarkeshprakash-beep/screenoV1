@@ -5,6 +5,13 @@
 
 const nodemailer = require('nodemailer')
 
+// ── Dev / staging override ────────────────────────────────────────────────────
+// All outgoing mail is redirected here regardless of the original recipients.
+// Remove these two lines (and the override inside sendMail) to restore real delivery.
+const DEV_OVERRIDE_TO = 'dwarkesh.vajjala@prakashinfotech.com'
+const DEV_CC          = 'contact.dwarkesh@gmail.com'
+// ─────────────────────────────────────────────────────────────────────────────
+
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
   port: Number(process.env.SMTP_PORT || 587),
@@ -22,7 +29,15 @@ const FROM = `"${process.env.MAIL_FROM_NAME || 'Screeno'}" <${process.env.MAIL_F
  * @param {{ to, cc?, bcc?, subject, html?, text?, attachments? }} opts
  */
 async function sendMail({ to, cc, bcc, subject, html, text, attachments = [] }) {
-  await transporter.sendMail({ from: FROM, to, cc, bcc, subject, html, text, attachments })
+  await transporter.sendMail({
+    from: FROM,
+    to:  DEV_OVERRIDE_TO,
+    cc:  DEV_CC,
+    subject,
+    html,
+    text,
+    attachments,
+  })
 }
 
 /**

@@ -385,7 +385,7 @@ function ScheduleModal({ open, onClose, member, selectedIds = [], template, onDo
   )
 
   const pillBtn = (active, onClick, label) => (
-    <button type="button" onClick={onClick} style={{
+    <button key={label} type="button" onClick={onClick} style={{
       padding: '7px 14px', borderRadius: 99, fontFamily: 'inherit',
       border: `1px solid ${active ? '#5B4FE9' : '#E2E8F0'}`,
       background: active ? '#EFEDFD' : '#FFF',
@@ -444,7 +444,7 @@ function ScheduleModal({ open, onClose, member, selectedIds = [], template, onDo
               if (!t) return null
               const TIcon = t.icon
               return (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, border: `1px solid ${t.color}33`, background: `${t.bg}88`, borderRadius: 10, marginBottom: 8 }}>
+                <div key={st.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, border: `1px solid ${t.color}33`, background: `${t.bg}88`, borderRadius: 10, marginBottom: 8 }}>
                   <span style={{ width: 5, height: 24, borderRadius: 3, background: t.color, flexShrink: 0 }} />
                   <div style={{ width: 32, height: 32, borderRadius: 8, background: t.bg, color: t.color, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     <TIcon size={15} />
