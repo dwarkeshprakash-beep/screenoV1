@@ -50,7 +50,7 @@ Last updated: 2026-06-04
 - [x] Scorecard form
 
 ## Active feature (what is being built RIGHT NOW)
-Feature: Phase 3 — UI completion and polish.
+Feature: Phase 5 — UI/UX polish + role completeness.
 
 **Phase 2 tasks: ALL COMPLETE ✅**
 1. [x] AI question generation — real LLM call (Groq → Gemini fallback)
@@ -84,6 +84,27 @@ Feature: Phase 3 — UI completion and polish.
 13. [x] InterviewerDashboard — verified: calls `getInterviewerSchedule()` + `getPendingScorecards()` correctly
 
 ---
+
+**Phase 5 tasks (UI/UX — 2026-06-05):**
+1. [x] AppLayout — removed SubTabs nav bar, RoleBar shows only current role (static badge)
+2. [x] Sidebar — fixed font colors (#64748B), adjusted top/height after SubTabs removal
+3. [x] Spinner — added `center` prop (wraps in flex container), all 8 page usages updated
+4. [x] DashboardPage — removed "Post New Job", renamed to "Team Overview", new stat cards
+5. [x] CompareModal — new side-by-side comparison component, wired to TeamPage compare button
+6. [x] AddCandidateModal — rewritten: 2 tabs (search org users + manual entry with type toggle)
+7. [x] ScheduleModal — rewritten: 4 steps, AI Exam + Human Interview types, CandidateChips (To-style), EmailChips (CC-style)
+8. [x] SchedulePage — Schedule button now opens modal, calendar events clickable
+9. [x] TemplatesPage — Coming Soon overlay added (blurred content beneath)
+10. [x] ResumeAnalyzerPage — full rewrite: PDF/DOCX upload, word-boundary skill regex, AI mode toggle
+11. [x] Backend upload.routes.js — added POST /api/upload/extract-text + POST /api/upload/analyze-resume
+12. [x] llm.service.js — added `callRaw(prompt)` method (Groq → Gemini fallback)
+13. [x] LoginPage — fixed candidate redirect (was going to /login), added demo candidate account
+14. [x] App.jsx — candidate dashboard now wrapped in CandidateLayout, InterviewerProfilePage route added
+15. [x] InterviewerProfilePage — new: /interviewer/profile (consistent with ManagerProfilePage)
+16. [x] Sidebar — interviewer footer now navigates to /interviewer/profile
+17. [x] api.js — getInterviewerProfile + updateInterviewerProfile aliases added
+18. [x] Encoding fixes — â€" → —, Â· → ·, Savingâ€¦ → Saving... across manager pages
+19. [ ] npm install pdf-parse mammoth — run in backend/ before starting server
 
 **Phase 4 tasks (after Phase 3 complete):**
 1. [ ] Mobile blocker — interview pages show "please use a desktop" on screens < 768px (required by PRD)
@@ -165,7 +186,7 @@ frontend/src/hooks/useProctoring.js           ← Tab switch detection
 frontend/src/utils/helpers.js
 frontend/src/components/shared/              → Button, Card, Modal, Input, Badge, Avatar, Spinner, EmptyState, ErrorMessage
 frontend/src/components/layout/             → AppLayout, Sidebar (with Profile link), TopBar, CandidateLayout
-frontend/src/components/manager/            → ScheduleModal, AddCandidateModal, EditMemberModal
+frontend/src/components/manager/            → ScheduleModal, AddCandidateModal, EditMemberModal, CompareModal
 frontend/src/pages/auth/LoginPage.jsx
 frontend/src/pages/manager/DashboardPage.jsx
 frontend/src/pages/manager/TeamPage.jsx
@@ -173,7 +194,8 @@ frontend/src/pages/manager/MemberProfilePage.jsx  ← resume upload (tab 0) + no
 frontend/src/pages/manager/SchedulePage.jsx
 frontend/src/pages/manager/ReportsPage.jsx
 frontend/src/pages/manager/TemplatesPage.jsx
-frontend/src/pages/manager/ManagerProfilePage.jsx ← new: /manager/profile
+frontend/src/pages/manager/ManagerProfilePage.jsx ← /manager/profile
+frontend/src/pages/manager/ResumeAnalyzerPage.jsx ← /manager/resume-analyzer (rewritten Phase 5)
 frontend/src/pages/candidate/InterviewLandingPage.jsx
 frontend/src/pages/candidate/DeviceCheckPage.jsx
 frontend/src/pages/candidate/ConsentPage.jsx
@@ -184,6 +206,7 @@ frontend/src/pages/candidate/CandidateDashboardPage.jsx
 frontend/src/pages/interviewer/InterviewerDashboard.jsx
 frontend/src/pages/interviewer/LiveRoomPage.jsx   ← real LiveKit VideoConference
 frontend/src/pages/interviewer/ScorecardPage.jsx
+frontend/src/pages/interviewer/InterviewerProfilePage.jsx ← new Phase 5: /interviewer/profile
 
 ### Migrations
 backend/migrations/002_notes_csv.sql              ← Supabase: candidate_notes table

@@ -1,4 +1,7 @@
-﻿import { useState, useEffect } from 'react'
+// pages/interviewer/InterviewerProfilePage.jsx
+// Interviewer profile — view and edit name, change password, notification prefs.
+
+import { useState, useEffect } from 'react'
 import { ArrowLeft, KeyRound } from 'lucide-react'
 import Spinner from '../../components/shared/Spinner'
 import ErrorMessage from '../../components/shared/ErrorMessage'
@@ -35,24 +38,24 @@ function Toggle({ on, onClick }) {
   )
 }
 
-function ManagerProfilePage() {
-  const [profile, setProfile]   = useState(null)
-  const [loading, setLoading]   = useState(true)
-  const [error, setError]       = useState(null)
-  const [tab, setTab]           = useState('profile')
-  const [form, setForm]         = useState({})
-  const [saving, setSaving]     = useState(false)
-  const [saved, setSaved]       = useState(false)
+function InterviewerProfilePage() {
+  const [profile, setProfile] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError]     = useState(null)
+  const [tab, setTab]         = useState('profile')
+  const [form, setForm]       = useState({})
+  const [saving, setSaving]   = useState(false)
+  const [saved, setSaved]     = useState(false)
   const [nameError, setNameError] = useState(null)
 
-  const [currentPassword, setCurrentPassword]   = useState('')
-  const [newPassword, setNewPassword]           = useState('')
-  const [confirmPassword, setConfirmPassword]   = useState('')
-  const [pwSaving, setPwSaving]                 = useState(false)
-  const [pwSuccess, setPwSuccess]               = useState(false)
-  const [pwError, setPwError]                   = useState(null)
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword]         = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [pwSaving, setPwSaving]               = useState(false)
+  const [pwSuccess, setPwSuccess]             = useState(false)
+  const [pwError, setPwError]                 = useState(null)
 
-  const [notifs, setNotifs] = useState({ notifyEmail: true, notifyInApp: true, notifyResults: false, notifyReminders: true, twoFactor: false })
+  const [notifs, setNotifs] = useState({ notifyEmail: true, notifyInApp: true, notifyResults: true, notifyReminders: true, twoFactor: false })
 
   useEffect(() => { loadProfile() }, [])
 
@@ -60,18 +63,17 @@ function ManagerProfilePage() {
     setLoading(true)
     setError(null)
     try {
-      const res = await api.getManagerProfile()
+      const res = await api.getInterviewerProfile()
       setProfile(res.data)
       const d = res.data
       setForm({
-        name: `${d.first_name || ''} ${d.last_name || ''}`.trim(),
-        title: d.title || d.job_title || '',
-        email: d.email || '',
-        phone: d.phone || '',
-        department: d.department || '',
-        team: d.team || '',
-        loc: d.location || d.loc || '',
-        timezone: d.timezone || '',
+        name:       `${d.first_name || ''} ${d.last_name || ''}`.trim(),
+        title:      d.title || d.job_title || 'Technical Interviewer',
+        email:      d.email || '',
+        phone:      d.phone || '',
+        department: d.department || 'Engineering',
+        loc:        d.location || d.loc || '',
+        timezone:   d.timezone || '',
       })
     } catch (err) {
       setError('Could not load profile. Please try again.')
@@ -89,11 +91,11 @@ function ManagerProfilePage() {
       const parts = form.name.trim().split(/\s+/)
       const firstName = parts[0] || ''
       const lastName = parts.slice(1).join(' ')
-      const res = await api.updateManagerProfile({ firstName, lastName })
+      const res = await api.updateInterviewerProfile({ firstName, lastName })
       setProfile(res.data)
       setSaved(true)
     } catch (err) {
-      setNameError(err.message)
+      setNameError(err.message || 'Could not save profile.')
     } finally {
       setSaving(false)
     }
@@ -107,13 +109,13 @@ function ManagerProfilePage() {
     if (newPassword.length < 6) { setPwError('New password must be at least 6 characters.'); return }
     setPwSaving(true)
     try {
-      await api.updateManagerProfile({ currentPassword, newPassword })
+      await api.updateInterviewerProfile({ currentPassword, newPassword })
       setPwSuccess(true)
       setCurrentPassword('')
       setNewPassword('')
       setConfirmPassword('')
     } catch (err) {
-      setPwError(err.message)
+      setPwError(err.message || 'Could not change password.')
     } finally {
       setPwSaving(false)
     }
@@ -126,20 +128,19 @@ function ManagerProfilePage() {
   const eyebrowStyle = { fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#5B4FE9' }
 
   const profileFields = [
-    { k: 'name', label: 'Full name' },
-    { k: 'title', label: 'Job title' },
-    { k: 'email', label: 'Email' },
-    { k: 'phone', label: 'Phone' },
+    { k: 'name',       label: 'Full name' },
+    { k: 'title',      label: 'Job title' },
+    { k: 'email',      label: 'Email' },
+    { k: 'phone',      label: 'Phone' },
     { k: 'department', label: 'Department' },
-    { k: 'team', label: 'Team' },
-    { k: 'loc', label: 'Location' },
-    { k: 'timezone', label: 'Timezone' },
+    { k: 'loc',        label: 'Location' },
+    { k: 'timezone',   label: 'Timezone' },
   ]
 
   const notifOptions = [
-    { k: 'notifyEmail',     label: 'Email notifications',    desc: 'Pipeline updates and weekly digests' },
+    { k: 'notifyEmail',     label: 'Email notifications',    desc: 'Interview reminders and updates' },
     { k: 'notifyInApp',     label: 'In-app notifications',   desc: 'Show the bell badge for new activity' },
-    { k: 'notifyResults',   label: 'Report ready alerts',    desc: 'Notify me when an AI report is generated' },
+    { k: 'notifyResults',   label: 'Candidate report alerts', desc: 'Notify me when AI reports are ready' },
     { k: 'notifyReminders', label: 'Scorecard reminders',    desc: 'Nudge me about overdue scorecards' },
   ]
 
@@ -150,9 +151,9 @@ function ManagerProfilePage() {
       </button>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 24 }}>
-        <Avatar name={form.name || 'M'} size={64} />
+        <Avatar name={form.name || 'I'} size={64} />
         <div>
-          <h1 style={{ fontSize: 24, fontWeight: 700, color: '#0F172A', margin: 0, letterSpacing: '-0.02em' }}>{form.name}</h1>
+          <h1 style={{ fontSize: 24, fontWeight: 700, color: '#0F172A', margin: 0, letterSpacing: '-0.02em' }}>{form.name || 'Interviewer'}</h1>
           <p style={{ fontSize: 13, color: '#6B7280', marginTop: 3 }}>{form.title}{form.department ? ` · ${form.department}` : ''}</p>
         </div>
       </div>
@@ -257,5 +258,4 @@ function ManagerProfilePage() {
   )
 }
 
-export default ManagerProfilePage
-
+export default InterviewerProfilePage

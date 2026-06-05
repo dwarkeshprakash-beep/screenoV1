@@ -172,6 +172,11 @@ export const uploadResume = (candidateId, file) => {
 }
 
 // ── PROFILE ───────────────────────────────────────────────────
-export const getManagerProfile = () => request('/api/profile')
+export const getManagerProfile    = () => request('/api/profile')
 export const updateManagerProfile = (data) =>
+  request('/api/profile', { method: 'PATCH', body: JSON.stringify(data) })
+
+// Interviewers share the same profile endpoint (JWT identifies the user)
+export const getInterviewerProfile    = () => request('/api/profile')
+export const updateInterviewerProfile = (data) =>
   request('/api/profile', { method: 'PATCH', body: JSON.stringify(data) })

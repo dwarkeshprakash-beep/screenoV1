@@ -33,6 +33,7 @@ import CandidateDashboardPage from './pages/candidate/CandidateDashboardPage'
 import InterviewerDashboard from './pages/interviewer/InterviewerDashboard'
 import LiveRoomPage from './pages/interviewer/LiveRoomPage'
 import ScorecardPage from './pages/interviewer/ScorecardPage'
+import InterviewerProfilePage from './pages/interviewer/InterviewerProfilePage'
 
 // ── Guard: redirect to /login if no token ────────────────────
 function RequireAuth({ children, role }) {
@@ -76,9 +77,12 @@ function App() {
 
       {/* Candidate dashboard (logged-in candidates) */}
       <Route
-        path="/candidate/dashboard"
-        element={<RequireAuth role="candidate"><CandidateDashboardPage /></RequireAuth>}
-      />
+        path="/candidate"
+        element={<RequireAuth role="candidate"><CandidateLayout /></RequireAuth>}
+      >
+        <Route index element={<Navigate to="dashboard" replace />} />
+        <Route path="dashboard" element={<CandidateDashboardPage />} />
+      </Route>
 
       {/* Interviewer — sidebar layout, auth required */}
       <Route
@@ -88,6 +92,7 @@ function App() {
         <Route index element={<Navigate to="dashboard" replace />} />
         <Route path="dashboard"        element={<InterviewerDashboard />} />
         <Route path="scorecard/:id"    element={<ScorecardPage />} />
+        <Route path="profile"          element={<InterviewerProfilePage />} />
       </Route>
 
       {/* Interviewer live room — full screen, no sidebar */}

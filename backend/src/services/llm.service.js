@@ -174,4 +174,18 @@ Return ONLY the JSON object, no other text.`
   }
 }
 
-module.exports = { generateQuestions, getAdaptiveQuestion, generateReport }
+/**
+ * Send a raw prompt to Groq, fall back to Gemini.
+ * @param {string} prompt
+ * @returns {Promise<string>}
+ */
+async function callRaw(prompt) {
+  try {
+    return await callGroq('You are a helpful assistant. Return only valid JSON when asked.', prompt)
+  } catch (err) {
+    console.error('Groq callRaw failed, trying Gemini:', err.message)
+    return await callGemini(prompt)
+  }
+}
+
+module.exports = { generateQuestions, getAdaptiveQuestion, generateReport, callRaw }

@@ -9,6 +9,7 @@ import { formatDate } from '../../utils/helpers'
 import ScheduleModal from '../../components/manager/ScheduleModal'
 import AddCandidateModal from '../../components/manager/AddCandidateModal'
 import EditMemberModal from '../../components/manager/EditMemberModal'
+import CompareModal from '../../components/manager/CompareModal'
 
 const AV_COLORS = [
   { bg: '#EDE9FE', fg: '#5B21B6' }, { bg: '#FED7AA', fg: '#9A3412' },
@@ -83,6 +84,7 @@ function TeamPage() {
   const [addOpen, setAddOpen]           = useState(false)
   const [editMember, setEditMember]     = useState(null)
   const [openMenu, setOpenMenu]         = useState(null)
+  const [compareOpen, setCompareOpen]   = useState(false)
 
   useEffect(() => { load() }, [])
 
@@ -182,7 +184,7 @@ function TeamPage() {
       </div>
 
       {loading ? (
-        <div style={{ padding: 40 }}><Spinner /></div>
+        <Spinner center />
       ) : error ? (
         <ErrorMessage message={error} />
       ) : rows.length === 0 ? (
@@ -258,8 +260,11 @@ function TeamPage() {
         <div style={{ position: 'fixed', bottom: 24, left: '50%', transform: 'translateX(-50%)', background: '#0F172A', color: '#FFF', borderRadius: 14, padding: '10px 14px', display: 'inline-flex', alignItems: 'center', gap: 14, boxShadow: '0 16px 40px rgba(15,23,42,0.32)', zIndex: 30 }}>
           <span style={{ fontSize: 13, fontWeight: 600 }}>{selected.size} selected</span>
           {selected.size >= 2 && (
-            <button style={{ background: '#5B4FE9', color: '#FFF', border: 0, borderRadius: 8, fontWeight: 600, padding: '5px 10px', fontSize: 12, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-              <GitCompare size={12} /> Compare
+            <button
+              onClick={() => setCompareOpen(true)}
+              style={{ background: '#5B4FE9', color: '#FFF', border: 0, borderRadius: 8, fontWeight: 600, padding: '5px 10px', fontSize: 12, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+            >
+              <GitCompare size={12} /> Compare {selected.size > 2 ? '(first 2)' : ''}
             </button>
           )}
           <button onClick={() => { setScheduleMember(null); setScheduleOpen(true) }} style={{ background: '#5B4FE9', color: '#FFF', border: 0, borderRadius: 8, fontWeight: 600, padding: '5px 10px', fontSize: 12, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
@@ -272,6 +277,11 @@ function TeamPage() {
         </div>
       )}
 
+      <CompareModal
+        open={compareOpen}
+        onClose={() => setCompareOpen(false)}
+        members={rows.filter(r => selected.has(r.id)).slice(0, 2)}
+      />
       <ScheduleModal
         open={scheduleOpen}
         onClose={() => { setScheduleOpen(false); setScheduleMember(null) }}

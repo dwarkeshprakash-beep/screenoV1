@@ -3,9 +3,17 @@ import { useNavigate } from 'react-router-dom'
 import * as api from '../../services/api'
 
 const DEMO_ACCOUNTS = [
-  { role: 'manager',     name: 'Kiran Oza',         sub: 'Manager · Prakash Infotech',        initials: 'KO', bgColor: '#EDE9FE', fgColor: '#5B21B6', badgeBg: '#3730A3', badgeFg: '#C7D2FE', badge: 'manager',     email: 'kiran.oza@prakashinfotech.com',         password: 'Admin@1234' },
-  { role: 'interviewer', name: 'Dwarkesh Vajjala',  sub: 'Tech Interviewer · Prakash Infotech', initials: 'DV', bgColor: '#BFDBFE', fgColor: '#1E40AF', badgeBg: '#1E3A5F', badgeFg: '#93C5FD', badge: 'interviewer', email: 'dwarkesh.vajjala@prakashinfotech.com',   password: 'Admin@1234' },
+  { role: 'manager',     name: 'Kiran Oza',         sub: 'Manager · Prakash Infotech',          initials: 'KO', bgColor: '#EDE9FE', fgColor: '#5B21B6', badgeBg: '#3730A3', badgeFg: '#C7D2FE', badge: 'manager',     email: 'kiran.oza@prakashinfotech.com',         password: 'Admin@1234' },
+  { role: 'interviewer', name: 'Dwarkesh Vajjala',  sub: 'Tech Interviewer · Prakash Infotech',  initials: 'DV', bgColor: '#BFDBFE', fgColor: '#1E40AF', badgeBg: '#1E3A5F', badgeFg: '#93C5FD', badge: 'interviewer', email: 'dwarkesh.vajjala@prakashinfotech.com',   password: 'Admin@1234' },
+  { role: 'candidate',   name: 'Arjun Mehta',       sub: 'Candidate · Software Engineer',        initials: 'AM', bgColor: '#A7F3D0', fgColor: '#065F46', badgeBg: '#064E3B', badgeFg: '#6EE7B7', badge: 'candidate',   email: 'arjun.mehta@gmail.com',                  password: 'Admin@1234' },
 ]
+
+function roleRedirect(role) {
+  if (role === 'manager')     return '/manager/dashboard'
+  if (role === 'interviewer') return '/interviewer/dashboard'
+  if (role === 'candidate')   return '/candidate/dashboard'
+  return '/login'
+}
 
 function LoginPage() {
   const navigate = useNavigate()
@@ -23,10 +31,7 @@ function LoginPage() {
       const result = await api.login(email, password)
       localStorage.setItem('accessToken', result.data.accessToken)
       localStorage.setItem('user', JSON.stringify(result.data.user))
-      const role = result.data.user.role
-      if (role === 'manager')          navigate('/manager/dashboard')
-      else if (role === 'interviewer') navigate('/interviewer/dashboard')
-      else                             navigate('/login')
+      navigate(roleRedirect(result.data.user.role))
     } catch {
       setError('Invalid email or password. Please try again.')
     } finally {
@@ -42,10 +47,7 @@ function LoginPage() {
     api.login(account.email, account.password).then(result => {
       localStorage.setItem('accessToken', result.data.accessToken)
       localStorage.setItem('user', JSON.stringify(result.data.user))
-      const role = result.data.user.role
-      if (role === 'manager')          navigate('/manager/dashboard')
-      else if (role === 'interviewer') navigate('/interviewer/dashboard')
-      else                             navigate('/login')
+      navigate(roleRedirect(result.data.user.role))
     }).catch(() => {
       setEmail(account.email)
       setPassword(account.password)

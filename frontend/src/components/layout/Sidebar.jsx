@@ -55,21 +55,21 @@ function Sidebar({ role = 'manager', onLogout }) {
 
   return (
     <aside style={{
-      width: 200,
+      width: 220,
       background: '#0F172A',
       color: '#FFF',
       display: 'flex',
       flexDirection: 'column',
       position: 'sticky',
-      top: 76,
-      height: 'calc(100vh - 76px)',
+      top: 38,
+      height: 'calc(100vh - 38px)',
       borderRight: '1px solid #1E293B',
       flexShrink: 0,
     }}>
       <div style={{ flex: 1, padding: '8px 10px', overflowY: 'auto' }}>
         {nav.map((sec, si) => (
           <div key={si}>
-            <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#475569', padding: '14px 10px 6px' }}>
+            <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#64748B', padding: '14px 10px 6px' }}>
               {sec.section}
             </div>
             {sec.items.map(({ to, icon: Icon, label }) => {
@@ -114,14 +114,17 @@ function Sidebar({ role = 'manager', onLogout }) {
 
       {/* User footer */}
       <div
-        onClick={() => role === 'manager' && navigate('/manager/profile')}
+        onClick={() => {
+          if (role === 'manager') navigate('/manager/profile')
+          else if (role === 'interviewer') navigate('/interviewer/profile')
+        }}
         style={{
           padding: '12px 14px', borderTop: '1px solid #1E293B',
           display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0,
-          cursor: role === 'manager' ? 'pointer' : 'default',
+          cursor: 'pointer',
           transition: 'background 120ms',
         }}
-        onMouseEnter={e => { if (role === 'manager') e.currentTarget.style.background = 'rgba(255,255,255,0.05)' }}
+        onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)' }}
         onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
       >
         <div style={{ width: 36, height: 36, borderRadius: 9999, background: '#5B4FE9', color: '#FFF', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 13, flexShrink: 0 }}>

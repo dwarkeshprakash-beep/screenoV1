@@ -1,305 +1,735 @@
-// components/manager/ScheduleModal.jsx
-// 4-step modal to schedule an AI interview.
+// ScheduleModal — 4-step wizard to schedule interviews.
+// Step 1: Interview mode + stage types (AI voice, AI exam, human interview)
+// Step 2: Configure (attempts, cooldown, JD upload, focus, difficulty)
+// Step 3: Candidates (chips like email To field) + report recipients
+// Step 4: Review + send
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { X, Plus, Mic, Code2, Video, UploadCloud, FileCheck2, ChevronDown, Check } from 'lucide-react'
 import Modal from '../shared/Modal'
 import Button from '../shared/Button'
 import * as api from '../../services/api'
 
-const STEP_LABELS = ['Type', 'Configure', 'Questions', 'Confirm']
+// ── helpers ────────────────────────────────────────────────────
+const STEP_LABELS = ['Type', 'Configure', 'Recipients', 'Confirm']
 
-function PillOption({ label, selected, onClick }) {
+const INTERVIEW_TYPES = [
+  { id: 'ai_voice',  label: 'AI Voice Interview', icon: Mic,    desc: 'AI conducts a spoken interview, auto-generates transcript and scorecard.', color: '#5B4FE9', bg: '#EFEDFD' },
+  { id: 'ai_exam',   label: 'AI Coding Exam',     icon: Code2,  desc: 'MCQ, coding challenges, and scenario-based questions with a timer.',       color: '#2563EB', bg: '#EFF6FF' },
+  { id: 'human',     label: 'Human Interview',    icon: Video,  desc: 'Schedule a live session via Screeno Room — invite an interviewer.',         color: '#059669', bg: '#ECFDF5' },
+]
+
+const MODES = [
+  { id: 'client_mock',       label: 'Client mock interview' },
+  { id: 'internal_monthly',  label: 'Internal monthly assessment' },
+]
+
+const AV_COLORS = [
+  { bg: '#EDE9FE', fg: '#5B21B6' }, { bg: '#FED7AA', fg: '#9A3412' },
+  { bg: '#A7F3D0', fg: '#065F46' }, { bg: '#BFDBFE', fg: '#1E40AF' },
+  { bg: '#FBCFE8', fg: '#9D174D' }, { bg: '#FDE68A', fg: '#854D0E' },
+]
+function avHash(s) { let h = 0; for (let i = 0; i < (s || '').length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0; return Math.abs(h) }
+function TinyAv({ name = '?' }) {
+  const c = AV_COLORS[avHash(name) % AV_COLORS.length]
+  const ini = name.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase()
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      style={{
-        padding: '8px 18px',
-        borderRadius: 99,
-        border: `1px solid ${selected ? 'var(--brand-500)' : 'var(--border-default)'}`,
-        background: selected ? 'var(--brand-50)' : 'transparent',
-        color: selected ? 'var(--brand-600)' : 'var(--fg-body)',
-        fontSize: 13,
-        fontWeight: selected ? 600 : 400,
-        cursor: 'pointer',
-        transition: 'all 0.12s',
-      }}
-    >
-      {label}
-    </button>
+    <div style={{ width: 22, height: 22, borderRadius: 9999, background: c.bg, color: c.fg, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 9, flexShrink: 0 }}>
+      {ini}
+    </div>
   )
 }
 
-function CardOption({ title, desc, selected, onClick }) {
+// Email-chip-style candidate picker
+function CandidateChips({ candidates, onRemove, teamList, onAdd, label = 'To' }) {
+  const [open, setOpen] = useState(false)
+  const [search, setSearch] = useState('')
+  const ref = useRef(null)
+
+  useEffect(() => {
+    function close(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [])
+
+  const existing = new Set(candidates.map(c => c.id))
+  const filtered = teamList.filter(u => {
+    if (existing.has(u.id)) return false
+    const name = `${u.first_name || ''} ${u.last_name || ''}`.toLowerCase()
+    return !search || name.includes(search.toLowerCase()) || (u.email || '').toLowerCase().includes(search.toLowerCase())
+  })
+
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      style={{
-        padding: '14px 16px',
-        borderRadius: 10,
-        border: `2px solid ${selected ? 'var(--brand-500)' : 'var(--border-default)'}`,
-        background: selected ? 'var(--brand-50)' : 'var(--bg-surface)',
-        cursor: 'pointer',
-        textAlign: 'left',
-        width: '100%',
-        transition: 'all 0.12s',
-      }}
-    >
-      <div style={{ fontWeight: 600, fontSize: 14, color: selected ? 'var(--brand-600)' : 'var(--fg-primary)' }}>{title}</div>
-      <div style={{ fontSize: 12, color: 'var(--fg-muted)', marginTop: 4 }}>{desc}</div>
-    </button>
+    <div ref={ref} style={{ position: 'relative' }}>
+      <div
+        onClick={() => setOpen(true)}
+        style={{
+          display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6,
+          padding: '7px 10px', border: `1px solid ${open ? '#5B4FE9' : '#CBD5E1'}`,
+          borderRadius: 8, cursor: 'text', minHeight: 42,
+          boxShadow: open ? '0 0 0 3px rgba(91,79,233,0.18)' : 'none',
+          transition: 'all 120ms',
+        }}
+      >
+        <span style={{ fontSize: 11, fontWeight: 600, color: '#94A3B8', marginRight: 2 }}>{label}:</span>
+        {candidates.map(c => {
+          const name = `${c.first_name || ''} ${c.last_name || ''}`.trim() || c.email
+          return (
+            <span key={c.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '2px 8px 2px 5px', background: '#EFEDFD', borderRadius: 9999, fontSize: 12, fontWeight: 500, color: '#3A31A3' }}>
+              <TinyAv name={name} /> {name}
+              <button type="button" onClick={e => { e.stopPropagation(); onRemove(c.id) }} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', color: '#6B7280', display: 'inline-flex', lineHeight: 1 }}>
+                <X size={11} />
+              </button>
+            </span>
+          )
+        })}
+        {open && (
+          <input
+            autoFocus
+            type="text"
+            placeholder="Search…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            onClick={e => e.stopPropagation()}
+            style={{ border: 'none', outline: 'none', fontSize: 13, fontFamily: 'inherit', flex: 1, minWidth: 80, background: 'transparent' }}
+          />
+        )}
+        {!open && candidates.length === 0 && (
+          <span style={{ fontSize: 13, color: '#94A3B8' }}>Search candidates…</span>
+        )}
+      </div>
+
+      {open && (
+        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50, background: '#FFF', border: '1px solid #E2E8F0', borderRadius: 8, boxShadow: '0 8px 24px rgba(15,23,42,0.12)', maxHeight: 220, overflowY: 'auto', marginTop: 4 }}>
+          {filtered.length === 0 ? (
+            <div style={{ padding: '12px 14px', fontSize: 13, color: '#94A3B8', textAlign: 'center' }}>
+              {search ? 'No matches found.' : 'All team members already added.'}
+            </div>
+          ) : (
+            filtered.map((u, i) => {
+              const name = `${u.first_name || ''} ${u.last_name || ''}`.trim() || u.email
+              return (
+                <div
+                  key={u.id}
+                  onClick={() => { onAdd(u); setSearch('') }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '9px 14px', cursor: 'pointer',
+                    borderTop: i === 0 ? 'none' : '1px solid #F1F5F9',
+                    transition: 'background 100ms',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = '#F8FAFC'}
+                  onMouseLeave={e => e.currentTarget.style.background = '#FFF'}
+                >
+                  <TinyAv name={name} />
+                  <div>
+                    <div style={{ fontSize: 13, fontWeight: 500, color: '#0F172A' }}>{name}</div>
+                    <div style={{ fontSize: 11, color: '#6B7280' }}>{u.email}</div>
+                  </div>
+                </div>
+              )
+            })
+          )}
+        </div>
+      )}
+    </div>
   )
 }
 
-const label = (text) => (
-  <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: 'var(--fg-primary)', marginBottom: 6 }}>
-    {text}
-  </label>
-)
+// Email chips for report recipients (free-entry or pick from org)
+function EmailChips({ emails, onRemove, orgUsers, onAdd, label, disabledEmails = [] }) {
+  const [open, setOpen] = useState(false)
+  const [val, setVal]   = useState('')
+  const ref = useRef(null)
 
-/**
- * 4-step schedule modal.
- * @param {boolean} open
- * @param {Function} onClose
- * @param {Object|null} member - pre-selected member (or null for bulk or template use)
- * @param {Array} selectedIds - for bulk schedule
- * @param {Object|null} template - pre-fills form when opened from TemplatesPage
- * @param {Function} onDone
- */
+  useEffect(() => {
+    function close(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [])
+
+  function addEmail(email) {
+    const e = email.trim().toLowerCase()
+    if (e && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e) && !emails.includes(e) && !disabledEmails.includes(e)) {
+      onAdd(e)
+    }
+    setVal('')
+  }
+
+  function handleKey(e) {
+    if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addEmail(val) }
+    if (e.key === 'Backspace' && !val && emails.length > 0) onRemove(emails[emails.length - 1])
+  }
+
+  const filtered = orgUsers.filter(u => {
+    const email = (u.email || '').toLowerCase()
+    return !emails.includes(email) && !disabledEmails.includes(email) &&
+           (!val || email.includes(val.toLowerCase()) || `${u.first_name} ${u.last_name}`.toLowerCase().includes(val.toLowerCase()))
+  })
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <div
+        onClick={() => setOpen(true)}
+        style={{
+          display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6,
+          padding: '7px 10px', border: `1px solid ${open ? '#5B4FE9' : '#CBD5E1'}`,
+          borderRadius: 8, cursor: 'text', minHeight: 42,
+          boxShadow: open ? '0 0 0 3px rgba(91,79,233,0.18)' : 'none',
+          transition: 'all 120ms',
+        }}
+      >
+        <span style={{ fontSize: 11, fontWeight: 600, color: '#94A3B8', marginRight: 2 }}>{label}:</span>
+        {disabledEmails.map(e => (
+          <span key={e} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', background: '#F1F5F9', borderRadius: 9999, fontSize: 12, fontWeight: 500, color: '#475569' }}>
+            {e} <span style={{ fontSize: 10, color: '#94A3B8' }}>(you)</span>
+          </span>
+        ))}
+        {emails.map(e => (
+          <span key={e} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '2px 8px', background: '#EFEDFD', borderRadius: 9999, fontSize: 12, fontWeight: 500, color: '#3A31A3' }}>
+            {e}
+            <button type="button" onClick={ev => { ev.stopPropagation(); onRemove(e) }} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', color: '#6B7280', display: 'inline-flex', lineHeight: 1 }}>
+              <X size={11} />
+            </button>
+          </span>
+        ))}
+        <input
+          value={val}
+          onChange={e => setVal(e.target.value)}
+          onKeyDown={handleKey}
+          onFocus={() => setOpen(true)}
+          placeholder={emails.length === 0 && disabledEmails.length === 0 ? 'Add email or search…' : ''}
+          style={{ border: 'none', outline: 'none', fontSize: 13, fontFamily: 'inherit', flex: 1, minWidth: 80, background: 'transparent' }}
+        />
+      </div>
+
+      {open && (val || filtered.length > 0) && (
+        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50, background: '#FFF', border: '1px solid #E2E8F0', borderRadius: 8, boxShadow: '0 8px 24px rgba(15,23,42,0.12)', maxHeight: 200, overflowY: 'auto', marginTop: 4 }}>
+          {val && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val.trim()) && (
+            <div onClick={() => addEmail(val)} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 14px', cursor: 'pointer', borderBottom: '1px solid #F1F5F9' }}
+              onMouseEnter={e => e.currentTarget.style.background = '#F8FAFC'}
+              onMouseLeave={e => e.currentTarget.style.background = '#FFF'}>
+              <Plus size={13} color="#5B4FE9" />
+              <span style={{ fontSize: 13, color: '#5B4FE9' }}>Add "{val.trim()}"</span>
+            </div>
+          )}
+          {filtered.slice(0, 6).map((u, i) => (
+            <div key={u.id} onClick={() => { onAdd(u.email); setVal('') }}
+              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px', cursor: 'pointer', borderTop: i === 0 ? 'none' : '1px solid #F1F5F9', transition: 'background 100ms' }}
+              onMouseEnter={e => e.currentTarget.style.background = '#F8FAFC'}
+              onMouseLeave={e => e.currentTarget.style.background = '#FFF'}>
+              <TinyAv name={`${u.first_name} ${u.last_name}`} />
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 500, color: '#0F172A' }}>{u.first_name} {u.last_name}</div>
+                <div style={{ fontSize: 11, color: '#6B7280' }}>{u.email}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Main component ─────────────────────────────────────────────
 function ScheduleModal({ open, onClose, member, selectedIds = [], template, onDone }) {
   const [step, setStep]     = useState(1)
   const [loading, setLoading] = useState(false)
   const [error, setError]   = useState(null)
 
-  // Member picker — used when opened from TemplatesPage with no pre-selected member
-  const [teamList, setTeamList]     = useState([])
-  const [pickedMember, setPickedMember] = useState(null)
+  // ── Step 1 state ────────────────────────────────────────────
+  const [mode, setMode]     = useState('internal_monthly')
+  const [stages, setStages] = useState([{ id: 'ai_voice' }])
 
-  const [form, setForm] = useState({
-    mode: 'internal_monthly',
-    interviewMode: 'simple',
-    transcriptionMode: 'api',
-    maxAttempts: 3,
-    cooldownHours: 24,
-    windowDays: 7,
-    reportTiming: 'all',
-    jdText: '',
-    focusAreas: '',
-    difficulty: 'medium',
-  })
+  // ── Step 2 state ────────────────────────────────────────────
+  const [maxAttempts, setMaxAttempts] = useState(3)
+  const [cooldownHours, setCooldown]  = useState(24)
+  const [windowDays, setWindowDays]   = useState(7)
+  const [reportTiming, setReportTiming] = useState('all')
+  const [jdFile, setJdFile]           = useState(null)
+  const [jdText, setJdText]           = useState('')
+  const [focusAreas, setFocusAreas]   = useState('')
+  const [difficulty, setDifficulty]   = useState('medium')
+  const [transcriptionMode, setTranscriptionMode] = useState('api')
+  const jdInputRef = useRef(null)
 
-  // Pre-fill form from template when modal opens
+  // ── Step 3 state ────────────────────────────────────────────
+  const [teamList, setTeamList]         = useState([])
+  const [candidates, setCandidates]     = useState([])  // selected candidate objects
+  const [reportEmails, setReportEmails] = useState([])  // extra CC emails for report
+
+  // ── Manager email (auto-added to report CC) ────────────────
+  const [managerEmail, setManagerEmail] = useState('')
+
   useEffect(() => {
     if (!open) return
+    setStep(1); setError(null)
+    // Pre-fill from template
     if (template) {
-      setForm(f => ({
-        ...f,
-        maxAttempts: template.attempts || 3,
-        focusAreas: template.description || '',
-      }))
+      setMaxAttempts(template.attempts || 3)
+      setFocusAreas(template.description || '')
     }
-    // Load team for member picker if no member pre-selected
-    if (!member && selectedIds.length === 0) {
-      api.getTeam().then(r => setTeamList(r.data || [])).catch(() => {})
-    }
+    // Load team
+    api.getTeam().then(r => setTeamList(r.data || [])).catch(() => {})
+    // Get manager email
+    try {
+      const u = JSON.parse(localStorage.getItem('user') || '{}')
+      if (u.email) setManagerEmail(u.email)
+    } catch {}
+    // Pre-fill candidates from props
+    if (member) setCandidates([member])
+    else setCandidates([])
   }, [open])
 
-  const set = (key, val) => setForm(f => ({ ...f, [key]: val }))
+  function addStage(typeId) {
+    if (stages.length < 3 && !stages.find(s => s.id === typeId)) {
+      setStages(s => [...s, { id: typeId }])
+    }
+  }
+  function removeStage(i) { if (stages.length > 1) setStages(s => s.filter((_, idx) => idx !== i)) }
 
-  // Resolved member: pre-selected prop or picked from dropdown
-  const resolvedMember = member || pickedMember
+  function addCandidate(u) {
+    if (!candidates.find(c => c.id === u.id)) setCandidates(prev => [...prev, u])
+  }
+  function removeCandidate(id) { setCandidates(prev => prev.filter(c => c.id !== id)) }
+
+  function addReportEmail(email) { setReportEmails(prev => [...prev, email]) }
+  function removeReportEmail(email) { setReportEmails(prev => prev.filter(e => e !== email)) }
+
+  async function handleJdFileChange(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setJdFile(file)
+    // Try to extract text from file for AI use
+    if (file.type === 'text/plain') {
+      const text = await file.text()
+      setJdText(text)
+    } else {
+      // For PDF/DOCX: just store filename; backend will handle text extraction if needed
+      setJdText(`[Uploaded file: ${file.name}]`)
+    }
+  }
 
   async function handleSubmit() {
-    setLoading(true)
-    setError(null)
-    const ids = resolvedMember ? [resolvedMember.id] : selectedIds
+    setLoading(true); setError(null)
+
+    const ids = candidates.length > 0 ? candidates.map(c => c.id) : selectedIds
     if (!ids.length) {
-      setError('Please select a team member.')
+      setError('Please add at least one candidate.')
       setLoading(false)
       return
     }
+
+    const primaryStage = stages[0]?.id || 'ai_voice'
+
     try {
       await Promise.all(ids.map(candidateId =>
-        api.createSchedule({ ...form, candidateId, type: 'ai_voice' })
+        api.createSchedule({
+          candidateId,
+          type: primaryStage,
+          mode,
+          interviewMode: primaryStage === 'ai_voice' ? 'simple' : 'simple',
+          transcriptionMode,
+          maxAttempts,
+          cooldownHours,
+          windowDays,
+          reportTiming,
+          jdText: jdFile ? jdText : jdText,
+          focusAreas,
+          difficulty,
+          reportEmails: [managerEmail, ...reportEmails].filter(Boolean),
+          stages: stages.map(s => s.id),
+        })
       ))
       onDone && onDone()
       handleClose()
     } catch (err) {
-      setError(err.message || 'Could not schedule. Please try again.')
+      setError(err.message || 'Could not schedule interview. Please try again.')
     } finally {
       setLoading(false)
     }
   }
 
   function handleClose() {
-    setStep(1)
-    setError(null)
-    setPickedMember(null)
+    setStep(1); setError(null)
+    setStages([{ id: 'ai_voice' }]); setMode('internal_monthly')
+    setJdFile(null); setJdText(''); setFocusAreas('')
+    setDifficulty('medium'); setMaxAttempts(3)
+    setCooldown(24); setWindowDays(7); setReportTiming('all')
+    setReportEmails([]); setCandidates([])
     onClose()
   }
 
-  const fieldStyle = {
-    width: '100%',
-    padding: '9px 12px',
-    border: '1px solid var(--border-default)',
-    borderRadius: 8,
-    fontSize: 14,
-    outline: 'none',
-    boxSizing: 'border-box',
+  const field = {
+    width: '100%', padding: '9px 12px', border: '1px solid #CBD5E1',
+    borderRadius: 8, fontSize: 13, fontFamily: 'inherit', outline: 'none',
+    boxSizing: 'border-box', transition: 'border-color 120ms, box-shadow 120ms',
   }
+  const onFocusField = e => { e.target.style.borderColor = '#5B4FE9'; e.target.style.boxShadow = '0 0 0 3px rgba(91,79,233,0.18)' }
+  const onBlurField  = e => { e.target.style.borderColor = '#CBD5E1'; e.target.style.boxShadow = 'none' }
+  const lbl = (text, hint) => (
+    <div style={{ marginBottom: 6 }}>
+      <span style={{ fontSize: 12, fontWeight: 600, color: '#374151' }}>{text}</span>
+      {hint && <span style={{ fontSize: 11, color: '#94A3B8', marginLeft: 6 }}>{hint}</span>}
+    </div>
+  )
+
+  const modeBtn = (id, label) => (
+    <button key={id} type="button" onClick={() => setMode(id)} style={{
+      flex: 1, padding: '9px 12px', borderRadius: 8,
+      border: `1px solid ${mode === id ? '#5B4FE9' : '#E2E8F0'}`,
+      background: mode === id ? '#EFEDFD' : '#FFF',
+      color: mode === id ? '#3A31A3' : '#374151',
+      fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit', transition: 'all 120ms',
+    }}>{label}</button>
+  )
+
+  const pillBtn = (active, onClick, label) => (
+    <button type="button" onClick={onClick} style={{
+      padding: '7px 14px', borderRadius: 99, fontFamily: 'inherit',
+      border: `1px solid ${active ? '#5B4FE9' : '#E2E8F0'}`,
+      background: active ? '#EFEDFD' : '#FFF',
+      color: active ? '#3A31A3' : '#374151',
+      fontWeight: 600, fontSize: 12, cursor: 'pointer', transition: 'all 120ms',
+    }}>{label}</button>
+  )
 
   return (
     <Modal open={open} onClose={handleClose} title="Schedule Interview" size="md">
-      {/* Step indicator */}
-      <div style={{ display: 'flex', gap: 0, marginBottom: 24 }}>
-        {STEP_LABELS.map((l, i) => (
-          <div key={l} style={{ flex: 1, textAlign: 'center' }}>
-            <div style={{
-              height: 3,
-              background: i + 1 <= step ? 'var(--brand-500)' : 'var(--border-default)',
-              borderRadius: 2,
-              marginBottom: 4,
-              transition: 'background 0.2s',
-            }} />
-            <span style={{ fontSize: 11, color: i + 1 <= step ? 'var(--brand-500)' : 'var(--fg-muted)' }}>{l}</span>
-          </div>
-        ))}
+      {/* Stepper */}
+      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 24 }}>
+        {STEP_LABELS.map((l, i) => {
+          const idx = i + 1
+          const done = idx < step
+          const active = idx === step
+          return (
+            <div key={l} style={{ display: 'flex', alignItems: 'center', flex: i < STEP_LABELS.length - 1 ? 1 : 0 }}>
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <span style={{
+                  width: 22, height: 22, borderRadius: 9999,
+                  background: done ? '#5B4FE9' : active ? '#FFF' : '#FFF',
+                  border: done ? 'none' : active ? '2px solid #5B4FE9' : '1px solid #CBD5E1',
+                  color: done ? '#FFF' : active ? '#5B4FE9' : '#94A3B8',
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 10, fontWeight: 700, flexShrink: 0,
+                }}>
+                  {done ? <Check size={11} /> : idx}
+                </span>
+                <span style={{ fontSize: 12, fontWeight: active ? 600 : 500, color: active ? '#5B4FE9' : done ? '#0F172A' : '#94A3B8', whiteSpace: 'nowrap' }}>
+                  {l}
+                </span>
+              </div>
+              {i < STEP_LABELS.length - 1 && (
+                <div style={{ flex: 1, height: 2, background: idx < step ? '#5B4FE9' : '#E2E8F0', margin: '0 10px', borderRadius: 9999 }} />
+              )}
+            </div>
+          )
+        })}
       </div>
 
-      {/* Step 1: Type */}
+      {/* ── STEP 1: Type ─────────────────────────────────────── */}
       {step === 1 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
           <div>
-            {label('Interview mode')}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <CardOption title="Client Mock Interview" desc="Simulate a client-facing scenario" selected={form.mode === 'client_mock'} onClick={() => set('mode', 'client_mock')} />
-              <CardOption title="Internal Monthly Assessment" desc="Regular team skill check-in" selected={form.mode === 'internal_monthly'} onClick={() => set('mode', 'internal_monthly')} />
-            </div>
-          </div>
-          <div>
-            {label('AI question style')}
+            {lbl('Interview mode')}
             <div style={{ display: 'flex', gap: 8 }}>
-              <CardOption title="Simple" desc="10 pre-generated questions" selected={form.interviewMode === 'simple'} onClick={() => set('interviewMode', 'simple')} />
-              <CardOption title="Adaptive" desc="AI asks follow-up questions dynamically" selected={form.interviewMode === 'adaptive'} onClick={() => set('interviewMode', 'adaptive')} />
+              {MODES.map(m => modeBtn(m.id, m.label))}
             </div>
           </div>
+
           <div>
-            {label('Transcription method')}
-            <div style={{ display: 'flex', gap: 8 }}>
-              <CardOption title="Local (Whisper.js)" desc="Runs on server, fully private" selected={form.transcriptionMode === 'local'} onClick={() => set('transcriptionMode', 'local')} />
-              <CardOption title="API (Groq)" desc="Faster, requires internet" selected={form.transcriptionMode === 'api'} onClick={() => set('transcriptionMode', 'api')} />
-            </div>
+            {lbl('Interview stages', '(up to 3 · at least 1 required)')}
+            {stages.map((st, i) => {
+              const t = INTERVIEW_TYPES.find(x => x.id === st.id)
+              if (!t) return null
+              const TIcon = t.icon
+              return (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: 12, border: `1px solid ${t.color}33`, background: `${t.bg}88`, borderRadius: 10, marginBottom: 8 }}>
+                  <span style={{ width: 5, height: 24, borderRadius: 3, background: t.color, flexShrink: 0 }} />
+                  <div style={{ width: 32, height: 32, borderRadius: 8, background: t.bg, color: t.color, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <TIcon size={15} />
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#0F172A' }}>Stage {i + 1}: {t.label}</div>
+                    <div style={{ fontSize: 11, color: '#6B7280' }}>{t.desc}</div>
+                  </div>
+                  {stages.length > 1 && (
+                    <button type="button" onClick={() => removeStage(i)} style={{ background: 'transparent', border: 0, color: '#94A3B8', cursor: 'pointer', padding: 4 }}>
+                      <X size={13} />
+                    </button>
+                  )}
+                </div>
+              )
+            })}
+
+            {stages.length < 3 && (
+              <div>
+                <div style={{ fontSize: 11, color: '#6B7280', marginBottom: 8 }}>Add another stage:</div>
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                  {INTERVIEW_TYPES.filter(t => !stages.find(s => s.id === t.id)).map(t => {
+                    const TIcon = t.icon
+                    return (
+                      <button key={t.id} type="button" onClick={() => addStage(t.id)} style={{
+                        display: 'inline-flex', alignItems: 'center', gap: 6,
+                        padding: '7px 12px', borderRadius: 8,
+                        border: '1px dashed #CBD5E1', background: '#FFF',
+                        color: '#374151', fontSize: 12, fontWeight: 500, cursor: 'pointer',
+                        fontFamily: 'inherit', transition: 'all 120ms',
+                      }}
+                        onMouseEnter={e => { e.currentTarget.style.borderColor = '#5B4FE9'; e.currentTarget.style.color = '#5B4FE9' }}
+                        onMouseLeave={e => { e.currentTarget.style.borderColor = '#CBD5E1'; e.currentTarget.style.color = '#374151' }}
+                      >
+                        <Plus size={12} /> {t.label}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
           </div>
+
+          {/* Transcription mode — only for AI Voice */}
+          {stages.some(s => s.id === 'ai_voice') && (
+            <div>
+              {lbl('Transcription method')}
+              <div style={{ display: 'flex', gap: 8 }}>
+                {[
+                  { id: 'api',   label: 'Groq API',        desc: 'Faster, cloud-based' },
+                  { id: 'local', label: 'Local (Whisper)', desc: 'Private, runs on server' },
+                ].map(o => (
+                  <button key={o.id} type="button" onClick={() => setTranscriptionMode(o.id)} style={{
+                    flex: 1, padding: '10px 12px', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit',
+                    border: `1px solid ${transcriptionMode === o.id ? '#5B4FE9' : '#E2E8F0'}`,
+                    background: transcriptionMode === o.id ? '#EFEDFD' : '#FFF',
+                    color: transcriptionMode === o.id ? '#3A31A3' : '#374151',
+                    fontWeight: 600, fontSize: 12, textAlign: 'left', transition: 'all 120ms',
+                  }}>
+                    <div>{o.label}</div>
+                    <div style={{ fontSize: 11, fontWeight: 400, color: transcriptionMode === o.id ? '#6B7280' : '#94A3B8', marginTop: 2 }}>{o.desc}</div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
-      {/* Step 2: Configure */}
+      {/* ── STEP 2: Configure ────────────────────────────────── */}
       {step === 2 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+          {/* JD upload */}
           <div>
-            {label('Number of attempts')}
+            {lbl('Job description', '(optional — improves AI question quality)')}
+            {jdFile ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 8 }}>
+                <FileCheck2 size={16} color="#059669" />
+                <span style={{ fontSize: 13, color: '#047857', flex: 1 }}>{jdFile.name}</span>
+                <button type="button" onClick={() => { setJdFile(null); setJdText('') }} style={{ background: 'transparent', border: 0, color: '#6B7280', cursor: 'pointer' }}>
+                  <X size={14} />
+                </button>
+              </div>
+            ) : (
+              <>
+                <div
+                  onClick={() => jdInputRef.current?.click()}
+                  style={{
+                    border: '2px dashed #CBD5E1', borderRadius: 10, padding: '16px', textAlign: 'center',
+                    cursor: 'pointer', background: '#FFF', transition: 'all 120ms', marginBottom: 8,
+                  }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = '#5B4FE9'; e.currentTarget.style.background = '#FAFAFE' }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = '#CBD5E1'; e.currentTarget.style.background = '#FFF' }}
+                >
+                  <UploadCloud size={20} color="#94A3B8" style={{ margin: '0 auto 6px', display: 'block' }} />
+                  <div style={{ fontSize: 13, color: '#374151', fontWeight: 500 }}>Upload JD (PDF / DOCX / TXT)</div>
+                  <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>or paste text below</div>
+                </div>
+                <input ref={jdInputRef} type="file" accept=".pdf,.doc,.docx,.txt" style={{ display: 'none' }} onChange={handleJdFileChange} />
+                <textarea
+                  rows={3}
+                  value={jdText}
+                  onChange={e => setJdText(e.target.value)}
+                  placeholder="Paste JD text here…"
+                  style={{ ...field, resize: 'vertical' }}
+                  onFocus={onFocusField} onBlur={onBlurField}
+                />
+              </>
+            )}
+          </div>
+
+          {/* Focus areas */}
+          <div>
+            {lbl('AI focus areas', '(optional)')}
+            <textarea
+              rows={2}
+              value={focusAreas}
+              onChange={e => setFocusAreas(e.target.value)}
+              placeholder="e.g. Focus on system design, Azure, and team leadership…"
+              style={{ ...field, resize: 'vertical' }}
+              onFocus={onFocusField} onBlur={onBlurField}
+            />
+          </div>
+
+          {/* Attempts */}
+          <div>
+            {lbl('Attempts allowed')}
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              {[3, 5, 'Unlimited'].map(v => (
-                <PillOption key={v} label={String(v)} selected={form.maxAttempts === (v === 'Unlimited' ? -1 : v)} onClick={() => set('maxAttempts', v === 'Unlimited' ? -1 : v)} />
+              {[1, 3, 5, -1].map(v => (
+                pillBtn(maxAttempts === v, () => setMaxAttempts(v), v === -1 ? 'Unlimited' : `${v}`)
               ))}
             </div>
           </div>
+
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div>
-              {label('Cooldown between attempts (hours)')}
-              <input type="number" style={fieldStyle} value={form.cooldownHours} onChange={e => set('cooldownHours', parseInt(e.target.value, 10))} min={1} />
+              {lbl('Cooldown between attempts (hours)')}
+              <input type="number" min={1} max={168} style={field} value={cooldownHours} onChange={e => setCooldown(parseInt(e.target.value, 10))} onFocus={onFocusField} onBlur={onBlurField} />
             </div>
             <div>
-              {label('Window (days link is active)')}
-              <input type="number" style={fieldStyle} value={form.windowDays} onChange={e => set('windowDays', parseInt(e.target.value, 10))} min={1} />
+              {lbl('Link active for (days)')}
+              <input type="number" min={1} max={30} style={field} value={windowDays} onChange={e => setWindowDays(parseInt(e.target.value, 10))} onFocus={onFocusField} onBlur={onBlurField} />
             </div>
           </div>
+
+          {/* Difficulty */}
           <div>
-            {label('Generate report')}
+            {lbl('Question difficulty')}
             <div style={{ display: 'flex', gap: 8 }}>
-              <PillOption label="After each attempt" selected={form.reportTiming === 'each'} onClick={() => set('reportTiming', 'each')} />
-              <PillOption label="After all attempts" selected={form.reportTiming === 'all'} onClick={() => set('reportTiming', 'all')} />
+              {['easy', 'medium', 'hard'].map(d => pillBtn(difficulty === d, () => setDifficulty(d), d.charAt(0).toUpperCase() + d.slice(1)))}
+            </div>
+          </div>
+
+          {/* Report timing */}
+          <div>
+            {lbl('Generate report')}
+            <div style={{ display: 'flex', gap: 8 }}>
+              {[{ id: 'each', label: 'After each attempt' }, { id: 'all', label: 'After all attempts' }].map(o => (
+                pillBtn(reportTiming === o.id, () => setReportTiming(o.id), o.label)
+              ))}
             </div>
           </div>
         </div>
       )}
 
-      {/* Step 3: Questions */}
+      {/* ── STEP 3: Recipients ───────────────────────────────── */}
       {step === 3 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
           <div>
-            {label('Job description (paste or leave blank)')}
-            <textarea rows={5} style={{ ...fieldStyle, resize: 'vertical' }} placeholder="Paste the JD here for more targeted questions…" value={form.jdText} onChange={e => set('jdText', e.target.value)} />
+            {lbl('Candidates', 'interview invites will be sent to these people')}
+            <CandidateChips
+              label="To"
+              candidates={candidates}
+              onRemove={removeCandidate}
+              teamList={teamList}
+              onAdd={addCandidate}
+            />
+            {candidates.length === 0 && !member && (
+              <p style={{ fontSize: 11, color: '#94A3B8', margin: '6px 0 0' }}>Add at least one candidate to continue.</p>
+            )}
+            {selectedIds.length > 0 && candidates.length === 0 && (
+              <p style={{ fontSize: 11, color: '#5B4FE9', margin: '6px 0 0' }}>{selectedIds.length} candidates pre-selected from team page.</p>
+            )}
           </div>
+
           <div>
-            {label('Focus areas for AI')}
-            <textarea rows={3} style={{ ...fieldStyle, resize: 'vertical' }} placeholder="e.g. Focus on system design and .NET performance…" value={form.focusAreas} onChange={e => set('focusAreas', e.target.value)} />
-          </div>
-          <div>
-            {label('Difficulty')}
-            <div style={{ display: 'flex', gap: 8 }}>
-              <PillOption label="Easy" selected={form.difficulty === 'easy'} onClick={() => set('difficulty', 'easy')} />
-              <PillOption label="Medium" selected={form.difficulty === 'medium'} onClick={() => set('difficulty', 'medium')} />
-              <PillOption label="Hard" selected={form.difficulty === 'hard'} onClick={() => set('difficulty', 'hard')} />
-            </div>
+            {lbl('Send report to', 'you are always included — add others from your organisation or enter email')}
+            <EmailChips
+              label="CC"
+              emails={reportEmails}
+              onRemove={removeReportEmail}
+              orgUsers={teamList}
+              onAdd={addReportEmail}
+              disabledEmails={managerEmail ? [managerEmail] : []}
+            />
+            <p style={{ fontSize: 11, color: '#94A3B8', margin: '6px 0 0' }}>
+              Press Enter or comma to add a custom email.
+            </p>
           </div>
         </div>
       )}
 
-      {/* Step 4: Confirm */}
+      {/* ── STEP 4: Confirm ──────────────────────────────────── */}
       {step === 4 && (
-        <div>
-          {/* Member picker — only shown when no member was pre-selected */}
-          {!member && selectedIds.length === 0 && (
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 6 }}>Send to *</label>
-              <select
-                style={{ ...fieldStyle, marginBottom: 0 }}
-                value={pickedMember ? pickedMember.id : ''}
-                onChange={e => {
-                  const m = teamList.find(t => t.id === parseInt(e.target.value, 10))
-                  setPickedMember(m || null)
-                }}
-              >
-                <option value="">Select a team member…</option>
-                {teamList.map(m => (
-                  <option key={m.id} value={m.id}>{m.first_name} {m.last_name} ({m.email})</option>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {/* Candidate list */}
+          <div style={{ background: '#F8FAFC', borderRadius: 10, padding: 14 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 8 }}>Sending to</div>
+            {candidates.length > 0 ? (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {candidates.map(c => {
+                  const name = `${c.first_name || ''} ${c.last_name || ''}`.trim() || c.email
+                  return (
+                    <span key={c.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 10px 3px 6px', background: '#EFEDFD', borderRadius: 9999, fontSize: 12, fontWeight: 500, color: '#3A31A3' }}>
+                      <TinyAv name={name} /> {name}
+                    </span>
+                  )
+                })}
+              </div>
+            ) : selectedIds.length > 0 ? (
+              <p style={{ fontSize: 13, color: '#374151', margin: 0 }}>{selectedIds.length} selected member{selectedIds.length !== 1 ? 's' : ''} from team</p>
+            ) : (
+              <p style={{ fontSize: 13, color: '#EF4444', margin: 0 }}>No candidates selected</p>
+            )}
+          </div>
+
+          {/* Summary grid */}
+          <div style={{ background: '#F8FAFC', borderRadius: 10, padding: 14 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 10 }}>Interview summary</div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 12, color: '#374151' }}>
+              {[
+                ['Mode',          MODES.find(m => m.id === mode)?.label || mode],
+                ['Stages',        stages.map(s => INTERVIEW_TYPES.find(t => t.id === s.id)?.label).join(' → ')],
+                ['Attempts',      maxAttempts === -1 ? 'Unlimited' : maxAttempts],
+                ['Window',        `${windowDays} days`],
+                ['Difficulty',    difficulty.charAt(0).toUpperCase() + difficulty.slice(1)],
+                ['Report',        reportTiming === 'each' ? 'After each attempt' : 'After all attempts'],
+              ].map(([k, v]) => (
+                <div key={k}>
+                  <span style={{ color: '#94A3B8' }}>{k}: </span>
+                  <span style={{ fontWeight: 500 }}>{v}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Report recipients */}
+          {(managerEmail || reportEmails.length > 0) && (
+            <div style={{ background: '#F8FAFC', borderRadius: 10, padding: 14 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 8 }}>Report recipients</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
+                {managerEmail && (
+                  <span style={{ padding: '3px 9px', background: '#F1F5F9', borderRadius: 9999, fontSize: 11, fontWeight: 500, color: '#475569' }}>{managerEmail} (you)</span>
+                )}
+                {reportEmails.map(e => (
+                  <span key={e} style={{ padding: '3px 9px', background: '#EFEDFD', borderRadius: 9999, fontSize: 11, fontWeight: 500, color: '#3A31A3' }}>{e}</span>
                 ))}
-              </select>
+              </div>
             </div>
           )}
-          <div style={{ background: 'var(--bg-surface-alt)', borderRadius: 10, padding: 16, marginBottom: 16, fontSize: 13 }}>
-            <div style={{ fontWeight: 600, marginBottom: 10 }}>Interview Summary</div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, color: 'var(--fg-body)' }}>
-              <div><span style={{ color: 'var(--fg-muted)' }}>Mode:</span> {form.mode === 'client_mock' ? 'Client Mock' : 'Internal Monthly'}</div>
-              <div><span style={{ color: 'var(--fg-muted)' }}>Style:</span> {form.interviewMode === 'simple' ? 'Simple' : 'Adaptive'}</div>
-              <div><span style={{ color: 'var(--fg-muted)' }}>Transcription:</span> {form.transcriptionMode}</div>
-              <div><span style={{ color: 'var(--fg-muted)' }}>Attempts:</span> {form.maxAttempts === -1 ? 'Unlimited' : form.maxAttempts}</div>
-              <div><span style={{ color: 'var(--fg-muted)' }}>Window:</span> {form.windowDays} days</div>
-              <div><span style={{ color: 'var(--fg-muted)' }}>Difficulty:</span> {form.difficulty}</div>
-            </div>
-          </div>
-          <div style={{ fontSize: 13, color: 'var(--fg-muted)', marginBottom: 16 }}>
-            {resolvedMember
-              ? `Sending to: ${resolvedMember.first_name} ${resolvedMember.last_name} (${resolvedMember.email})`
-              : selectedIds.length > 0
-                ? `Sending to ${selectedIds.length} selected member${selectedIds.length !== 1 ? 's' : ''}`
-                : 'No member selected — please select one above.'}
-          </div>
-          {error && <p style={{ color: 'var(--danger-500)', fontSize: 13, marginBottom: 12 }}>{error}</p>}
+
+          {error && <p style={{ color: '#EF4444', fontSize: 13, margin: 0 }}>{error}</p>}
         </div>
       )}
 
       {/* Navigation */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 24 }}>
-        <Button variant="secondary" onClick={step > 1 ? () => setStep(s => s - 1) : handleClose}>
-          {step > 1 ? 'Back' : 'Cancel'}
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 24, paddingTop: 16, borderTop: '1px solid #F1F5F9' }}>
+        <Button variant="secondary" type="button" onClick={step > 1 ? () => { setStep(s => s - 1); setError(null) } : handleClose}>
+          {step > 1 ? '← Back' : 'Cancel'}
         </Button>
         {step < 4 ? (
-          <Button onClick={() => setStep(s => s + 1)}>Next →</Button>
+          <Button type="button" onClick={() => {
+            if (step === 3 && candidates.length === 0 && selectedIds.length === 0) {
+              setError('Add at least one candidate.')
+              return
+            }
+            setError(null)
+            setStep(s => s + 1)
+          }}>
+            Next →
+          </Button>
         ) : (
-          <Button loading={loading} onClick={handleSubmit}>Schedule and Send Invite →</Button>
+          <Button loading={loading} type="button" onClick={handleSubmit}>
+            Schedule &amp; Send Invites →
+          </Button>
         )}
       </div>
     </Modal>

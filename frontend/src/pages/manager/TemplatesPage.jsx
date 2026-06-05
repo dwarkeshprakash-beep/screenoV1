@@ -1,5 +1,5 @@
-// pages/manager/TemplatesPage.jsx
-// Interview templates — list, create, edit, delete, and use.
+﻿// pages/manager/TemplatesPage.jsx
+// Interview templates â€” list, create, edit, delete, and use.
 
 import { useState, useEffect } from 'react'
 import { Plus, Pencil, Trash2 } from 'lucide-react'
@@ -28,7 +28,7 @@ function TemplatesPage() {
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deleting, setDeleting]         = useState(false)
 
-  // Use Template — opens ScheduleModal pre-filled
+  // Use Template â€” opens ScheduleModal pre-filled
   const [useTemplate, setUseTemplate]   = useState(null)
 
   useEffect(() => { load() }, [])
@@ -99,8 +99,31 @@ function TemplatesPage() {
   const inputStyle = { width: '100%', padding: '8px 12px', border: '1px solid var(--border-default)', borderRadius: 8, fontSize: 14, outline: 'none', boxSizing: 'border-box' }
 
   return (
-    <div>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+    <div style={{ position: 'relative' }}>
+      {/* Coming Soon overlay */}
+      <div style={{
+        position: 'absolute', inset: 0, zIndex: 10,
+        background: 'rgba(248,250,252,0.88)',
+        backdropFilter: 'blur(4px)',
+        display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center',
+        borderRadius: 16, minHeight: 400,
+      }}>
+        <div style={{ textAlign: 'center', maxWidth: 360 }}>
+          <div style={{ width: 56, height: 56, borderRadius: 16, background: '#EFEDFD', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
+            <span style={{ fontSize: 26 }}>🚧</span>
+          </div>
+          <h2 style={{ fontSize: 22, fontWeight: 700, color: '#0F172A', margin: '0 0 8px', letterSpacing: '-0.02em' }}>Coming Soon</h2>
+          <p style={{ fontSize: 14, color: '#6B7280', margin: '0 0 20px', lineHeight: 1.6 }}>
+            Template management is under active development. You'll be able to create reusable interview templates and apply them directly from the schedule wizard.
+          </p>
+          <span style={{ display: 'inline-block', padding: '5px 14px', background: '#EFEDFD', borderRadius: 9999, fontSize: 12, fontWeight: 600, color: '#5B4FE9' }}>
+            In development
+          </span>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, filter: 'blur(2px)', pointerEvents: 'none' }}>
         <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0 }}>Interview Templates</h1>
         <Button onClick={() => setShowForm(s => !s)}>
           <Plus size={14} /> New Template
@@ -116,7 +139,7 @@ function TemplatesPage() {
             </div>
             <div>
               <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 4 }}>Description / focus prompt</label>
-              <textarea rows={3} style={{ ...inputStyle, resize: 'vertical' }} placeholder="Describe what this template is for…" value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
+              <textarea rows={3} style={{ ...inputStyle, resize: 'vertical' }} placeholder="Describe what this template is for..." value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} />
             </div>
             <div>
               <label style={{ display: 'block', fontSize: 13, fontWeight: 500, marginBottom: 4 }}>Attempts</label>
@@ -203,7 +226,7 @@ function TemplatesPage() {
         )}
       </Modal>
 
-      {/* Use Template — opens ScheduleModal with template pre-filled */}
+      {/* Use Template â€” opens ScheduleModal with template pre-filled */}
       <ScheduleModal
         open={!!useTemplate}
         onClose={() => setUseTemplate(null)}
@@ -215,3 +238,4 @@ function TemplatesPage() {
 }
 
 export default TemplatesPage
+

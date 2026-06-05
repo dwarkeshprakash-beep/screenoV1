@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+﻿import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Mail, Phone, MapPin, Briefcase, CalendarPlus, Pencil, FileText, Download, ThumbsUp, ArrowRight, Check } from 'lucide-react'
 import Spinner from '../../components/shared/Spinner'
@@ -186,10 +186,10 @@ function MemberProfilePage() {
               <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#5B4FE9', marginBottom: 14 }}>Performance summary</div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
                 {[
-                  { label: 'Last score',   value: report?.overall_score ? `${report.overall_score}/10` : '—' },
-                  { label: 'Assessments',  value: '—' },
-                  { label: 'Best score',   value: '—' },
-                  { label: 'Days since',   value: member.last_assessed ? `${Math.round((Date.now() - new Date(member.last_assessed).getTime()) / 86400000)}d` : '—' },
+                  { label: 'Last score',   value: report?.overall_score ? `${report.overall_score}/10` : 'â€”' },
+                  { label: 'Assessments',  value: 'â€”' },
+                  { label: 'Best score',   value: 'â€”' },
+                  { label: 'Days since',   value: member.last_assessed ? `${Math.round((Date.now() - new Date(member.last_assessed).getTime()) / 86400000)}d` : 'â€”' },
                 ].map((s, i) => (
                   <div key={i} style={{ textAlign: 'center', padding: '12px 8px', background: '#F8FAFC', borderRadius: 8 }}>
                     <div style={{ fontFamily: "var(--font-display,'Inter')", fontSize: 22, fontWeight: 700, color: '#0F172A', letterSpacing: '-0.015em' }}>{s.value}</div>
@@ -286,7 +286,7 @@ function MemberProfilePage() {
             <textarea
               value={newNote}
               onChange={e => setNewNote(e.target.value)}
-              placeholder="Add a note for the hiring team…"
+              placeholder="Add a note for the hiring teamâ€¦"
               rows={3}
               style={{ width: '100%', padding: 12, border: '1px solid #CBD5E1', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', lineHeight: 1.6, outline: 'none', resize: 'vertical', boxSizing: 'border-box' }}
               onFocus={e => { e.target.style.borderColor = '#5B4FE9'; e.target.style.boxShadow = '0 0 0 3px rgba(91,79,233,0.18)' }}
@@ -302,7 +302,7 @@ function MemberProfilePage() {
                 }}
                 style={{ padding: '8px 16px', background: !newNote.trim() || saving ? '#E2E8F0' : '#5B4FE9', color: !newNote.trim() || saving ? '#94A3B8' : '#FFF', border: 0, borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: !newNote.trim() || saving ? 'not-allowed' : 'pointer' }}
               >
-                {saving ? 'Saving…' : 'Post note'}
+                {saving ? 'Saving...' : 'Post note'}
               </button>
             </div>
           </div>
@@ -337,7 +337,7 @@ function MemberProfilePage() {
           )}
           <input type="file" accept=".pdf" style={{ display: 'none' }} ref={fileInputRef} onChange={handleResumeUpload} />
           <button onClick={() => fileInputRef.current?.click()} disabled={uploading} style={{ width: '100%', marginTop: 10, padding: '7px 0', background: '#FFF', border: '1px solid #CBD5E1', borderRadius: 8, fontSize: 12, fontWeight: 600, color: '#374151', cursor: 'pointer' }}>
-            {uploading ? 'Uploading…' : member.resume_url ? 'Replace resume' : 'Upload resume'}
+            {uploading ? 'Uploadingâ€¦' : member.resume_url ? 'Replace resume' : 'Upload resume'}
           </button>
         </div>
 
@@ -358,3 +358,4 @@ function MemberProfilePage() {
 }
 
 export default MemberProfilePage
+

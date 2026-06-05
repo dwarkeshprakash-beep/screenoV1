@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
+﻿import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Briefcase, Users, CheckSquare, Plus } from 'lucide-react'
+import { Users, CheckSquare, CalendarPlus } from 'lucide-react'
 import Spinner from '../../components/shared/Spinner'
 import ErrorMessage from '../../components/shared/ErrorMessage'
 import * as api from '../../services/api'
@@ -35,13 +35,13 @@ function DashboardPage() {
     }
   }
 
-  if (loading) return <div style={{ padding: 40 }}><Spinner /></div>
+  if (loading) return <Spinner center />
   if (error) return <ErrorMessage message={error} />
 
   const statCards = [
-    { icon: Briefcase, value: stats?.openRoles ?? '—',             label: 'Active Jobs',           link: 'Engineering team' },
-    { icon: Users,     value: stats?.candidatesEvaluated ?? '—',   label: 'Candidates Evaluated',  link: 'This quarter' },
-    { icon: CheckSquare, value: stats?.pendingScorecard ?? '—',    label: 'Awaiting My Scorecard', link: 'Review now' },
+    { icon: Users,       value: stats?.totalMembers ?? '—',          label: 'Team Members',          link: 'View My Team',    to: '/manager/team' },
+    { icon: CheckSquare, value: stats?.candidatesEvaluated ?? '—',   label: 'Interviews Completed',  link: 'This quarter',    to: null },
+    { icon: CalendarPlus,value: stats?.pendingScorecard ?? '—',      label: 'Pending Scorecards',    link: 'Review now',      to: '/manager/reports' },
   ]
 
   const openings = stats?.openings || []
@@ -51,29 +51,30 @@ function DashboardPage() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
           <div style={eyebrowStyle}>MANAGER · TEAM</div>
-          <h1 style={{ fontSize: 28, fontWeight: 700, color: '#0F172A', margin: '6px 0 4px', letterSpacing: '-0.02em' }}>Team Hiring</h1>
-          <p style={{ color: '#6B7280', fontSize: 14, margin: 0 }}>Manage your team's active openings, review candidate scorecards, and make final decisions.</p>
+          <h1 style={{ fontSize: 28, fontWeight: 700, color: '#0F172A', margin: '6px 0 4px', letterSpacing: '-0.02em' }}>Team Overview</h1>
+          <p style={{ color: '#6B7280', fontSize: 14, margin: 0 }}>Monitor your team's assessments, schedule interviews, and review reports.</p>
         </div>
         <button
           onClick={() => navigate('/manager/team')}
           style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#5B4FE9', color: '#FFF', border: 0, borderRadius: 8, fontWeight: 600, padding: '8px 14px', fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap', boxShadow: '0 4px 12px rgba(91,79,233,0.2)' }}
         >
-          <Plus size={14} /> Post New Job
+          <Users size={14} /> My Team
         </button>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16 }}>
         {statCards.map((s, i) => (
-          <div key={i} style={{ ...cardStyle, cursor: 'pointer' }}
-            onMouseEnter={e => e.currentTarget.style.boxShadow = '0 4px 12px rgba(15,23,42,0.06)'}
-            onMouseLeave={e => e.currentTarget.style.boxShadow = '0 1px 3px rgba(15,23,42,0.04)'}
+          <div key={i} style={{ ...cardStyle, cursor: s.to ? 'pointer' : 'default' }}
+            onClick={() => s.to && navigate(s.to)}
+            onMouseEnter={e => { if (s.to) e.currentTarget.style.boxShadow = '0 4px 12px rgba(15,23,42,0.06)' }}
+            onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 1px 3px rgba(15,23,42,0.04)' }}
           >
             <div style={{ width: 36, height: 36, borderRadius: 9, background: '#EFEDFD', color: '#5B4FE9', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
               <s.icon size={18} />
             </div>
             <div style={{ fontSize: 32, fontWeight: 700, color: '#0F172A', letterSpacing: '-0.025em', lineHeight: 1 }}>{s.value}</div>
             <div style={{ color: '#6B7280', fontSize: 13, marginTop: 4 }}>{s.label}</div>
-            <a style={{ color: '#5B4FE9', fontSize: 12, fontWeight: 500, cursor: 'pointer', marginTop: 8, display: 'block' }}>{s.link}</a>
+            {s.to && <a style={{ color: '#5B4FE9', fontSize: 12, fontWeight: 500, cursor: 'pointer', marginTop: 8, display: 'block' }}>{s.link}</a>}
           </div>
         ))}
       </div>
@@ -81,8 +82,8 @@ function DashboardPage() {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 16 }}>
         <div style={cardStyle}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <div style={{ fontSize: 15, fontWeight: 700, color: '#0F172A' }}>My Team's Openings</div>
-            <a style={{ fontSize: 12, color: '#5B4FE9', fontWeight: 500, cursor: 'pointer' }}>View All</a>
+            <div style={{ fontSize: 15, fontWeight: 700, color: '#0F172A' }}>Team Activity</div>
+            <a onClick={() => navigate('/manager/team')} style={{ fontSize: 12, color: '#5B4FE9', fontWeight: 500, cursor: 'pointer' }}>View Team →</a>
           </div>
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
@@ -133,3 +134,4 @@ function DashboardPage() {
 }
 
 export default DashboardPage
+

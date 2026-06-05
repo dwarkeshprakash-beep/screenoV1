@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { CalendarPlus } from 'lucide-react'
 import Spinner from '../../components/shared/Spinner'
 import ErrorMessage from '../../components/shared/ErrorMessage'
+import ScheduleModal from '../../components/manager/ScheduleModal'
 import * as api from '../../services/api'
 
 const HOURS = Array.from({ length: 9 }, (_, i) => i + 9)
@@ -45,10 +47,13 @@ function getTypeStyle(type) {
 }
 
 function SchedulePage() {
+  const navigate = useNavigate()
   const [weekStart, setWeekStart] = useState(() => getWeekStart(new Date()))
   const [events, setEvents]       = useState([])
   const [loading, setLoading]     = useState(true)
   const [error, setError]         = useState(null)
+  const [scheduleOpen, setScheduleOpen] = useState(false)
+  const [selectedEvent, setSelectedEvent] = useState(null)
 
   useEffect(() => { load() }, [weekStart])
 
@@ -108,9 +113,20 @@ function SchedulePage() {
             ))}
           </div>
         </div>
-        <button style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#5B4FE9', color: '#FFF', border: 0, borderRadius: 8, fontWeight: 600, padding: '8px 14px', fontSize: 13, cursor: 'pointer', boxShadow: '0 4px 12px rgba(91,79,233,0.2)' }}>
-          <CalendarPlus size={13} /> Schedule interview
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            onClick={() => navigate('/manager/team')}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#FFF', color: '#0F172A', border: '1px solid #CBD5E1', borderRadius: 8, fontWeight: 600, padding: '8px 14px', fontSize: 13, cursor: 'pointer' }}
+          >
+            My Team
+          </button>
+          <button
+            onClick={() => setScheduleOpen(true)}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#5B4FE9', color: '#FFF', border: 0, borderRadius: 8, fontWeight: 600, padding: '8px 14px', fontSize: 13, cursor: 'pointer', boxShadow: '0 4px 12px rgba(91,79,233,0.2)' }}
+          >
+            <CalendarPlus size={13} /> Schedule interview
+          </button>
+        </div>
       </div>
 
       <div style={{ display: 'flex', gap: 18, fontSize: 12, color: '#6B7280' }}>
@@ -130,7 +146,7 @@ function SchedulePage() {
       </div>
 
       {loading ? (
-        <div style={{ padding: 40 }}><Spinner /></div>
+        <Spinner center />
       ) : error ? (
         <ErrorMessage message={error} />
       ) : (
@@ -168,7 +184,13 @@ function SchedulePage() {
                     const top = Math.max(0, (startH - 9) * H) + 2
                     const height = Math.max(20, dur * H - 4)
                     return (
-                      <div key={ei} style={{ position: 'absolute', left: 4, right: 4, top, height, background: ts.bg, borderLeft: `3px solid ${ts.border}`, borderRadius: 6, padding: '5px 8px', cursor: 'pointer', overflow: 'hidden' }}>
+                      <div
+                        key={ei}
+                        onClick={() => navigate(`/manager/team/${ev.candidateId || ev.candidate_id || ''}`)}
+                        style={{ position: 'absolute', left: 4, right: 4, top, height, background: ts.bg, borderLeft: `3px solid ${ts.border}`, borderRadius: 6, padding: '5px 8px', cursor: 'pointer', overflow: 'hidden', transition: 'filter 120ms' }}
+                        onMouseEnter={e => e.currentTarget.style.filter = 'brightness(0.95)'}
+                        onMouseLeave={e => e.currentTarget.style.filter = 'none'}
+                      >
                         <div style={{ fontSize: 12, fontWeight: 600, color: ts.color, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ev.candidateName || ev.title || ts.label}</div>
                         {dur >= 0.8 && <div style={{ fontSize: 11, color: ts.color, opacity: 0.8 }}>{ev.sub || ev.status || ''}</div>}
                       </div>
@@ -180,6 +202,12 @@ function SchedulePage() {
           </div>
         </div>
       )}
+
+      <ScheduleModal
+        open={scheduleOpen}
+        onClose={() => setScheduleOpen(false)}
+        onDone={load}
+      />
     </div>
   )
 }
