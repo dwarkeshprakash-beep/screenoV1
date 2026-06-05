@@ -1,4 +1,4 @@
-mport { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Sparkles, Lightbulb, BarChart3, AlertTriangle, FileText, PlayCircle } from 'lucide-react'
 import Spinner from '../../components/shared/Spinner'
