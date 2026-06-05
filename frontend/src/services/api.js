@@ -56,6 +56,7 @@ export const validateMagicLink = (token) =>
 
 // ── TEAM ──────────────────────────────────────────────────────
 export const getTeam = (filter = 'all') => request(`/api/team?filter=${filter}`)
+export const getOrgUsersNotInTeam = () => request('/api/team/not-in-team')
 export const getTeamStats = () => request('/api/team/stats')
 export const getTeamActivity = () => request('/api/team/activity')
 export const getMember = (id) => request(`/api/team/member/${id}`)

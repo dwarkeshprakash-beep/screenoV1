@@ -23,6 +23,17 @@ router.get('/', async (req, res) => {
   }
 })
 
+// GET /api/team/not-in-team — org users not yet in this company's candidates table
+router.get('/not-in-team', async (req, res) => {
+  try {
+    const users = await teamService.getOrgUsersNotInTeam(req.user.companyId)
+    res.json({ success: true, data: users })
+  } catch (err) {
+    console.error('GET /team/not-in-team failed:', err)
+    res.status(500).json({ success: false, error: 'Could not load users' })
+  }
+})
+
 // GET /api/team/stats
 router.get('/stats', async (req, res) => {
   try {

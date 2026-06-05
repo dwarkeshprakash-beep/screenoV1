@@ -2,6 +2,7 @@
 // Business logic for team management. No SQL, no HTTP.
 
 const candidateRepository = require('../repositories/candidate.repository')
+const userRepository = require('../repositories/user.repository')
 const interviewRepository = require('../repositories/interview.repository')
 const reportRepository = require('../repositories/report.repository')
 const notesRepository = require('../repositories/notes.repository')
@@ -165,4 +166,13 @@ async function importFromCSV(csvText, companyId, managerId) {
   return { ...result, errors }
 }
 
-module.exports = { getTeam, getMember, addMember, updateMember, removeMember, getStats, getActivity, getNotes, addNote, importFromCSV }
+/**
+ * Get organisation users not yet in this manager's team (candidates table).
+ * @param {number} companyId
+ * @returns {Promise<Array>}
+ */
+async function getOrgUsersNotInTeam(companyId) {
+  return userRepository.getNotInTeam(companyId)
+}
+
+module.exports = { getTeam, getMember, getOrgUsersNotInTeam, addMember, updateMember, removeMember, getStats, getActivity, getNotes, addNote, importFromCSV }

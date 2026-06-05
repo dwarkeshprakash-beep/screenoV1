@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react'
+mport { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { ArrowLeft, Sparkles, Lightbulb, BarChart3, AlertTriangle, FileText, PlayCircle } from 'lucide-react'
 import Spinner from '../../components/shared/Spinner'
@@ -193,7 +193,7 @@ function ScorecardPage() {
           {/* Overall score */}
           <div style={{ background: '#FFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 20, textAlign: 'center', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
             <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#5B4FE9', marginBottom: 8 }}>Overall score</div>
-            <div style={{ fontFamily: “var(--font-display,'Inter')”, fontSize: 56, fontWeight: 700, color: '#0F172A', letterSpacing: '-0.03em', lineHeight: 1 }}>{overall ?? '—'}</div>
+            <div style={{ fontFamily: "var(--font-display,'Inter')", fontSize: 56, fontWeight: 700, color: '#0F172A', letterSpacing: '-0.03em', lineHeight: 1 }}>{overall != null ? overall : '—'}</div>
             <div style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>/ 5.0</div>
             <div style={{ height: 6, background: '#F1F5F9', borderRadius: 9999, overflow: 'hidden', margin: '14px 0 0' }}>
               <div style={{ height: '100%', width: `${overall != null ? (overall / 5) * 100 : 0}%`, background: '#5B4FE9', borderRadius: 9999, transition: 'width 240ms' }} />

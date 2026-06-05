@@ -65,4 +65,26 @@ async function updatePassword(id, passwordHash) {
   )
 }
 
-module.exports = { getByEmail, getById, updateProfile, updatePassword }
+/**
+ * Get users in a company whose email is NOT already in the candidates table for that company.
+ * Used by AddCandidateModal "Find in organisation" tab.
+ * @param {number} companyId
+ * @returns {Promise<Array>}
+ */
+async function getNotInTeam(companyId) {
+  return db.query(
+    `SELECT id, first_name, last_name, email, role
+     FROM users
+     WHERE company_id = @companyId
+       AND deleted IS NULL
+       AND role != 'manager'
+       AND email NOT IN (
+         SELECT email FROM candidates
+         WHERE company_id = @companyId AND deleted IS NULL
+       )
+     ORDER BY first_name`,
+    { companyId }
+  )
+}
+
+module.exports = { getByEmail, getById, getNotInTeam, updateProfile, updatePassword }

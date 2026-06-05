@@ -61,7 +61,7 @@ function AddCandidateModal({ open, onClose, onDone }) {
   async function loadUsers() {
     setUsersLoading(true)
     try {
-      const res = await api.getTeam('all')
+      const res = await api.getOrgUsersNotInTeam()
       setAllUsers(res.data || [])
     } catch {
       setAllUsers([])
@@ -204,7 +204,7 @@ function AddCandidateModal({ open, onClose, onDone }) {
               <Spinner center />
             ) : filtered.length === 0 ? (
               <div style={{ padding: '20px', textAlign: 'center', color: '#94A3B8', fontSize: 13 }}>
-                {search ? 'No members match your search.' : 'No members in your team yet.'}
+                {search ? 'No users match your search.' : 'All organisation users are already in your team.'}
               </div>
             ) : (
               filtered.map((u, i) => {

@@ -163,4 +163,21 @@ async function bulkCreate(rows, companyId, managerId) {
   return { inserted, skipped: rows.length - inserted }
 }
 
-module.exports = { getByCompany, getById, create, update, softDelete, bulkCreate }
+/**
+ * Find a candidate by email within a company.
+ * @param {string} email
+ * @param {number} companyId
+ * @returns {Promise<Object|null>}
+ */
+async function getByEmail(email, companyId) {
+  const rows = await db.query(
+    `SELECT id, company_id, first_name, last_name, email
+     FROM candidates
+     WHERE email = @email AND company_id = @companyId AND deleted IS NULL
+     LIMIT 1`,
+    { email, companyId }
+  )
+  return rows[0] || null
+}
+
+module.exports = { getByCompany, getById, getByEmail, create, update, softDelete, bulkCreate }

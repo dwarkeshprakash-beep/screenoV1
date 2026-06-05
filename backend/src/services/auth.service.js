@@ -6,6 +6,7 @@ const bcrypt = require('bcryptjs')
 const jwt = require('jsonwebtoken')
 
 const userRepository = require('../repositories/user.repository')
+const candidateRepository = require('../repositories/candidate.repository')
 const refreshTokenRepository = require('../repositories/refresh-token.repository')
 const interviewRepository = require('../repositories/interview.repository')
 
@@ -23,13 +24,14 @@ function hashToken(token) {
  * @param {Object} user
  * @returns {string}
  */
-function signAccessToken(user) {
+function signAccessToken(user, candidateId = null) {
   return jwt.sign(
     {
       id: user.id,
       role: user.role,
       companyId: user.company_id,
       name: `${user.first_name} ${user.last_name}`,
+      ...(candidateId ? { candidateId } : {}),
     },
     process.env.JWT_SECRET,
     { expiresIn: process.env.JWT_EXPIRES_IN || '15m' }
@@ -50,7 +52,13 @@ async function login(email, password) {
   const match = await bcrypt.compare(password, user.password)
   if (!match) throw new Error('Invalid credentials')
 
-  const accessToken = signAccessToken(user)
+  let candidateId = null
+  if (user.role === 'candidate') {
+    const candidate = await candidateRepository.getByEmail(user.email, user.company_id)
+    candidateId = candidate ? candidate.id : null
+  }
+
+  const accessToken = signAccessToken(user, candidateId)
 
   const rawRefresh = crypto.randomBytes(64).toString('hex')
   const tokenHash = hashToken(rawRefresh)
