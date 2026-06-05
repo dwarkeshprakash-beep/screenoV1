@@ -1,46 +1,39 @@
 // backend/src/services/email.service.js
-// Transactional email via Resend REST API (plain fetch, no SDK).
-// RESEND_FROM env var sets the sender. Use 'onboarding@resend.dev' for dev/testing
-// (no domain verification needed). Switch to 'Screeno <noreply@yourdomain.com>'
-// once the domain is verified in Resend.
+// Transactional email via Brevo SMTP + nodemailer.
+// Public API is unchanged: sendMagicLink(to, params) and sendReportReady(to, params).
+// For multi-recipient / CC / attachment use: sendMail({ to, cc, bcc, subject, html, text, attachments })
 
-const RESEND_API = 'https://api.resend.com/emails'
-const FROM = process.env.RESEND_FROM || 'onboarding@resend.dev'
+const nodemailer = require('nodemailer')
+
+const transporter = nodemailer.createTransport({
+  host: process.env.SMTP_HOST,
+  port: Number(process.env.SMTP_PORT || 587),
+  secure: false,
+  auth: {
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
+  },
+})
+
+const FROM = `"${process.env.MAIL_FROM_NAME || 'Screeno'}" <${process.env.MAIL_FROM_EMAIL}>`
 
 /**
- * Send a raw email via Resend.
- * @param {Object} payload - { to, subject, html }
- * @returns {Promise<void>}
+ * Core send function — supports multiple recipients, CC, BCC, attachments.
+ * @param {{ to, cc?, bcc?, subject, html?, text?, attachments? }} opts
  */
-async function sendEmail(payload) {
-  const apiKey = (process.env.RESEND_API_KEY || '').trim()
-  const response = await fetch(RESEND_API, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      from: FROM,
-      ...payload,
-    }),
-  })
-
-  if (!response.ok) {
-    const err = await response.text()
-    throw new Error(`Resend API failed: ${response.status} ${err}`)
-  }
+async function sendMail({ to, cc, bcc, subject, html, text, attachments = [] }) {
+  await transporter.sendMail({ from: FROM, to, cc, bcc, subject, html, text, attachments })
 }
 
 /**
  * Send a magic link to a candidate.
  * @param {string} to - candidate email
- * @param {Object} params
+ * @param {{ candidateName, interviewToken, companyName, jobTitle, windowDays }} params
  */
 async function sendMagicLink(to, { candidateName, interviewToken, companyName, jobTitle, windowDays }) {
   const link = `${process.env.FRONTEND_URL}/interview/${interviewToken}`
 
-  await sendEmail({
+  await sendMail({
     to,
     subject: `Your interview link — ${jobTitle || 'Assessment'} at ${companyName}`,
     html: `
@@ -49,12 +42,12 @@ async function sendMagicLink(to, { candidateName, interviewToken, companyName, j
         <p>You've been invited to complete an interview for <strong>${jobTitle || 'an assessment'}</strong> at <strong>${companyName}</strong>.</p>
         <p style="margin:24px 0">
           <a href="${link}" style="background:#5B4FE9;color:#fff;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:600">
-            Start Interview →
+            Start Interview &rarr;
           </a>
         </p>
         <p style="color:#6B7280;font-size:14px">This link is valid for ${windowDays || 7} days. You can return to it at any time.</p>
         <hr style="border:none;border-top:1px solid #E2E8F0;margin:24px 0" />
-        <p style="color:#94A3B8;font-size:12px">Sent by Screeno · AI-powered hiring platform</p>
+        <p style="color:#94A3B8;font-size:12px">This is an automated email from Praskesh Infotech. Please do not reply to this email.</p>
       </div>
     `,
   })
@@ -63,12 +56,12 @@ async function sendMagicLink(to, { candidateName, interviewToken, companyName, j
 /**
  * Notify a manager that a report is ready.
  * @param {string} to - manager email
- * @param {Object} params
+ * @param {{ candidate, interviewId, companyName }} params
  */
 async function sendReportReady(to, { candidate, interviewId, companyName }) {
   const link = `${process.env.FRONTEND_URL}/manager/team/${candidate.id}`
 
-  await sendEmail({
+  await sendMail({
     to,
     subject: `Report ready — ${candidate.first_name} ${candidate.last_name}`,
     html: `
@@ -77,13 +70,14 @@ async function sendReportReady(to, { candidate, interviewId, companyName }) {
         <p>The AI report for <strong>${candidate.first_name} ${candidate.last_name}</strong> is now available.</p>
         <p style="margin:24px 0">
           <a href="${link}" style="background:#5B4FE9;color:#fff;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:600">
-            View Report →
+            View Report &rarr;
           </a>
         </p>
-        <p style="color:#94A3B8;font-size:12px">Screeno · ${companyName}</p>
+        <p style="color:#94A3B8;font-size:12px">This is an automated email from Praskesh Infotech. Please do not reply to this email.</p>
+        <p style="color:#94A3B8;font-size:12px">Screeno &middot; ${companyName}</p>
       </div>
     `,
   })
 }
 
-module.exports = { sendMagicLink, sendReportReady }
+module.exports = { sendMail, sendMagicLink, sendReportReady }
