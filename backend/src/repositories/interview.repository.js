@@ -11,11 +11,11 @@ const db = require('../db/connection')
 async function create(data) {
   const rows = await db.query(
     `INSERT INTO interviews
-       (company_id, candidate_id, manager_id, scheduled_by, type, mode, interview_mode, transcription_mode,
+       (company_id, candidate_id, manager_id, type, mode, interview_mode, transcription_mode,
         difficulty, jd_text, focus_areas, max_attempts, cooldown_hours, window_days,
         report_timing, report_every_n, report_emails, token, token_expires, window_closes)
      VALUES
-       (@company_id, @candidate_id, @manager_id, @manager_id, @type, @mode, @interview_mode, @transcription_mode,
+       (@company_id, @candidate_id, @manager_id, @type, @mode, @interview_mode, @transcription_mode,
         @difficulty, @jd_text, @focus_areas, @max_attempts, @cooldown_hours, @window_days,
         @report_timing, @report_every_n, @report_emails, @token, @token_expires, @window_closes)
      RETURNING *`,

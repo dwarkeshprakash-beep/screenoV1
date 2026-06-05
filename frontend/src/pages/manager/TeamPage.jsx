@@ -83,7 +83,6 @@ function TeamPage() {
   const [scheduleMember, setScheduleMember] = useState(null)
   const [addOpen, setAddOpen]           = useState(false)
   const [editMember, setEditMember]     = useState(null)
-  const [openMenu, setOpenMenu]         = useState(null)
   const [compareOpen, setCompareOpen]   = useState(false)
 
   useEffect(() => { load() }, [])
@@ -123,7 +122,6 @@ function TeamPage() {
   function openSchedule(member) {
     setScheduleMember(member)
     setScheduleOpen(true)
-    setOpenMenu(null)
   }
 
   const overdueCount = members.filter(m => isOverdue(m)).length

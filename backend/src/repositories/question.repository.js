@@ -14,8 +14,8 @@ async function createMany(interviewId, attemptId, questions) {
   const saved = []
   for (const q of questions) {
     const rows = await db.query(
-      `INSERT INTO questions (interview_id, attempt_id, text, phase, order_num)
-       VALUES (@interviewId, @attemptId, @text, @phase, @order_num)
+      `INSERT INTO questions (interview_id, attempt_id, text, phase, order_num, question_type, options, correct_answer)
+       VALUES (@interviewId, @attemptId, @text, @phase, @order_num, @question_type, @options, @correct_answer)
        RETURNING *`,
       {
         interviewId,
@@ -23,6 +23,9 @@ async function createMany(interviewId, attemptId, questions) {
         text: q.text,
         phase: q.phase || 'technical',
         order_num: q.order_num,
+        question_type: q.question_type || 'open',
+        options: q.options ? JSON.stringify(q.options) : null,
+        correct_answer: q.correct_answer != null ? q.correct_answer : null,
       }
     )
     saved.push(rows[0])
@@ -39,8 +42,8 @@ async function createMany(interviewId, attemptId, questions) {
  */
 async function create(interviewId, attemptId, questionData) {
   const rows = await db.query(
-    `INSERT INTO questions (interview_id, attempt_id, text, phase, order_num)
-     VALUES (@interviewId, @attemptId, @text, @phase, @order_num)
+    `INSERT INTO questions (interview_id, attempt_id, text, phase, order_num, question_type, options, correct_answer)
+     VALUES (@interviewId, @attemptId, @text, @phase, @order_num, @question_type, @options, @correct_answer)
      RETURNING *`,
     {
       interviewId,
@@ -48,6 +51,9 @@ async function create(interviewId, attemptId, questionData) {
       text: questionData.text,
       phase: questionData.phase || 'technical',
       order_num: questionData.order_num || 1,
+      question_type: questionData.question_type || 'open',
+      options: questionData.options ? JSON.stringify(questionData.options) : null,
+      correct_answer: questionData.correct_answer != null ? questionData.correct_answer : null,
     }
   )
   return rows[0]

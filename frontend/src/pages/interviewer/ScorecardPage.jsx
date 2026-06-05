@@ -16,9 +16,9 @@ const COMPETENCIES = [
 const DOT_LABELS = ['Poor', 'Weak', 'Good', 'Strong', 'Excellent']
 
 const DECISIONS = [
-  { key: 'pass',   label: 'Pass',   icon: 'âœ“', color: '#047857', bg: '#ECFDF5', bd: '#A7F3D0' },
+  { key: 'pass',   label: 'Pass',   icon: '✓', color: '#047857', bg: '#ECFDF5', bd: '#A7F3D0' },
   { key: 'maybe',  label: 'Maybe',  icon: '?', color: '#B45309', bg: '#FFFBEB', bd: '#FEF3C7' },
-  { key: 'reject', label: 'Reject', icon: 'âœ—', color: '#B53618', bg: '#FEF2F2', bd: '#FECACA' },
+  { key: 'reject', label: 'Reject', icon: '✗', color: '#B53618', bg: '#FEF2F2', bd: '#FECACA' },
 ]
 
 function EvidenceField({ defaultText = '' }) {
@@ -81,9 +81,10 @@ function ScorecardPage() {
   if (loading) return <div style={{ padding: 40 }}><Spinner /></div>
   if (error) return <ErrorMessage message={error} />
 
-  const overall = Object.values(scores).filter(v => v > 0).length > 0
-    ? (Object.values(scores).reduce((a, b) => a + b, 0) / Object.values(scores).filter(v => v > 0).length).toFixed(1)
-    : 'â€”'
+  const scoredValues = Object.values(scores).filter(v => v > 0)
+  const overall = scoredValues.length > 0
+    ? parseFloat((scoredValues.reduce((a, b) => a + b, 0) / scoredValues.length).toFixed(1))
+    : null
 
   return (
     <div>
@@ -109,7 +110,7 @@ function ScorecardPage() {
                   <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 9999, background: c.weight === 'Core' ? '#EFEDFD' : '#F1F5F9', color: c.weight === 'Core' ? '#3A31A3' : '#475569' }}>{c.weight}</span>
                 </div>
                 <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: 15, color: scores[c.key] >= 4 ? '#047857' : scores[c.key] >= 3 ? '#B45309' : '#B53618' }}>
-                  {scores[c.key] || 'â€”'}/5
+                  {scores[c.key] || '—'}/5
                 </span>
               </div>
 
@@ -133,7 +134,7 @@ function ScorecardPage() {
                 ))}
               </div>
 
-              <EvidenceField defaultText={draft?.summary ? `${draft.summary.slice(0, 80)}â€¦` : ''} />
+              <EvidenceField defaultText={draft?.summary ? `${draft.summary.slice(0, 80)}...` : ''} />
             </div>
           ))}
 
@@ -167,7 +168,7 @@ function ScorecardPage() {
               <textarea
                 rows={3} value={reason}
                 onChange={e => setReason(e.target.value.slice(0, 500))}
-                placeholder="Brief rationale for the hiring panelâ€¦"
+                placeholder="Brief rationale for the hiring panel..."
                 style={{ width: '100%', padding: 10, border: '1px solid #CBD5E1', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', lineHeight: 1.55, outline: 'none', resize: 'vertical', boxSizing: 'border-box' }}
                 onFocus={e => { e.target.style.borderColor = '#5B4FE9'; e.target.style.boxShadow = '0 0 0 3px rgba(91,79,233,0.18)' }}
                 onBlur={e => { e.target.style.borderColor = '#CBD5E1'; e.target.style.boxShadow = 'none' }}
@@ -181,7 +182,7 @@ function ScorecardPage() {
               onMouseEnter={e => { if (!saving) e.currentTarget.style.background = '#4A3FCE' }}
               onMouseLeave={e => { if (!saving) e.currentTarget.style.background = '#5B4FE9' }}
             >
-              {saving ? 'Submittingâ€¦' : 'Submit scorecard'}
+              {saving ? 'Submitting...' : 'Submit scorecard'}
             </button>
             <div style={{ textAlign: 'center', fontSize: 11, color: '#94A3B8', marginTop: 8 }}>Auto-saved as you type</div>
           </div>
@@ -192,10 +193,10 @@ function ScorecardPage() {
           {/* Overall score */}
           <div style={{ background: '#FFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 20, textAlign: 'center', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
             <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#5B4FE9', marginBottom: 8 }}>Overall score</div>
-            <div style={{ fontFamily: "var(--font-display,'Inter')", fontSize: 56, fontWeight: 700, color: '#0F172A', letterSpacing: '-0.03em', lineHeight: 1 }}>{overall}</div>
+            <div style={{ fontFamily: “var(--font-display,'Inter')”, fontSize: 56, fontWeight: 700, color: '#0F172A', letterSpacing: '-0.03em', lineHeight: 1 }}>{overall ?? '—'}</div>
             <div style={{ fontSize: 12, color: '#6B7280', marginTop: 2 }}>/ 5.0</div>
             <div style={{ height: 6, background: '#F1F5F9', borderRadius: 9999, overflow: 'hidden', margin: '14px 0 0' }}>
-              <div style={{ height: '100%', width: `${overall !== 'â€”' ? (overall / 5) * 100 : 0}%`, background: '#5B4FE9', borderRadius: 9999, transition: 'width 240ms' }} />
+              <div style={{ height: '100%', width: `${overall != null ? (overall / 5) * 100 : 0}%`, background: '#5B4FE9', borderRadius: 9999, transition: 'width 240ms' }} />
             </div>
           </div>
 

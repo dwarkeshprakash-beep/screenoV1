@@ -115,7 +115,7 @@ export const saveAnswer = (id, formData) => {
 
 // ── CANDIDATE ─────────────────────────────────────────────────
 export const getCandidateInterviews = () => request('/api/candidate/interviews')
-export const getCandidateOwnReport = () => request('/api/candidate/report')
+export const getCandidateOwnReport = () => request('/api/candidate/report', { skipAuthRedirect: true })
 
 // ── INTERVIEWER ───────────────────────────────────────────────
 export const getInterviewerSchedule = (date) =>

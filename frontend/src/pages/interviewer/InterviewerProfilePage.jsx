@@ -128,13 +128,13 @@ function InterviewerProfilePage() {
   const eyebrowStyle = { fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#5B4FE9' }
 
   const profileFields = [
-    { k: 'name',       label: 'Full name' },
-    { k: 'title',      label: 'Job title' },
-    { k: 'email',      label: 'Email' },
-    { k: 'phone',      label: 'Phone' },
-    { k: 'department', label: 'Department' },
-    { k: 'loc',        label: 'Location' },
-    { k: 'timezone',   label: 'Timezone' },
+    { k: 'name',       label: 'Full name',   editable: true },
+    { k: 'email',      label: 'Email',       editable: false },
+    { k: 'title',      label: 'Job title',   editable: false },
+    { k: 'phone',      label: 'Phone',       editable: false },
+    { k: 'department', label: 'Department',  editable: false },
+    { k: 'loc',        label: 'Location',    editable: false },
+    { k: 'timezone',   label: 'Timezone',    editable: false },
   ]
 
   const notifOptions = [
@@ -172,13 +172,17 @@ function InterviewerProfilePage() {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
               {profileFields.map(f => (
                 <div key={f.k}>
-                  <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 5 }}>{f.label}</label>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 5 }}>
+                    {f.label}
+                    {!f.editable && <span style={{ fontSize: 11, fontWeight: 400, color: '#94A3B8', marginLeft: 6 }}>(read only)</span>}
+                  </label>
                   <input
+                    readOnly={!f.editable}
                     value={form[f.k] || ''}
-                    onChange={e => { setForm(prev => ({ ...prev, [f.k]: e.target.value })); setSaved(false) }}
-                    style={{ width: '100%', padding: '9px 12px', border: '1px solid #CBD5E1', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
-                    onFocus={e => { e.target.style.borderColor = '#5B4FE9'; e.target.style.boxShadow = '0 0 0 3px rgba(91,79,233,0.18)' }}
-                    onBlur={e => { e.target.style.borderColor = '#CBD5E1'; e.target.style.boxShadow = 'none' }}
+                    onChange={f.editable ? e => { setForm(prev => ({ ...prev, [f.k]: e.target.value })); setSaved(false) } : undefined}
+                    style={{ width: '100%', padding: '9px 12px', border: '1px solid #CBD5E1', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box', background: f.editable ? '#FFF' : '#F8FAFC', color: f.editable ? '#0F172A' : '#6B7280', cursor: f.editable ? 'text' : 'default' }}
+                    onFocus={f.editable ? e => { e.target.style.borderColor = '#5B4FE9'; e.target.style.boxShadow = '0 0 0 3px rgba(91,79,233,0.18)' } : undefined}
+                    onBlur={f.editable ? e => { e.target.style.borderColor = '#CBD5E1'; e.target.style.boxShadow = 'none' } : undefined}
                   />
                 </div>
               ))}

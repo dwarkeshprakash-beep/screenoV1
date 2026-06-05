@@ -39,20 +39,21 @@ function LoginPage() {
     }
   }
 
-  function selectDemo(account) {
+  async function selectDemo(account) {
     setEmail(account.email)
     setPassword(account.password)
     setError(null)
     setLoading(true)
-    api.login(account.email, account.password).then(result => {
+    try {
+      const result = await api.login(account.email, account.password)
       localStorage.setItem('accessToken', result.data.accessToken)
       localStorage.setItem('user', JSON.stringify(result.data.user))
       navigate(roleRedirect(result.data.user.role))
-    }).catch(() => {
-      setEmail(account.email)
-      setPassword(account.password)
+    } catch {
       setError('Demo login failed. Use the form below to sign in manually.')
-    }).finally(() => setLoading(false))
+    } finally {
+      setLoading(false)
+    }
   }
 
   const inputStyle = {

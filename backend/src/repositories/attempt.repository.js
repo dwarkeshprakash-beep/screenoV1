@@ -41,7 +41,7 @@ async function getLatest(interviewId) {
   const rows = await db.query(
     `SELECT * FROM attempts
      WHERE interview_id = @interviewId
-     ORDER BY created DESC
+     ORDER BY attempt_num DESC
      LIMIT 1`,
     { interviewId }
   )

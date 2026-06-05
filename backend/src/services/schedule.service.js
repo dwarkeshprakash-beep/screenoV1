@@ -68,10 +68,24 @@ async function createSchedule(data, managerId, companyId) {
  */
 async function getCalendarEvents(companyId, weekStart) {
   const interviews = await interviewRepository.getByCompany(companyId)
-  return interviews.map(i => ({
+
+  let filtered = interviews
+  if (weekStart) {
+    const start = new Date(weekStart)
+    start.setHours(0, 0, 0, 0)
+    const end = new Date(start)
+    end.setDate(end.getDate() + 7)
+    filtered = interviews.filter(i => {
+      const d = new Date(i.created)
+      return d >= start && d < end
+    })
+  }
+
+  return filtered.map(i => ({
     id: i.id,
     type: i.type,
-    candidateName: `${i.first_name} ${i.last_name}`,
+    candidateId: i.candidate_id,
+    candidateName: `${i.first_name || ''} ${i.last_name || ''}`.trim(),
     status: i.status,
     created: i.created,
     windowCloses: i.window_closes,

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Clock, ArrowRight, Code2 } from 'lucide-react'
+import { Clock, ArrowRight } from 'lucide-react'
 import * as api from '../../services/api'
 import Spinner from '../../components/shared/Spinner'
 import ErrorMessage from '../../components/shared/ErrorMessage'
@@ -13,29 +13,31 @@ function ExamPage() {
   const { token } = useParams()
   const navigate  = useNavigate()
 
-  const [exam, setExam]           = useState(null)
-  const [loading, setLoading]     = useState(true)
-  const [error, setError]         = useState(null)
+  // All hooks must come before any conditional returns
+  const [exam, setExam]             = useState(null)
+  const [loading, setLoading]       = useState(true)
+  const [error, setError]           = useState(null)
   const [currentIdx, setCurrentIdx] = useState(0)
-  const [answers, setAnswers]     = useState({})
+  const [answers, setAnswers]       = useState({})
   const [submitting, setSubmitting] = useState(false)
-  const [timeLeft, setTimeLeft]   = useState(3600)
-  const [submitted, setSubmitted] = useState(false)
-
-  if (window.innerWidth < 768) {
-    return (
-      <div style={{ padding: 40, textAlign: 'center' }}>
-        <h2>Please use a desktop or laptop</h2>
-        <p>Exams require a larger screen for the best experience.</p>
-      </div>
-    )
-  }
+  const [timeLeft, setTimeLeft]     = useState(3600)
+  const [submitted, setSubmitted]   = useState(false)
+  const [isMobile]                  = useState(() => typeof window !== 'undefined' && window.innerWidth < 768)
 
   useEffect(() => {
-    api.getExam(token)
-      .then(r => { setExam(r.data); setLoading(false) })
-      .catch(err => { setError(err.message); setLoading(false) })
-  }, [token])
+    if (isMobile) return
+    async function load() {
+      try {
+        const r = await api.getExam(token)
+        setExam(r.data)
+      } catch (err) {
+        setError(err.message || 'Could not load exam.')
+      } finally {
+        setLoading(false)
+      }
+    }
+    load()
+  }, [token, isMobile])
 
   const handleSubmit = useCallback(async () => {
     if (submitting) return
@@ -64,16 +66,26 @@ function ExamPage() {
       })
     }, 1000)
     return () => clearInterval(interval)
-  }, [exam])
+  }, [exam, handleSubmit])
+
+  // Mobile guard after all hooks
+  if (isMobile) {
+    return (
+      <div style={{ padding: 40, textAlign: 'center' }}>
+        <h2>Please use a desktop or laptop</h2>
+        <p>Exams require a larger screen for the best experience.</p>
+      </div>
+    )
+  }
 
   if (loading) return <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}><Spinner /></div>
   if (error)   return <div style={{ padding: 40, maxWidth: 480, margin: '0 auto' }}><ErrorMessage message={error} /></div>
   if (!exam)   return null
 
-  const questions = exam?.questions || []
-  const total     = questions.length
-  const current   = questions[currentIdx] || null
-  const isLast    = currentIdx === total - 1
+  const questions    = exam?.questions || []
+  const total        = questions.length
+  const current      = questions[currentIdx] || null
+  const isLast       = currentIdx === total - 1
   const answeredCount = Object.keys(answers).length
 
   return (
@@ -113,7 +125,7 @@ function ExamPage() {
           disabled={submitting}
           style={{ padding: '11px 0', borderRadius: 9, background: submitting ? '#94A3B8' : '#5B4FE9', color: '#FFF', border: 0, fontWeight: 600, fontSize: 13, cursor: submitting ? 'not-allowed' : 'pointer' }}
         >
-          {submitting ? 'Submitting…' : 'Submit exam'}
+          {submitting ? 'Submitting...' : 'Submit exam'}
         </button>
       </div>
 
@@ -132,9 +144,9 @@ function ExamPage() {
               </h2>
 
               {/* MCQ options */}
-              {current.question_type === 'mcq' || current.options?.length > 0 ? (
+              {current.question_type === 'mcq' || (current.options && current.options.length > 0) ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {(current.options || []).map((opt, oi) => {
+                  {(typeof current.options === 'string' ? JSON.parse(current.options) : current.options || []).map((opt, oi) => {
                     const sel = answers[current.id]?.selectedOption === oi
                     return (
                       <button
@@ -160,7 +172,7 @@ function ExamPage() {
                   rows={6}
                   value={answers[current.id]?.answerText || ''}
                   onChange={e => setAnswers(a => ({ ...a, [current.id]: { answerText: e.target.value } }))}
-                  placeholder="Type your answer here…"
+                  placeholder="Type your answer here..."
                   style={{ width: '100%', padding: '12px 14px', border: '1px solid #CBD5E1', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', lineHeight: 1.6, outline: 'none', resize: 'vertical', boxSizing: 'border-box' }}
                   onFocus={e => { e.target.style.borderColor = '#5B4FE9'; e.target.style.boxShadow = '0 0 0 3px rgba(91,79,233,0.18)' }}
                   onBlur={e => { e.target.style.borderColor = '#CBD5E1'; e.target.style.boxShadow = 'none' }}

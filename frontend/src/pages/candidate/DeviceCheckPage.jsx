@@ -2,10 +2,6 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Camera, Mic, Volume2, Wifi, Monitor, CheckCircle2, XCircle, Loader2, Play, ArrowRight } from 'lucide-react'
 
-if (typeof window !== 'undefined' && window.innerWidth < 768) {
-  document.body.innerHTML = '<div style="padding:40px;text-align:center"><h2>Please use a desktop or laptop</h2><p>Interviews require a larger screen.</p></div>'
-}
-
 const CHECKS = [
   { id: 'camera',    label: 'Camera',        icon: Camera,   detail: 'Camera detected',           extraType: 'preview' },
   { id: 'microphone',label: 'Microphone',    icon: Mic,      detail: 'Built-in Microphone',       extraType: 'level' },
@@ -19,6 +15,7 @@ function DeviceCheckPage() {
   const navigate = useNavigate()
   const videoRef = useRef(null)
 
+  const [isMobile]                      = useState(() => typeof window !== 'undefined' && window.innerWidth < 768)
   const [statuses, setStatuses]         = useState(Object.fromEntries(CHECKS.map(c => [c.id, 'idle'])))
   const [speakerConfirmed, setSpeakerConfirmed] = useState(false)
   const [speakerPlayed, setSpeakerPlayed]       = useState(false)
@@ -26,7 +23,7 @@ function DeviceCheckPage() {
 
   const setStatus = (id, val) => setStatuses(s => ({ ...s, [id]: val }))
 
-  useEffect(() => { runChecks() }, [])
+  useEffect(() => { if (!isMobile) runChecks() }, [isMobile])
 
   async function runChecks() {
     await checkCamera()
@@ -56,8 +53,9 @@ function DeviceCheckPage() {
   async function checkNetwork() {
     setStatus('network', 'checking')
     const start = Date.now()
+    const apiBase = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_API_URL) || 'http://localhost:4000'
     try {
-      await fetch('/health').catch(() => fetch('https://httpbin.org/get'))
+      await fetch(`${apiBase}/health`)
       const ms = Date.now() - start
       setStatus('network', ms < 3000 ? 'pass' : 'fail')
     } catch { setStatus('network', 'fail') }
@@ -95,6 +93,15 @@ function DeviceCheckPage() {
   const getStatus = (id) => {
     if (id === 'speaker') return speakerConfirmed ? 'pass' : statuses.speaker
     return statuses[id]
+  }
+
+  if (isMobile) {
+    return (
+      <div style={{ padding: 40, textAlign: 'center' }}>
+        <h2>Please use a desktop or laptop</h2>
+        <p>Interviews require a larger screen for the best experience.</p>
+      </div>
+    )
   }
 
   const allPassed = CHECKS.every(c => getStatus(c.id) === 'pass')

@@ -70,8 +70,8 @@ function ReportsPage() {
 
   const statCards = [
     { label: 'Total interviews', value: reports.length,                                            sub: 'This quarter' },
-    { label: 'Pass rate',        value: reports.length ? `${Math.round(reports.filter(r => r.decision === 'pass').length / reports.length * 100)}%` : 'â€”', sub: `${reports.filter(r => r.decision === 'pass').length} of ${reports.length}` },
-    { label: 'Avg score',        value: reports.length ? (reports.reduce((a, r) => a + (r.overall_score || 0), 0) / reports.length).toFixed(1) : 'â€”', sub: 'â†‘ vs last month' },
+    { label: 'Pass rate',        value: reports.length ? `${Math.round(reports.filter(r => r.decision === 'pass').length / reports.length * 100)}%` : '—', sub: `${reports.filter(r => r.decision === 'pass').length} of ${reports.length}` },
+    { label: 'Avg score',        value: reports.length ? (reports.reduce((a, r) => a + (r.overall_score || 0), 0) / reports.length).toFixed(1) : '—', sub: ‘↑ vs last month’ },
     { label: 'Reports pending',  value: reports.filter(r => !r.decision || r.decision === 'pending').length, sub: 'Send after attempt' },
   ]
 
@@ -130,9 +130,9 @@ function ReportsPage() {
                         <div style={{ fontWeight: 600, color: '#0F172A' }}>{name}</div>
                       </div>
                     </td>
-                    <td style={{ padding: '14px 16px', borderBottom: '1px solid #F1F5F9', color: '#6B7280' }}>{r.role || 'â€”'}</td>
+                    <td style={{ padding: '14px 16px', borderBottom: '1px solid #F1F5F9', color: '#6B7280' }}>{r.role || '—'}</td>
                     <td style={{ padding: '14px 16px', borderBottom: '1px solid #F1F5F9', fontFamily: 'monospace', fontWeight: 600, color: '#0F172A' }}>{r.attempts || 1}</td>
-                    <td style={{ padding: '14px 16px', borderBottom: '1px solid #F1F5F9', color: '#6B7280' }}>{r.report_date ? formatDate(r.report_date) : 'â€”'}</td>
+                    <td style={{ padding: '14px 16px', borderBottom: '1px solid #F1F5F9', color: '#6B7280' }}>{r.report_date ? formatDate(r.report_date) : '—'}</td>
                     <td style={{ padding: '14px 16px', borderBottom: '1px solid #F1F5F9' }}>
                       {overall != null ? (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -141,12 +141,12 @@ function ReportsPage() {
                             <span style={{ display: 'block', height: '100%', width: `${(overall / 5) * 100}%`, background: '#5B4FE9', borderRadius: 9999 }} />
                           </span>
                         </div>
-                      ) : <span style={{ color: '#94A3B8' }}>â€”</span>}
+                      ) : <span style={{ color: '#94A3B8' }}>—</span>}
                     </td>
                     <td style={{ padding: '14px 16px', borderBottom: '1px solid #F1F5F9' }}>
                       {jdMatch != null
                         ? <span style={{ fontFamily: 'monospace', fontWeight: 700, color: jdMatch >= 75 ? '#047857' : jdMatch >= 60 ? '#B45309' : '#B53618' }}>{jdMatch}%</span>
-                        : <span style={{ color: '#94A3B8' }}>â€”</span>
+                        : <span style={{ color: '#94A3B8' }}>—</span>
                       }
                     </td>
                     <td style={{ padding: '14px 16px', borderBottom: '1px solid #F1F5F9' }}>

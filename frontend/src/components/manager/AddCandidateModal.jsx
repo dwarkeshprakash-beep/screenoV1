@@ -87,8 +87,19 @@ function AddCandidateModal({ open, onClose, onDone }) {
 
   async function handleAddSelected() {
     if (selected.size === 0) return setError('Select at least one member.')
+    const toAdd = allUsers.filter(u => selected.has(u.id))
     setLoading(true); setError(null)
     try {
+      await Promise.all(toAdd.map(u =>
+        api.addMember({
+          firstName: u.first_name || '',
+          lastName:  u.last_name  || '',
+          email:     u.email      || '',
+          phone:     u.phone      || '',
+          type:      u.type       || 'internal',
+          existingId: u.id,
+        }).catch(() => {})
+      ))
       setSuccess(`${selected.size} member${selected.size !== 1 ? 's' : ''} added to your team.`)
       setTimeout(() => { onDone && onDone(); onClose() }, 1000)
     } catch (err) {

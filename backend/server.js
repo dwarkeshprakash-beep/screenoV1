@@ -25,7 +25,12 @@ const PORT = process.env.PORT || 4000
 
 // ── MIDDLEWARE ────────────────────────────────────────────────
 app.use(cors({
-  origin: (origin, cb) => cb(null, true),
+  origin: (origin, cb) => {
+    const allowed = (process.env.FRONTEND_URL || 'http://localhost:5173').split(',').map(s => s.trim())
+    if (!origin || allowed.includes(origin)) return cb(null, true)
+    if (process.env.NODE_ENV !== 'production') return cb(null, true)
+    cb(new Error('CORS: origin not allowed'))
+  },
   credentials: true,
 }))
 

@@ -270,7 +270,7 @@ function ScheduleModal({ open, onClose, member, selectedIds = [], template, onDo
       setFocusAreas(template.description || '')
     }
     // Load team
-    api.getTeam().then(r => setTeamList(r.data || [])).catch(() => {})
+    api.getTeam().then(r => setTeamList(r.data || [])).catch(() => setTeamList([]))
     // Get manager email
     try {
       const u = JSON.parse(localStorage.getItem('user') || '{}')
@@ -328,13 +328,13 @@ function ScheduleModal({ open, onClose, member, selectedIds = [], template, onDo
           candidateId,
           type: primaryStage,
           mode,
-          interviewMode: primaryStage === 'ai_voice' ? 'simple' : 'simple',
+          interviewMode: primaryStage === 'ai_exam' ? 'exam' : 'simple',
           transcriptionMode,
           maxAttempts,
           cooldownHours,
           windowDays,
           reportTiming,
-          jdText: jdFile ? jdText : jdText,
+          jdText: jdText || null,
           focusAreas,
           difficulty,
           reportEmails: [managerEmail, ...reportEmails].filter(Boolean),
@@ -354,9 +354,9 @@ function ScheduleModal({ open, onClose, member, selectedIds = [], template, onDo
     setStep(1); setError(null)
     setStages([{ id: 'ai_voice' }]); setMode('internal_monthly')
     setJdFile(null); setJdText(''); setFocusAreas('')
-    setDifficulty('medium'); setMaxAttempts(3)
+    setDifficulty('medium'); setMaxAttempts(3); setTranscriptionMode('api')
     setCooldown(24); setWindowDays(7); setReportTiming('all')
-    setReportEmails([]); setCandidates([])
+    setReportEmails([]); setCandidates([]); setTeamList([])
     onClose()
   }
 

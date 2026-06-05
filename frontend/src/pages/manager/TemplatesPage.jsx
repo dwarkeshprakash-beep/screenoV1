@@ -1,5 +1,5 @@
 ﻿// pages/manager/TemplatesPage.jsx
-// Interview templates â€” list, create, edit, delete, and use.
+// Interview templates — list, create, edit, delete, and use.
 
 import { useState, useEffect } from 'react'
 import { Plus, Pencil, Trash2 } from 'lucide-react'
@@ -28,7 +28,7 @@ function TemplatesPage() {
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [deleting, setDeleting]         = useState(false)
 
-  // Use Template â€” opens ScheduleModal pre-filled
+  // Use Template — opens ScheduleModal pre-filled
   const [useTemplate, setUseTemplate]   = useState(null)
 
   useEffect(() => { load() }, [])
@@ -226,7 +226,7 @@ function TemplatesPage() {
         )}
       </Modal>
 
-      {/* Use Template â€” opens ScheduleModal with template pre-filled */}
+      {/* Use Template — opens ScheduleModal with template pre-filled */}
       <ScheduleModal
         open={!!useTemplate}
         onClose={() => setUseTemplate(null)}

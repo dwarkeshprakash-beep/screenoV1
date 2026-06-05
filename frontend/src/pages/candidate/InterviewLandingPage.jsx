@@ -24,8 +24,9 @@ function InterviewLandingPage() {
       localStorage.setItem('interviewSession', JSON.stringify({
         interviewId: data.interview.id,
         token,
-        jobTitle: data.interview.mode === 'client_mock' ? 'Client Mock Interview' : 'Monthly Assessment',
-        companyName: data.interview.companyName || 'Your Company',
+        type: data.interview.type,
+        jobTitle: data.interview.interviewMode === 'client_mock' ? 'Client Mock Interview' : 'Monthly Assessment',
+        companyName: data.interview.company_name || data.interview.companyName || 'Your Company',
         mode: data.interview.interviewMode,
         transcriptionMode: data.interview.transcriptionMode,
       }))
