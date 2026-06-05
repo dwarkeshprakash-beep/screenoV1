@@ -85,6 +85,33 @@ Feature: Phase 5 — UI/UX polish + role completeness.
 
 ---
 
+**Phase 6 — Deep audit + bug fixes (2026-06-05):**
+1. [x] ConsentPage session.type bug — InterviewLandingPage now stores type in session
+2. [x] ExamPage hooks order violation — all hooks before conditional returns
+3. [x] DeviceCheckPage module-scope DOM mutation — moved to useState + useEffect
+4. [x] upload.js — allow audio/webm, audio/ogg, audio/mp4, etc. for interview recordings
+5. [x] interview.repository — removed scheduled_by column (doesn't exist in DB)
+6. [x] attempt.repository — ORDER BY attempt_num (was ordered by missing created column)
+7. [x] ScorecardPage — all encoding artifacts fixed, progress bar check uses typeof
+8. [x] SchedulePage — guard calendar click so empty candidateId doesn't navigate
+9. [x] api.js getCandidateOwnReport — skipAuthRedirect: true to avoid login redirect
+10. [x] server.js CORS — restricted to FRONTEND_URL in production
+11. [x] MemberProfilePage — encoding artifacts, transcript reset when id changes, async/await
+12. [x] ManagerProfilePage + InterviewerProfilePage — non-DB fields marked read-only
+13. [x] schedule.service — apply weekStart filter, expose candidateId in calendar events
+14. [x] candidate.repository — remove ::text cast (SQL Server incompatible)
+15. [x] question.repository — INSERT now includes question_type, options, correct_answer
+16. [x] ScheduleModal — fix dead ternaries (interviewMode, jdText), reset state on close
+17. [x] LoginPage selectDemo — async/await instead of .then/.catch
+18. [x] helpers.js formatDate — null guard added
+19. [x] ReportsPage + TemplatesPage — encoding artifacts fixed
+20. [x] TeamPage — dead openMenu state removed
+21. [x] SchedulePage — dead selectedEvent state removed
+22. [x] AddCandidateModal Find tab — now calls api.addMember for each selected user
+
+**DB action required (run in Supabase SQL editor):**
+- Migration 003_exam_questions.sql adds question_type, options, correct_answer columns to questions table
+
 **Phase 5 tasks (UI/UX — 2026-06-05):**
 1. [x] AppLayout — removed SubTabs nav bar, RoleBar shows only current role (static badge)
 2. [x] Sidebar — fixed font colors (#64748B), adjusted top/height after SubTabs removal
