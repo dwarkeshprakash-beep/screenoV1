@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Sparkles, Lightbulb, BarChart3, AlertTriangle, FileText, PlayCircle } from 'lucide-react'
+import { ArrowLeft, Sparkles, Lightbulb, BarChart3, AlertTriangle, FileText } from 'lucide-react'
 import Spinner from '../../components/shared/Spinner'
 import ErrorMessage from '../../components/shared/ErrorMessage'
 import * as api from '../../services/api'
@@ -225,13 +225,18 @@ function ScorecardPage() {
             )}
           </div>
 
-          {/* Links */}
+          {/* Transcript actions */}
           <div style={{ background: '#FFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 18, display: 'flex', flexDirection: 'column', gap: 12, boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
-            {[{ icon: FileText, label: 'Jump to transcript' }, { icon: PlayCircle, label: 'Play recording' }].map((l, i) => (
-              <a key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#5B4FE9', fontWeight: 500, cursor: 'pointer', padding: '6px 0', borderTop: i > 0 ? '1px solid #F1F5F9' : '0' }}>
-                <l.icon size={14} /> {l.label}
-              </a>
-            ))}
+            <button
+              type="button"
+              onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, color: '#5B4FE9', fontWeight: 600, cursor: 'pointer', padding: '6px 0', border: 0, background: 'transparent', textAlign: 'left' }}
+            >
+              <FileText size={14} /> Review transcript-derived scorecard
+            </button>
+            <p style={{ fontSize: 12, color: '#94A3B8', margin: 0, lineHeight: 1.5 }}>
+              Audio is not stored. Only transcript text and scorecard evidence are retained.
+            </p>
           </div>
         </div>
       </div>

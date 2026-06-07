@@ -92,7 +92,7 @@ function InterviewerDashboard() {
             <span style={{ fontFamily: "var(--font-display,'Inter')", fontSize: 16, fontWeight: 700, color: '#0F172A' }}>Today — {todayLabel}</span>
             <span style={{ fontSize: 12, fontWeight: 600, padding: '2px 8px', borderRadius: 9999, background: '#EFEDFD', color: '#5B4FE9' }}>{schedule.length} interviews</span>
           </div>
-          <a style={{ fontSize: 12, color: '#5B4FE9', fontWeight: 500, cursor: 'pointer' }}>View all</a>
+          <span style={{ fontSize: 12, color: '#94A3B8', fontWeight: 500 }}>Showing assigned</span>
         </div>
 
         {schedule.length === 0 ? (
@@ -114,10 +114,13 @@ function InterviewerDashboard() {
                 </div>
                 <span style={{ fontSize: 12, fontWeight: 600, padding: '3px 9px', borderRadius: 9999, background: '#EFEDFD', color: '#3A31A3' }}>Interview</span>
                 <div style={{ display: 'flex', gap: 8 }}>
-                  <button style={{ padding: '7px 14px', borderRadius: 8, background: '#FFF', border: '1px solid #CBD5E1', color: '#0F172A', fontWeight: 600, fontSize: 13, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                  <button
+                    onClick={() => navigate(`/interviewer/live/${iv.id}`)}
+                    style={{ padding: '7px 14px', borderRadius: 8, background: '#FFF', border: '1px solid #CBD5E1', color: '#0F172A', fontWeight: 600, fontSize: 13, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
                     <BookOpen size={13} /> Prep
                   </button>
                   <button
+                    disabled={!isNext}
                     onClick={() => navigate(`/interviewer/live/${iv.id}`)}
                     style={{ padding: '7px 16px', borderRadius: 8, border: 0, background: isNext ? '#059669' : '#E2E8F0', color: isNext ? '#FFF' : '#94A3B8', fontWeight: 600, fontSize: 13, cursor: isNext ? 'pointer' : 'not-allowed', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
                     <Video size={13} /> Join
@@ -167,7 +170,7 @@ function InterviewerDashboard() {
       <div style={{ background: '#FFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 24, boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
           <span style={{ fontFamily: "var(--font-display,'Inter')", fontSize: 16, fontWeight: 700, color: '#0F172A' }}>This week</span>
-          <a style={{ fontSize: 12, color: '#5B4FE9', fontWeight: 500, cursor: 'pointer' }}>Open calendar</a>
+          <span style={{ fontSize: 12, color: '#94A3B8', fontWeight: 500 }}>Calendar sync planned</span>
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 8 }}>
           {weekDays.map((d, i) => (

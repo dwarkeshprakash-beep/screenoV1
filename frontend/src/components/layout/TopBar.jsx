@@ -2,14 +2,15 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Bell, Search } from 'lucide-react'
 
-function TopBar({ title = '', subtitle = '', action = null, notifCount = 2 }) {
+function TopBar({ title = '', subtitle = '', action = null, notifCount = 2, role = 'manager' }) {
   const navigate = useNavigate()
   const [query, setQuery] = useState('')
+  const isManager = role === 'manager'
 
   function submitSearch(e) {
     e.preventDefault()
     const trimmed = query.trim()
-    if (trimmed) navigate(`/manager/team?search=${encodeURIComponent(trimmed)}`)
+    if (trimmed && isManager) navigate(`/manager/team?search=${encodeURIComponent(trimmed)}`)
   }
 
   return (
@@ -31,22 +32,24 @@ function TopBar({ title = '', subtitle = '', action = null, notifCount = 2 }) {
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        <form onSubmit={submitSearch} role="search" style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#F1F5F9', borderRadius: 8, padding: '7px 12px', width: 260 }}>
-          <Search size={13} color="#94A3B8" />
-          <input
-            aria-label="Search candidates"
-            value={query}
-            onChange={e => setQuery(e.target.value)}
-            placeholder="Search candidates..."
-            style={{ border: 0, outline: 'none', background: 'transparent', fontSize: 13, color: '#0F172A', flex: 1, fontFamily: 'inherit' }}
-          />
-        </form>
+        {isManager && (
+          <form onSubmit={submitSearch} role="search" style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#F1F5F9', borderRadius: 8, padding: '7px 12px', width: 260 }}>
+            <Search size={13} color="#94A3B8" />
+            <input
+              aria-label="Search candidates"
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder="Search candidates..."
+              style={{ border: 0, outline: 'none', background: 'transparent', fontSize: 13, color: '#0F172A', flex: 1, fontFamily: 'inherit' }}
+            />
+          </form>
+        )}
 
         <div style={{ position: 'relative' }}>
           <button
             type="button"
-            aria-label="Open report notifications"
-            onClick={() => navigate('/manager/reports')}
+            aria-label={isManager ? 'Open report notifications' : 'Open scorecard notifications'}
+            onClick={() => navigate(isManager ? '/manager/reports' : '/interviewer/scorecard')}
             style={{ width: 36, height: 36, borderRadius: 8, background: '#F1F5F9', border: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
           >
             <Bell size={15} color="#374151" />

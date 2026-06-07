@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Users, CheckCircle2, Clock, AlertTriangle, UserPlus, Upload, CalendarPlus, GitCompare, Mail } from 'lucide-react'
 import Spinner from '../../components/shared/Spinner'
@@ -85,6 +85,9 @@ function TeamPage() {
   const [addOpen, setAddOpen]           = useState(false)
   const [editMember, setEditMember]     = useState(null)
   const [compareOpen, setCompareOpen]   = useState(false)
+  const [importing, setImporting]       = useState(false)
+  const [importStatus, setImportStatus] = useState('')
+  const importInputRef = useRef(null)
 
   useEffect(() => { load() }, [])
 
@@ -125,6 +128,25 @@ function TeamPage() {
     setScheduleOpen(true)
   }
 
+  async function handleImportFile(e) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setImporting(true)
+    setImportStatus('')
+    try {
+      const csv = await file.text()
+      const res = await api.importTeamCSV(csv)
+      const data = res.data || {}
+      setImportStatus(`Imported ${data.inserted || 0}; skipped ${data.skipped || 0}${data.errors?.length ? `; ${data.errors.length} row issue(s)` : ''}.`)
+      await load()
+    } catch (err) {
+      setImportStatus(err.message || 'CSV import failed.')
+    } finally {
+      setImporting(false)
+      e.target.value = ''
+    }
+  }
+
   const searchTerm = (searchParams.get('search') || '').trim().toLowerCase()
   const searchedMembers = searchTerm
     ? members.filter(m => {
@@ -155,10 +177,16 @@ function TeamPage() {
               <AlertTriangle size={14} /> {overdueCount} members overdue for assessment
             </div>
           )}
-          <button style={btnSecondary} onClick={() => setAddOpen(true)}><UserPlus size={13} /> Add member</button>
-          <button style={btnPrimary}><Upload size={13} /> Import CSV</button>
+          <button type="button" style={btnSecondary} onClick={() => setAddOpen(true)}><UserPlus size={13} /> Add member</button>
+          <input ref={importInputRef} type="file" accept=".csv,text/csv" onChange={handleImportFile} style={{ display: 'none' }} />
+          <button type="button" disabled={importing} onClick={() => importInputRef.current?.click()} style={{ ...btnPrimary, opacity: importing ? 0.65 : 1, cursor: importing ? 'not-allowed' : 'pointer' }}><Upload size={13} /> {importing ? 'Importing...' : 'Import CSV'}</button>
         </div>
       </div>
+      {importStatus && (
+        <div role="status" style={{ padding: '9px 12px', borderRadius: 8, background: '#F8FAFC', border: '1px solid #E2E8F0', color: '#475569', fontSize: 12, fontWeight: 500 }}>
+          {importStatus}
+        </div>
+      )}
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14 }}>
         {[
@@ -276,8 +304,8 @@ function TeamPage() {
           <button onClick={() => { setScheduleMember(null); setScheduleOpen(true) }} style={{ background: '#5B4FE9', color: '#FFF', border: 0, borderRadius: 8, fontWeight: 600, padding: '5px 10px', fontSize: 12, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
             <CalendarPlus size={12} /> Schedule all
           </button>
-          <button style={{ background: 'rgba(255,255,255,0.1)', color: '#FFF', border: 0, borderRadius: 8, fontWeight: 600, padding: '5px 10px', fontSize: 12, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-            <Mail size={12} /> Send reminder
+          <button disabled title="Reminder delivery is not wired yet." style={{ background: 'rgba(255,255,255,0.08)', color: '#94A3B8', border: 0, borderRadius: 8, fontWeight: 600, padding: '5px 10px', fontSize: 12, cursor: 'not-allowed', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+            <Mail size={12} /> Reminders unavailable
           </button>
           <button onClick={() => setSelected(new Set())} style={{ background: 'transparent', border: 0, color: '#64748B', cursor: 'pointer', fontSize: 13 }}>Deselect</button>
         </div>

@@ -131,6 +131,8 @@ export const addMemberNote = (id, note) => request(`/api/team/member/${id}/notes
 export const addMember = (data) => request('/api/team/member', { method: 'POST', body: JSON.stringify(data) })
 export const updateMember = (id, data) => request(`/api/team/member/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
 export const removeMember = (id) => request(`/api/team/member/${id}`, { method: 'DELETE' })
+export const importTeamCSV = (csv) =>
+  request('/api/team/import', { method: 'POST', body: JSON.stringify({ csv }) })
 
 // ── SCHEDULE ──────────────────────────────────────────────────
 export const createSchedule = (data) =>

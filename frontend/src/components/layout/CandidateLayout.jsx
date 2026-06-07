@@ -28,7 +28,7 @@ function CandidateLayout() {
         </div>
 
         <span style={{ fontSize: 13, color: '#94A3B8' }}>
-          Need help? <a style={{ color: '#5B4FE9', cursor: 'pointer' }}>Support</a>
+          Need help? <a href="mailto:dwarkesh.vajjala@prakashinfotech.com" style={{ color: '#5B4FE9', cursor: 'pointer', textDecoration: 'none', fontWeight: 600 }}>Support</a>
         </span>
       </header>
 

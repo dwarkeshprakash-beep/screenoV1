@@ -107,7 +107,7 @@ function AppLayout({ role = 'manager' }) {
         <Sidebar role={role} onLogout={handleLogout} />
 
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-          <TopBar title={title} subtitle={subtitle} />
+          <TopBar title={title} subtitle={subtitle} role={role} />
 
           <main style={{ flex: 1, padding: '24px 28px', background: '#F8FAFC', overflowY: 'auto' }}>
             <Outlet />

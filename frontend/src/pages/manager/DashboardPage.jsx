@@ -4,6 +4,7 @@ import { Users, CheckSquare, CalendarPlus } from 'lucide-react'
 import Spinner from '../../components/shared/Spinner'
 import ErrorMessage from '../../components/shared/ErrorMessage'
 import * as api from '../../services/api'
+import { formatDate } from '../../utils/helpers'
 
 const cardStyle = { background: '#FFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 20, boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }
 const eyebrowStyle = { fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#5B4FE9' }
@@ -105,7 +106,7 @@ function DashboardPage() {
             <div key={i} style={{ borderTop: i === 0 ? '0' : '1px solid #F9FAFB', padding: '12px 0' }}>
               <div style={{ fontSize: 13, fontWeight: 500, color: '#0F172A' }}>{a.what}</div>
               <div style={{ fontSize: 12, color: '#5B4FE9', marginTop: 2 }}>{a.sub}</div>
-              <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>{a.when}</div>
+              <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>{formatDate(a.when)}</div>
             </div>
           ))}
         </div>

@@ -146,6 +146,7 @@ async function getByCompany(companyId) {
      FROM interviews i
      LEFT JOIN candidates c ON c.id = i.candidate_id
      WHERE i.company_id = @companyId
+       AND (c.id IS NULL OR c.deleted IS NULL)
      ORDER BY i.created DESC`,
     { companyId }
   )
