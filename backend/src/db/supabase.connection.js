@@ -15,9 +15,26 @@ const pool = new Pool({
   connectionTimeoutMillis: 5000,
 })
 
+const RETRYABLE_CONNECTION_CODES = new Set(['ENOTFOUND', 'EAI_AGAIN', 'ECONNRESET', 'ETIMEDOUT'])
+
 pool.on('error', (err) => {
   console.error('[db] Pool error:', err.message)
 })
+
+/**
+ * Acquire a database client, retrying once for temporary network failures.
+ * The retry occurs before a SQL statement is sent, so writes are not duplicated.
+ * @returns {Promise<import('pg').PoolClient>}
+ */
+async function connectWithRetry() {
+  try {
+    return await pool.connect()
+  } catch (err) {
+    if (!RETRYABLE_CONNECTION_CODES.has(err.code)) throw err
+    await new Promise(resolve => setTimeout(resolve, 500))
+    return pool.connect()
+  }
+}
 
 /**
  * Convert @paramName markers to $1, $2 positional params for PostgreSQL.
@@ -47,7 +64,7 @@ function convertParams(sql, params) {
  * @returns {Promise<Array>} array of result rows
  */
 async function query(sql, params = {}) {
-  const client = await pool.connect()
+  const client = await connectWithRetry()
 
   try {
     const { sql: convertedSql, values } = convertParams(sql, params)
@@ -62,4 +79,32 @@ async function query(sql, params = {}) {
   }
 }
 
-module.exports = { query }
+/**
+ * Run multiple statements on one client inside a transaction.
+ * @param {(tx: {query: Function}) => Promise<any>} work
+ * @returns {Promise<any>}
+ */
+async function transaction(work) {
+  const client = await connectWithRetry()
+  const tx = {
+    query: async (sql, params = {}) => {
+      const { sql: convertedSql, values } = convertParams(sql, params)
+      const result = await client.query(convertedSql, values)
+      return result.rows
+    },
+  }
+
+  try {
+    await client.query('BEGIN')
+    const result = await work(tx)
+    await client.query('COMMIT')
+    return result
+  } catch (err) {
+    await client.query('ROLLBACK')
+    throw err
+  } finally {
+    client.release()
+  }
+}
+
+module.exports = { query, transaction }

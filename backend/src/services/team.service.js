@@ -22,8 +22,8 @@ async function getTeam(companyId, filter = 'all') {
  * @param {number} id
  * @returns {Promise<Object>}
  */
-async function getMember(id) {
-  const member = await candidateRepository.getById(id)
+async function getMember(id, companyId) {
+  const member = await candidateRepository.getByIdForCompany(id, companyId)
   if (!member) throw new Error('Member not found')
   return member
 }
@@ -52,8 +52,8 @@ async function addMember(data, companyId, managerId) {
  * @param {Object} data
  * @returns {Promise<Object>}
  */
-async function updateMember(id, data) {
-  const member = await candidateRepository.update(id, data)
+async function updateMember(id, data, companyId) {
+  const member = await candidateRepository.update(id, data, companyId)
   if (!member) throw new Error('Member not found')
   return member
 }
@@ -62,8 +62,8 @@ async function updateMember(id, data) {
  * Soft-delete a team member.
  * @param {number} id
  */
-async function removeMember(id) {
-  await candidateRepository.softDelete(id)
+async function removeMember(id, companyId) {
+  await candidateRepository.softDelete(id, companyId)
 }
 
 /**
@@ -107,7 +107,8 @@ async function getActivity(companyId) {
  * @param {number} candidateId
  * @returns {Promise<Array>}
  */
-async function getNotes(candidateId) {
+async function getNotes(candidateId, companyId) {
+  await getMember(candidateId, companyId)
   return notesRepository.getNotes(candidateId)
 }
 
@@ -118,10 +119,11 @@ async function getNotes(candidateId) {
  * @param {string} note
  * @returns {Promise<Object>}
  */
-async function addNote(candidateId, managerId, note) {
+async function addNote(candidateId, managerId, companyId, note) {
   if (!note || typeof note !== 'string' || !note.trim()) {
     throw new Error('Note must be a non-empty string')
   }
+  await getMember(candidateId, companyId)
   return notesRepository.createNote(candidateId, managerId, note)
 }
 

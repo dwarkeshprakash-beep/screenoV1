@@ -118,10 +118,10 @@ function CandidateDashboardPage() {
                 {formatDate(u.scheduled_at || u.created)}
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
-                <button onClick={() => navigate(`/interview/${u.magic_token}/device-check`)} style={{ flex: 1, padding: '8px 14px', background: '#FFF', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 12, fontWeight: 600, color: '#374151', cursor: 'pointer' }}>
+                <button onClick={() => navigate(`/interview/${u.token || u.magic_token}/device-check`)} style={{ flex: 1, padding: '8px 14px', background: '#FFF', border: '1px solid #E2E8F0', borderRadius: 7, fontSize: 12, fontWeight: 600, color: '#374151', cursor: 'pointer' }}>
                   Device Check
                 </button>
-                <button onClick={() => navigate(`/interview/${u.magic_token}`)} style={{ flex: 2, padding: '8px 14px', background: '#0F172A', border: 0, borderRadius: 7, fontSize: 12, fontWeight: 600, color: '#FFF', cursor: 'pointer' }}>
+                <button onClick={() => navigate(`/interview/${u.token || u.magic_token}`)} style={{ flex: 2, padding: '8px 14px', background: '#0F172A', border: 0, borderRadius: 7, fontSize: 12, fontWeight: 600, color: '#FFF', cursor: 'pointer' }}>
                   Start Interview →
                 </button>
               </div>

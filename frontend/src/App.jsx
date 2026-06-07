@@ -26,6 +26,7 @@ import DeviceCheckPage from './pages/candidate/DeviceCheckPage'
 import ConsentPage from './pages/candidate/ConsentPage'
 import AIInterviewPage from './pages/candidate/AIInterviewPage'
 import ExamPage from './pages/candidate/ExamPage'
+import HumanInterviewPage from './pages/candidate/HumanInterviewPage'
 import DonePage from './pages/candidate/DonePage'
 import CandidateDashboardPage from './pages/candidate/CandidateDashboardPage'
 
@@ -91,6 +92,7 @@ function App() {
       >
         <Route index element={<Navigate to="dashboard" replace />} />
         <Route path="dashboard"        element={<InterviewerDashboard />} />
+        <Route path="scorecard"        element={<InterviewerDashboard />} />
         <Route path="scorecard/:id"    element={<ScorecardPage />} />
         <Route path="profile"          element={<InterviewerProfilePage />} />
       </Route>
@@ -108,6 +110,7 @@ function App() {
         <Route path="consent"          element={<ConsentPage />} />
         <Route path="ai"               element={<AIInterviewPage />} />
         <Route path="exam"             element={<ExamPage />} />
+        <Route path="human"            element={<HumanInterviewPage />} />
         <Route path="done"             element={<DonePage />} />
       </Route>
 

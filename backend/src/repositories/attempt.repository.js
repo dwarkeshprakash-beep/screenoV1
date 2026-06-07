@@ -48,6 +48,14 @@ async function getLatest(interviewId) {
   return rows[0] || null
 }
 
+async function getByIdForInterview(id, interviewId) {
+  const rows = await db.query(
+    `SELECT * FROM attempts WHERE id = @id AND interview_id = @interviewId`,
+    { id, interviewId }
+  )
+  return rows[0] || null
+}
+
 /**
  * Count completed attempts for an interview.
  * @param {number} interviewId
@@ -77,4 +85,4 @@ async function updateStatus(id, status, ended = null) {
   )
 }
 
-module.exports = { create, countByInterview, getLatest, countCompleted, updateStatus }
+module.exports = { create, countByInterview, getLatest, getByIdForInterview, countCompleted, updateStatus }

@@ -15,7 +15,7 @@ const STEP_LABELS = ['Type', 'Configure', 'Recipients', 'Confirm']
 
 const INTERVIEW_TYPES = [
   { id: 'ai_voice',  label: 'AI Voice Interview', icon: Mic,    desc: 'AI conducts a spoken interview, auto-generates transcript and scorecard.', color: '#5B4FE9', bg: '#EFEDFD' },
-  { id: 'ai_exam',   label: 'AI Coding Exam',     icon: Code2,  desc: 'MCQ, coding challenges, and scenario-based questions with a timer.',       color: '#2563EB', bg: '#EFF6FF' },
+  { id: 'exam',      label: 'AI Coding Exam',     icon: Code2,  desc: 'MCQ, coding challenges, and scenario-based questions with a timer.',       color: '#2563EB', bg: '#EFF6FF' },
   { id: 'human',     label: 'Human Interview',    icon: Video,  desc: 'Schedule a live session via Screeno Room — invite an interviewer.',         color: '#059669', bg: '#ECFDF5' },
 ]
 
@@ -240,6 +240,7 @@ function ScheduleModal({ open, onClose, member, selectedIds = [], template, onDo
   // ── Step 1 state ────────────────────────────────────────────
   const [mode, setMode]     = useState('internal_monthly')
   const [stages, setStages] = useState([{ id: 'ai_voice' }])
+  const [voiceMode, setVoiceMode] = useState('simple')
 
   // ── Step 2 state ────────────────────────────────────────────
   const [maxAttempts, setMaxAttempts] = useState(3)
@@ -255,11 +256,14 @@ function ScheduleModal({ open, onClose, member, selectedIds = [], template, onDo
 
   // ── Step 3 state ────────────────────────────────────────────
   const [teamList, setTeamList]         = useState([])
+  const [interviewers, setInterviewers] = useState([])
   const [candidates, setCandidates]     = useState([])  // selected candidate objects
   const [reportEmails, setReportEmails] = useState([])  // extra CC emails for report
 
   // ── Manager email (auto-added to report CC) ────────────────
   const [managerEmail, setManagerEmail] = useState('')
+  const [interviewerId, setInterviewerId] = useState('')
+  const [scheduledStart, setScheduledStart] = useState('')
 
   useEffect(() => {
     if (!open) return
@@ -271,6 +275,7 @@ function ScheduleModal({ open, onClose, member, selectedIds = [], template, onDo
     }
     // Load team
     api.getTeam().then(r => setTeamList(r.data || [])).catch(() => setTeamList([]))
+    api.getInterviewers().then(r => setInterviewers(r.data || [])).catch(() => setInterviewers([]))
     // Get manager email
     try {
       const u = JSON.parse(localStorage.getItem('user') || '{}')
@@ -321,14 +326,21 @@ function ScheduleModal({ open, onClose, member, selectedIds = [], template, onDo
     }
 
     const primaryStage = stages[0]?.id || 'ai_voice'
+    if (primaryStage === 'human' && (!interviewerId || !scheduledStart)) {
+      setError('Choose an interviewer and appointment time for human interviews.')
+      setLoading(false)
+      return
+    }
 
     try {
+      const batchKey = window.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`
       await Promise.all(ids.map(candidateId =>
         api.createSchedule({
+          idempotencyKey: `${batchKey}:${candidateId}:${primaryStage}`,
           candidateId,
           type: primaryStage,
           mode,
-          interviewMode: primaryStage === 'ai_exam' ? 'exam' : 'simple',
+          interviewMode: primaryStage === 'ai_voice' ? voiceMode : primaryStage,
           transcriptionMode,
           maxAttempts,
           cooldownHours,
@@ -339,6 +351,8 @@ function ScheduleModal({ open, onClose, member, selectedIds = [], template, onDo
           difficulty,
           reportEmails: [managerEmail, ...reportEmails].filter(Boolean),
           stages: stages.map(s => s.id),
+          interviewerId: primaryStage === 'human' ? parseInt(interviewerId, 10) : null,
+          scheduledStart: primaryStage === 'human' ? new Date(scheduledStart).toISOString() : null,
         })
       ))
       onDone && onDone()
@@ -352,11 +366,12 @@ function ScheduleModal({ open, onClose, member, selectedIds = [], template, onDo
 
   function handleClose() {
     setStep(1); setError(null)
-    setStages([{ id: 'ai_voice' }]); setMode('internal_monthly')
+    setStages([{ id: 'ai_voice' }]); setMode('internal_monthly'); setVoiceMode('simple')
     setJdFile(null); setJdText(''); setFocusAreas('')
     setDifficulty('medium'); setMaxAttempts(3); setTranscriptionMode('api')
     setCooldown(24); setWindowDays(7); setReportTiming('all')
-    setReportEmails([]); setCandidates([]); setTeamList([])
+    setReportEmails([]); setCandidates([]); setTeamList([]); setInterviewers([])
+    setInterviewerId(''); setScheduledStart('')
     onClose()
   }
 
@@ -489,13 +504,71 @@ function ScheduleModal({ open, onClose, member, selectedIds = [], template, onDo
           </div>
 
           {/* Transcription mode — only for AI Voice */}
+          {stages[0]?.id === 'ai_voice' && (
+            <div>
+              {lbl('AI Voice style')}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                {[
+                  {
+                    id: 'simple',
+                    label: 'Fixed 10 questions',
+                    desc: 'Generate 10 questions from the resume, JD, and focus areas.',
+                  },
+                  {
+                    id: 'adaptive',
+                    label: 'Adaptive conversation',
+                    desc: 'AI chooses follow-ups or changes topic based on each answer.',
+                  },
+                ].map(option => (
+                  <button
+                    key={option.id}
+                    type="button"
+                    onClick={() => setVoiceMode(option.id)}
+                    style={{
+                      padding: '12px',
+                      borderRadius: 8,
+                      cursor: 'pointer',
+                      fontFamily: 'inherit',
+                      textAlign: 'left',
+                      border: `1px solid ${voiceMode === option.id ? '#5B4FE9' : '#E2E8F0'}`,
+                      background: voiceMode === option.id ? '#EFEDFD' : '#FFF',
+                      color: voiceMode === option.id ? '#3A31A3' : '#374151',
+                    }}
+                  >
+                    <div style={{ fontSize: 12, fontWeight: 700 }}>{option.label}</div>
+                    <div style={{ fontSize: 11, lineHeight: 1.45, marginTop: 4, color: '#6B7280' }}>
+                      {option.desc}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {stages[0]?.id === 'human' && (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div>
+                {lbl('Interviewer')}
+                <select value={interviewerId} onChange={e => setInterviewerId(e.target.value)} style={field}>
+                  <option value="">Choose interviewer</option>
+                  {interviewers.map(u => (
+                    <option key={u.id} value={u.id}>{u.first_name} {u.last_name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                {lbl('Appointment time')}
+                <input type="datetime-local" value={scheduledStart} onChange={e => setScheduledStart(e.target.value)} style={field} />
+              </div>
+            </div>
+          )}
+
           {stages.some(s => s.id === 'ai_voice') && (
             <div>
               {lbl('Transcription method')}
               <div style={{ display: 'flex', gap: 8 }}>
                 {[
                   { id: 'api',   label: 'Groq API',        desc: 'Faster, cloud-based' },
-                  { id: 'local', label: 'Local (Whisper)', desc: 'Private, runs on server' },
                 ].map(o => (
                   <button key={o.id} type="button" onClick={() => setTranscriptionMode(o.id)} style={{
                     flex: 1, padding: '10px 12px', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit',
@@ -677,6 +750,9 @@ function ScheduleModal({ open, onClose, member, selectedIds = [], template, onDo
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 12, color: '#374151' }}>
               {[
                 ['Mode',          MODES.find(m => m.id === mode)?.label || mode],
+                ...(stages[0]?.id === 'ai_voice'
+                  ? [['Voice style', voiceMode === 'adaptive' ? 'Adaptive conversation' : 'Fixed 10 questions']]
+                  : []),
                 ['Stages',        stages.map(s => INTERVIEW_TYPES.find(t => t.id === s.id)?.label).join(' → ')],
                 ['Attempts',      maxAttempts === -1 ? 'Unlimited' : maxAttempts],
                 ['Window',        `${windowDays} days`],

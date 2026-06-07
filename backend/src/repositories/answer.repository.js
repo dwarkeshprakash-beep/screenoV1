@@ -56,4 +56,19 @@ async function getAllForAttempt(attemptId) {
   )
 }
 
-module.exports = { create, getHistory, getAllForAttempt }
+/**
+ * Get IDs of questions already answered in an attempt.
+ * @param {number} attemptId
+ * @returns {Promise<Array<number>>}
+ */
+async function getAnsweredQuestionIds(attemptId) {
+  const rows = await db.query(
+    `SELECT DISTINCT question_id
+     FROM answers
+     WHERE attempt_id = @attemptId`,
+    { attemptId }
+  )
+  return rows.map(row => row.question_id)
+}
+
+module.exports = { create, getHistory, getAllForAttempt, getAnsweredQuestionIds }

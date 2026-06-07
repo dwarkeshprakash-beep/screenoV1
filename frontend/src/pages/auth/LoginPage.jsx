@@ -32,8 +32,8 @@ function LoginPage() {
       localStorage.setItem('accessToken', result.data.accessToken)
       localStorage.setItem('user', JSON.stringify(result.data.user))
       navigate(roleRedirect(result.data.user.role))
-    } catch {
-      setError('Invalid email or password. Please try again.')
+    } catch (err) {
+      setError(err.message || 'Could not sign in. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -49,8 +49,8 @@ function LoginPage() {
       localStorage.setItem('accessToken', result.data.accessToken)
       localStorage.setItem('user', JSON.stringify(result.data.user))
       navigate(roleRedirect(result.data.user.role))
-    } catch {
-      setError('Demo login failed. Use the form below to sign in manually.')
+    } catch (err) {
+      setError(err.message || 'Demo login failed. Please try again.')
     } finally {
       setLoading(false)
     }

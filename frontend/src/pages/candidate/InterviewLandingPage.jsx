@@ -29,6 +29,7 @@ function InterviewLandingPage() {
         companyName: data.interview.company_name || data.interview.companyName || 'Your Company',
         mode: data.interview.interviewMode,
         transcriptionMode: data.interview.transcriptionMode,
+        candidateName: data.interview.candidateName,
       }))
       localStorage.setItem('accessToken', data.sessionToken)
       setInterview(data.interview)
@@ -57,7 +58,9 @@ function InterviewLandingPage() {
     </div>
   )
 
-  const typeLabel = interview.type === 'ai_voice' ? 'AI Voice Interview' : interview.type === 'exam' ? 'Assessment Exam' : 'Interview'
+  const typeLabel = interview.type === 'ai_voice'
+    ? interview.interviewMode === 'adaptive' ? 'Adaptive AI Voice Interview' : 'AI Voice Interview'
+    : ['exam', 'ai_exam'].includes(interview.type) ? 'Assessment Exam' : 'Interview'
   const companyName = interview.companyName || 'Your Company'
 
   return (

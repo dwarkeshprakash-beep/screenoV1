@@ -21,13 +21,13 @@ const DECISIONS = [
   { key: 'reject', label: 'Reject', icon: '✗', color: '#B53618', bg: '#FEF2F2', bd: '#FECACA' },
 ]
 
-function EvidenceField({ defaultText = '' }) {
+function EvidenceField({ defaultText = '', onChange }) {
   const [text, setText]   = useState(defaultText)
   const [edited, setEdited] = useState(false)
   return (
     <textarea
       value={text}
-      onChange={e => { setText(e.target.value); setEdited(true) }}
+      onChange={e => { setText(e.target.value); setEdited(true); onChange?.(e.target.value) }}
       rows={2}
       style={{ width: '100%', padding: 10, border: '1px solid #E2E8F0', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', lineHeight: 1.55, color: edited ? '#0F172A' : '#94A3B8', fontStyle: edited ? 'normal' : 'italic', background: edited ? '#FFF' : '#FAFAFE', outline: 'none', resize: 'vertical', transition: 'all 120ms', boxSizing: 'border-box' }}
       onFocus={e => { e.target.style.borderColor = '#5B4FE9'; e.target.style.boxShadow = '0 0 0 3px rgba(91,79,233,0.18)'; setEdited(true) }}
@@ -46,6 +46,7 @@ function ScorecardPage() {
   const [saving, setSaving]   = useState(false)
 
   const [scores, setScores]     = useState({ overall: 0, confidence: 0, techKnowledge: 0, communication: 0, problemSolving: 0 })
+  const [evidence, setEvidence] = useState({})
   const [decision, setDecision] = useState('')
   const [reason, setReason]     = useState('')
 
@@ -69,7 +70,7 @@ function ScorecardPage() {
     if (!reason.trim()) return alert('Please enter a reason.')
     setSaving(true)
     try {
-      await api.submitScorecard(id, { scores, decision, reason })
+      await api.submitScorecard(id, { scores, evidence, decision, reason })
       navigate('/interviewer/dashboard')
     } catch {
       alert('Could not submit scorecard. Please try again.')
@@ -134,7 +135,10 @@ function ScorecardPage() {
                 ))}
               </div>
 
-              <EvidenceField defaultText={draft?.summary ? `${draft.summary.slice(0, 80)}...` : ''} />
+              <EvidenceField
+                defaultText={draft?.summary ? `${draft.summary.slice(0, 80)}...` : ''}
+                onChange={text => setEvidence(prev => ({ ...prev, [c.key]: text }))}
+              />
             </div>
           ))}
 
@@ -184,7 +188,7 @@ function ScorecardPage() {
             >
               {saving ? 'Submitting...' : 'Submit scorecard'}
             </button>
-            <div style={{ textAlign: 'center', fontSize: 11, color: '#94A3B8', marginTop: 8 }}>Auto-saved as you type</div>
+            <div style={{ textAlign: 'center', fontSize: 11, color: '#94A3B8', marginTop: 8 }}>Saved when you submit the scorecard</div>
           </div>
         </div>
 

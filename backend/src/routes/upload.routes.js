@@ -4,13 +4,14 @@
 
 const express = require('express')
 const authMiddleware = require('../middleware/auth')
+const requireRole = require('../middleware/role')
 const upload = require('../middleware/upload')
 const storageService = require('../services/storage.service')
 const candidateRepository = require('../repositories/candidate.repository')
 const llmService = require('../services/llm.service')
 
 const router = express.Router()
-router.use(authMiddleware)
+router.use(authMiddleware, requireRole('manager'))
 
 // Helper: extract plain text from file buffer by MIME type / extension
 async function extractTextFromBuffer(buffer, mimetype, originalname) {
@@ -44,7 +45,9 @@ router.post('/resume', upload.single('resume'), async (req, res) => {
     if (!candidateId) return res.status(400).json({ success: false, error: 'candidateId is required' })
 
     const { url } = await storageService.uploadResume(req.file.buffer, req.file.originalname)
-    await candidateRepository.update(candidateId, { resumeUrl: url })
+    const candidate = await candidateRepository.getByIdForCompany(candidateId, req.user.companyId)
+    if (!candidate) return res.status(404).json({ success: false, error: 'Candidate not found' })
+    await candidateRepository.update(candidateId, { resumeUrl: url }, req.user.companyId)
 
     res.json({ success: true, data: { resumeUrl: url } })
   } catch (err) {

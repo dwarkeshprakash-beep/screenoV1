@@ -47,18 +47,29 @@ async function getByCandidate(candidateId) {
   )
 }
 
+async function getByAttempt(attemptId) {
+  const rows = await db.query(
+    `SELECT * FROM reports WHERE attempt_id = @attemptId ORDER BY created DESC LIMIT 1`,
+    { attemptId }
+  )
+  return rows[0] || null
+}
+
 /**
  * Get the most recent report for a candidate.
  * @param {number} candidateId
  * @returns {Promise<Object|null>}
  */
-async function getLatestByCandidate(candidateId) {
+async function getLatestByCandidate(candidateId, companyId = null) {
   const rows = await db.query(
-    `SELECT * FROM reports
-     WHERE candidate_id = @candidateId AND status = 'ready'
-     ORDER BY created DESC
+    `SELECT r.* FROM reports r
+     JOIN candidates c ON c.id = r.candidate_id
+     WHERE r.candidate_id = @candidateId
+       AND (@companyId IS NULL OR c.company_id = @companyId)
+       AND r.status = 'ready'
+     ORDER BY r.created DESC
      LIMIT 1`,
-    { candidateId }
+    { candidateId, companyId }
   )
   return rows[0] || null
 }
@@ -70,27 +81,75 @@ async function getLatestByCandidate(candidateId) {
  */
 async function getTeamReports(companyId) {
   return db.query(
-    `SELECT DISTINCT ON (c.id)
+    `SELECT
        c.id AS candidate_id,
        c.first_name,
        c.last_name,
        c.email,
        c.type,
+       i.type AS interview_type,
+       i.mode,
+       i.created AS scheduled_date,
+       a.id AS attempt_id,
+       a.attempt_num AS attempts,
+       a.status AS attempt_status,
+       a.ended AS completed_date,
        r.id AS report_id,
        r.overall_score,
+       10 AS score_max,
        r.confidence,
        r.tech_knowledge,
        r.communication,
        r.summary,
        r.strengths,
        r.pdf_url,
-       r.created AS report_date
-     FROM candidates c
-     LEFT JOIN reports r ON r.candidate_id = c.id AND r.status = 'ready'
-     WHERE c.company_id = @companyId AND c.deleted IS NULL
-     ORDER BY c.id, r.created DESC`,
+       r.created AS report_date,
+       COALESCE(sc.decision, CASE WHEN r.id IS NULL THEN 'pending' ELSE 'needs_review' END) AS decision
+     FROM attempts a
+     JOIN interviews i ON i.id = a.interview_id
+     JOIN candidates c ON c.id = i.candidate_id AND c.company_id = i.company_id
+     LEFT JOIN reports r ON r.attempt_id = a.id AND r.status = 'ready'
+     LEFT JOIN scorecards sc ON sc.interview_id = i.id
+     WHERE i.company_id = @companyId
+       AND c.deleted IS NULL
+       AND a.status = 'completed'
+     ORDER BY COALESCE(r.created, a.ended, a.started) DESC`,
     { companyId }
   )
+}
+
+async function getTeamReportStats(companyId) {
+  const rows = await db.query(
+    `SELECT
+       COUNT(a.id)::INT AS total_interviews,
+       COUNT(r.id)::INT AS reports_ready,
+       COUNT(sc.id)::INT AS decisions_recorded,
+       COUNT(sc.id) FILTER (WHERE sc.decision = 'pass')::INT AS pass_count,
+       ROUND(AVG(r.overall_score)::numeric, 1) AS average_score,
+       COUNT(a.id) FILTER (WHERE r.id IS NULL)::INT AS reports_pending
+     FROM attempts a
+     JOIN interviews i ON i.id = a.interview_id
+     JOIN candidates c ON c.id = i.candidate_id AND c.company_id = i.company_id
+     LEFT JOIN reports r ON r.attempt_id = a.id AND r.status = 'ready'
+     LEFT JOIN scorecards sc ON sc.interview_id = i.id
+     WHERE i.company_id = @companyId
+       AND c.deleted IS NULL
+       AND a.status = 'completed'`,
+    { companyId }
+  )
+  const stats = rows[0] || {}
+  const total = Number(stats.total_interviews || 0)
+  const passCount = Number(stats.pass_count || 0)
+  return {
+    totalInterviews: total,
+    reportsReady: Number(stats.reports_ready || 0),
+    decisionsRecorded: Number(stats.decisions_recorded || 0),
+    passCount,
+    passRate: total ? Math.round((passCount / total) * 100) : null,
+    averageScore: stats.average_score == null ? null : Number(stats.average_score),
+    reportsPending: Number(stats.reports_pending || 0),
+    scoreMax: 10,
+  }
 }
 
 /**
@@ -105,4 +164,4 @@ async function updatePdfUrl(id, pdfUrl) {
   )
 }
 
-module.exports = { create, getByCandidate, getLatestByCandidate, getTeamReports, updatePdfUrl }
+module.exports = { create, getByCandidate, getByAttempt, getLatestByCandidate, getTeamReports, getTeamReportStats, updatePdfUrl }

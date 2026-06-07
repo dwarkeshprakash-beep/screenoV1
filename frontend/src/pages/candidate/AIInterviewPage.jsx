@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Mic, MicOff, PhoneOff, Sparkles, Volume2, Ear, Loader2, Circle, Square, Check, Clock, Timer, Info, AlertTriangle } from 'lucide-react'
+import { Mic, MicOff, PhoneOff, Sparkles, Volume2, Ear, Loader2, Circle, Square, Check, Clock, Timer, Info, AlertTriangle, CameraOff } from 'lucide-react'
 import useInterview from '../../hooks/useInterview'
 import useProctoring from '../../hooks/useProctoring'
 
@@ -26,35 +26,54 @@ function AIInterviewPage() {
   const navigate = useNavigate()
 
   const session = (() => { try { return JSON.parse(localStorage.getItem('interviewSession') || '{}') } catch { return {} } })()
-  const { interviewId, mode } = session
+  const { interviewId, mode, transcriptionMode } = session
 
   const {
-    phase, currentQuestion, transcript, totalQuestions, currentIndex,
-    error: interviewError, startInterview, startRecording, stopRecording, repeatQuestion, pause, resume,
-  } = useInterview(interviewId, mode)
+    phase, currentQuestion, transcript, currentIndex,
+    error: interviewError, startInterview, startRecording, stopRecording, pause, resume, interviewMode,
+    finishInterview, submitManualAnswer, manualRetry,
+    attemptId,
+  } = useInterview(interviewId, mode, transcriptionMode)
 
   const [violation, setViolation] = useState(null)
   const [muted, setMuted]         = useState(false)
+  const [manualText, setManualText] = useState('')
   const [remaining, setRemaining] = useState(25 * 60)
   const [recElapsed, setRecEl]    = useState(0)
+  const [cameraReady, setCameraReady] = useState(false)
   const cameraVideoRef = useRef(null)
   const txRef          = useRef(null)
 
-  useProctoring(interviewId, (type) => { pause(); setViolation(type) })
+  useProctoring(interviewId, attemptId, (type) => { pause(); setViolation(type) })
 
   useEffect(() => { if (interviewId) startInterview() }, [interviewId])
   useEffect(() => { if (phase === 'ended') navigate(`/interview/${token}/done`) }, [phase])
   useEffect(() => {
-    navigator.mediaDevices.getUserMedia({ video: true }).then(stream => {
-      if (cameraVideoRef.current) { cameraVideoRef.current.srcObject = stream; cameraVideoRef.current.play().catch(() => {}) }
-    }).catch(() => {})
+    let stream
+    if (!navigator.mediaDevices?.getUserMedia) return
+
+    navigator.mediaDevices.getUserMedia({ video: true }).then(mediaStream => {
+      stream = mediaStream
+      if (cameraVideoRef.current) {
+        cameraVideoRef.current.srcObject = mediaStream
+        cameraVideoRef.current.play().then(() => setCameraReady(true)).catch(() => {})
+      }
+    }).catch(() => setCameraReady(false))
+
+    return () => stream?.getTracks().forEach(track => track.stop())
   }, [])
 
   useEffect(() => {
     if (phase === 'ended' || violation) return
-    const t = setInterval(() => setRemaining(r => Math.max(0, r - 1)), 1000)
+    const t = setInterval(() => setRemaining(r => {
+      if (r <= 1) {
+        finishInterview('completed')
+        return 0
+      }
+      return r - 1
+    }), 1000)
     return () => clearInterval(t)
-  }, [phase, violation])
+  }, [phase, violation, finishInterview])
 
   useEffect(() => {
     if (phase !== 'recording' || violation) return
@@ -65,18 +84,27 @@ function AIInterviewPage() {
   useEffect(() => { if (txRef.current) txRef.current.scrollTop = txRef.current.scrollHeight }, [transcript, phase])
 
   if (!interviewId) return <div style={{ padding: 40, textAlign: 'center', color: '#EF4444' }}>No interview session found. Please use your magic link.</div>
-  if (interviewError) return <div style={{ padding: 40, textAlign: 'center', color: '#EF4444' }}>{interviewError}</div>
+  if (interviewError && phase === 'error') return <div style={{ padding: 40, textAlign: 'center', color: '#EF4444' }}>{interviewError}</div>
 
   const isRecording  = phase === 'recording'
   const isProcessing = phase === 'processing'
   const isDone       = phase === 'ended'
   const isListening  = phase === 'listening'
+  const canStartAnswer = (isListening || phase === 'ai_speaking') && !muted && !manualRetry
+  const modeLabel = interviewMode === 'adaptive'
+    ? 'Adaptive AI · dynamic questions'
+    : 'Fixed AI · 10 questions'
+  const questionNumber = currentQuestion?.order_num || (currentIndex || 0) + 1
+  const questionProgress = interviewMode === 'adaptive'
+    ? `Adaptive · Question ${questionNumber}`
+    : `Question ${questionNumber} of 10`
 
-  const aiState = isRecording ? 'listening' : isProcessing ? 'thinking' : 'speaking'
+  const aiState = isRecording ? 'listening' : isProcessing ? 'thinking' : isListening ? 'ready' : 'speaking'
   const orbConfig = {
     speaking:  { bg: 'linear-gradient(135deg,#DEDAFB,#5B4FE9 70%,#4A3FCE)', shadow: '0 12px 36px rgba(91,79,233,0.35)', label: 'Asking…',     Icon: Volume2,  labelColor: '#5B4FE9' },
     thinking:  { bg: 'radial-gradient(circle at 35% 30%,#DEDAFB,#5B4FE9 90%)', shadow: '0 12px 28px rgba(91,79,233,0.18)', label: 'Processing…', Icon: Loader2, labelColor: '#94A3B8' },
     listening: { bg: 'radial-gradient(circle at 35% 30%,#D1FAE5,#059669 75%)', shadow: '0 12px 28px rgba(5,150,105,0.32)', label: 'Listening…',  Icon: Ear,     labelColor: '#059669' },
+    ready:     { bg: 'radial-gradient(circle at 35% 30%,#E0E7FF,#5B4FE9 80%)', shadow: '0 12px 28px rgba(91,79,233,0.2)', label: 'Ready for your answer', Icon: Mic, labelColor: '#5B4FE9' },
   }[aiState]
 
   const candidateName = session.candidateName || 'You'
@@ -102,11 +130,12 @@ function AIInterviewPage() {
       )}
 
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 48px', gap: 22, background: '#FFF', borderRight: '1px solid #E2E8F0', position: 'relative', overflow: 'hidden' }}>
-        <div style={{ position: 'absolute', width: 480, height: 480, borderRadius: 9999, background: 'radial-gradient(circle,rgba(91,79,233,0.08) 0%,transparent 70%)', filter: 'blur(30px)' }} />
+        <div style={{ position: 'absolute', width: 480, height: 480, borderRadius: 9999, background: 'radial-gradient(circle,rgba(91,79,233,0.08) 0%,transparent 70%)', filter: 'blur(30px)', pointerEvents: 'none' }} />
 
         <div style={{ position: 'absolute', top: 16, left: 16, display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, fontWeight: 600 }}>
           <span style={{ width: 7, height: 7, borderRadius: 9999, background: isRecording ? '#EF4444' : '#94A3B8', animation: isRecording ? 'v2pulse 1.4s ease-in-out infinite' : 'none', display: 'inline-block' }} />
           <span style={{ color: isRecording ? '#EF4444' : '#94A3B8' }}>{isRecording ? 'RECORDING' : 'STANDBY'}</span>
+          <span style={{ color: '#5B4FE9', background: '#EFEDFD', padding: '4px 8px', borderRadius: 9999 }}>{modeLabel}</span>
         </div>
 
         <div style={{ position: 'absolute', top: 14, right: 16, display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: 'monospace', fontSize: 13, fontWeight: 700, color: remaining < 120 ? '#EF4444' : '#0F172A', background: '#F1F5F9', padding: '5px 10px', borderRadius: 8 }}>
@@ -125,7 +154,7 @@ function AIInterviewPage() {
 
         <div style={{ textAlign: 'center' }}>
           <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#5B4FE9', marginBottom: 4 }}>
-            Screeno AI · Question {(currentIndex || 0) + 1} of {totalQuestions || '?'}
+            Screeno AI · {questionProgress}
           </div>
           <div style={{ fontSize: 13, color: orbConfig.labelColor, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
             <orbConfig.Icon size={14} style={{ animation: aiState === 'thinking' ? 'v2spin 1.2s linear infinite' : 'none' }} />
@@ -156,17 +185,23 @@ function AIInterviewPage() {
         </div>
 
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-          <button onClick={() => setMuted(m => !m)} style={{ width: 52, height: 52, borderRadius: 9999, background: muted ? '#FEF2F2' : '#FFF', border: `1px solid ${muted ? '#FECACA' : '#CBD5E1'}`, color: muted ? '#EF4444' : '#0F172A', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 120ms' }}>
+          <button onClick={() => setMuted(m => !m)} title={muted ? 'Microphone muted' : 'Microphone available'} style={{ width: 52, height: 52, borderRadius: 9999, background: muted ? '#FEF2F2' : '#FFF', border: `1px solid ${muted ? '#FECACA' : '#CBD5E1'}`, color: muted ? '#EF4444' : '#0F172A', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 120ms' }}>
             {muted ? <MicOff size={20} /> : <Mic size={20} />}
           </button>
 
-          {isListening && (
-            <button onClick={startRecording} style={{ height: 52, padding: '0 26px', borderRadius: 9999, background: '#059669', color: '#FFF', border: 0, fontSize: 14, fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 8, boxShadow: '0 6px 16px rgba(5,150,105,0.3)' }}>
-              <Circle size={16} fill="#FFF" /> Start answer
+          {canStartAnswer && (
+            <button
+              onClick={startRecording}
+              style={{ height: 52, padding: '0 26px', borderRadius: 9999, background: '#059669', color: '#FFF', border: 0, fontSize: 14, fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 8, boxShadow: '0 6px 16px rgba(5,150,105,0.3)' }}
+            >
+              <Circle size={16} fill="#FFF" /> {phase === 'ai_speaking' ? 'Answer now' : 'Start answer'}
             </button>
           )}
           {isRecording && (
-            <button onClick={stopRecording} style={{ height: 52, padding: '0 26px', borderRadius: 9999, background: '#EF4444', color: '#FFF', border: 0, fontSize: 14, fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 8, boxShadow: '0 6px 16px rgba(239,68,68,0.3)', animation: 'v2recpulse 1.6s ease-in-out infinite' }}>
+            <button
+              onClick={stopRecording}
+              style={{ height: 52, padding: '0 26px', borderRadius: 9999, background: '#EF4444', color: '#FFF', border: 0, fontSize: 14, fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 8, boxShadow: '0 6px 16px rgba(239,68,68,0.3)', animation: 'v2recpulse 1.6s ease-in-out infinite' }}
+            >
               <Square size={15} fill="#FFF" /> Stop answer · {clk(recElapsed)}
             </button>
           )}
@@ -181,17 +216,39 @@ function AIInterviewPage() {
             </button>
           )}
 
-          <button onClick={() => navigate(`/interview/${token}/done`)} style={{ width: 52, height: 52, borderRadius: 9999, background: '#FFF', border: '1px solid #FFD4C2', color: '#E0451F', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+          <button onClick={() => { if (window.confirm('End this interview early? It will be marked abandoned.')) finishInterview('abandoned') }} style={{ width: 52, height: 52, borderRadius: 9999, background: '#FFF', border: '1px solid #FFD4C2', color: '#E0451F', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
             <PhoneOff size={20} />
           </button>
         </div>
+
+        {manualRetry && (
+          <div style={{ width: '100%', maxWidth: 460, background: '#FFFBEB', border: '1px solid #FEF3C7', borderRadius: 12, padding: 14 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#92400E', marginBottom: 6 }}>Transcription failed. Type your answer to continue.</div>
+            <textarea value={manualText} onChange={e => setManualText(e.target.value)} rows={4} style={{ width: '100%', border: '1px solid #FDE68A', borderRadius: 8, padding: 10, resize: 'vertical', boxSizing: 'border-box' }} />
+            <button onClick={async () => { const ok = await submitManualAnswer(manualText); if (ok) setManualText('') }} style={{ marginTop: 8, padding: '9px 14px', borderRadius: 8, border: 0, background: '#B45309', color: '#FFF', fontWeight: 600, cursor: 'pointer' }}>
+              Save typed answer
+            </button>
+          </div>
+        )}
+
+        {interviewError && (
+          <div style={{ maxWidth: 440, padding: '10px 14px', borderRadius: 8, background: '#FEF2F2', border: '1px solid #FECACA', color: '#B91C1C', fontSize: 12, textAlign: 'center' }}>
+            {interviewError}
+          </div>
+        )}
 
         <p style={{ fontSize: 11, color: '#94A3B8', textAlign: 'center', maxWidth: 340, lineHeight: 1.6 }}>
           Press <strong>Start answer</strong> when you&apos;re ready, and <strong>Stop</strong> when done.
         </p>
 
-        <div style={{ position: 'absolute', bottom: 14, left: 14, width: 84, height: 84, borderRadius: 9999, background: 'linear-gradient(135deg,#475569,#1E293B)', border: '3px solid #FFF', boxShadow: '0 8px 20px rgba(15,23,42,0.2)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <video ref={cameraVideoRef} muted playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        <div style={{ position: 'absolute', bottom: 14, left: 14, width: 92, height: 92, borderRadius: 16, background: '#F1F5F9', border: '3px solid #FFF', boxShadow: '0 8px 20px rgba(15,23,42,0.2)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <video ref={cameraVideoRef} muted playsInline style={{ width: '100%', height: '100%', objectFit: 'cover', display: cameraReady ? 'block' : 'none' }} />
+          {!cameraReady && (
+            <div style={{ color: '#64748B', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, fontSize: 10 }}>
+              <CameraOff size={22} />
+              Camera off
+            </div>
+          )}
         </div>
       </div>
 
@@ -234,7 +291,7 @@ function AIInterviewPage() {
         </div>
         <div style={{ padding: '14px 24px', borderTop: '1px solid #F1F5F9', fontSize: 12, color: '#6B7280', display: 'flex', alignItems: 'center', gap: 6 }}>
           <Info size={13} color="#94A3B8" />
-          Question {(currentIndex || 0) + 1} of {totalQuestions || '?'} · {clk(remaining)} remaining
+          {questionProgress} · {clk(remaining)} remaining
         </div>
       </div>
 

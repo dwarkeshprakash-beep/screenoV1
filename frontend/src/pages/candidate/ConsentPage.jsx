@@ -17,7 +17,11 @@ function ConsentPage() {
 
   function handleStart() {
     const session = JSON.parse(localStorage.getItem('interviewSession') || '{}')
-    const route = session.type === 'exam' ? `/interview/${token}/exam` : `/interview/${token}/ai`
+    const route = ['exam', 'ai_exam'].includes(session.type)
+      ? `/interview/${token}/exam`
+      : session.type === 'human'
+        ? `/interview/${token}/human`
+        : `/interview/${token}/ai`
     navigate(route)
   }
 

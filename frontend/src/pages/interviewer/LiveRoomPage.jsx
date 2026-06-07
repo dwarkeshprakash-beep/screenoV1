@@ -41,6 +41,16 @@ function LiveRoomPage() {
     const participantName =
       [user.first_name, user.last_name].filter(Boolean).join(' ') || 'Interviewer'
 
+    api.getLiveRoom(id)
+      .then(r => {
+        const saved = r.data?.notes
+        if (saved?.notes) setNotes(saved.notes)
+        if (saved?.asked_questions) {
+          try { setAsked(JSON.parse(saved.asked_questions)) } catch {}
+        }
+      })
+      .catch(err => setTokenError(err.message))
+
     api.getLiveKitToken(`interview-${id}`, participantName)
       .then(r => {
         setLkToken(r.data.token)
@@ -54,16 +64,25 @@ function LiveRoomPage() {
     setNotes(val)
     clearTimeout(saveTimerRef.current)
     saveTimerRef.current = setTimeout(() => {
-      setLastSaved(new Date())
+      api.saveLiveRoomNotes(id, { notes: val, askedQuestions: asked })
+        .then(() => setLastSaved(new Date()))
+        .catch(err => setTokenError(err.message))
     }, 3000)
   }
 
   function toggleAsked(i) {
-    setAsked(prev => prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i])
+    setAsked(prev => {
+      const next = prev.includes(i) ? prev.filter(x => x !== i) : [...prev, i]
+      api.saveLiveRoomNotes(id, { notes, askedQuestions: next })
+        .then(() => setLastSaved(new Date()))
+        .catch(err => setTokenError(err.message))
+      return next
+    })
   }
 
-  function handleEndInterview() {
+  async function handleEndInterview() {
     if (!ending) { setEnding(true); return }
+    await api.endLiveRoom(id)
     navigate('/interviewer/dashboard')
   }
 

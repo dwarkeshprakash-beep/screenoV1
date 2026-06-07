@@ -7,6 +7,7 @@ require('dotenv').config()
 const express = require('express')
 const cors = require('cors')
 const cookieParser = require('cookie-parser')
+const rateLimit = require('./src/middleware/rate-limit')
 
 const authRoutes = require('./src/routes/auth.routes')
 const teamRoutes = require('./src/routes/team.routes')
@@ -19,6 +20,7 @@ const templateRoutes = require('./src/routes/template.routes')
 const examRoutes = require('./src/routes/exam.routes')
 const uploadRoutes = require('./src/routes/upload.routes')
 const profileRoutes = require('./src/routes/profile.routes')
+const reportJobService = require('./src/services/report-job.service')
 
 const app = express()
 const PORT = process.env.PORT || 4000
@@ -34,11 +36,27 @@ app.use(cors({
   credentials: true,
 }))
 
-app.use(express.json())
+app.disable('x-powered-by')
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff')
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN')
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin')
+  res.setHeader('Permissions-Policy', 'camera=(self), microphone=(self), geolocation=()')
+  req.setTimeout(req.path.includes('/answer') ? 120000 : 60000)
+  next()
+})
+app.use(express.json({ limit: '1mb' }))
 app.use(cookieParser())
 
+const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 30, keyPrefix: 'auth' })
+const writeLimiter = rateLimit({ windowMs: 60 * 1000, max: 120, keyPrefix: 'write' })
+
 // ── ROUTES ────────────────────────────────────────────────────
-app.use('/api/auth', authRoutes)
+app.use('/api/auth', authLimiter, authRoutes)
+app.use('/api', (req, res, next) => {
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) return writeLimiter(req, res, next)
+  next()
+})
 app.use('/api/team', teamRoutes)
 app.use('/api/interviews', interviewRoutes)
 app.use('/api/reports', reportRoutes)
@@ -69,4 +87,5 @@ app.use((err, req, res, next) => {
 // ── START ─────────────────────────────────────────────────────
 app.listen(PORT, () => {
   console.log(`[server] Running on http://localhost:${PORT}`)
+  reportJobService.startReportJobWorker()
 })

@@ -26,16 +26,47 @@ function DeviceCheckPage() {
   useEffect(() => { if (!isMobile) runChecks() }, [isMobile])
 
   async function runChecks() {
-    await checkCamera()
-    await checkMicrophone()
-    await checkNetwork()
-    await checkScreen()
+    await Promise.allSettled([
+      checkCamera(),
+      checkMicrophone(),
+      checkNetwork(),
+      checkScreen(),
+    ])
+  }
+
+  async function getMediaWithTimeout(constraints) {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      throw new Error('Media devices are not supported')
+    }
+
+    let timeoutId
+    const timeout = new Promise((_, reject) => {
+      timeoutId = window.setTimeout(
+        () => reject(new Error('Permission request timed out')),
+        3000
+      )
+    })
+
+    try {
+      return await Promise.race([
+        navigator.mediaDevices.getUserMedia(constraints),
+        timeout,
+      ])
+    } finally {
+      window.clearTimeout(timeoutId)
+    }
   }
 
   async function checkCamera() {
     setStatus('camera', 'checking')
+    if (import.meta.env.DEV) {
+      await new Promise(resolve => window.setTimeout(resolve, 350))
+      setStatus('camera', 'fail')
+      return
+    }
+
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true })
+      const stream = await getMediaWithTimeout({ video: true })
       if (videoRef.current) { videoRef.current.srcObject = stream; videoRef.current.play().catch(() => {}) }
       setStatus('camera', 'pass')
     } catch { setStatus('camera', 'fail') }
@@ -43,8 +74,14 @@ function DeviceCheckPage() {
 
   async function checkMicrophone() {
     setStatus('microphone', 'checking')
+    if (import.meta.env.DEV) {
+      await new Promise(resolve => window.setTimeout(resolve, 350))
+      setStatus('microphone', 'fail')
+      return
+    }
+
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const stream = await getMediaWithTimeout({ audio: true })
       stream.getTracks().forEach(t => t.stop())
       setStatus('microphone', 'pass')
     } catch { setStatus('microphone', 'fail') }
@@ -105,6 +142,9 @@ function DeviceCheckPage() {
   }
 
   const allPassed = CHECKS.every(c => getStatus(c.id) === 'pass')
+  const checksComplete = CHECKS
+    .filter(c => c.id !== 'speaker')
+    .every(c => ['pass', 'fail'].includes(getStatus(c.id)))
 
   return (
     <div style={{ padding: '40px 24px', maxWidth: 540, margin: '0 auto' }}>
@@ -168,9 +208,12 @@ function DeviceCheckPage() {
       )}
 
       <button
-        disabled={!allPassed}
-        onClick={() => navigate(`/interview/${token}/consent`)}
-        style={{ width: '100%', padding: '13px 20px', borderRadius: 10, background: allPassed ? '#5B4FE9' : '#E2E8F0', color: allPassed ? '#FFF' : '#94A3B8', border: 0, fontSize: 14, fontWeight: 600, cursor: allPassed ? 'pointer' : 'not-allowed', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, boxShadow: allPassed ? '0 8px 20px rgba(91,79,233,0.25)' : 'none', transition: 'all 160ms' }}
+        disabled={!checksComplete}
+        onClick={() => {
+          localStorage.setItem('screenoDeviceBypass', String(!allPassed))
+          navigate(`/interview/${token}/consent`)
+        }}
+        style={{ width: '100%', padding: '13px 20px', borderRadius: 10, background: checksComplete ? '#5B4FE9' : '#E2E8F0', color: checksComplete ? '#FFF' : '#94A3B8', border: 0, fontSize: 14, fontWeight: 600, cursor: checksComplete ? 'pointer' : 'not-allowed', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, boxShadow: checksComplete ? '0 8px 20px rgba(91,79,233,0.25)' : 'none', transition: 'all 160ms' }}
       >
         Continue <ArrowRight size={14} />
       </button>

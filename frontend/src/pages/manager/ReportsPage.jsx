@@ -1,5 +1,6 @@
-﻿import { useState, useEffect } from 'react'
-import { Filter, Download } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { Download, Filter } from 'lucide-react'
 import Spinner from '../../components/shared/Spinner'
 import ErrorMessage from '../../components/shared/ErrorMessage'
 import EmptyState from '../../components/shared/EmptyState'
@@ -31,20 +32,22 @@ function Avatar({ name = '?', size = 32 }) {
 
 function DecisionBadge({ decision }) {
   const map = {
-    pass:    { label: 'Pass',    bg: '#ECFDF5', fg: '#047857' },
-    maybe:   { label: 'Maybe',   bg: '#FFFBEB', fg: '#B45309' },
+    pass: { label: 'Pass', bg: '#ECFDF5', fg: '#047857' },
+    maybe: { label: 'Maybe', bg: '#FFFBEB', fg: '#B45309' },
+    needs_review: { label: 'Needs review', bg: '#EFF6FF', fg: '#1D4ED8' },
     pending: { label: 'Pending', bg: '#F1F5F9', fg: '#6B7280' },
   }
   const d = map[decision] || map.pending
-  return (
-    <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 9999, background: d.bg, color: d.fg }}>{d.label}</span>
-  )
+  return <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 9999, background: d.bg, color: d.fg }}>{d.label}</span>
 }
 
 function ReportsPage() {
+  const navigate = useNavigate()
   const [reports, setReports] = useState([])
+  const [stats, setStats] = useState(null)
+  const [decisionFilter, setDecisionFilter] = useState('all')
   const [loading, setLoading] = useState(true)
-  const [error, setError]     = useState(null)
+  const [error, setError] = useState(null)
 
   useEffect(() => { load() }, [])
 
@@ -53,8 +56,10 @@ function ReportsPage() {
     setError(null)
     try {
       const res = await api.getTeamReports()
-      setReports(res.data || [])
-    } catch (err) {
+      const payload = res.data || {}
+      setReports(Array.isArray(payload) ? payload : payload.reports || [])
+      setStats(Array.isArray(payload) ? null : payload.stats || null)
+    } catch {
       setError('Could not load reports. Please try again.')
     } finally {
       setLoading(false)
@@ -64,15 +69,37 @@ function ReportsPage() {
   if (loading) return <div style={{ padding: 40 }}><Spinner /></div>
   if (error) return <ErrorMessage message={error} />
 
+  const visibleReports = decisionFilter === 'all' ? reports : reports.filter(r => (r.decision || 'pending') === decisionFilter)
   const cardStyle = { background: '#FFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 20, boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }
   const thStyle = { textAlign: 'left', padding: '11px 16px', fontSize: 11, fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: '#94A3B8', borderBottom: '1px solid #E2E8F0' }
   const btnSecondary = { background: '#FFF', color: '#0F172A', border: '1px solid #CBD5E1', borderRadius: 8, fontWeight: 600, padding: '5px 10px', fontSize: 12, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }
 
+  function exportCsv() {
+    const headers = ['Candidate', 'Email', 'Type', 'Attempt', 'Completed', 'Score', 'Decision']
+    const rows = visibleReports.map(r => [
+      `${r.first_name || ''} ${r.last_name || ''}`.trim(),
+      r.email || '',
+      r.interview_type || '',
+      r.attempts || '',
+      r.completed_date || r.report_date || '',
+      r.overall_score ?? '',
+      r.decision || 'pending',
+    ])
+    const csv = [headers, ...rows].map(row => row.map(value => `"${String(value).replaceAll('"', '""')}"`).join(',')).join('\n')
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `screeno-reports-${new Date().toISOString().slice(0, 10)}.csv`
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+
   const statCards = [
-    { label: 'Total interviews', value: reports.length,                                            sub: 'This quarter' },
-    { label: 'Pass rate',        value: reports.length ? `${Math.round(reports.filter(r => r.decision === 'pass').length / reports.length * 100)}%` : '—', sub: `${reports.filter(r => r.decision === 'pass').length} of ${reports.length}` },
-    { label: 'Avg score',        value: reports.length ? (reports.reduce((a, r) => a + (r.overall_score || 0), 0) / reports.length).toFixed(1) : '—', sub: ‘↑ vs last month’ },
-    { label: 'Reports pending',  value: reports.filter(r => !r.decision || r.decision === 'pending').length, sub: 'Send after attempt' },
+    { label: 'Total interviews', value: stats?.totalInterviews ?? reports.length, sub: 'Completed attempts' },
+    { label: 'Pass rate', value: stats?.passRate == null ? '-' : `${stats.passRate}%`, sub: `${stats?.passCount ?? 0} pass decisions` },
+    { label: 'Avg score', value: stats?.averageScore == null ? '-' : stats.averageScore.toFixed(1), sub: `Out of ${stats?.scoreMax || 10}` },
+    { label: 'Reports pending', value: stats?.reportsPending ?? reports.filter(r => !r.report_id).length, sub: 'Worker queue' },
   ]
 
   return (
@@ -83,8 +110,8 @@ function ReportsPage() {
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14 }}>
-        {statCards.map((s, i) => (
-          <div key={i} style={{ ...cardStyle, padding: 16 }}>
+        {statCards.map(s => (
+          <div key={s.label} style={{ ...cardStyle, padding: 16 }}>
             <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#6B7280' }}>{s.label}</div>
             <div style={{ fontSize: 26, fontWeight: 700, color: '#0F172A', letterSpacing: '-0.02em', lineHeight: 1.1, marginTop: 4 }}>{s.value}</div>
             <div style={{ fontSize: 12, color: '#059669', fontWeight: 500, marginTop: 2 }}>{s.sub}</div>
@@ -96,64 +123,62 @@ function ReportsPage() {
         <div style={{ padding: '16px 20px', borderBottom: '1px solid #F1F5F9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={{ fontSize: 15, fontWeight: 700, color: '#0F172A' }}>Candidate reports</div>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button style={btnSecondary}><Filter size={12} /> Filter</button>
-            <button style={btnSecondary}><Download size={12} /> Export all</button>
+            <label style={btnSecondary}>
+              <Filter size={12} /> Filter
+              <select aria-label="Filter reports by decision" value={decisionFilter} onChange={e => setDecisionFilter(e.target.value)} style={{ border: 0, outline: 'none', fontSize: 12, fontWeight: 600, background: 'transparent' }}>
+                <option value="all">All</option>
+                <option value="pass">Pass</option>
+                <option value="maybe">Maybe</option>
+                <option value="needs_review">Needs review</option>
+                <option value="pending">Pending</option>
+              </select>
+            </label>
+            <button type="button" onClick={exportCsv} style={btnSecondary} aria-label="Export visible reports as CSV"><Download size={12} /> Export all</button>
           </div>
         </div>
 
-        {reports.length === 0 ? (
+        {visibleReports.length === 0 ? (
           <EmptyState message="No reports yet. Reports are generated after interviews complete." />
         ) : (
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ background: '#F8FAFC' }}>
-                {['CANDIDATE', 'ROLE', 'ATTEMPTS', 'DATE', 'OVERALL', 'JD MATCH', 'DECISION', ''].map(h => (
-                  <th key={h} style={thStyle}>{h}</th>
-                ))}
+                {['CANDIDATE', 'TYPE', 'ATTEMPT', 'DATE', 'OVERALL', 'JD MATCH', 'DECISION', ''].map(h => <th key={h} style={thStyle}>{h}</th>)}
               </tr>
             </thead>
             <tbody>
-              {reports.map((r, i) => {
+              {visibleReports.map((r, i) => {
                 const name = `${r.first_name || ''} ${r.last_name || ''}`.trim() || r.name || 'Unknown'
-                const overall = r.overall_score != null ? r.overall_score / 2 : null
+                const overall = r.overall_score != null ? Number(r.overall_score) : null
+                const scoreMax = Number(r.score_max || stats?.scoreMax || 10)
                 const jdMatch = r.jd_match != null ? r.jd_match : null
-
                 return (
-                  <tr key={r.candidate_id || i}
-                    style={{ cursor: 'pointer', transition: 'background 120ms' }}
-                    onMouseEnter={e => e.currentTarget.style.background = '#F8FAFC'}
-                    onMouseLeave={e => e.currentTarget.style.background = '#FFF'}
-                  >
+                  <tr key={r.attempt_id || r.report_id || r.candidate_id || i} style={{ cursor: 'pointer', transition: 'background 120ms' }} onMouseEnter={e => e.currentTarget.style.background = '#F8FAFC'} onMouseLeave={e => e.currentTarget.style.background = '#FFF'}>
                     <td style={{ padding: '14px 16px', borderBottom: '1px solid #F1F5F9' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                         <Avatar name={name} size={32} />
                         <div style={{ fontWeight: 600, color: '#0F172A' }}>{name}</div>
                       </div>
                     </td>
-                    <td style={{ padding: '14px 16px', borderBottom: '1px solid #F1F5F9', color: '#6B7280' }}>{r.role || '—'}</td>
+                    <td style={{ padding: '14px 16px', borderBottom: '1px solid #F1F5F9', color: '#6B7280' }}>{r.interview_type || r.type || '-'}</td>
                     <td style={{ padding: '14px 16px', borderBottom: '1px solid #F1F5F9', fontFamily: 'monospace', fontWeight: 600, color: '#0F172A' }}>{r.attempts || 1}</td>
-                    <td style={{ padding: '14px 16px', borderBottom: '1px solid #F1F5F9', color: '#6B7280' }}>{r.report_date ? formatDate(r.report_date) : '—'}</td>
+                    <td style={{ padding: '14px 16px', borderBottom: '1px solid #F1F5F9', color: '#6B7280' }}>{formatDate(r.report_date || r.completed_date || r.scheduled_date)}</td>
                     <td style={{ padding: '14px 16px', borderBottom: '1px solid #F1F5F9' }}>
                       {overall != null ? (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span style={{ fontFamily: 'monospace', fontWeight: 700, color: overall >= 4 ? '#047857' : overall >= 3 ? '#B45309' : '#B53618' }}>{overall.toFixed(1)}</span>
+                          <span style={{ fontFamily: 'monospace', fontWeight: 700, color: overall >= 7.5 ? '#047857' : overall >= 5.5 ? '#B45309' : '#B53618' }}>{overall.toFixed(1)}</span>
                           <span style={{ flex: 1, height: 4, background: '#F1F5F9', borderRadius: 9999, overflow: 'hidden', display: 'inline-block', width: 48 }}>
-                            <span style={{ display: 'block', height: '100%', width: `${(overall / 5) * 100}%`, background: '#5B4FE9', borderRadius: 9999 }} />
+                            <span style={{ display: 'block', height: '100%', width: `${Math.min(100, (overall / scoreMax) * 100)}%`, background: '#5B4FE9', borderRadius: 9999 }} />
                           </span>
                         </div>
-                      ) : <span style={{ color: '#94A3B8' }}>—</span>}
+                      ) : <span style={{ color: '#94A3B8' }}>-</span>}
                     </td>
                     <td style={{ padding: '14px 16px', borderBottom: '1px solid #F1F5F9' }}>
-                      {jdMatch != null
-                        ? <span style={{ fontFamily: 'monospace', fontWeight: 700, color: jdMatch >= 75 ? '#047857' : jdMatch >= 60 ? '#B45309' : '#B53618' }}>{jdMatch}%</span>
-                        : <span style={{ color: '#94A3B8' }}>—</span>
-                      }
+                      {jdMatch != null ? <span style={{ fontFamily: 'monospace', fontWeight: 700, color: jdMatch >= 75 ? '#047857' : jdMatch >= 60 ? '#B45309' : '#B53618' }}>{jdMatch}%</span> : <span style={{ color: '#94A3B8' }}>-</span>}
                     </td>
+                    <td style={{ padding: '14px 16px', borderBottom: '1px solid #F1F5F9' }}><DecisionBadge decision={r.decision} /></td>
                     <td style={{ padding: '14px 16px', borderBottom: '1px solid #F1F5F9' }}>
-                      <DecisionBadge decision={r.decision} />
-                    </td>
-                    <td style={{ padding: '14px 16px', borderBottom: '1px solid #F1F5F9' }}>
-                      <button style={btnSecondary}>View report</button>
+                      <button type="button" onClick={() => navigate(`/manager/team/${r.candidate_id}`)} style={btnSecondary} aria-label={`View report for ${name}`}>View report</button>
                     </td>
                   </tr>
                 )
@@ -167,4 +192,3 @@ function ReportsPage() {
 }
 
 export default ReportsPage
-

@@ -21,6 +21,38 @@ router.get('/slots/:token', async (req, res) => {
 
 router.use(authMiddleware, requireRole('manager'))
 
+router.get('/interviewers', async (req, res) => {
+  try {
+    const interviewers = await scheduleService.getInterviewers(req.user.companyId)
+    res.json({ success: true, data: interviewers })
+  } catch (err) {
+    console.error('GET /schedule/interviewers failed:', err)
+    res.status(500).json({ success: false, error: 'Could not load interviewers' })
+  }
+})
+
+router.get('/email-deliveries/:interviewId', async (req, res) => {
+  try {
+    const deliveries = await scheduleService.getEmailDeliveries(parseInt(req.params.interviewId, 10), req.user.companyId)
+    res.json({ success: true, data: deliveries })
+  } catch (err) {
+    console.error('GET /schedule/email-deliveries/:interviewId failed:', err)
+    if (err.message === 'Interview not found') return res.status(404).json({ success: false, error: err.message })
+    res.status(500).json({ success: false, error: 'Could not load email delivery status' })
+  }
+})
+
+router.post('/email-deliveries/:interviewId/resend', async (req, res) => {
+  try {
+    const result = await scheduleService.resendMagicLink(parseInt(req.params.interviewId, 10), req.user.companyId)
+    res.json({ success: result.status === 'sent', data: result, error: result.status === 'failed' ? result.message : undefined })
+  } catch (err) {
+    console.error('POST /schedule/email-deliveries/:interviewId/resend failed:', err)
+    if (['Interview not found', 'Candidate not found'].includes(err.message)) return res.status(404).json({ success: false, error: err.message })
+    res.status(500).json({ success: false, error: 'Could not resend invite. Please contact administration.' })
+  }
+})
+
 // POST /api/schedule
 router.post('/', async (req, res) => {
   try {
@@ -36,6 +68,15 @@ router.post('/', async (req, res) => {
     console.error('POST /schedule failed:', err)
     if (err.message === 'Candidate not found') {
       return res.status(404).json({ success: false, error: 'Candidate not found' })
+    }
+    if ([
+      'interviewerId is required',
+      'scheduledStart is required',
+      'Interviewer not found',
+      'Invalid appointment time',
+      'Interviewer is not available at that time',
+    ].includes(err.message)) {
+      return res.status(400).json({ success: false, error: err.message })
     }
     res.status(500).json({ success: false, error: 'Could not create schedule' })
   }

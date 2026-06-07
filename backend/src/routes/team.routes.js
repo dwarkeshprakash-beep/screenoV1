@@ -59,7 +59,7 @@ router.get('/activity', async (req, res) => {
 // GET /api/team/member/:id
 router.get('/member/:id', async (req, res) => {
   try {
-    const member = await teamService.getMember(parseInt(req.params.id, 10))
+    const member = await teamService.getMember(parseInt(req.params.id, 10), req.user.companyId)
     res.json({ success: true, data: member })
   } catch (err) {
     console.error('GET /team/member/:id failed:', err)
@@ -92,7 +92,7 @@ router.post('/member', async (req, res) => {
 // PATCH /api/team/member/:id
 router.patch('/member/:id', async (req, res) => {
   try {
-    const member = await teamService.updateMember(parseInt(req.params.id, 10), req.body)
+    const member = await teamService.updateMember(parseInt(req.params.id, 10), req.body, req.user.companyId)
     res.json({ success: true, data: member })
   } catch (err) {
     console.error('PATCH /team/member/:id failed:', err)
@@ -103,7 +103,7 @@ router.patch('/member/:id', async (req, res) => {
 // DELETE /api/team/member/:id
 router.delete('/member/:id', async (req, res) => {
   try {
-    await teamService.removeMember(parseInt(req.params.id, 10))
+    await teamService.removeMember(parseInt(req.params.id, 10), req.user.companyId)
     res.json({ success: true, data: null })
   } catch (err) {
     console.error('DELETE /team/member/:id failed:', err)
@@ -114,6 +114,7 @@ router.delete('/member/:id', async (req, res) => {
 // GET /api/team/member/:id/interviews — all interviews for a candidate
 router.get('/member/:id/interviews', async (req, res) => {
   try {
+    await teamService.getMember(parseInt(req.params.id, 10), req.user.companyId)
     const interviews = await interviewRepository.getByCandidate(parseInt(req.params.id, 10))
     res.json({ success: true, data: interviews })
   } catch (err) {
@@ -125,7 +126,7 @@ router.get('/member/:id/interviews', async (req, res) => {
 // GET /api/team/member/:id/notes
 router.get('/member/:id/notes', async (req, res) => {
   try {
-    const notes = await teamService.getNotes(parseInt(req.params.id, 10))
+    const notes = await teamService.getNotes(parseInt(req.params.id, 10), req.user.companyId)
     res.json({ success: true, data: notes })
   } catch (err) {
     console.error('GET /team/member/:id/notes failed:', err)
@@ -138,7 +139,7 @@ router.post('/member/:id/notes', async (req, res) => {
   try {
     const { note } = req.body
     if (!note) return res.status(400).json({ success: false, error: 'Note is required' })
-    const created = await teamService.addNote(parseInt(req.params.id, 10), req.user.id, note)
+    const created = await teamService.addNote(parseInt(req.params.id, 10), req.user.id, req.user.companyId, note)
     res.status(201).json({ success: true, data: created })
   } catch (err) {
     console.error('POST /team/member/:id/notes failed:', err)

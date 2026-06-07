@@ -30,6 +30,13 @@ router.post('/login', async (req, res) => {
     res.json({ success: true, data: { accessToken, user } })
   } catch (err) {
     console.error('POST /auth/login failed:', err)
+    const unavailableCodes = ['ENOTFOUND', 'EAI_AGAIN', 'ECONNRESET', 'ETIMEDOUT']
+    if (unavailableCodes.includes(err.code)) {
+      return res.status(503).json({
+        success: false,
+        error: 'Login service is temporarily unavailable. Please try again.',
+      })
+    }
     // Always return the same message — don't reveal if email exists
     res.status(401).json({ success: false, error: 'Invalid email or password' })
   }
@@ -39,8 +46,8 @@ router.post('/login', async (req, res) => {
 router.post('/refresh', async (req, res) => {
   try {
     const rawRefresh = req.cookies[COOKIE_NAME]
-    const { accessToken } = await authService.refresh(rawRefresh)
-    res.json({ success: true, data: { accessToken } })
+    const { accessToken, user } = await authService.refresh(rawRefresh)
+    res.json({ success: true, data: { accessToken, user } })
   } catch (err) {
     console.error('POST /auth/refresh failed:', err)
     res.clearCookie(COOKIE_NAME)

@@ -6,9 +6,10 @@ import * as api from '../services/api'
 
 /**
  * @param {number} interviewId
+ * @param {number|null} attemptId
  * @param {Function} onViolation - called with event type string
  */
-function useProctoring(interviewId, onViolation) {
+function useProctoring(interviewId, attemptId, onViolation) {
   useEffect(() => {
     if (!interviewId) return
 
@@ -18,6 +19,7 @@ function useProctoring(interviewId, onViolation) {
           type: 'tab_switch',
           severity: 'medium',
           occurred: new Date().toISOString(),
+          attemptId,
         }).catch(err => console.error('logProctoringEvent failed:', err))
 
         if (onViolation) onViolation('tab_switch')
@@ -30,6 +32,7 @@ function useProctoring(interviewId, onViolation) {
           type: 'fullscreen_exit',
           severity: 'low',
           occurred: new Date().toISOString(),
+          attemptId,
         }).catch(err => console.error('logProctoringEvent failed:', err))
       }
     }
@@ -41,7 +44,7 @@ function useProctoring(interviewId, onViolation) {
       document.removeEventListener('visibilitychange', handleVisibilityChange)
       document.removeEventListener('fullscreenchange', handleFullscreenChange)
     }
-  }, [interviewId, onViolation])
+  }, [interviewId, attemptId, onViolation])
 }
 
 export default useProctoring

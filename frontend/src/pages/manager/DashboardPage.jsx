@@ -7,7 +7,6 @@ import * as api from '../../services/api'
 
 const cardStyle = { background: '#FFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 20, boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }
 const eyebrowStyle = { fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#5B4FE9' }
-const thStyle = { textAlign: 'left', fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#94A3B8', padding: '0 0 10px', borderBottom: '1px solid #F1F5F9' }
 
 function DashboardPage() {
   const navigate = useNavigate()
@@ -43,8 +42,6 @@ function DashboardPage() {
     { icon: CheckSquare, value: stats?.candidatesEvaluated ?? '—',   label: 'Interviews Completed',  link: 'This quarter',    to: null },
     { icon: CalendarPlus,value: stats?.pendingScorecard ?? '—',      label: 'Pending Scorecards',    link: 'Review now',      to: '/manager/reports' },
   ]
-
-  const openings = stats?.openings || []
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -82,38 +79,22 @@ function DashboardPage() {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 16 }}>
         <div style={cardStyle}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <div style={{ fontSize: 15, fontWeight: 700, color: '#0F172A' }}>Team Activity</div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: '#0F172A' }}>Assessment Flow</div>
             <a onClick={() => navigate('/manager/team')} style={{ fontSize: 12, color: '#5B4FE9', fontWeight: 500, cursor: 'pointer' }}>View Team →</a>
           </div>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr>
-                {['ROLE', 'CANDIDATES', 'STATUS'].map(h => (
-                  <th key={h} style={thStyle}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {openings.length === 0 ? (
-                <tr>
-                  <td colSpan={3} style={{ padding: '20px 0', color: '#94A3B8', fontSize: 13, textAlign: 'center' }}>No active openings.</td>
-                </tr>
-              ) : openings.map((j, i) => (
-                <tr key={j.id || i} style={{ cursor: 'pointer' }}>
-                  <td style={{ padding: '14px 0', borderBottom: '1px solid #F9FAFB' }}>
-                    <div style={{ fontSize: 14, fontWeight: 500, color: '#0F172A' }}>{j.title}</div>
-                    <div style={{ fontSize: 12, color: '#94A3B8', marginTop: 2 }}>{j.loc || j.location}</div>
-                  </td>
-                  <td style={{ padding: '14px 0', borderBottom: '1px solid #F9FAFB' }}>
-                    <span style={{ fontSize: 14, fontWeight: 600, color: '#5B4FE9' }}>{j.candidates ?? 0} active</span>
-                  </td>
-                  <td style={{ padding: '14px 0', borderBottom: '1px solid #F9FAFB' }}>
-                    <span style={{ fontSize: 12, fontWeight: 600, color: '#059669' }}>{j.status || 'Active'}</span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12 }}>
+            {[
+              ['1', 'Add team members', 'Create or import internal candidates.'],
+              ['2', 'Schedule assessments', 'Send AI, exam, or human interview invites.'],
+              ['3', 'Review reports', 'Use completed attempts and scorecards for decisions.'],
+            ].map(([num, title, text]) => (
+              <div key={num} style={{ border: '1px solid #F1F5F9', borderRadius: 10, padding: 14, background: '#F8FAFC' }}>
+                <div style={{ width: 24, height: 24, borderRadius: 9999, background: '#EFEDFD', color: '#5B4FE9', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700 }}>{num}</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#0F172A', marginTop: 10 }}>{title}</div>
+                <div style={{ fontSize: 12, color: '#6B7280', lineHeight: 1.45, marginTop: 4 }}>{text}</div>
+              </div>
+            ))}
+          </div>
         </div>
 
         <div style={cardStyle}>

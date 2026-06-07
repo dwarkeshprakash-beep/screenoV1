@@ -87,4 +87,17 @@ async function getNotInTeam(companyId) {
   )
 }
 
-module.exports = { getByEmail, getById, getNotInTeam, updateProfile, updatePassword }
+async function getByRole(companyId, role) {
+  return db.query(
+    `SELECT id, first_name, last_name, email, role
+     FROM users
+     WHERE company_id = @companyId
+       AND role = @role
+       AND deleted IS NULL
+       AND status = 'active'
+     ORDER BY first_name`,
+    { companyId, role }
+  )
+}
+
+module.exports = { getByEmail, getById, getNotInTeam, getByRole, updateProfile, updatePassword }

@@ -22,6 +22,7 @@ Every markdown file in this project. One place to find anything.
 | See the database schema | `docs/database-schema.md` |
 | See the full folder tree | `docs/folder-structure.md` |
 | Understand product requirements | `docs/PRD.md` |
+| Review known bugs and decisions | `docs/AUDIT-BACKLOG.md` |
 | Build the frontend (detailed) | `docs/frontend-prompt.md` |
 | Build the backend (detailed) | `docs/backend-prompt.md` |
 | Understand tech choices | `docs/tech-stack.md` |
@@ -71,6 +72,7 @@ vibe-coding.md          AI-assisted development philosophy and checklist
 ### docs/ — Reference documentation
 ```
 INDEX.md                THIS FILE — links to everything
+AUDIT-BACKLOG.md        Prioritized bugs, risks, fixes, alternatives, and product opportunities
 PRD.md                  Product requirements — what we're building and why
 frontend-prompt.md      Detailed frontend build guide — components, hooks, patterns
 backend-prompt.md       Detailed backend build guide — routes, services, repos, LLM

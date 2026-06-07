@@ -10,14 +10,25 @@ const db = require('../db/connection')
  * @returns {Promise<Array>}
  */
 async function getByCompany(companyId, filter = 'all') {
+  const latestAssessmentSql = `NULLIF(GREATEST(
+    COALESCE((
+      SELECT MAX(a.ended)
+      FROM interviews i
+      JOIN attempts a ON a.interview_id = i.id
+      WHERE i.candidate_id = c.id AND a.status = 'completed'
+    ), 'epoch'::timestamptz),
+    COALESCE((
+      SELECT MAX(r.created)
+      FROM reports r
+      WHERE r.candidate_id = c.id AND r.status = 'ready'
+    ), 'epoch'::timestamptz)
+  ), 'epoch'::timestamptz)`
+
   let whereExtra = ''
   if (filter === 'never') {
-    whereExtra = `AND NOT EXISTS (SELECT 1 FROM interviews i WHERE i.candidate_id = c.id)`
+    whereExtra = `AND ${latestAssessmentSql} IS NULL`
   } else if (filter === 'overdue') {
-    whereExtra = `AND EXISTS (
-      SELECT 1 FROM interviews i WHERE i.candidate_id = c.id
-        AND i.created < NOW() - INTERVAL '90 days'
-    )`
+    whereExtra = `AND ${latestAssessmentSql} < NOW() - INTERVAL '90 days'`
   }
 
   return db.query(
@@ -32,7 +43,7 @@ async function getByCompany(companyId, filter = 'all') {
        c.resume_updated,
        c.status,
        c.created,
-       (SELECT MAX(i2.created) FROM interviews i2 WHERE i2.candidate_id = c.id) AS last_assessed
+       ${latestAssessmentSql} AS last_assessed
      FROM candidates c
      WHERE c.company_id = @companyId
        AND c.deleted IS NULL
@@ -51,6 +62,15 @@ async function getById(id) {
   const rows = await db.query(
     `SELECT * FROM candidates WHERE id = @id AND deleted IS NULL`,
     { id }
+  )
+  return rows[0] || null
+}
+
+async function getByIdForCompany(id, companyId) {
+  const rows = await db.query(
+    `SELECT * FROM candidates
+     WHERE id = @id AND company_id = @companyId AND deleted IS NULL`,
+    { id, companyId }
   )
   return rows[0] || null
 }
@@ -95,7 +115,7 @@ async function create(data) {
  * @param {Object} data
  * @returns {Promise<Object>}
  */
-async function update(id, data) {
+async function update(id, data, companyId = null) {
   const rows = await db.query(
     `UPDATE candidates
      SET
@@ -106,10 +126,13 @@ async function update(id, data) {
        resume_url   = COALESCE(@resume_url, resume_url),
        resume_text  = COALESCE(@resume_text, resume_text),
        resume_updated = CASE WHEN @resume_url IS NOT NULL THEN NOW() ELSE resume_updated END
-     WHERE id = @id AND deleted IS NULL
+     WHERE id = @id
+       AND (@company_id IS NULL OR company_id = @company_id)
+       AND deleted IS NULL
      RETURNING *`,
     {
       id,
+      company_id: companyId,
       first_name: data.firstName || null,
       last_name: data.lastName || null,
       email: data.email || null,
@@ -125,10 +148,11 @@ async function update(id, data) {
  * Soft-delete a candidate.
  * @param {number} id
  */
-async function softDelete(id) {
+async function softDelete(id, companyId) {
   await db.query(
-    `UPDATE candidates SET deleted = NOW() WHERE id = @id`,
-    { id }
+    `UPDATE candidates SET deleted = NOW()
+     WHERE id = @id AND company_id = @companyId`,
+    { id, companyId }
   )
 }
 
@@ -180,4 +204,4 @@ async function getByEmail(email, companyId) {
   return rows[0] || null
 }
 
-module.exports = { getByCompany, getById, getByEmail, create, update, softDelete, bulkCreate }
+module.exports = { getByCompany, getById, getByIdForCompany, getByEmail, create, update, softDelete, bulkCreate }

@@ -82,4 +82,25 @@ async function getByInterview(interviewId, attemptId = null) {
   )
 }
 
-module.exports = { createMany, create, getByInterview }
+async function getByIdForInterview(id, interviewId, attemptId) {
+  const rows = await db.query(
+    `SELECT * FROM questions
+     WHERE id = @id
+       AND interview_id = @interviewId
+       AND (attempt_id = @attemptId OR attempt_id IS NULL)`,
+    { id, interviewId, attemptId }
+  )
+  return rows[0] || null
+}
+
+async function getCandidateExamQuestions(interviewId) {
+  return db.query(
+    `SELECT id, text, question_type, options, order_num, phase
+     FROM questions
+     WHERE interview_id = @interviewId
+     ORDER BY order_num`,
+    { interviewId }
+  )
+}
+
+module.exports = { createMany, create, getByInterview, getByIdForInterview, getCandidateExamQuestions }

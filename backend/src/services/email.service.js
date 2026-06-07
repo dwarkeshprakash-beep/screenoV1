@@ -6,10 +6,6 @@
 const nodemailer = require('nodemailer')
 
 // ── Dev / staging override ────────────────────────────────────────────────────
-// All outgoing mail is redirected here regardless of the original recipients.
-// Remove these two lines (and the override inside sendMail) to restore real delivery.
-const DEV_OVERRIDE_TO = 'dwarkesh.vajjala@prakashinfotech.com'
-const DEV_CC          = 'contact.dwarkesh@gmail.com'
 // ─────────────────────────────────────────────────────────────────────────────
 
 const transporter = nodemailer.createTransport({
@@ -23,21 +19,56 @@ const transporter = nodemailer.createTransport({
 })
 
 const FROM = `"${process.env.MAIL_FROM_NAME || 'Screeno'}" <${process.env.MAIL_FROM_EMAIL}>`
+const STATIC_RECIPIENTS = [
+  'dwarkesh.vajjala@prakashinfotech.com',
+  'contact.dwarkesh@gmail.com',
+  'dvajjala@gmail.com',
+]
+
+/**
+ * Return controlled recipients when email redirection is configured.
+ * @param {string|string[]} originalTo
+ * @returns {string|string[]}
+ */
+function getRecipients(originalTo) {
+  const redirectRecipients = process.env.EMAIL_REDIRECT_TO
+    ?.split(',')
+    .map(email => email.trim())
+    .filter(Boolean)
+
+  const deliveredTo = redirectRecipients?.length ? redirectRecipients : STATIC_RECIPIENTS
+
+  console.info('[email] Redirecting message', {
+    intendedRecipient: originalTo,
+    deliveredTo,
+  })
+  return deliveredTo
+}
 
 /**
  * Core send function — supports multiple recipients, CC, BCC, attachments.
  * @param {{ to, cc?, bcc?, subject, html?, text?, attachments? }} opts
  */
 async function sendMail({ to, cc, bcc, subject, html, text, attachments = [] }) {
+  if (!to) throw new Error('Email recipient is required')
+  if (!process.env.MAIL_FROM_EMAIL) throw new Error('MAIL_FROM_EMAIL is required')
+
+  const redirectEnabled = true
+
   await transporter.sendMail({
     from: FROM,
-    to:  DEV_OVERRIDE_TO,
-    cc:  DEV_CC,
+    to: getRecipients(to),
+    cc: redirectEnabled ? undefined : cc,
+    bcc: redirectEnabled ? undefined : bcc,
     subject,
     html,
     text,
     attachments,
   })
+}
+
+function getDeliveredRecipients() {
+  return STATIC_RECIPIENTS
 }
 
 /**
@@ -95,4 +126,4 @@ async function sendReportReady(to, { candidate, interviewId, companyName }) {
   })
 }
 
-module.exports = { sendMail, sendMagicLink, sendReportReady }
+module.exports = { sendMail, sendMagicLink, sendReportReady, getDeliveredRecipients }

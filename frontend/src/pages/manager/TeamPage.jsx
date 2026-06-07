@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Users, CheckCircle2, Clock, AlertTriangle, UserPlus, Upload, CalendarPlus, GitCompare, Mail } from 'lucide-react'
 import Spinner from '../../components/shared/Spinner'
 import ErrorMessage from '../../components/shared/ErrorMessage'
@@ -74,6 +74,7 @@ function AssessBadge({ lastAssessed }) {
 
 function TeamPage() {
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [members, setMembers]           = useState([])
   const [loading, setLoading]           = useState(true)
   const [error, setError]               = useState(null)
@@ -124,8 +125,15 @@ function TeamPage() {
     setScheduleOpen(true)
   }
 
+  const searchTerm = (searchParams.get('search') || '').trim().toLowerCase()
+  const searchedMembers = searchTerm
+    ? members.filter(m => {
+      const haystack = `${m.first_name || ''} ${m.last_name || ''} ${m.email || ''} ${m.type || ''}`.toLowerCase()
+      return haystack.includes(searchTerm)
+    })
+    : members
   const overdueCount = members.filter(m => isOverdue(m)).length
-  const rows = tab === 'all' ? members : members.filter(m => isOverdue(m))
+  const rows = tab === 'all' ? searchedMembers : searchedMembers.filter(m => isOverdue(m))
   const allSel = rows.length > 0 && selected.size === rows.length
 
   const cardStyle = { background: '#FFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 20, boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }
@@ -186,7 +194,7 @@ function TeamPage() {
       ) : error ? (
         <ErrorMessage message={error} />
       ) : rows.length === 0 ? (
-        <EmptyState message={tab === 'all' ? 'No team members yet. Add your first member.' : 'No members need attention.'} />
+        <EmptyState message={searchTerm ? 'No team members match that search.' : tab === 'all' ? 'No team members yet. Add your first member.' : 'No members need attention.'} />
       ) : (
         <div style={{ background: '#FFF', border: '1px solid #E2E8F0', borderRadius: 12, overflow: 'hidden', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>

@@ -95,8 +95,23 @@ async function refresh(rawRefreshToken) {
   const user = await userRepository.getById(stored.user_id)
   if (!user) throw new Error('User not found')
 
-  const accessToken = signAccessToken(user)
-  return { accessToken }
+  let candidateId = null
+  if (user.role === 'candidate') {
+    const candidate = await candidateRepository.getByEmail(user.email, user.company_id)
+    candidateId = candidate ? candidate.id : null
+  }
+
+  const accessToken = signAccessToken(user, candidateId)
+  return {
+    accessToken,
+    user: {
+      id: user.id,
+      role: user.role,
+      companyId: user.company_id,
+      name: `${user.first_name} ${user.last_name}`,
+      email: user.email,
+    },
+  }
 }
 
 /**

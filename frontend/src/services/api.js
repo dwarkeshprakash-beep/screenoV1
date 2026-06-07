@@ -3,6 +3,66 @@
 // Handles auth header, 401 redirect, and consistent error throwing.
 
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000'
+let refreshPromise = null
+
+async function runFetch(endpoint, options, token) {
+  const { skipAuthRedirect, ...fetchOptions } = options
+  return fetch(`${BASE_URL}${endpoint}`, {
+    ...fetchOptions,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+      ...fetchOptions.headers,
+    },
+    credentials: 'include',
+  })
+}
+
+async function refreshAccessToken() {
+  if (!refreshPromise) {
+    refreshPromise = fetch(`${BASE_URL}/api/auth/refresh`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+    })
+      .then(async response => {
+        if (!response.ok) throw new Error('Session refresh failed')
+        const body = await response.json()
+        if (!body?.data?.accessToken) throw new Error('Session refresh failed')
+        localStorage.setItem('accessToken', body.data.accessToken)
+        if (body.data.user) localStorage.setItem('user', JSON.stringify(body.data.user))
+        return body.data.accessToken
+      })
+      .finally(() => { refreshPromise = null })
+  }
+  return refreshPromise
+}
+
+async function authFetch(endpoint, options = {}) {
+  const token = localStorage.getItem('accessToken')
+  let response = await fetch(`${BASE_URL}${endpoint}`, {
+    ...options,
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...options.headers,
+    },
+    credentials: 'include',
+  })
+
+  if (response.status === 401) {
+    const refreshedToken = await refreshAccessToken()
+    response = await fetch(`${BASE_URL}${endpoint}`, {
+      ...options,
+      headers: {
+        Authorization: `Bearer ${refreshedToken}`,
+        ...options.headers,
+      },
+      credentials: 'include',
+    })
+  }
+
+  return response
+}
 
 /**
  * Base request helper — attaches JWT, sends cookies, handles 401.
@@ -14,18 +74,23 @@ async function request(endpoint, options = {}) {
   const token = localStorage.getItem('accessToken')
   const { skipAuthRedirect, ...fetchOptions } = options
 
-  const response = await fetch(`${BASE_URL}${endpoint}`, {
-    ...fetchOptions,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-      ...fetchOptions.headers,
-    },
-    credentials: 'include',
-  })
+  let response = await runFetch(endpoint, fetchOptions, token)
 
   // 401 on auth endpoints (login) = wrong credentials — let the caller handle it
   // 401 on any other endpoint = session expired — redirect to login
+  const isAuthEndpoint = endpoint.startsWith('/api/auth/')
+  if (response.status === 401 && !skipAuthRedirect && !isAuthEndpoint) {
+    try {
+      const refreshedToken = await refreshAccessToken()
+      response = await runFetch(endpoint, fetchOptions, refreshedToken)
+    } catch {
+      localStorage.removeItem('accessToken')
+      localStorage.removeItem('user')
+      window.location.href = '/login'
+      return
+    }
+  }
+
   if (response.status === 401 && !skipAuthRedirect) {
     localStorage.removeItem('accessToken')
     localStorage.removeItem('user')
@@ -75,6 +140,7 @@ export const getCalendarEvents = (week) =>
   request(`/api/schedule/calendar${week ? `?week=${week}` : ''}`)
 
 export const getAvailableSlots = (token) => request(`/api/schedule/slots/${token}`)
+export const getInterviewers = () => request('/api/schedule/interviewers')
 
 // ── TEMPLATES ────────────────────────────────────────────────
 export const getTemplates = () => request('/api/templates')
@@ -88,8 +154,8 @@ export const getCandidateReport = (id) => request(`/api/reports/candidate/${id}`
 
 // ── INTERVIEWS ────────────────────────────────────────────────
 export const startInterview = (id) => request(`/api/interviews/${id}/start`, { method: 'POST' })
-export const completeInterview = (id, attemptId) =>
-  request(`/api/interviews/${id}/complete`, { method: 'POST', body: JSON.stringify({ attemptId }) })
+export const completeInterview = (id, attemptId, status = 'completed') =>
+  request(`/api/interviews/${id}/complete`, { method: 'POST', body: JSON.stringify({ attemptId, status }) })
 export const logProctoringEvent = (id, data) =>
   request(`/api/interviews/${id}/proctoring`, { method: 'POST', body: JSON.stringify(data) })
 
@@ -99,11 +165,8 @@ export const logProctoringEvent = (id, data) =>
  * @param {FormData} formData - contains audio blob + metadata
  */
 export const saveAnswer = (id, formData) => {
-  const token = localStorage.getItem('accessToken')
-  return fetch(`${BASE_URL}/api/interviews/${id}/answer`, {
+  return authFetch(`/api/interviews/${id}/answer`, {
     method: 'POST',
-    headers: token ? { 'Authorization': `Bearer ${token}` } : {},
-    credentials: 'include',
     body: formData,
   }).then(async r => {
     if (!r.ok) {
@@ -114,9 +177,13 @@ export const saveAnswer = (id, formData) => {
   })
 }
 
+export const saveTextAnswer = (id, data) =>
+  request(`/api/interviews/${id}/answer`, { method: 'POST', body: JSON.stringify(data) })
+
 // ── CANDIDATE ─────────────────────────────────────────────────
 export const getCandidateInterviews = () => request('/api/candidate/interviews')
 export const getCandidateOwnReport = () => request('/api/candidate/report', { skipAuthRedirect: true })
+export const getCandidateLiveKitToken = () => request('/api/candidate/livekit-token', { method: 'POST' })
 
 // ── INTERVIEWER ───────────────────────────────────────────────
 export const getInterviewerSchedule = (date) =>
@@ -130,6 +197,12 @@ export const submitScorecard = (interviewId, data) =>
 export const getScorecardData = (interviewId) =>
   request(`/api/interviewer/scorecard-data/${interviewId}`)
 
+export const getLiveRoom = (interviewId) => request(`/api/interviewer/live-room/${interviewId}`)
+export const saveLiveRoomNotes = (interviewId, data) =>
+  request(`/api/interviewer/live-room/${interviewId}/notes`, { method: 'PATCH', body: JSON.stringify(data) })
+export const endLiveRoom = (interviewId) =>
+  request(`/api/interviewer/live-room/${interviewId}/end`, { method: 'POST' })
+
 export const getInterviewTranscript = (interviewId) =>
   request(`/api/interviews/${interviewId}/transcript`)
 
@@ -142,7 +215,7 @@ export const submitExam = (token, answers) =>
 export const getLiveKitToken = (roomName, participantName) =>
   request('/api/interviewer/livekit-token', {
     method: 'POST',
-    body: JSON.stringify({ roomName, participantName }),
+    body: JSON.stringify({ roomName, participantName, interviewId: roomName.replace('interview-', '') }),
   })
 
 // ── UPLOAD ────────────────────────────────────────────────────
@@ -154,14 +227,11 @@ export const getLiveKitToken = (roomName, participantName) =>
  * @returns {Promise<{ success: boolean, data: { resumeUrl: string } }>}
  */
 export const uploadResume = (candidateId, file) => {
-  const token = localStorage.getItem('accessToken')
   const formData = new FormData()
   formData.append('resume', file)
   formData.append('candidateId', String(candidateId))
-  return fetch(`${BASE_URL}/api/upload/resume`, {
+  return authFetch('/api/upload/resume', {
     method: 'POST',
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
-    credentials: 'include',
     body: formData,
   }).then(async r => {
     if (!r.ok) {

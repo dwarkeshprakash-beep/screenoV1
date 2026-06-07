@@ -13,8 +13,11 @@ router.use(authMiddleware, requireRole('manager'))
 // GET /api/reports/team
 router.get('/team', async (req, res) => {
   try {
-    const reports = await reportRepository.getTeamReports(req.user.companyId)
-    res.json({ success: true, data: reports })
+    const [reports, stats] = await Promise.all([
+      reportRepository.getTeamReports(req.user.companyId),
+      reportRepository.getTeamReportStats(req.user.companyId),
+    ])
+    res.json({ success: true, data: { reports, stats } })
   } catch (err) {
     console.error('GET /reports/team failed:', err)
     res.status(500).json({ success: false, error: 'Could not load team reports' })
@@ -24,7 +27,7 @@ router.get('/team', async (req, res) => {
 // GET /api/reports/candidate/:id
 router.get('/candidate/:id', async (req, res) => {
   try {
-    const report = await reportRepository.getLatestByCandidate(parseInt(req.params.id, 10))
+    const report = await reportRepository.getLatestByCandidate(parseInt(req.params.id, 10), req.user.companyId)
     if (!report) {
       return res.json({ success: true, data: null })
     }

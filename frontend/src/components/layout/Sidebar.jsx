@@ -30,9 +30,9 @@ const IV_NAV = [
     section: 'INTERVIEWS',
     items: [
       { to: '/interviewer/dashboard',   icon: LayoutDashboard, label: 'My Dashboard' },
-      { to: '#',                        icon: BookOpen,        label: 'Interview Prep' },
-      { to: '#',                        icon: Video,           label: 'Live Room' },
-      { to: '#',                        icon: CheckSquare,     label: 'Scorecard' },
+      { to: '/interviewer/dashboard',   icon: BookOpen,        label: 'Interview Prep' },
+      { to: '/interviewer/dashboard',   icon: Video,           label: 'Live Room' },
+      { to: '/interviewer/scorecard',   icon: CheckSquare,     label: 'Scorecard' },
     ],
   },
 ]
