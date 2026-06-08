@@ -118,8 +118,10 @@ async function saveAnswer({
   audioBuffer,
   mimeType,
   mode,
+  transcriptionMode,
   developmentFallback,
   manualText,
+  clientTranscript,
 }) {
   const interview = await interviewRepository.getByIdForCandidate(interviewId, candidateId)
   if (!interview) throw new Error('Unauthorized')
@@ -127,6 +129,8 @@ async function saveAnswer({
   if (!attempt || attempt.status !== 'in_progress') throw new Error('Invalid attempt')
   const question = await questionRepository.getByIdForInterview(questionId, interviewId, attemptId)
   if (!question) throw new Error('Invalid question')
+
+  const fallbackText = typeof clientTranscript === 'string' ? clientTranscript.trim() : ''
 
   let answerText
   if (manualText && manualText.trim()) {
@@ -138,14 +142,19 @@ async function saveAnswer({
       answerText = await transcriptionService.transcribeGroq(audioBuffer, mimeType)
     } catch (err) {
       console.error('Transcription failed:', err)
-      answerText = '[Transcription failed — audio could not be processed]'
+      answerText = fallbackText || '[Transcription failed — audio could not be processed]'
     }
   }
   // Audio buffer out of scope here — not persisted
 
+  if ((!answerText || answerText.startsWith('[Local transcription not available')) && fallbackText) {
+    answerText = fallbackText
+  }
+
   if (answerText.startsWith('[Transcription failed')) {
     throw new Error('Transcription failed')
   }
+
   await answerRepository.create({ interviewId, attemptId, questionId, answerText })
 
   if (mode === 'adaptive') {

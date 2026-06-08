@@ -1,7 +1,5 @@
 // backend/src/services/email.service.js
 // Transactional email via Brevo SMTP + nodemailer.
-// Public API is unchanged: sendMagicLink(to, params) and sendReportReady(to, params).
-// For multi-recipient / CC / attachment use: sendMail({ to, cc, bcc, subject, html, text, attachments })
 
 const nodemailer = require('nodemailer')
 
@@ -46,7 +44,7 @@ function getRecipients(originalTo) {
 }
 
 /**
- * Core send function — supports multiple recipients, CC, BCC, attachments.
+ * Core send function. Supports multiple recipients, CC, BCC, and attachments.
  * @param {{ to, cc?, bcc?, subject, html?, text?, attachments? }} opts
  */
 async function sendMail({ to, cc, bcc, subject, html, text, attachments = [] }) {
@@ -81,7 +79,17 @@ async function sendMagicLink(to, { candidateName, interviewToken, companyName, j
 
   await sendMail({
     to,
-    subject: `Your interview link — ${jobTitle || 'Assessment'} at ${companyName}`,
+    subject: `Your interview link - ${jobTitle || 'Assessment'} at ${companyName}`,
+    text: [
+      `Hi ${candidateName},`,
+      '',
+      `You've been invited to complete an interview for ${jobTitle || 'an assessment'} at ${companyName}.`,
+      '',
+      `Interview link: ${link}`,
+      '',
+      `This link is valid for ${windowDays || 7} days.`,
+      'This is an automated email from Praskesh Infotech. Please do not reply to this email.',
+    ].join('\n'),
     html: `
       <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px">
         <h2 style="color:#0F172A">Hi ${candidateName},</h2>
@@ -90,6 +98,10 @@ async function sendMagicLink(to, { candidateName, interviewToken, companyName, j
           <a href="${link}" style="background:#5B4FE9;color:#fff;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:600">
             Start Interview &rarr;
           </a>
+        </p>
+        <p style="color:#475569;font-size:14px;line-height:1.6">
+          If the button does not work, copy and paste this link:<br />
+          <a href="${link}" style="color:#5B4FE9;word-break:break-all">${link}</a>
         </p>
         <p style="color:#6B7280;font-size:14px">This link is valid for ${windowDays || 7} days. You can return to it at any time.</p>
         <hr style="border:none;border-top:1px solid #E2E8F0;margin:24px 0" />
@@ -109,7 +121,7 @@ async function sendReportReady(to, { candidate, interviewId, companyName }) {
 
   await sendMail({
     to,
-    subject: `Report ready — ${candidate.first_name} ${candidate.last_name}`,
+    subject: `Report ready - ${candidate.first_name} ${candidate.last_name}`,
     html: `
       <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px">
         <h2 style="color:#0F172A">Interview report ready</h2>
@@ -120,7 +132,7 @@ async function sendReportReady(to, { candidate, interviewId, companyName }) {
           </a>
         </p>
         <p style="color:#94A3B8;font-size:12px">This is an automated email from Praskesh Infotech. Please do not reply to this email.</p>
-        <p style="color:#94A3B8;font-size:12px">Screeno &middot; ${companyName}</p>
+        <p style="color:#94A3B8;font-size:12px">Screeno &middot; ${companyName || ''}</p>
       </div>
     `,
   })

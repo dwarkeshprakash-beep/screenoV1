@@ -15,6 +15,7 @@ function useInterview(interviewId, mode, transcriptionMode = 'api') {
   const [questions, setQuestions] = useState([])
   const [currentIndex, setCurrentIndex] = useState(0)
   const [transcript, setTranscript] = useState([])
+  const [liveTranscript, setLiveTranscript] = useState('')
   const [attemptId, setAttemptId] = useState(null)
   const [interviewMode, setInterviewMode] = useState(mode || 'simple')
   const [error, setError] = useState(null)
@@ -77,6 +78,79 @@ function useInterview(interviewId, mode, transcriptionMode = 'api') {
       },
     }
     setPhase('recording')
+  }
+
+  const speechRecognitionRef = useRef(null)
+  const speechRecognitionActiveRef = useRef(false)
+  const liveTranscriptRef = useRef('')
+  const liveFinalTranscriptRef = useRef('')
+
+  function setLiveTranscriptValue(value) {
+    liveTranscriptRef.current = value
+    setLiveTranscript(value)
+  }
+
+  function stopLiveRecognition() {
+    speechRecognitionActiveRef.current = false
+    if (!speechRecognitionRef.current) return
+
+    try {
+      speechRecognitionRef.current.onend = null
+      speechRecognitionRef.current.stop()
+    } catch {
+      // Browser speech recognition may already be stopped.
+    }
+    speechRecognitionRef.current = null
+  }
+
+  function startLiveRecognition() {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
+    if (!SpeechRecognition) return
+
+    stopLiveRecognition()
+    liveFinalTranscriptRef.current = ''
+    setLiveTranscriptValue('')
+
+    const recognition = new SpeechRecognition()
+    recognition.continuous = true
+    recognition.interimResults = true
+    recognition.lang = 'en-IN'
+
+    recognition.onresult = (event) => {
+      let interim = ''
+      let finalText = liveFinalTranscriptRef.current
+
+      for (let i = event.resultIndex; i < event.results.length; i += 1) {
+        const text = event.results[i][0]?.transcript || ''
+        if (event.results[i].isFinal) finalText += `${text} `
+        else interim += text
+      }
+
+      liveFinalTranscriptRef.current = finalText
+      setLiveTranscriptValue(`${finalText}${interim}`.trim())
+    }
+
+    recognition.onerror = (event) => {
+      console.warn('Live speech recognition failed:', event.error || event)
+    }
+
+    recognition.onend = () => {
+      if (!speechRecognitionActiveRef.current) return
+      try {
+        recognition.start()
+      } catch {
+        // Some browsers throw if restart happens too quickly.
+      }
+    }
+
+    speechRecognitionActiveRef.current = true
+    speechRecognitionRef.current = recognition
+
+    try {
+      recognition.start()
+    } catch (err) {
+      console.warn('Live speech recognition could not start:', err)
+    }
   }
 
   /**
@@ -164,6 +238,8 @@ function useInterview(interviewId, mode, transcriptionMode = 'api') {
    * Start capturing audio from the microphone.
    */
   async function startRecording() {
+    if (recorderRef.current && recorderRef.current.state === 'recording') return
+
     setError(null)
     chunksRef.current = []
     window.clearTimeout(speechFallbackRef.current)
@@ -186,8 +262,10 @@ function useInterview(interviewId, mode, transcriptionMode = 'api') {
       ])
       window.clearTimeout(timeoutId)
       beginRecording(stream)
+      startLiveRecognition()
     } catch (err) {
       console.error('startRecording failed:', err)
+      stopLiveRecognition()
       if (import.meta.env.DEV && localStorage.getItem('screenoDeviceBypass') === 'true') {
         beginDevelopmentRecording()
         setError('Microphone unavailable. Local test mode is using simulated audio.')
@@ -210,6 +288,8 @@ function useInterview(interviewId, mode, transcriptionMode = 'api') {
     }
 
     setPhase('processing')
+    stopLiveRecognition()
+    const clientTranscript = liveTranscriptRef.current.trim()
 
     return new Promise((resolve) => {
       recorder.onstop = async () => {
@@ -235,6 +315,7 @@ function useInterview(interviewId, mode, transcriptionMode = 'api') {
           formData.append('transcriptionMode', transcriptionMode)
           formData.append('attemptId', String(attemptId))
           formData.append('developmentFallback', String(simulatedRecordingRef.current))
+          if (clientTranscript) formData.append('clientTranscript', clientTranscript)
 
           const res = await api.saveAnswer(interviewId, formData)
           const result = res.data
@@ -277,6 +358,8 @@ function useInterview(interviewId, mode, transcriptionMode = 'api') {
           setError(err.message || 'Could not save your answer. Please try again.')
           setPhase('listening')
           resolve(null)
+        } finally {
+          setLiveTranscriptValue('')
         }
       }
 
@@ -371,6 +454,7 @@ function useInterview(interviewId, mode, transcriptionMode = 'api') {
     phase,
     currentQuestion: questions[currentIndex] || null,
     transcript,
+    liveTranscript,
     totalQuestions: questions.length,
     currentIndex,
     interviewMode,

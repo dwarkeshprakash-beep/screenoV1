@@ -1,0 +1,5 @@
+[shell_environment_policy]
+inherit = "core"
+
+[shell_environment_policy.set]
+PATH = 'C:\Users\dwarkesh.vajjala\AppData\Local\Programs\Git\cmd;C:\Users\dwarkesh.vajjala\AppData\Local\Programs\Git\bin;$PATH'

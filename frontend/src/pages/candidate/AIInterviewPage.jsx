@@ -29,8 +29,8 @@ function AIInterviewPage() {
   const { interviewId, mode, transcriptionMode } = session
 
   const {
-    phase, currentQuestion, transcript, currentIndex,
-    error: interviewError, startInterview, startRecording, stopRecording, pause, resume, interviewMode,
+    phase, currentQuestion, transcript, liveTranscript, totalQuestions, currentIndex,
+    error: interviewError, startInterview, startRecording, stopRecording, repeatQuestion, pause, resume, interviewMode,
     finishInterview, submitManualAnswer, manualRetry,
     attemptId,
   } = useInterview(interviewId, mode, transcriptionMode)
@@ -77,9 +77,16 @@ function AIInterviewPage() {
 
   useEffect(() => {
     if (phase !== 'recording' || violation) return
+    setRecEl(0)
     const t = setInterval(() => setRecEl(e => e + 1), 1000)
     return () => clearInterval(t)
   }, [phase, violation])
+
+  useEffect(() => {
+    if (phase !== 'listening' || violation || muted) return
+    const t = setTimeout(() => startRecording(), 600)
+    return () => clearTimeout(t)
+  }, [phase, violation, muted])
 
   useEffect(() => { if (txRef.current) txRef.current.scrollTop = txRef.current.scrollHeight }, [transcript, phase])
 
@@ -99,8 +106,9 @@ function AIInterviewPage() {
     ? `Adaptive · Question ${questionNumber}`
     : `Question ${questionNumber} of 10`
 
-  const aiState = isRecording ? 'listening' : isProcessing ? 'thinking' : isListening ? 'ready' : 'speaking'
+  const aiState = isRecording ? 'listening' : isListening ? 'ready' : isProcessing ? 'thinking' : 'speaking'
   const orbConfig = {
+    ready:     { bg: 'radial-gradient(circle at 35% 30%,#D1FAE5,#059669 75%)', shadow: '0 12px 28px rgba(5,150,105,0.24)', label: 'Ready...', Icon: Mic, labelColor: '#059669' },
     speaking:  { bg: 'linear-gradient(135deg,#DEDAFB,#5B4FE9 70%,#4A3FCE)', shadow: '0 12px 36px rgba(91,79,233,0.35)', label: 'Asking…',     Icon: Volume2,  labelColor: '#5B4FE9' },
     thinking:  { bg: 'radial-gradient(circle at 35% 30%,#DEDAFB,#5B4FE9 90%)', shadow: '0 12px 28px rgba(91,79,233,0.18)', label: 'Processing…', Icon: Loader2, labelColor: '#94A3B8' },
     listening: { bg: 'radial-gradient(circle at 35% 30%,#D1FAE5,#059669 75%)', shadow: '0 12px 28px rgba(5,150,105,0.32)', label: 'Listening…',  Icon: Ear,     labelColor: '#059669' },
@@ -108,6 +116,19 @@ function AIInterviewPage() {
   }[aiState]
 
   const candidateName = session.candidateName || 'You'
+
+  async function handleMicToggle() {
+    if (isRecording) {
+      await stopRecording()
+      return
+    }
+    if (isListening) {
+      setMuted(false)
+      await startRecording()
+      return
+    }
+    setMuted(m => !m)
+  }
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 440px', minHeight: 'calc(100vh - 60px)', position: 'relative' }}>
@@ -133,8 +154,8 @@ function AIInterviewPage() {
         <div style={{ position: 'absolute', width: 480, height: 480, borderRadius: 9999, background: 'radial-gradient(circle,rgba(91,79,233,0.08) 0%,transparent 70%)', filter: 'blur(30px)', pointerEvents: 'none' }} />
 
         <div style={{ position: 'absolute', top: 16, left: 16, display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, fontWeight: 600 }}>
-          <span style={{ width: 7, height: 7, borderRadius: 9999, background: isRecording ? '#EF4444' : '#94A3B8', animation: isRecording ? 'v2pulse 1.4s ease-in-out infinite' : 'none', display: 'inline-block' }} />
-          <span style={{ color: isRecording ? '#EF4444' : '#94A3B8' }}>{isRecording ? 'RECORDING' : 'STANDBY'}</span>
+          <span style={{ width: 7, height: 7, borderRadius: 9999, background: isRecording ? '#EF4444' : isListening ? '#059669' : '#94A3B8', animation: isRecording || isListening ? 'v2pulse 1.4s ease-in-out infinite' : 'none', display: 'inline-block' }} />
+          <span style={{ color: isRecording ? '#EF4444' : isListening ? '#059669' : '#94A3B8' }}>{isRecording ? 'RECORDING' : isListening ? 'READY' : 'STANDBY'}</span>
           <span style={{ color: '#5B4FE9', background: '#EFEDFD', padding: '4px 8px', borderRadius: 9999 }}>{modeLabel}</span>
         </div>
 
@@ -185,7 +206,8 @@ function AIInterviewPage() {
         </div>
 
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-          <button onClick={() => setMuted(m => !m)} title={muted ? 'Microphone muted' : 'Microphone available'} style={{ width: 52, height: 52, borderRadius: 9999, background: muted ? '#FEF2F2' : '#FFF', border: `1px solid ${muted ? '#FECACA' : '#CBD5E1'}`, color: muted ? '#EF4444' : '#0F172A', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 120ms' }}>
+          <button onClick={handleMicToggle} title={muted ? 'Microphone muted' : 'Microphone available'} style={{ width: 52, height: 52, borderRadius: 9999, background: isRecording || muted ? '#FEF2F2' : '#FFF', border: `1px solid ${isRecording || muted ? '#FECACA' : '#CBD5E1'}`, color: isRecording || muted ? '#EF4444' : '#0F172A', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 120ms' }}>
+
             {muted ? <MicOff size={20} /> : <Mic size={20} />}
           </button>
 
@@ -238,7 +260,7 @@ function AIInterviewPage() {
         )}
 
         <p style={{ fontSize: 11, color: '#94A3B8', textAlign: 'center', maxWidth: 340, lineHeight: 1.6 }}>
-          Press <strong>Start answer</strong> when you&apos;re ready, and <strong>Stop</strong> when done.
+          Recording starts automatically. Press <strong>Stop</strong> when done.
         </p>
 
         <div style={{ position: 'absolute', bottom: 14, left: 14, width: 92, height: 92, borderRadius: 16, background: '#F1F5F9', border: '3px solid #FFF', boxShadow: '0 8px 20px rgba(15,23,42,0.2)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -278,13 +300,17 @@ function AIInterviewPage() {
             </div>
           ))}
           {isRecording && (
-            <div style={{ display: 'flex', gap: 12, opacity: 0.7 }}>
+            <div style={{ display: 'flex', gap: 12, opacity: 0.85 }}>
               <V2Av name={candidateName} size={30} />
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 12, fontWeight: 600, color: '#0F172A', marginBottom: 4 }}>{candidateName} · transcribing…</div>
+                {liveTranscript ? (
+                  <div style={{ fontSize: 14, color: '#374151', lineHeight: 1.65 }}>{liveTranscript}</div>
+                ) : (
                 <div style={{ display: 'flex', gap: 4, padding: '8px 0' }}>
                   {[0, 1, 2].map(i => <span key={i} style={{ width: 6, height: 6, borderRadius: 9999, background: '#94A3B8', animation: `v2pulsedot 1.4s ease-in-out ${i * 0.2}s infinite`, display: 'inline-block' }} />)}
                 </div>
+                )}
               </div>
             </div>
           )}

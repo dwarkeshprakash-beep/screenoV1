@@ -39,7 +39,7 @@ router.post('/:id/start', requireRole('candidate'), async (req, res) => {
 router.post('/:id/answer', requireRole('candidate'), upload.single('audio'), async (req, res) => {
   try {
     const interviewId = parseInt(req.params.id, 10)
-    const { questionId, mode, attemptId, developmentFallback, answerText } = req.body
+    const { questionId, mode, transcriptionMode, attemptId, developmentFallback, answerText, clientTranscript } = req.body
 
     if (!questionId) return res.status(400).json({ success: false, error: 'questionId is required' })
     if (!req.file && !answerText?.trim()) {
@@ -54,8 +54,10 @@ router.post('/:id/answer', requireRole('candidate'), upload.single('audio'), asy
       audioBuffer: req.file?.buffer,
       mimeType: req.file?.mimetype,
       mode: mode || 'simple',
+      transcriptionMode: transcriptionMode || 'api',
       developmentFallback: developmentFallback === 'true',
       manualText: answerText || null,
+      clientTranscript,
     })
 
     res.json({ success: true, data: result })
