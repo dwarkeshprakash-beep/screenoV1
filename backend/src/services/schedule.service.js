@@ -105,7 +105,28 @@ async function createSchedule(data, managerId, companyId) {
     await scheduleRecordRepository.markCompleted(scheduleRecord.id, interview.id)
   }
 
-  // Send magic link email async — don't fail the schedule if email fails
+  // Generate exam questions (LLM + judge validation) and send the invite email in the
+  // background — together they can take well over a minute, which would blow past the
+  // request's socket timeout (server.js) and surface to the client as a 502 if awaited here.
+  finishScheduleSetup({ interview, candidate, data, token, windowDays }).catch(err =>
+    console.error('finishScheduleSetup failed:', err)
+  )
+
+  return {
+    ...interview,
+    inviteSent: false,
+    inviteStatus: 'pending',
+    inviteMessage: 'Invite email is being sent.',
+  }
+}
+
+/**
+ * Generate exam questions (if needed) and send the candidate's magic-link invite email.
+ * Runs in the background after the schedule response has already been sent — LLM
+ * generation and judge validation can take well over a minute.
+ * @param {Object} ctx
+ */
+async function finishScheduleSetup({ interview, candidate, data, token, windowDays }) {
   if (data.type === 'exam' || data.type === 'ai_exam') {
     const questions = await llmService.generateExamQuestions({
       resume: candidate.resume_text,
@@ -141,13 +162,6 @@ async function createSchedule(data, managerId, companyId) {
       status: inviteSent ? 'sent' : 'failed',
       error: inviteFailure,
     }).catch(err => console.error('email delivery log failed:', err.message))
-  }
-
-  return {
-    ...interview,
-    inviteSent,
-    inviteStatus: inviteSent ? 'sent' : 'failed',
-    inviteMessage: inviteSent ? null : 'Invite email failed. Please contact administration.',
   }
 }
 
