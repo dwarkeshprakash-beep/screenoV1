@@ -116,6 +116,7 @@ function LiveRoomPage() {
               connect={true}
               style={{ height: '100%' }}
               onError={(e) => setTokenError(e.message)}
+              onDisconnected={() => setTokenError('Disconnected from the video room. Reload the page to rejoin.')}
             >
               <VideoConference />
             </LiveKitRoom>

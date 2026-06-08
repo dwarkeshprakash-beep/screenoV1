@@ -131,7 +131,7 @@ function AIInterviewPage() {
   }
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 440px', minHeight: 'calc(100vh - 60px)', position: 'relative' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 440px', height: 'calc(100vh - 60px)', position: 'relative', overflow: 'hidden' }}>
 
       {violation && (
         <div style={{ position: 'absolute', inset: 0, background: 'rgba(15,23,42,0.7)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -274,7 +274,7 @@ function AIInterviewPage() {
         </div>
       </div>
 
-      <div style={{ display: 'flex', flexDirection: 'column', background: '#FFF' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', background: '#FFF', height: '100%', overflow: 'hidden' }}>
         <div style={{ padding: '16px 24px', borderBottom: '1px solid #F1F5F9' }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: '#5B4FE9', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Live transcript</div>
           <div style={{ fontSize: 12, color: '#94A3B8', marginTop: 2 }}>Builds as the interview goes</div>

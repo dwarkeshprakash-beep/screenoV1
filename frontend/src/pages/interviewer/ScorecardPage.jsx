@@ -79,7 +79,7 @@ function ScorecardPage() {
     }
   }
 
-  if (loading) return <div style={{ padding: 40 }}><Spinner /></div>
+  if (loading) return <Spinner center />
   if (error) return <ErrorMessage message={error} />
 
   const scoredValues = Object.values(scores).filter(v => v > 0)

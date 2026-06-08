@@ -12,12 +12,12 @@ async function create(data) {
   const rows = await db.query(
     `INSERT INTO interviews
        (company_id, candidate_id, manager_id, scheduled_by, interviewer_id, type, mode, interview_mode, transcription_mode,
-        difficulty, jd_text, focus_areas, max_attempts, cooldown_hours, window_days,
+        difficulty, jd_text, focus_areas, question_count, max_attempts, cooldown_hours, window_days,
         report_timing, report_every_n, report_emails, token, token_expires, window_closes,
         scheduled_start, scheduled_end, timezone)
      VALUES
        (@company_id, @candidate_id, @manager_id, @scheduled_by, @interviewer_id, @type, @mode, @interview_mode, @transcription_mode,
-        @difficulty, @jd_text, @focus_areas, @max_attempts, @cooldown_hours, @window_days,
+        @difficulty, @jd_text, @focus_areas, @question_count, @max_attempts, @cooldown_hours, @window_days,
         @report_timing, @report_every_n, @report_emails, @token, @token_expires, @window_closes,
         @scheduled_start, @scheduled_end, @timezone)
      RETURNING *`,
@@ -34,6 +34,7 @@ async function create(data) {
       difficulty: data.difficulty || 'medium',
       jd_text: data.jdText || null,
       focus_areas: data.focusAreas || null,
+      question_count: data.questionCount || 10,
       max_attempts: data.maxAttempts || 3,
       cooldown_hours: data.cooldownHours || 24,
       window_days: data.windowDays || 7,

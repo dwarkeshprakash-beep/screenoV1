@@ -9,81 +9,60 @@
 - React 19 with JSX (no TypeScript, no `.tsx` files)
 - Plain CSS with design tokens from `tokens.css`
 - React Router v6 for navigation
-- Axios for API calls
-- No extra UI libraries — build components from scratch
+- `fetch()` for API calls — all requests go through `src/services/api.js` (no axios dependency; a hand-rolled
+  client handles JWT bearer headers, HttpOnly refresh cookies, 401 refresh-and-retry, and redirect-to-login)
+- `lucide-react` for icons
+- LiveKit (`@livekit/components-react`, `@livekit/components-styles`, `livekit-client`) for human-interview video rooms
+- `@uiw/react-codemirror` + `@codemirror/lang-javascript` / `@codemirror/lang-python` — code editor for
+  LeetCode-style coding questions in `ExamPage.jsx` (the one sanctioned exception to "build from scratch",
+  since a syntax-highlighting editor is impractical to hand-roll)
+- No other UI libraries beyond the above — build everything else from scratch
 
 ---
 
-## Folder structure
+## Folder structure (actual, as of current `dev` — see `App.jsx` for the live route map)
 
 ```
 frontend/
-├── public/
-│   ├── index.html
-│   └── favicon.ico
 ├── src/
 │   ├── components/
 │   │   ├── shared/           ← ALWAYS check here first before building anything
-│   │   │   ├── Button.jsx
-│   │   │   ├── Card.jsx
-│   │   │   ├── Modal.jsx
-│   │   │   ├── Input.jsx
-│   │   │   ├── Badge.jsx
-│   │   │   ├── Avatar.jsx
-│   │   │   ├── Table.jsx
-│   │   │   ├── Spinner.jsx
-│   │   │   ├── EmptyState.jsx
-│   │   │   └── ErrorMessage.jsx
+│   │   │   ├── Avatar.jsx, Badge.jsx, Button.jsx, Card.jsx, EmptyState.jsx,
+│   │   │   │   ErrorBoundary.jsx, ErrorMessage.jsx, Input.jsx, Modal.jsx, Spinner.jsx
 │   │   ├── layout/
 │   │   │   ├── AppLayout.jsx       ← sidebar + topbar for manager/interviewer
 │   │   │   ├── Sidebar.jsx
 │   │   │   ├── TopBar.jsx
-│   │   │   └── CandidateLayout.jsx ← minimal layout for interview screens
-│   │   ├── manager/               ← components used only by manager
-│   │   ├── candidate/             ← components used only by candidate
-│   │   ├── interviewer/           ← components used only by interviewer
-│   │   └── interview/             ← shared across interview modes
-│   │       ├── AIVoiceRoom.jsx
-│   │       ├── ExamRunner.jsx
-│   │       ├── ProctoringMonitor.jsx
-│   │       ├── DeviceCheck.jsx
-│   │       └── ConsentScreen.jsx
+│   │   │   └── CandidateLayout.jsx ← minimal layout for candidate/interview screens
+│   │   └── manager/                ← AddCandidateModal, CompareModal, EditMemberModal, ScheduleModal
 │   ├── pages/
-│   │   ├── auth/
-│   │   │   └── LoginPage.jsx
-│   │   ├── manager/
-│   │   │   ├── DashboardPage.jsx
-│   │   │   ├── TeamPage.jsx
-│   │   │   ├── MemberProfilePage.jsx
-│   │   │   ├── SchedulePage.jsx
-│   │   │   └── ReportsPage.jsx
-│   │   ├── candidate/
-│   │   │   ├── InterviewLandingPage.jsx
-│   │   │   ├── DeviceCheckPage.jsx
-│   │   │   ├── ConsentPage.jsx
-│   │   │   ├── AIInterviewPage.jsx
-│   │   │   ├── ExamPage.jsx
-│   │   │   └── DonePage.jsx
-│   │   └── interviewer/
-│   │       ├── InterviewerDashboard.jsx
-│   │       ├── LiveRoomPage.jsx
-│   │       └── ScorecardPage.jsx
+│   │   ├── auth/LoginPage.jsx
+│   │   ├── manager/      DashboardPage, TeamPage, MemberProfilePage, SchedulePage, ReportsPage,
+│   │   │                 TemplatesPage, ManagerProfilePage, ResumeAnalyzerPage
+│   │   ├── candidate/    InterviewLandingPage, DeviceCheckPage, ConsentPage, AIInterviewPage,
+│   │   │                 ExamPage, HumanInterviewPage, DonePage, CandidateDashboardPage
+│   │   └── interviewer/  InterviewerDashboard, LiveRoomPage, ScorecardPage, InterviewerProfilePage
 │   ├── hooks/
 │   │   ├── useAuth.js
-│   │   ├── useInterview.js
+│   │   ├── useInterview.js   ← AI-interview state machine (phases: loading|ai_speaking|listening|
+│   │   │                        recording|processing|paused|ended|error); MediaRecorder + speechSynthesis
 │   │   └── useProctoring.js
 │   ├── services/
-│   │   └── api.js                  ← all backend API calls live here
-│   ├── utils/
-│   │   └── helpers.js
-│   ├── styles/
-│   │   └── globals.css
-│   ├── App.jsx
-│   └── index.jsx
+│   │   └── api.js            ← ALL backend calls live here (fetch-based, JWT + refresh handling)
+│   ├── utils/helpers.js
+│   ├── App.jsx               ← real role-based router (RequireAuth guard + route tree)
+│   ├── main.jsx
+│   └── index.css / App.css
 ├── CLAUDE.md                       ← THIS FILE
 ├── package.json
 └── .env
 ```
+
+**Legacy/unused — do not extend or import:** `src/screens/`, `src/layouts/`, `src/data.jsx`, `src/shared.jsx`,
+and loose `src/pages/*.jsx` files (`v2-*.jsx`, `ai-room.jsx`, `candidate-flow.jsx`, `exam-runner.jsx`,
+`helpers.jsx`, `hr.jsx`, `interviewer.jsx`). These are earlier-iteration prototypes kept for visual/behavioral
+reference only — `App.jsx` does not import any of them. There is no `components/interview/` folder; the
+interview UI lives directly in `pages/candidate/` + `hooks/useInterview.js`.
 
 ---
 
@@ -148,7 +127,7 @@ Examples:
 - A button? → shared (every role uses buttons)
 - A modal? → shared
 - A team member table? → manager/ (only manager sees this)
-- A device check screen? → interview/ (used by candidate flow)
+- A device check screen? → candidate/ (used by candidate interview flow — there is no `components/interview/`)
 - A scorecard form? → interviewer/ (only interviewers fill this)
 
 ---
@@ -172,20 +151,25 @@ background: #F8FAFC;
 
 ## API calls
 
-All API calls go through `src/services/api.js`. Never call `fetch` or `axios` directly from a component.
+All API calls go through `src/services/api.js`. Never call `fetch` or `axios` directly from a component
+(there is no axios dependency — `api.js` wraps the browser `fetch` API).
+
+The module exposes three layers:
+- `request(endpoint, options)` — JSON requests; attaches the bearer token, sends cookies
+  (`credentials: 'include'`), and on a 401 transparently calls `/api/auth/refresh`, retries once,
+  then redirects to `/login` and clears `localStorage` if that also fails
+- `authFetch(endpoint, options)` — same refresh-and-retry/redirect behavior but for raw `fetch`
+  calls that need to send `FormData` (multipart uploads) without a `Content-Type` header
+- Named exports per resource (`login`, `getTeam`, `saveAnswer`, `uploadResume`, `getInterviewerSchedule`, …)
+  — these are what components actually import
 
 ```js
-// src/services/api.js — add all API functions here
-import axios from 'axios'
+// src/services/api.js — add new endpoints as named exports here
+const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000'  // Vite: env vars must be prefixed VITE_
 
-const client = axios.create({
-  baseURL: import.meta.env.VITE_API_URL,  // Vite: env vars must be prefixed VITE_
-  withCredentials: true, // sends HttpOnly cookie for refresh token
-})
-
-export const getTeamMembers = () => client.get('/api/team')
-export const scheduleInterview = (data) => client.post('/api/interviews', data)
-export const saveAnswer = (interviewId, data) => client.post(`/api/interviews/${interviewId}/answer`, data)
+export const getTeam = (filter = 'all') => request(`/api/team?filter=${filter}`)
+export const createSchedule = (data) => request('/api/schedule', { method: 'POST', body: JSON.stringify(data) })
+export const saveAnswer = (id, formData) => authFetch(`/api/interviews/${id}/answer`, { method: 'POST', body: formData })
 ```
 
 ---
@@ -208,23 +192,46 @@ if (window.innerWidth < 768) {
 
 ---
 
-## Routes (React Router v6)
+## Routes (React Router v6 — actual, from `App.jsx`)
 
 ```jsx
-// App.jsx — role-based routing
-/login                          → LoginPage
-/manager/dashboard              → DashboardPage  (requires manager auth)
+/login                          → LoginPage                    (public)
+
+// Manager — AppLayout, RequireAuth role="manager"
+/manager                        → redirect to dashboard
+/manager/dashboard              → DashboardPage
 /manager/team                   → TeamPage
 /manager/team/:id               → MemberProfilePage
 /manager/schedule               → SchedulePage
 /manager/reports                → ReportsPage
+/manager/templates              → TemplatesPage
+/manager/resume-analyzer        → ResumeAnalyzerPage
+/manager/profile                → ManagerProfilePage
+
+// Candidate dashboard — CandidateLayout, RequireAuth role="candidate"
+/candidate                      → redirect to dashboard
+/candidate/dashboard            → CandidateDashboardPage
+
+// Interviewer — AppLayout, RequireAuth role="interviewer"
+/interviewer                    → redirect to dashboard
 /interviewer/dashboard          → InterviewerDashboard
-/interviewer/live/:id           → LiveRoomPage
+/interviewer/scorecard          → InterviewerDashboard
 /interviewer/scorecard/:id      → ScorecardPage
-/interview/:token               → InterviewLandingPage  (candidate, no auth needed)
+/interviewer/profile            → InterviewerProfilePage
+/interviewer/live/:id           → LiveRoomPage              (full-screen, no sidebar)
+
+// Candidate interview flow — CandidateLayout, no auth (magic-link token validates on landing)
+/interview/:token               → InterviewLandingPage
 /interview/:token/device-check  → DeviceCheckPage
 /interview/:token/consent       → ConsentPage
 /interview/:token/ai            → AIInterviewPage
 /interview/:token/exam          → ExamPage
+/interview/:token/human         → HumanInterviewPage
 /interview/:token/done          → DonePage
+
+/                               → redirect to /login
+*                               → redirect to /login
 ```
+
+`RequireAuth` checks `localStorage.accessToken` and (when a `role` prop is given) the cached
+`localStorage.user.role`, redirecting to `/login` on any mismatch or parse failure.

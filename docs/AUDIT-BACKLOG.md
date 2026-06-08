@@ -38,6 +38,9 @@ Decision values:
 - **Done:** Completed interviews enqueue durable report jobs with retry/status tracking and a worker.
 - **Done:** Human scheduling now stores appointment start/end, timezone, interviewer assignment, and conflict validation.
 - **Partially done:** Human LiveKit flow now supports candidate magic-link join, interviewer assignment checks, persisted notes/asked-state, and server-side end. The question guide is still a static starter list.
+- **Update (2026-06-08):** Root cause of the broken/unstyled video room found and fixed — missing
+  `@livekit/components-styles` import (now installed + imported in `main.jsx`); `HumanInterviewPage.jsx`
+  and `LiveRoomPage.jsx` rewritten to handle `onDisconnected` with a rejoin UI on both sides.
 
 Verification:
 
@@ -334,6 +337,10 @@ Verification:
 - **Decision:** Static internal delivery list for current phase; approved June 7, 2026
 - **Status:** Done
 - **Evidence:** `backend/src/services/email.service.js`
+- **Update (2026-06-08):** Recipient *suggestions* now also pull from the company's `users` table
+  (`userRepository.getByCompany`, `GET /api/schedule/org-users`, `ScheduleModal.jsx` chips) instead of
+  only team/candidate records — managers see real org emails to pick from, while delivery itself still
+  redirects through the static internal list above.
 
 ### M-16: Bulk scheduling can partially succeed
 
@@ -553,6 +560,11 @@ correctness work is complete.
 - **Opportunity:** Coding editor, test cases, code playback, plagiarism signals, identity checks, and integrity controls.
 - **Priority:** Later product phase
 - **Decision:** Pending
+- **Partially done (2026-06-08):** LeetCode-style coding questions shipped — `judge.service.js` (Piston
+  API) executes candidate code and judge-verified reference solutions; `questions` table gained
+  `language`/`starter_code`/`test_cases` (migration 007); `ExamPage.jsx` ships a CodeMirror editor with
+  visible/hidden test-case panels; pass/fail results feed the existing LLM report-scoring pipeline.
+  Code playback, plagiarism signals, identity checks, and integrity controls remain open.
 
 ### P-06: ATS and collaboration integrations
 

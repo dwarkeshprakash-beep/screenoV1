@@ -65,13 +65,34 @@ async function getLatestByCandidate(candidateId, companyId = null) {
     `SELECT r.* FROM reports r
      JOIN candidates c ON c.id = r.candidate_id
      WHERE r.candidate_id = @candidateId
-       AND (@companyId IS NULL OR c.company_id = @companyId)
+       AND (@companyId::int IS NULL OR c.company_id = @companyId)
        AND r.status = 'ready'
      ORDER BY r.created DESC
      LIMIT 1`,
     { candidateId, companyId }
   )
   return rows[0] || null
+}
+
+/**
+ * Get every ready report for a candidate, newest first — full session history
+ * (not just the latest), scoped to the manager's company.
+ * @param {number} candidateId
+ * @param {number|null} companyId
+ * @returns {Promise<Array>}
+ */
+async function getHistoryByCandidate(candidateId, companyId = null) {
+  return db.query(
+    `SELECT r.*, i.type AS interview_type, i.mode AS interview_mode
+     FROM reports r
+     JOIN candidates c ON c.id = r.candidate_id
+     LEFT JOIN interviews i ON i.id = r.interview_id
+     WHERE r.candidate_id = @candidateId
+       AND (@companyId::int IS NULL OR c.company_id = @companyId)
+       AND r.status = 'ready'
+     ORDER BY r.created DESC`,
+    { candidateId, companyId }
+  )
 }
 
 /**
@@ -164,4 +185,4 @@ async function updatePdfUrl(id, pdfUrl) {
   )
 }
 
-module.exports = { create, getByCandidate, getByAttempt, getLatestByCandidate, getTeamReports, getTeamReportStats, updatePdfUrl }
+module.exports = { create, getByCandidate, getByAttempt, getLatestByCandidate, getHistoryByCandidate, getTeamReports, getTeamReportStats, updatePdfUrl }

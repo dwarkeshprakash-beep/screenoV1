@@ -221,9 +221,12 @@ function useInterview(interviewId, mode, transcriptionMode = 'api') {
     utterance.onend = finishSpeaking
     utterance.onerror = finishSpeaking
 
+    // Fallback only — real completion comes from utterance.onend. Browsers speak at
+    // roughly 70-90ms per character, so estimate generously to avoid cutting speech
+    // off early (which also cancels the utterance when recording auto-starts).
     speechFallbackRef.current = window.setTimeout(
       finishSpeaking,
-      Math.min(5000, Math.max(2500, text.length * 35))
+      Math.max(4000, text.length * 120)
     )
 
     try {

@@ -78,12 +78,15 @@ async function startInterview(interviewId, candidateId) {
 
   const candidate = await candidateRepository.getById(interview.candidate_id)
 
+  const targetQuestionCount = interview.question_count || 10
+
   const generatedQuestions = await llmService.generateQuestions({
+    candidateName: candidate.first_name,
     resume: candidate.resume_text,
     jd: interview.jd_text,
     focusAreas: interview.focus_areas,
     difficulty: interview.difficulty,
-    count: interview.interview_mode === 'adaptive' ? 1 : 10,
+    count: interview.interview_mode === 'adaptive' ? 1 : targetQuestionCount,
     mode: interview.interview_mode,
   })
 
@@ -159,7 +162,7 @@ async function saveAnswer({
 
   if (mode === 'adaptive') {
     const history = await answerRepository.getHistory(interviewId, attemptId)
-    const nextQuestionText = await llmService.getAdaptiveQuestion(history)
+    const nextQuestionText = await llmService.getAdaptiveQuestion(history, interview.question_count)
 
     if (!nextQuestionText) {
       return { complete: true, transcribedText: answerText }
@@ -260,11 +263,13 @@ ${qaText}`
     ...reportData,
   })
 
-  // Generate PDF and upload to Cloudinary — fire-and-forget, don't block email notify
+  // Generate PDF and upload to Cloudinary — fire-and-forget, don't block email notify.
+  // Terminal .catch must never itself throw, or the rejection becomes unhandled and
+  // crashes the process (this runs detached, after generateReport has returned).
   pdfService.generateReportPdf({ candidate, interview, report: savedReport })
     .then(buffer => storageService.uploadReport(buffer, savedReport.id))
     .then(({ url }) => reportRepository.updatePdfUrl(savedReport.id, url))
-    .catch(err => console.error('PDF generation/upload failed:', err))
+    .catch(err => console.error('PDF generation/upload failed:', err && err.message ? err.message : err))
 
   // Notify manager
   const managerEmail = interview.manager_email
@@ -283,7 +288,8 @@ ${qaText}`
         status: 'sent',
       }))
       .catch(err => {
-        console.error('sendReportReady failed:', err)
+        const message = (err && err.message) || 'Report email failed. Please contact administration.'
+        console.error('sendReportReady failed:', message)
         return emailDeliveryRepository.create({
           kind: 'report_ready',
           interviewId,
@@ -291,10 +297,10 @@ ${qaText}`
           intendedTo: managerEmail,
           deliveredTo: emailService.getDeliveredRecipients().join(','),
           status: 'failed',
-          error: err.message || 'Report email failed. Please contact administration.',
+          error: message,
         })
       })
-      .catch(err => console.error('report email delivery log failed:', err.message))
+      .catch(err => console.error('report email delivery log failed:', err && err.message ? err.message : err))
   }
   return savedReport
 }

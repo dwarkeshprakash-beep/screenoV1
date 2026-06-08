@@ -125,9 +125,9 @@ async function update(id, data, companyId = null) {
        phone        = COALESCE(@phone, phone),
        resume_url   = COALESCE(@resume_url, resume_url),
        resume_text  = COALESCE(@resume_text, resume_text),
-       resume_updated = CASE WHEN @resume_url IS NOT NULL THEN NOW() ELSE resume_updated END
+       resume_updated = CASE WHEN @resume_url::text IS NOT NULL THEN NOW() ELSE resume_updated END
      WHERE id = @id
-       AND (@company_id IS NULL OR company_id = @company_id)
+       AND (@company_id::int IS NULL OR company_id = @company_id)
        AND deleted IS NULL
      RETURNING *`,
     {

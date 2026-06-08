@@ -164,8 +164,8 @@ async function extractText(file) {
       body: fd,
     })
     if (!res.ok) throw new Error('Could not extract text from file.')
-    const data = await res.json()
-    return data.text || ''
+    const json = await res.json()
+    return json.data?.text || ''
   }
   return ''
 }
@@ -213,8 +213,9 @@ function ResumeAnalyzerPage() {
           body: JSON.stringify({ jd, resume }),
         })
         if (!r.ok) throw new Error('AI analysis failed.')
-        const data = await r.json()
-        setRes({ ...data, mode: 'ai' })
+        const json = await r.json()
+        if (!json.success) throw new Error(json.error || 'AI analysis failed.')
+        setRes({ ...json.data, mode: 'ai' })
         setPhase('results')
       } catch (err) {
         // Fall back to library mode if AI fails
