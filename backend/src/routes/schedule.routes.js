@@ -31,6 +31,16 @@ router.get('/interviewers', async (req, res) => {
   }
 })
 
+router.get('/org-users', async (req, res) => {
+  try {
+    const users = await scheduleService.getOrgUsers(req.user.companyId)
+    res.json({ success: true, data: users })
+  } catch (err) {
+    console.error('GET /schedule/org-users failed:', err)
+    res.status(500).json({ success: false, error: 'Could not load users' })
+  }
+})
+
 router.get('/email-deliveries/:interviewId', async (req, res) => {
   try {
     const deliveries = await scheduleService.getEmailDeliveries(parseInt(req.params.interviewId, 10), req.user.companyId)

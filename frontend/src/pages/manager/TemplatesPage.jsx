@@ -157,7 +157,7 @@ function TemplatesPage() {
       )}
 
       {loading ? (
-        <div style={{ padding: 40 }}><Spinner /></div>
+        <Spinner center />
       ) : error ? (
         <ErrorMessage message={error} />
       ) : templates.length === 0 ? (

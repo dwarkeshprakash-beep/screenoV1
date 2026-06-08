@@ -50,15 +50,28 @@ async function authFetch(endpoint, options = {}) {
   })
 
   if (response.status === 401) {
-    const refreshedToken = await refreshAccessToken()
-    response = await fetch(`${BASE_URL}${endpoint}`, {
-      ...options,
-      headers: {
-        Authorization: `Bearer ${refreshedToken}`,
-        ...options.headers,
-      },
-      credentials: 'include',
-    })
+    try {
+      const refreshedToken = await refreshAccessToken()
+      response = await fetch(`${BASE_URL}${endpoint}`, {
+        ...options,
+        headers: {
+          Authorization: `Bearer ${refreshedToken}`,
+          ...options.headers,
+        },
+        credentials: 'include',
+      })
+    } catch {
+      localStorage.removeItem('accessToken')
+      localStorage.removeItem('user')
+      window.location.href = '/login'
+      return response
+    }
+
+    if (response.status === 401) {
+      localStorage.removeItem('accessToken')
+      localStorage.removeItem('user')
+      window.location.href = '/login'
+    }
   }
 
   return response
@@ -143,6 +156,7 @@ export const getCalendarEvents = (week) =>
 
 export const getAvailableSlots = (token) => request(`/api/schedule/slots/${token}`)
 export const getInterviewers = () => request('/api/schedule/interviewers')
+export const getOrgUsers = () => request('/api/schedule/org-users')
 
 // ── TEMPLATES ────────────────────────────────────────────────
 export const getTemplates = () => request('/api/templates')
@@ -153,6 +167,7 @@ export const deleteTemplate = (id) => request(`/api/templates/${id}`, { method: 
 // ── REPORTS ───────────────────────────────────────────────────
 export const getTeamReports = () => request('/api/reports/team')
 export const getCandidateReport = (id) => request(`/api/reports/candidate/${id}`)
+export const getCandidateReportHistory = (id) => request(`/api/reports/candidate/${id}/history`)
 
 // ── INTERVIEWS ────────────────────────────────────────────────
 export const startInterview = (id) => request(`/api/interviews/${id}/start`, { method: 'POST' })

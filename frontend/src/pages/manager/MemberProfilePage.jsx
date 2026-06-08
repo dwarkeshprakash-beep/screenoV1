@@ -75,8 +75,31 @@ function MemberProfilePage() {
 
   const [transcript, setTranscript]         = useState(null)
   const [transcriptLoading, setTranscriptLoading] = useState(false)
+  const [aiInterviews, setAiInterviews]      = useState([])
+  const [selectedInterviewId, setSelectedInterviewId] = useState(null)
 
-  useEffect(() => { load(); setTranscript(null) }, [id])
+  const [reportHistory, setReportHistory]     = useState([])
+  const [selectedReportId, setSelectedReportId] = useState(null)
+  const [reportHistoryLoading, setReportHistoryLoading] = useState(false)
+
+  useEffect(() => { load(); setTranscript(null); setAiInterviews([]); setSelectedInterviewId(null); setReportHistory([]); setSelectedReportId(null) }, [id])
+
+  useEffect(() => {
+    if (tab !== 'analysis' || reportHistory.length > 0) return
+    async function loadReportHistory() {
+      setReportHistoryLoading(true)
+      try {
+        const r = await api.getCandidateReportHistory(id)
+        const sessions = r.data || []
+        setReportHistory(sessions)
+        if (sessions.length > 0) setSelectedReportId(sessions[0].id)
+      } catch { setReportHistory([]) }
+      finally { setReportHistoryLoading(false) }
+    }
+    loadReportHistory()
+  }, [tab, id, reportHistory])
+
+  const selectedReport = reportHistory.find(r => r.id === selectedReportId) || report
 
   useEffect(() => {
     if (tab !== 'notes') return
@@ -89,20 +112,35 @@ function MemberProfilePage() {
   }, [tab, id])
 
   useEffect(() => {
-    if (tab !== 'transcript' || transcript !== null) return
-    async function loadTranscript() {
+    if (tab !== 'transcript' || aiInterviews.length > 0 || transcript !== null) return
+    async function loadInterviews() {
       setTranscriptLoading(true)
       try {
         const r = await api.getMemberInterviews(id)
-        const ai = (r.data || []).find(i => i.type === 'ai_voice' && i.status === 'completed')
-        if (!ai) { setTranscript([]); return }
-        const tr = await api.getInterviewTranscript(ai.id)
+        const completed = (r.data || [])
+          .filter(i => i.type === 'ai_voice' && i.status === 'completed')
+          .sort((a, b) => new Date(b.created) - new Date(a.created))
+        setAiInterviews(completed)
+        if (completed.length === 0) { setTranscript([]); return }
+        setSelectedInterviewId(completed[0].id)
+      } catch { setTranscript([]) }
+      finally { setTranscriptLoading(false) }
+    }
+    loadInterviews()
+  }, [tab, id, aiInterviews, transcript])
+
+  useEffect(() => {
+    if (!selectedInterviewId) return
+    async function loadTranscript() {
+      setTranscriptLoading(true)
+      try {
+        const tr = await api.getInterviewTranscript(selectedInterviewId)
         setTranscript(tr?.data || [])
       } catch { setTranscript([]) }
       finally { setTranscriptLoading(false) }
     }
     loadTranscript()
-  }, [tab, id, transcript])
+  }, [selectedInterviewId])
 
   async function load() {
     setLoading(true)
@@ -130,7 +168,7 @@ function MemberProfilePage() {
   const strengthsList = (() => { try { return JSON.parse(report?.strengths || '[]') } catch { return [] } })()
   const tipsList      = (() => { try { return JSON.parse(report?.tips || '[]') } catch { return [] } })()
 
-  if (loading) return <div style={{ padding: 40 }}><Spinner /></div>
+  if (loading) return <Spinner center />
   if (error)   return <ErrorMessage message={error} />
   if (!member) return <EmptyState message="Member not found." />
 
@@ -223,55 +261,93 @@ function MemberProfilePage() {
 
         {/* Analysis tab */}
         {tab === 'analysis' && (
-          report ? (
-            <div style={{ background: '#FFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 20, boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
-              <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#5B4FE9', marginBottom: 14 }}>Competency breakdown</div>
-              {[
-                { k: 'confidence',     label: 'Confidence',          v: report.confidence },
-                { k: 'tech_knowledge', label: 'Technical knowledge',  v: report.tech_knowledge },
-                { k: 'communication',  label: 'Communication',        v: report.communication },
-                { k: 'overall_score',  label: 'Overall',              v: report.overall_score },
-              ].map((s, i) => s.v != null && (
-                <div key={i} style={{ marginBottom: 14 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
-                    <span style={{ fontSize: 13, color: '#374151', fontWeight: 500 }}>{s.label}</span>
-                    <span style={{ fontFamily: 'monospace', fontSize: 13, fontWeight: 700, color: s.v >= 7 ? '#047857' : s.v >= 5 ? '#B45309' : '#B53618' }}>{s.v}/10</span>
-                  </div>
-                  <div style={{ height: 6, background: '#F1F5F9', borderRadius: 9999, overflow: 'hidden' }}>
-                    <div style={{ height: '100%', width: `${(s.v / 10) * 100}%`, background: '#5B4FE9', borderRadius: 9999, transition: 'width 600ms cubic-bezier(0.2,0,0,1)' }} />
-                  </div>
-                </div>
-              ))}
-              {report.summary && (
-                <div style={{ marginTop: 16, padding: 14, background: '#F8FAFC', borderRadius: 8 }}>
-                  <p style={{ fontSize: 13, color: '#374151', lineHeight: 1.6, margin: 0 }}>{report.summary}</p>
+          reportHistoryLoading && reportHistory.length === 0 ? <div style={{ padding: 20 }}><Spinner center /></div> :
+          selectedReport ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {reportHistory.length > 1 && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: '#475569' }}>Interview session:</span>
+                  <select
+                    value={selectedReportId || ''}
+                    onChange={e => setSelectedReportId(parseInt(e.target.value, 10))}
+                    style={{ fontSize: 13, padding: '6px 10px', borderRadius: 8, border: '1px solid #CBD5E1', color: '#0F172A', background: '#FFF' }}
+                  >
+                    {reportHistory.map(r => (
+                      <option key={r.id} value={r.id}>{formatDate(r.created)}{r.interview_type ? ` · ${r.interview_type}` : ''}</option>
+                    ))}
+                  </select>
                 </div>
               )}
-              {report.pdf_url && (
-                <a href={report.pdf_url} download target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 14, padding: '8px 14px', background: '#5B4FE9', color: '#FFF', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
-                  <Download size={13} /> Download Report PDF
-                </a>
-              )}
+              <div style={{ background: '#FFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 20, boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
+                <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#5B4FE9', marginBottom: 14 }}>Competency breakdown</div>
+                {[
+                  { k: 'confidence',     label: 'Confidence',          v: selectedReport.confidence },
+                  { k: 'tech_knowledge', label: 'Technical knowledge',  v: selectedReport.tech_knowledge },
+                  { k: 'communication',  label: 'Communication',        v: selectedReport.communication },
+                  { k: 'overall_score',  label: 'Overall',              v: selectedReport.overall_score },
+                ].map((s, i) => s.v != null && (
+                  <div key={i} style={{ marginBottom: 14 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
+                      <span style={{ fontSize: 13, color: '#374151', fontWeight: 500 }}>{s.label}</span>
+                      <span style={{ fontFamily: 'monospace', fontSize: 13, fontWeight: 700, color: s.v >= 7 ? '#047857' : s.v >= 5 ? '#B45309' : '#B53618' }}>{s.v}/10</span>
+                    </div>
+                    <div style={{ height: 6, background: '#F1F5F9', borderRadius: 9999, overflow: 'hidden' }}>
+                      <div style={{ height: '100%', width: `${(s.v / 10) * 100}%`, background: '#5B4FE9', borderRadius: 9999, transition: 'width 600ms cubic-bezier(0.2,0,0,1)' }} />
+                    </div>
+                  </div>
+                ))}
+                {selectedReport.summary && (
+                  <div style={{ marginTop: 16, padding: 14, background: '#F8FAFC', borderRadius: 8 }}>
+                    <p style={{ fontSize: 13, color: '#374151', lineHeight: 1.6, margin: 0 }}>{selectedReport.summary}</p>
+                  </div>
+                )}
+                {selectedReport.pdf_url && (
+                  <a href={selectedReport.pdf_url} download target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 14, padding: '8px 14px', background: '#5B4FE9', color: '#FFF', borderRadius: 8, fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>
+                    <Download size={13} /> Download Report PDF
+                  </a>
+                )}
+              </div>
             </div>
           ) : <EmptyState message="No report available yet. Schedule an assessment to generate one." />
         )}
 
         {/* Transcript tab */}
         {tab === 'transcript' && (
-          transcriptLoading ? <div style={{ padding: 20 }}><Spinner /></div> :
-          !transcript || transcript.length === 0 ? (
+          aiInterviews.length === 0 && transcriptLoading ? <div style={{ padding: 20 }}><Spinner center /></div> :
+          aiInterviews.length === 0 ? (
             <EmptyState message="No transcript available. An AI interview must be completed first." />
           ) : (
-            <div style={{ background: '#FFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 20, boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
-              <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#5B4FE9', marginBottom: 16 }}>AI voice screen transcript</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                {transcript.map((qa, i) => (
-                  <div key={i} style={{ paddingBottom: 16, borderBottom: i < transcript.length - 1 ? '1px solid #F1F5F9' : '0' }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: '#5B4FE9', marginBottom: 8 }}>Q{i + 1}: {qa.question}</div>
-                    <div style={{ fontSize: 14, color: '#374151', lineHeight: 1.6 }}>{qa.answer_text || <span style={{ color: '#94A3B8', fontStyle: 'italic' }}>No answer recorded.</span>}</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {aiInterviews.length > 1 && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: '#475569' }}>Interview session:</span>
+                  <select
+                    value={selectedInterviewId || ''}
+                    onChange={e => { setSelectedInterviewId(parseInt(e.target.value, 10)); setTranscript(null) }}
+                    style={{ fontSize: 13, padding: '6px 10px', borderRadius: 8, border: '1px solid #CBD5E1', color: '#0F172A', background: '#FFF' }}
+                  >
+                    {aiInterviews.map(i => (
+                      <option key={i.id} value={i.id}>{formatDate(i.created)}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              {transcriptLoading ? <div style={{ padding: 20 }}><Spinner center /></div> :
+              !transcript || transcript.length === 0 ? (
+                <EmptyState message="No transcript available for this session." />
+              ) : (
+                <div style={{ background: '#FFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 20, boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
+                  <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#5B4FE9', marginBottom: 16 }}>AI voice screen transcript</div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                    {transcript.map((qa, i) => (
+                      <div key={i} style={{ paddingBottom: 16, borderBottom: i < transcript.length - 1 ? '1px solid #F1F5F9' : '0' }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: '#5B4FE9', marginBottom: 8 }}>Q{i + 1}: {qa.question}</div>
+                        <div style={{ fontSize: 14, color: '#374151', lineHeight: 1.6 }}>{qa.answer_text || <span style={{ color: '#94A3B8', fontStyle: 'italic' }}>No answer recorded.</span>}</div>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                </div>
+              )}
             </div>
           )
         )}
@@ -279,7 +355,7 @@ function MemberProfilePage() {
         {/* Notes tab */}
         {tab === 'notes' && (
           <div style={{ background: '#FFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 20, boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
-            {notesLoading ? <Spinner /> : notes.length === 0 ? null : (
+            {notesLoading ? <Spinner center /> : notes.length === 0 ? null : (
               <div style={{ marginBottom: 16 }}>
                 {notes.map(n => (
                   <div key={n.id} style={{ padding: '12px 0 12px 16px', borderLeft: '3px solid #5B4FE9', background: '#FAFAFE', borderRadius: '0 8px 8px 0', marginBottom: 10 }}>

@@ -38,4 +38,15 @@ router.get('/candidate/:id', async (req, res) => {
   }
 })
 
+// GET /api/reports/candidate/:id/history — every past report session, newest first
+router.get('/candidate/:id/history', async (req, res) => {
+  try {
+    const reports = await reportRepository.getHistoryByCandidate(parseInt(req.params.id, 10), req.user.companyId)
+    res.json({ success: true, data: reports })
+  } catch (err) {
+    console.error('GET /reports/candidate/:id/history failed:', err)
+    res.status(500).json({ success: false, error: 'Could not load report history' })
+  }
+})
+
 module.exports = router

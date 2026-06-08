@@ -8,29 +8,56 @@ function HumanInterviewPage() {
   const [room, setRoom] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [disconnected, setDisconnected] = useState(false)
 
   useEffect(() => {
-    async function load() {
-      setLoading(true)
-      setError(null)
-      try {
-        const res = await api.getCandidateLiveKitToken()
-        setRoom(res.data)
-      } catch (err) {
-        setError(err.message || 'Could not join interview room.')
-      } finally {
-        setLoading(false)
-      }
-    }
     load()
   }, [])
 
-  if (loading) return <div style={{ padding: 40 }}><Spinner /></div>
-  if (error) return <ErrorMessage message={error} />
+  async function load() {
+    setLoading(true)
+    setError(null)
+    setDisconnected(false)
+    try {
+      const res = await api.getCandidateLiveKitToken()
+      setRoom(res.data)
+    } catch (err) {
+      setError(err.message || 'Could not join interview room.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (loading) return <Spinner center />
+  if (error) return <ErrorMessage message={error} onRetry={load} />
+
+  if (disconnected) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, height: 'calc(100vh - 60px)', background: '#0F172A', color: '#FFF', textAlign: 'center', padding: 24 }}>
+        <h3 style={{ fontSize: 17, fontWeight: 700 }}>You've been disconnected</h3>
+        <p style={{ fontSize: 13, color: '#94A3B8', maxWidth: 360 }}>
+          The connection to the interview room was lost. Check your network and rejoin — the interviewer will still be in the room.
+        </p>
+        <button
+          onClick={load}
+          style={{ padding: '9px 18px', fontSize: 13, fontWeight: 600, border: 'none', borderRadius: 8, background: 'var(--brand-500, #5B4FE9)', color: '#FFF', cursor: 'pointer' }}
+        >
+          Rejoin room
+        </button>
+      </div>
+    )
+  }
 
   return (
     <div style={{ height: 'calc(100vh - 60px)', background: '#0F172A' }}>
-      <LiveKitRoom token={room.token} serverUrl={room.wsUrl} connect={true} style={{ height: '100%' }}>
+      <LiveKitRoom
+        token={room.token}
+        serverUrl={room.wsUrl}
+        connect={true}
+        style={{ height: '100%' }}
+        onError={(e) => setError(e.message || 'Video connection failed.')}
+        onDisconnected={() => setDisconnected(true)}
+      >
         <VideoConference />
       </LiveKitRoom>
     </div>

@@ -41,7 +41,7 @@ const ROLE_LABELS = {
   candidate:   'CANDIDATE',
 }
 
-function RoleBar({ role, onLogout }) {
+function RoleBar({ role, onLogout, onLogoClick }) {
   return (
     <div style={{
       background: '#0F172A', height: 38,
@@ -50,7 +50,13 @@ function RoleBar({ role, onLogout }) {
       position: 'sticky', top: 0, zIndex: 100,
       borderBottom: '1px solid #1E293B', flexShrink: 0,
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginRight: 12 }}>
+      <div
+        onClick={onLogoClick}
+        role="button"
+        tabIndex={0}
+        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') onLogoClick() }}
+        style={{ display: 'flex', alignItems: 'center', gap: 8, marginRight: 12, cursor: 'pointer' }}
+      >
         <LogoMark size={22} />
         <span style={{ color: '#FFF', fontSize: 15, fontWeight: 700, letterSpacing: '-0.02em' }}>Screeno</span>
       </div>
@@ -99,9 +105,13 @@ function AppLayout({ role = 'manager' }) {
     navigate('/login')
   }
 
+  function handleLogoClick() {
+    navigate(`/${role}/dashboard`)
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
-      <RoleBar role={role} onLogout={handleLogout} />
+      <RoleBar role={role} onLogout={handleLogout} onLogoClick={handleLogoClick} />
 
       <div style={{ display: 'flex', flex: 1 }}>
         <Sidebar role={role} onLogout={handleLogout} />

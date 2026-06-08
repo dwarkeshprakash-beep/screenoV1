@@ -25,6 +25,17 @@ const reportJobService = require('./src/services/report-job.service')
 const app = express()
 const PORT = process.env.PORT || 4000
 
+// Last-resort safety net — log and keep running instead of crashing the process.
+// Background work (report generation, email delivery) fires promise chains that
+// the request/response cycle never awaits, so a slipped-through rejection here
+// must not take down interviews that are already in progress.
+process.on('unhandledRejection', (reason) => {
+  console.error('[server] Unhandled promise rejection:', reason)
+})
+process.on('uncaughtException', (err) => {
+  console.error('[server] Uncaught exception:', err)
+})
+
 // ── MIDDLEWARE ────────────────────────────────────────────────
 app.use(cors({
   origin: (origin, cb) => {

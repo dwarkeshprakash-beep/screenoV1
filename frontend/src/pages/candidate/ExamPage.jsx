@@ -1,9 +1,17 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Clock, ArrowRight } from 'lucide-react'
+import CodeMirror from '@uiw/react-codemirror'
+import { javascript } from '@codemirror/lang-javascript'
+import { python } from '@codemirror/lang-python'
 import * as api from '../../services/api'
 import Spinner from '../../components/shared/Spinner'
 import ErrorMessage from '../../components/shared/ErrorMessage'
+
+const LANGUAGE_EXTENSIONS = {
+  javascript: [javascript()],
+  python: [python()],
+}
 
 function clk(s) {
   return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
@@ -47,6 +55,7 @@ function ExamPage() {
         questionId: parseInt(qId, 10),
         selectedOption: a.selectedOption,
         answerText: a.answerText || '',
+        code: a.code || '',
       }))
       await api.submitExam(token, answerList)
       setSubmitted(true)
@@ -144,7 +153,7 @@ function ExamPage() {
               </h2>
 
               {/* MCQ options */}
-              {current.question_type === 'mcq' || (current.options && current.options.length > 0) ? (
+              {current.question_type === 'mcq' ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {(typeof current.options === 'string' ? JSON.parse(current.options) : current.options || []).map((opt, oi) => {
                     const sel = answers[current.id]?.selectedOption === oi
@@ -166,6 +175,43 @@ function ExamPage() {
                       </button>
                     )
                   })}
+                </div>
+              ) : current.question_type === 'coding' ? (
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <span style={{ fontSize: 12, fontWeight: 600, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                      {current.language || 'javascript'}
+                    </span>
+                    <span style={{ fontSize: 11, color: '#94A3B8' }}>Reads from stdin, writes to stdout</span>
+                  </div>
+                  <div style={{ border: '1px solid #CBD5E1', borderRadius: 8, overflow: 'hidden' }}>
+                    <CodeMirror
+                      value={answers[current.id]?.code ?? current.starter_code ?? ''}
+                      height="320px"
+                      extensions={LANGUAGE_EXTENSIONS[current.language] || LANGUAGE_EXTENSIONS.javascript}
+                      onChange={value => setAnswers(a => ({ ...a, [current.id]: { code: value } }))}
+                    />
+                  </div>
+
+                  {current.test_cases && current.test_cases.length > 0 && (
+                    <div style={{ marginTop: 18 }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 8 }}>Test cases</div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {current.test_cases.map((tc, ti) => (
+                          <div key={ti} style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: '10px 12px', fontSize: 13, fontFamily: 'monospace' }}>
+                            {tc.hidden ? (
+                              <span style={{ color: '#94A3B8' }}>Hidden test case — your code will be checked against this on submit</span>
+                            ) : (
+                              <>
+                                <div><span style={{ color: '#6B7280' }}>Input:</span> {tc.input || '(none)'}</div>
+                                <div><span style={{ color: '#6B7280' }}>Expected output:</span> {tc.expected_output}</div>
+                              </>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <textarea

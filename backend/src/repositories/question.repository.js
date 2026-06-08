@@ -14,8 +14,8 @@ async function createMany(interviewId, attemptId, questions) {
   const saved = []
   for (const q of questions) {
     const rows = await db.query(
-      `INSERT INTO questions (interview_id, attempt_id, text, phase, order_num, question_type, options, correct_answer)
-       VALUES (@interviewId, @attemptId, @text, @phase, @order_num, @question_type, @options, @correct_answer)
+      `INSERT INTO questions (interview_id, attempt_id, text, phase, order_num, question_type, options, correct_answer, language, starter_code, test_cases)
+       VALUES (@interviewId, @attemptId, @text, @phase, @order_num, @question_type, @options, @correct_answer, @language, @starter_code, @test_cases)
        RETURNING *`,
       {
         interviewId,
@@ -26,6 +26,9 @@ async function createMany(interviewId, attemptId, questions) {
         question_type: q.question_type || 'open',
         options: q.options ? JSON.stringify(q.options) : null,
         correct_answer: q.correct_answer != null ? q.correct_answer : null,
+        language: q.language || null,
+        starter_code: q.starter_code || null,
+        test_cases: q.test_cases ? JSON.stringify(q.test_cases) : null,
       }
     )
     saved.push(rows[0])
@@ -42,8 +45,8 @@ async function createMany(interviewId, attemptId, questions) {
  */
 async function create(interviewId, attemptId, questionData) {
   const rows = await db.query(
-    `INSERT INTO questions (interview_id, attempt_id, text, phase, order_num, question_type, options, correct_answer)
-     VALUES (@interviewId, @attemptId, @text, @phase, @order_num, @question_type, @options, @correct_answer)
+    `INSERT INTO questions (interview_id, attempt_id, text, phase, order_num, question_type, options, correct_answer, language, starter_code, test_cases)
+     VALUES (@interviewId, @attemptId, @text, @phase, @order_num, @question_type, @options, @correct_answer, @language, @starter_code, @test_cases)
      RETURNING *`,
     {
       interviewId,
@@ -54,6 +57,9 @@ async function create(interviewId, attemptId, questionData) {
       question_type: questionData.question_type || 'open',
       options: questionData.options ? JSON.stringify(questionData.options) : null,
       correct_answer: questionData.correct_answer != null ? questionData.correct_answer : null,
+      language: questionData.language || null,
+      starter_code: questionData.starter_code || null,
+      test_cases: questionData.test_cases ? JSON.stringify(questionData.test_cases) : null,
     }
   )
   return rows[0]
@@ -95,7 +101,7 @@ async function getByIdForInterview(id, interviewId, attemptId) {
 
 async function getCandidateExamQuestions(interviewId) {
   return db.query(
-    `SELECT id, text, question_type, options, order_num, phase
+    `SELECT id, text, question_type, options, order_num, phase, language, starter_code, test_cases
      FROM questions
      WHERE interview_id = @interviewId
      ORDER BY order_num`,

@@ -1,166 +1,74 @@
 # Folder Structure — Screeno
 
-Final confirmed structure. Existing folders: frontend/, backend/, .claude/, docs/, tokens.css, INTEGRATION.md
+Actual structure as built (verified against the repo on `dev`). For full per-area detail and the live
+route maps, see [`frontend/CLAUDE.md`](../frontend/CLAUDE.md) and [`backend/CLAUDE.md`](../backend/CLAUDE.md)
+— this file is a high-level orientation map only, kept short so it doesn't drift again.
 
 ---
 
 ## Root layout
 
 ```
-screeno/                              ← root of the project
-├── frontend/                         ← React JSX app
-│   ├── CLAUDE.md                     ← frontend-specific Claude context
-│   ├── public/
-│   │   ├── index.html
-│   │   └── favicon.ico
+screeno/
+├── frontend/                         ← React 19 (JSX) app — Vite, React Router v6
+│   ├── CLAUDE.md
 │   ├── src/
 │   │   ├── components/
-│   │   │   ├── shared/               ← CHECK HERE FIRST before building any component
-│   │   │   │   ├── Button.jsx
-│   │   │   │   ├── Card.jsx
-│   │   │   │   ├── Modal.jsx
-│   │   │   │   ├── Input.jsx
-│   │   │   │   ├── Badge.jsx
-│   │   │   │   ├── Avatar.jsx
-│   │   │   │   ├── Table.jsx
-│   │   │   │   ├── Spinner.jsx
-│   │   │   │   ├── EmptyState.jsx
-│   │   │   │   ├── ErrorMessage.jsx
-│   │   │   │   └── FileUpload.jsx
-│   │   │   ├── layout/
-│   │   │   │   ├── AppLayout.jsx     ← sidebar + topbar (manager/interviewer)
-│   │   │   │   ├── Sidebar.jsx
-│   │   │   │   ├── TopBar.jsx
-│   │   │   │   └── CandidateLayout.jsx ← minimal layout for interview screens
-│   │   │   ├── interview/            ← shared interview components (all roles)
-│   │   │   │   ├── AIVoiceRoom.jsx
-│   │   │   │   ├── ExamRunner.jsx
-│   │   │   │   ├── ProctoringMonitor.jsx
-│   │   │   │   ├── DeviceCheck.jsx
-│   │   │   │   ├── ConsentScreen.jsx
-│   │   │   │   ├── AIWaveform.jsx
-│   │   │   │   ├── TranscriptPanel.jsx
-│   │   │   │   └── DesktopOnlyGate.jsx
-│   │   │   ├── manager/              ← manager-only components
-│   │   │   │   ├── TeamTable.jsx
-│   │   │   │   ├── MemberCard.jsx
-│   │   │   │   ├── ScheduleModal.jsx
-│   │   │   │   ├── CSVImportModal.jsx
-│   │   │   │   ├── CalendarGrid.jsx
-│   │   │   │   └── ReportCard.jsx
-│   │   │   ├── candidate/            ← candidate-only components
-│   │   │   │   ├── InterviewLanding.jsx
-│   │   │   │   └── FeedbackPanel.jsx
-│   │   │   └── interviewer/          ← interviewer-only components
-│   │   │       ├── ScorecardForm.jsx
-│   │   │       ├── QuestionPanel.jsx
-│   │   │       ├── NotesPanel.jsx
-│   │   │       └── AISuggestionsPanel.jsx
+│   │   │   ├── shared/               ← CHECK HERE FIRST: Avatar, Badge, Button, Card, EmptyState,
+│   │   │   │                            ErrorBoundary, ErrorMessage, Input, Modal, Spinner
+│   │   │   ├── layout/               ← AppLayout, Sidebar, TopBar, CandidateLayout
+│   │   │   └── manager/              ← AddCandidateModal, CompareModal, EditMemberModal, ScheduleModal
 │   │   ├── pages/
-│   │   │   ├── auth/
-│   │   │   │   └── LoginPage.jsx
-│   │   │   ├── manager/
-│   │   │   │   ├── DashboardPage.jsx
-│   │   │   │   ├── TeamPage.jsx
-│   │   │   │   ├── MemberProfilePage.jsx
-│   │   │   │   ├── SchedulePage.jsx
-│   │   │   │   └── ReportsPage.jsx
-│   │   │   ├── candidate/
-│   │   │   │   ├── InterviewLandingPage.jsx
-│   │   │   │   ├── DeviceCheckPage.jsx
-│   │   │   │   ├── ConsentPage.jsx
-│   │   │   │   ├── AIInterviewPage.jsx
-│   │   │   │   ├── ExamPage.jsx
-│   │   │   │   └── DonePage.jsx
-│   │   │   └── interviewer/
-│   │   │       ├── InterviewerDashboard.jsx
-│   │   │       ├── LiveRoomPage.jsx
-│   │   │       └── ScorecardPage.jsx
-│   │   ├── hooks/
-│   │   │   ├── useAuth.js            ← JWT, login/logout, user state
-│   │   │   ├── useInterview.js       ← audio recording, transcription, phases
-│   │   │   └── useProctoring.js      ← tab detection, fullscreen, face
-│   │   ├── services/
-│   │   │   └── api.js                ← ALL backend API calls live here
-│   │   ├── utils/
-│   │   │   └── helpers.js            ← formatDate, truncateText, etc.
-│   │   ├── styles/
-│   │   │   └── globals.css
-│   │   ├── App.jsx                   ← routes + auth protection
-│   │   └── index.jsx                 ← entry point
+│   │   │   ├── auth/                 ← LoginPage
+│   │   │   ├── manager/              ← Dashboard, Team, MemberProfile, Schedule, Reports,
+│   │   │   │                            Templates, ManagerProfile, ResumeAnalyzer
+│   │   │   ├── candidate/            ← InterviewLanding, DeviceCheck, Consent, AIInterview,
+│   │   │   │                            Exam, HumanInterview, Done, CandidateDashboard
+│   │   │   └── interviewer/          ← InterviewerDashboard, LiveRoom, Scorecard, InterviewerProfile
+│   │   │   (plus legacy/unused: screens/, layouts/, v2-*.jsx, ai-room.jsx, hr.jsx, etc. —
+│   │   │    not imported by App.jsx; reference only, see frontend/CLAUDE.md)
+│   │   ├── hooks/                    ← useAuth, useInterview (state-machine), useProctoring
+│   │   ├── services/api.js           ← ALL backend calls (fetch-based client w/ JWT refresh)
+│   │   ├── utils/helpers.js
+│   │   ├── App.jsx                   ← real role-based router + RequireAuth guard
+│   │   └── main.jsx
 │   ├── package.json
 │   └── .env
 │
-├── backend/                          ← Node.js + Express API
-│   ├── CLAUDE.md                     ← backend-specific Claude context
+├── backend/                          ← Node.js 20 + Express 5 API
+│   ├── CLAUDE.md
 │   ├── src/
-│   │   ├── routes/                   ← HTTP routes only, no SQL
-│   │   │   ├── auth.routes.js
-│   │   │   ├── interview.routes.js
-│   │   │   ├── candidate.routes.js
-│   │   │   ├── team.routes.js
-│   │   │   ├── report.routes.js
-│   │   │   └── schedule.routes.js
-│   │   ├── repositories/             ← ALL SQL queries live here only
-│   │   │   ├── base.repository.js    ← DB connection helper
-│   │   │   ├── user.repository.js
-│   │   │   ├── candidate.repository.js
-│   │   │   ├── interview.repository.js
-│   │   │   ├── answer.repository.js
-│   │   │   ├── report.repository.js
-│   │   │   └── file.repository.js
-│   │   ├── services/                 ← business logic only
-│   │   │   ├── auth.service.js
-│   │   │   ├── interview.service.js
-│   │   │   ├── report.service.js
-│   │   │   ├── transcription.service.js
-│   │   │   ├── llm.service.js
-│   │   │   ├── email.service.js
-│   │   │   └── storage.service.js
-│   │   ├── middleware/
-│   │   │   ├── auth.middleware.js    ← validates JWT on protected routes
-│   │   │   ├── role.middleware.js    ← checks user role
-│   │   │   └── upload.middleware.js  ← multer for file uploads
-│   │   ├── db/
-│   │   │   └── connection.js         ← mssql connection pool + query helper
-│   │   ├── jobs/
-│   │   │   ├── cleanup.job.js        ← delete old Cloudinary files
-│   │   │   └── report.job.js         ← generate pending reports
-│   │   └── app.js                    ← Express setup + middleware
-│   ├── migrations/
-│   │   └── 001_create_tables.sql     ← run this in SSMS to set up DB
-│   ├── server.js                     ← entry point (starts Express)
+│   │   ├── routes/        ← HTTP only: auth, team, interview, interviewer, candidate,
+│   │   │                     report, schedule, template, exam, upload, profile
+│   │   ├── services/      ← business logic: auth, team, interview, schedule, llm,
+│   │   │                     transcription, report-job, pdf, email, storage, judge (Piston code execution)
+│   │   ├── repositories/  ← SQL only: user, candidate, interview, question, answer, attempt,
+│   │   │                     scorecard, proctoring, notes, interview-note, schedule-record,
+│   │   │                     email-delivery, refresh-token, report, report-job
+│   │   ├── middleware/    ← auth, role, upload (multer), rate-limit
+│   │   └── db/            ← connection.js factory + supabase/sqlserver connection files
+│   ├── migrations/        ← paired NNN_name.sql (Postgres) + NNN_name_sqlserver.sql (SSMS),
+│   │                          applied via setup-db.js's idempotent ALTER ... IF NOT EXISTS sections
+│   ├── server.js          ← mounts routes, security headers, CORS, rate limits, report-job worker
 │   ├── package.json
 │   └── .env
 │
-├── .claude/                          ← Claude Code settings (existing)
-│   └── settings.json
+├── .claude/
+│   ├── settings.json
+│   └── skills/                       ← db-access.md and other action skills (see docs/INDEX.md)
 │
-├── docs/                             ← All project documentation
-│   ├── PRD.md                        ← product requirements
-│   ├── frontend-prompt.md            ← guide for building frontend
-│   ├── backend-prompt.md             ← guide for building backend
-│   ├── database-schema.md            ← SQL schema + sample data
-│   ├── folder-structure.md           ← THIS FILE
-│   ├── tech-stack.md                 ← why each technology was chosen
-│   └── discussion.md                 ← resolved decisions log
+├── docs/                             ← see docs/INDEX.md for the full list + what each covers
+│   ├── PRD.md, frontend-prompt.md, backend-prompt.md, database-schema.md,
+│   │   folder-structure.md (this file), tech-stack.md, discussion.md, AUDIT-BACKLOG.md
 │
-├── skills/                           ← Claude Code skill files
-│   ├── coding-standards.md
-│   ├── token-saving.md
-│   ├── git-standards.md
-│   ├── naming-conventions.md
-│   └── vibe-coding.md
+├── skills/                           ← coding-standards.md, token-saving.md, git-standards.md,
+│                                          naming-conventions.md, vibe-coding.md, rules.md
 │
 ├── assets/
-│   ├── logo/                         ← your built logos go here
-│   └── prompts/
-│       └── asset-generation-prompts.md
-│
+├── BRAIN.md                          ← what's built, in progress, and which files are involved (read first)
 ├── CLAUDE.md                         ← ROOT: Claude Code reads this first
-├── .claudeignore                     ← files Claude Code should skip
-├── tokens.css                        ← design tokens (existing, shared)
-└── INTEGRATION.md                    ← existing integration notes
+├── .claudeignore
+└── tokens.css                        ← design tokens, shared by all frontend styling
 ```
 
 ---
@@ -171,7 +79,7 @@ screeno/                              ← root of the project
 1. Ask: can this be used by more than one role?
    - YES → `frontend/src/components/shared/`
    - NO → role-specific folder (`manager/`, `candidate/`, `interviewer/`)
-   - INTERVIEW-related → `frontend/src/components/interview/`
+   - Interview-flow screens live directly in `pages/candidate/` — there is no `components/interview/` folder
 
 **New API route:**
 1. Add route definition to relevant `backend/src/routes/*.routes.js`
@@ -179,11 +87,13 @@ screeno/                              ← root of the project
 3. Add SQL query to `backend/src/repositories/*.repository.js`
 4. Never mix these three — keep them strictly separated
 
-**New database table:**
-1. Write the `CREATE TABLE` SQL in `backend/migrations/`
-2. Run it in SSMS first, verify it works
-3. Then write the repository file
+**New database table or column:**
+- Add a paired migration to `backend/migrations/` (`NNN_name.sql` for Postgres with
+  `ADD COLUMN IF NOT EXISTS`, `NNN_name_sqlserver.sql` for SSMS with `IF NOT EXISTS (SELECT 1 FROM sys.columns...)`)
+- Add a matching idempotent `await run(...)` alignment call in `backend/setup-db.js`, then run
+  `node setup-db.js` to apply it to the live Supabase DB
+- Update `docs/database-schema.md` to reflect the new shape
 
 **New documentation:**
 - Project-wide docs → `docs/`
-- Claude Code instructions → skills/ or CLAUDE.md files
+- Claude Code instructions → `skills/` or `CLAUDE.md` files

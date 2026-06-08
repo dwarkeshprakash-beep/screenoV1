@@ -121,7 +121,7 @@ function InterviewerProfilePage() {
     }
   }
 
-  if (loading) return <div style={{ padding: 40 }}><Spinner /></div>
+  if (loading) return <Spinner center />
   if (error) return <ErrorMessage message={error} />
 
   const cardStyle = { background: '#FFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 20, boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }

@@ -5,6 +5,7 @@ const express = require('express')
 const db = require('../db/connection')
 const questionRepository = require('../repositories/question.repository')
 const reportJobRepository = require('../repositories/report-job.repository')
+const judgeService = require('../services/judge.service')
 
 const router = express.Router()
 
@@ -30,13 +31,20 @@ router.get('/:token', async (req, res) => {
 
     const questions = await questionRepository.getCandidateExamQuestions(interview.id)
 
-    // Parse options JSON string → array
-    const parsed = questions.map(q => ({
-      ...q,
-      options: (() => {
-        try { return q.options ? JSON.parse(q.options) : [] } catch { return [] }
-      })(),
-    }))
+    // Parse options JSON string → array; for coding questions, hide expected_output on hidden test cases
+    const parsed = questions.map(q => {
+      let testCases = []
+      try { testCases = q.test_cases ? JSON.parse(q.test_cases) : [] } catch { testCases = [] }
+      return {
+        ...q,
+        options: (() => {
+          try { return q.options ? JSON.parse(q.options) : [] } catch { return [] }
+        })(),
+        test_cases: testCases.map(tc => tc.hidden
+          ? { input: tc.input, hidden: true }
+          : { input: tc.input, expected_output: tc.expected_output, hidden: false }),
+      }
+    })
 
     return res.json({
       success: true,
@@ -88,17 +96,27 @@ router.post('/:token/submit', async (req, res) => {
       return res.status(400).json({ success: false, error: 'At least one answer is required' })
     }
 
-    const safeQuestions = await questionRepository.getCandidateExamQuestions(interview.id)
-    const questionIds = new Set(safeQuestions.map(q => q.id))
+    const safeQuestions = await questionRepository.getByInterview(interview.id)
+    const questionMap = new Map(safeQuestions.map(q => [q.id, q]))
     const submittedIds = new Set()
     for (const answer of answers) {
-      if (!questionIds.has(answer.questionId)) {
+      if (!questionMap.has(answer.questionId)) {
         return res.status(400).json({ success: false, error: 'Invalid question submitted' })
       }
       submittedIds.add(answer.questionId)
     }
-    if (submittedIds.size !== questionIds.size) {
+    if (submittedIds.size !== questionMap.size) {
       return res.status(400).json({ success: false, error: 'Please answer every question before submitting' })
+    }
+
+    // Run coding submissions through the judge BEFORE opening the DB transaction —
+    // these are slow network calls and must not hold a DB connection open.
+    const codingAnswerText = new Map()
+    for (const a of answers) {
+      const question = questionMap.get(a.questionId)
+      if (question.question_type === 'coding') {
+        codingAnswerText.set(a.questionId, await buildCodingAnswerText(question, a))
+      }
     }
 
     const attempt = await db.transaction(async tx => {
@@ -125,9 +143,9 @@ router.post('/:token/submit', async (req, res) => {
       const createdAttempt = attemptRows[0]
 
       for (const a of answers) {
-        const answerText = a.selectedOption !== undefined
-          ? String(a.selectedOption)
-          : (a.answerText || '')
+        const answerText = codingAnswerText.has(a.questionId)
+          ? codingAnswerText.get(a.questionId)
+          : (a.selectedOption !== undefined ? String(a.selectedOption) : (a.answerText || ''))
         await tx.query(
           `INSERT INTO answers (interview_id, attempt_id, question_id, answer_text)
            VALUES (@interview_id, @attempt_id, @question_id, @answer_text)`,
@@ -158,5 +176,32 @@ router.post('/:token/submit', async (req, res) => {
     res.status(500).json({ success: false, error: 'Could not submit exam' })
   }
 })
+
+// Run a candidate's submitted code against the question's test cases and build a
+// readable summary that feeds into the LLM report prompt — same scoring path as
+// every other answer type, just with judge-verified pass/fail evidence attached.
+async function buildCodingAnswerText(question, answer) {
+  const code = (answer.code || '').toString()
+  const language = question.language || 'javascript'
+
+  let testCases = []
+  try { testCases = question.test_cases ? JSON.parse(question.test_cases) : [] } catch { testCases = [] }
+
+  if (!code.trim()) {
+    return `Language: ${language}\n\nNo code submitted.`
+  }
+  if (testCases.length === 0) {
+    return `Language: ${language}\n\nSubmitted code:\n${code}\n\nTest results: not evaluated (no test cases configured)`
+  }
+
+  const results = await judgeService.runTestCases(language, code, testCases)
+  const passed = results.filter(r => r.passed).length
+  const pct = Math.round((passed / results.length) * 100)
+  const lines = results.map((r, i) =>
+    `Test ${i + 1}: ${r.passed ? 'PASS' : 'FAIL'}${r.error ? ` — ${r.error.slice(0, 200)}` : ''}`
+  )
+
+  return `Language: ${language}\n\nSubmitted code:\n${code}\n\nTest results: ${passed}/${results.length} passed (${pct}%)\n${lines.join('\n')}`
+}
 
 module.exports = router

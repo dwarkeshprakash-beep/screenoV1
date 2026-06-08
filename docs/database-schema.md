@@ -160,6 +160,13 @@ CREATE TABLE questions (
     text            TEXT NOT NULL,
     phase           VARCHAR(20) NOT NULL,   -- 'warmup', 'technical', 'scenario', 'closing'
     order_num       INT NOT NULL,
+    question_type   VARCHAR(20),        -- 'mcq' | 'open' | 'coding' (exam questions only)
+    options         TEXT,               -- JSON array — mcq choices
+    correct_answer  INT,                -- mcq correct option index
+    language        VARCHAR(20),        -- coding: 'javascript' | 'python' (added in migration 007)
+    starter_code    TEXT,               -- coding: skeleton shown to the candidate (migration 007)
+    test_cases      TEXT,               -- coding: JSON [{ input, expected_output, hidden }],
+                                         --   expected_output is judge-verified, never LLM-guessed (migration 007)
     created         TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -360,6 +367,12 @@ CREATE TABLE questions (
     text            NVARCHAR(MAX) NOT NULL,
     phase           NVARCHAR(20) NOT NULL,
     order_num       INT NOT NULL,
+    question_type   NVARCHAR(20) NULL,
+    options         NVARCHAR(MAX) NULL,
+    correct_answer  INT NULL,
+    language        NVARCHAR(20) NULL,
+    starter_code    NVARCHAR(MAX) NULL,
+    test_cases      NVARCHAR(MAX) NULL,
     created         DATETIME2 DEFAULT GETDATE()
 );
 

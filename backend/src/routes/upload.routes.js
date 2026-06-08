@@ -20,9 +20,14 @@ async function extractTextFromBuffer(buffer, mimetype, originalname) {
     return buffer.toString('utf8')
   }
   if (mimetype === 'application/pdf' || name.endsWith('.pdf')) {
-    const pdfParse = require('pdf-parse')
-    const data = await pdfParse(buffer)
-    return data.text || ''
+    const { PDFParse } = require('pdf-parse')
+    const parser = new PDFParse({ data: buffer })
+    try {
+      const result = await parser.getText()
+      return result.text || ''
+    } finally {
+      await parser.destroy()
+    }
   }
   if (mimetype.includes('wordprocessing') || name.endsWith('.docx') || name.endsWith('.doc')) {
     const mammoth = require('mammoth')
@@ -44,9 +49,11 @@ router.post('/resume', upload.single('resume'), async (req, res) => {
     const candidateId = parseInt(req.body.candidateId, 10)
     if (!candidateId) return res.status(400).json({ success: false, error: 'candidateId is required' })
 
-    const { url } = await storageService.uploadResume(req.file.buffer, req.file.originalname)
     const candidate = await candidateRepository.getByIdForCompany(candidateId, req.user.companyId)
     if (!candidate) return res.status(404).json({ success: false, error: 'Candidate not found' })
+
+    // One resume per candidate — uploading again replaces the existing Cloudinary asset
+    const { url } = await storageService.uploadResume(req.file.buffer, candidateId)
     await candidateRepository.update(candidateId, { resumeUrl: url }, req.user.companyId)
 
     res.json({ success: true, data: { resumeUrl: url } })

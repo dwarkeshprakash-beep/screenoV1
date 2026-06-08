@@ -251,12 +251,14 @@ function ScheduleModal({ open, onClose, member, selectedIds = [], template, onDo
   const [jdText, setJdText]           = useState('')
   const [focusAreas, setFocusAreas]   = useState('')
   const [difficulty, setDifficulty]   = useState('medium')
+  const [questionCount, setQuestionCount] = useState(10)
   const [transcriptionMode, setTranscriptionMode] = useState('api')
   const jdInputRef = useRef(null)
 
   // ── Step 3 state ────────────────────────────────────────────
   const [teamList, setTeamList]         = useState([])
   const [interviewers, setInterviewers] = useState([])
+  const [orgUsers, setOrgUsers]         = useState([])  // company users (report recipient suggestions)
   const [candidates, setCandidates]     = useState([])  // selected candidate objects
   const [reportEmails, setReportEmails] = useState([])  // extra CC emails for report
 
@@ -276,6 +278,7 @@ function ScheduleModal({ open, onClose, member, selectedIds = [], template, onDo
     // Load team
     api.getTeam().then(r => setTeamList(r.data || [])).catch(() => setTeamList([]))
     api.getInterviewers().then(r => setInterviewers(r.data || [])).catch(() => setInterviewers([]))
+    api.getOrgUsers().then(r => setOrgUsers(r.data || [])).catch(() => setOrgUsers([]))
     // Get manager email
     try {
       const u = JSON.parse(localStorage.getItem('user') || '{}')
@@ -349,6 +352,7 @@ function ScheduleModal({ open, onClose, member, selectedIds = [], template, onDo
           jdText: jdText || null,
           focusAreas,
           difficulty,
+          questionCount,
           reportEmails: [managerEmail, ...reportEmails].filter(Boolean),
           stages: stages.map(s => s.id),
           interviewerId: primaryStage === 'human' ? parseInt(interviewerId, 10) : null,
@@ -368,9 +372,9 @@ function ScheduleModal({ open, onClose, member, selectedIds = [], template, onDo
     setStep(1); setError(null)
     setStages([{ id: 'ai_voice' }]); setMode('internal_monthly'); setVoiceMode('simple')
     setJdFile(null); setJdText(''); setFocusAreas('')
-    setDifficulty('medium'); setMaxAttempts(3); setTranscriptionMode('api')
+    setDifficulty('medium'); setQuestionCount(10); setMaxAttempts(3); setTranscriptionMode('api')
     setCooldown(24); setWindowDays(7); setReportTiming('all')
-    setReportEmails([]); setCandidates([]); setTeamList([]); setInterviewers([])
+    setReportEmails([]); setCandidates([]); setTeamList([]); setInterviewers([]); setOrgUsers([])
     setInterviewerId(''); setScheduledStart('')
     onClose()
   }
@@ -511,13 +515,13 @@ function ScheduleModal({ open, onClose, member, selectedIds = [], template, onDo
                 {[
                   {
                     id: 'simple',
-                    label: 'Fixed 10 questions',
-                    desc: 'Generate 10 questions from the resume, JD, and focus areas.',
+                    label: 'Fixed question list',
+                    desc: 'Generate a set list of questions upfront from the resume, JD, and focus areas.',
                   },
                   {
                     id: 'adaptive',
                     label: 'Adaptive conversation',
-                    desc: 'AI chooses follow-ups or changes topic based on each answer.',
+                    desc: 'AI follows up or pivots to related topics based on each answer, aiming for your target count.',
                   },
                 ].map(option => (
                   <button
@@ -671,6 +675,16 @@ function ScheduleModal({ open, onClose, member, selectedIds = [], template, onDo
             </div>
           </div>
 
+          {/* Question count */}
+          {stages[0]?.id === 'ai_voice' && (
+            <div>
+              {lbl('Number of questions', voiceMode === 'adaptive' ? '(target — the AI adapts around this)' : '(fixed list generated upfront)')}
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {[5, 8, 10, 15].map(v => pillBtn(questionCount === v, () => setQuestionCount(v), `${v}`))}
+              </div>
+            </div>
+          )}
+
           {/* Report timing */}
           <div>
             {lbl('Generate report')}
@@ -709,7 +723,7 @@ function ScheduleModal({ open, onClose, member, selectedIds = [], template, onDo
               label="CC"
               emails={reportEmails}
               onRemove={removeReportEmail}
-              orgUsers={teamList}
+              orgUsers={orgUsers}
               onAdd={addReportEmail}
               disabledEmails={managerEmail ? [managerEmail] : []}
             />
@@ -751,7 +765,10 @@ function ScheduleModal({ open, onClose, member, selectedIds = [], template, onDo
               {[
                 ['Mode',          MODES.find(m => m.id === mode)?.label || mode],
                 ...(stages[0]?.id === 'ai_voice'
-                  ? [['Voice style', voiceMode === 'adaptive' ? 'Adaptive conversation' : 'Fixed 10 questions']]
+                  ? [
+                    ['Voice style', voiceMode === 'adaptive' ? 'Adaptive conversation' : 'Fixed question list'],
+                    ['Questions',   voiceMode === 'adaptive' ? `~${questionCount} (adaptive target)` : `${questionCount}`],
+                  ]
                   : []),
                 ['Stages',        stages.map(s => INTERVIEW_TYPES.find(t => t.id === s.id)?.label).join(' → ')],
                 ['Attempts',      maxAttempts === -1 ? 'Unlimited' : maxAttempts],

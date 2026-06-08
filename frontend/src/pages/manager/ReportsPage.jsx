@@ -66,7 +66,7 @@ function ReportsPage() {
     }
   }
 
-  if (loading) return <div style={{ padding: 40 }}><Spinner /></div>
+  if (loading) return <Spinner center />
   if (error) return <ErrorMessage message={error} />
 
   const visibleReports = decisionFilter === 'all' ? reports : reports.filter(r => (r.decision || 'pending') === decisionFilter)

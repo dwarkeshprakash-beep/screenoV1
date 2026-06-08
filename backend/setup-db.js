@@ -110,6 +110,7 @@ async function main() {
   await run('interviews.interview_mode column',    `ALTER TABLE interviews ADD COLUMN IF NOT EXISTS interview_mode VARCHAR(20) DEFAULT 'simple'`)
   await run('interviews.transcription_mode column', `ALTER TABLE interviews ADD COLUMN IF NOT EXISTS transcription_mode VARCHAR(20) DEFAULT 'api'`)
   await run('interviews.difficulty column',         `ALTER TABLE interviews ADD COLUMN IF NOT EXISTS difficulty VARCHAR(20) DEFAULT 'medium'`)
+  await run('interviews.question_count column',     `ALTER TABLE interviews ADD COLUMN IF NOT EXISTS question_count INT DEFAULT 10`)
   await run('interviews.jd_text column',            `ALTER TABLE interviews ADD COLUMN IF NOT EXISTS jd_text TEXT`)
   await run('interviews.max_attempts column',       `ALTER TABLE interviews ADD COLUMN IF NOT EXISTS max_attempts INT DEFAULT 3`)
   await run('interviews.cooldown_hours column',     `ALTER TABLE interviews ADD COLUMN IF NOT EXISTS cooldown_hours INT DEFAULT 24`)
@@ -180,6 +181,9 @@ async function main() {
   console.log('\n[8] Aligning questions table...')
 
   await run('questions.created column', `ALTER TABLE questions ADD COLUMN IF NOT EXISTS created TIMESTAMPTZ DEFAULT NOW()`)
+  await run('questions.language column', `ALTER TABLE questions ADD COLUMN IF NOT EXISTS language VARCHAR(20)`)
+  await run('questions.starter_code column', `ALTER TABLE questions ADD COLUMN IF NOT EXISTS starter_code TEXT`)
+  await run('questions.test_cases column', `ALTER TABLE questions ADD COLUMN IF NOT EXISTS test_cases TEXT`)
 
   // ─── 9. SEED TEST COMPANY ────────────────────────────────────
   console.log('\n[9] Seeding test company...')

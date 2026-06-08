@@ -86,6 +86,7 @@ async function createSchedule(data, managerId, companyId) {
     difficulty: data.difficulty || 'medium',
     jdText: data.jdText || null,
     focusAreas: data.focusAreas || null,
+    questionCount: data.questionCount || 10,
     maxAttempts: data.maxAttempts || 3,
     cooldownHours: data.cooldownHours || 24,
     windowDays,
@@ -210,6 +211,10 @@ async function getInterviewers(companyId) {
   return userRepository.getByRole(companyId, 'interviewer')
 }
 
+async function getOrgUsers(companyId) {
+  return userRepository.getByCompany(companyId)
+}
+
 async function getEmailDeliveries(interviewId, companyId) {
   const interview = await interviewRepository.getByIdForCompany(interviewId, companyId)
   if (!interview) throw new Error('Interview not found')
@@ -259,6 +264,7 @@ module.exports = {
   getCalendarEvents,
   getAvailableSlots,
   getInterviewers,
+  getOrgUsers,
   getEmailDeliveries,
   resendMagicLink,
 }
