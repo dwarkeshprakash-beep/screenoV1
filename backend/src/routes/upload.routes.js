@@ -1,5 +1,5 @@
 // backend/src/routes/upload.routes.js
-// Upload endpoints — resume upload to Cloudinary, text extraction, AI resume analysis.
+// Upload endpoints — resume upload to Supabase Storage, text extraction, AI resume analysis.
 // HTTP only: receive → call service → respond.
 
 const express = require('express')
@@ -39,7 +39,7 @@ async function extractTextFromBuffer(buffer, mimetype, originalname) {
 
 /**
  * POST /api/upload/resume
- * Uploads a PDF resume to Cloudinary and saves the URL to the candidate record.
+ * Uploads a PDF resume to Supabase Storage and saves the URL to the candidate record.
  * Body: multipart/form-data — fields: resume (file), candidateId (string)
  */
 router.post('/resume', upload.single('resume'), async (req, res) => {
@@ -52,7 +52,7 @@ router.post('/resume', upload.single('resume'), async (req, res) => {
     const candidate = await candidateRepository.getByIdForCompany(candidateId, req.user.companyId)
     if (!candidate) return res.status(404).json({ success: false, error: 'Candidate not found' })
 
-    // One resume per candidate — uploading again replaces the existing Cloudinary asset
+    // One resume per candidate — uploading again replaces the existing Supabase Storage asset
     const { url } = await storageService.uploadResume(req.file.buffer, candidateId)
     await candidateRepository.update(candidateId, { resumeUrl: url }, req.user.companyId)
 

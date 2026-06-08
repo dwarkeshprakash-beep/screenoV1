@@ -1,74 +1,59 @@
 // backend/src/services/storage.service.js
-// Cloudinary helpers — upload and delete raw files (resumes, reports).
+// Supabase Storage helpers — upload and delete raw files (resumes, reports).
 // Files are streamed from memory buffer; nothing is written to disk.
 
-const cloudinary = require('cloudinary').v2
+const { createClient } = require('@supabase/supabase-js')
 
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-})
+const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY)
+
+const BUCKET = 'files'
 
 /**
- * Upload a file buffer to Cloudinary under screeno/resumes.
- * Uses a public ID keyed to the candidate so each candidate has exactly one
+ * Upload a file buffer to Supabase Storage under resumes/.
+ * Uses a path keyed to the candidate so each candidate has exactly one
  * resume asset — re-uploading overwrites the previous file instead of leaving
- * orphaned copies in Cloudinary.
+ * orphaned copies in storage.
  * @param {Buffer} buffer - file content from multer memoryStorage
  * @param {number|string} candidateId - candidate the resume belongs to
  * @returns {Promise<{ url: string, publicId: string }>}
  */
 async function uploadResume(buffer, candidateId) {
-  return new Promise((resolve, reject) => {
-    const stream = cloudinary.uploader.upload_stream(
-      {
-        folder: 'screeno/resumes',
-        resource_type: 'raw',
-        public_id: `resume_candidate_${candidateId}`,
-        format: 'pdf',
-        overwrite: true,
-        invalidate: true,
-      },
-      (error, result) => {
-        if (error) return reject(error)
-        resolve({ url: result.secure_url, publicId: result.public_id })
-      }
-    )
-    stream.end(buffer)
+  const path = `resumes/resume_candidate_${candidateId}.pdf`
+
+  const { error } = await supabase.storage.from(BUCKET).upload(path, buffer, {
+    contentType: 'application/pdf',
+    upsert: true,
   })
+  if (error) throw error
+
+  const { data } = supabase.storage.from(BUCKET).getPublicUrl(path)
+  return { url: data.publicUrl, publicId: path }
 }
 
 /**
- * Upload a PDF report buffer to Cloudinary under screeno/reports.
+ * Upload a PDF report buffer to Supabase Storage under reports/.
  * @param {Buffer} buffer
- * @param {number|string} reportId - used to build a stable public_id
+ * @param {number|string} reportId - used to build a stable path
  * @returns {Promise<{ url: string, publicId: string }>}
  */
 async function uploadReport(buffer, reportId) {
-  return new Promise((resolve, reject) => {
-    const stream = cloudinary.uploader.upload_stream(
-      {
-        folder: 'screeno/reports',
-        resource_type: 'raw',
-        public_id: `report_${reportId}_${Date.now()}`,
-        format: 'pdf',
-      },
-      (error, result) => {
-        if (error) return reject(error)
-        resolve({ url: result.secure_url, publicId: result.public_id })
-      }
-    )
-    stream.end(buffer)
+  const path = `reports/report_${reportId}_${Date.now()}.pdf`
+
+  const { error } = await supabase.storage.from(BUCKET).upload(path, buffer, {
+    contentType: 'application/pdf',
   })
+  if (error) throw error
+
+  const { data } = supabase.storage.from(BUCKET).getPublicUrl(path)
+  return { url: data.publicUrl, publicId: path }
 }
 
 /**
- * Delete a file from Cloudinary by its public ID.
- * @param {string} publicId
+ * Delete a file from Supabase Storage by its path.
+ * @param {string} publicId - storage path, e.g. "resumes/resume_candidate_12.pdf"
  */
 async function deleteFile(publicId) {
-  await cloudinary.uploader.destroy(publicId, { resource_type: 'raw' })
+  await supabase.storage.from(BUCKET).remove([publicId])
 }
 
 module.exports = { uploadResume, uploadReport, deleteFile }

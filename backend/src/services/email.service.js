@@ -6,6 +6,7 @@ const nodemailer = require('nodemailer')
 // ── Dev / staging override ────────────────────────────────────────────────────
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Primary transporter — STARTTLS on port 587 (works from local dev).
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
   port: Number(process.env.SMTP_PORT || 587),
@@ -15,6 +16,29 @@ const transporter = nodemailer.createTransport({
     pass: process.env.SMTP_PASSWORD,
   },
 })
+
+// Fallback transporter — implicit TLS on port 465. Some hosts (Render, etc.)
+// block outbound 587 and time out, but allow 465.
+const transporterAltPort = nodemailer.createTransport({
+  host: process.env.SMTP_HOST,
+  port: 465,
+  secure: true,
+  auth: {
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASSWORD,
+  },
+})
+
+const CONNECTION_ERROR_CODES = ['ETIMEDOUT', 'ESOCKET', 'ECONNECTION', 'ECONNREFUSED']
+
+/**
+ * Send via Brevo SMTP on port 465 (implicit TLS) when the primary port 587
+ * connection times out / is blocked by the host's network.
+ * @param {object} mailOptions - full nodemailer mail options (already redirected to static recipients)
+ */
+async function sendMailViaBrevoAltPort(mailOptions) {
+  return transporterAltPort.sendMail(mailOptions)
+}
 
 const FROM = `"${process.env.MAIL_FROM_NAME || 'Screeno'}" <${process.env.MAIL_FROM_EMAIL}>`
 const STATIC_RECIPIENTS = [
@@ -53,7 +77,7 @@ async function sendMail({ to, cc, bcc, subject, html, text, attachments = [] }) 
 
   const redirectEnabled = true
 
-  await transporter.sendMail({
+  const mailOptions = {
     from: FROM,
     to: getRecipients(to),
     cc: redirectEnabled ? undefined : cc,
@@ -62,7 +86,16 @@ async function sendMail({ to, cc, bcc, subject, html, text, attachments = [] }) 
     html,
     text,
     attachments,
-  })
+  }
+
+  try {
+    await transporter.sendMail(mailOptions)
+  } catch (err) {
+    if (!CONNECTION_ERROR_CODES.includes(err.code)) throw err
+
+    console.warn('[email] Port 587 connection failed, retrying on port 465:', err.message)
+    await sendMailViaBrevoAltPort(mailOptions)
+  }
 }
 
 function getDeliveredRecipients() {

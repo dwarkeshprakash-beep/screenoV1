@@ -174,7 +174,7 @@ async function getTeamReportStats(companyId) {
 }
 
 /**
- * Save the Cloudinary PDF URL on a report row.
+ * Save the report PDF URL (Supabase Storage) on a report row.
  * @param {number} id
  * @param {string} pdfUrl
  */

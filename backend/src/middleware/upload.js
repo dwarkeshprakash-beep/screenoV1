@@ -1,10 +1,10 @@
 // backend/src/middleware/upload.js
 // Multer config for file uploads (resumes, reports).
-// Files are held in memory and forwarded to Cloudinary — never written to disk.
+// Files are held in memory and forwarded to Supabase Storage — never written to disk.
 
 const multer = require('multer')
 
-// Store in memory — we upload to Cloudinary and discard immediately
+// Store in memory — we upload to Supabase Storage and discard immediately
 const storage = multer.memoryStorage()
 
 const upload = multer({

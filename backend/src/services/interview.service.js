@@ -263,7 +263,7 @@ ${qaText}`
     ...reportData,
   })
 
-  // Generate PDF and upload to Cloudinary — fire-and-forget, don't block email notify.
+  // Generate PDF and upload to Supabase Storage — fire-and-forget, don't block email notify.
   // Terminal .catch must never itself throw, or the rejection becomes unhandled and
   // crashes the process (this runs detached, after generateReport has returned).
   pdfService.generateReportPdf({ candidate, interview, report: savedReport })

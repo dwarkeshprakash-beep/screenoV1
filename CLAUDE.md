@@ -37,7 +37,7 @@ Frontend    React 19 (JSX only — no TypeScript), React Router v6, fetch via sr
 Backend     Node.js 20 + Express 5 (single service)
 Database    Supabase (PostgreSQL) — current. SQL Server (SSMS) — future option.
             Two DB connection files exist — switch via DB_TYPE env var.
-Files       Cloudinary — resumes and reports only (no audio stored)
+Files       Supabase Storage (bucket "files") — resumes and reports only (no audio stored)
 Video       LiveKit — human interviews (livekit-server-sdk backend, @livekit/components-react frontend)
 Auth        JWT access token (15 min) + HttpOnly cookie refresh token (7 days)
 LLM         Groq Llama 3.3 70B → Gemini 2.0 Flash fallback, called via plain fetch() to REST endpoints

@@ -16,7 +16,7 @@ jsonwebtoken        JWT tokens
 cookie-parser       refresh-token cookie
 cors                CORS (origin allowlist from FRONTEND_URL)
 multer              file uploads (memory storage — buffers only)
-cloudinary          file storage (resumes/reports)
+@supabase/supabase-js  file storage (resumes/reports — bucket "files" in the same Supabase project as the DB)
 livekit-server-sdk  LiveKit room tokens for human interviews
 nodemailer          transactional email over SMTP (Brevo)
 pdfkit / pdf-parse / mammoth   PDF & docx generation/parsing (reports, resume analysis)
@@ -84,7 +84,7 @@ backend/
 │   │   ├── report-job.service.js   ← polling worker: generates interview reports async
 │   │   ├── pdf.service.js          ← pdfkit/pdf-parse/mammoth report & resume parsing
 │   │   ├── email.service.js        ← nodemailer/SMTP — magic links, schedule + report-ready notices
-│   │   ├── storage.service.js      ← Cloudinary uploads (stable public_id per candidate resume)
+│   │   ├── storage.service.js      ← Supabase Storage uploads (stable path per candidate resume, bucket "files")
 │   │   └── judge.service.js        ← runs candidate code via the free Piston API (no key/SDK — plain fetch)
 │   ├── repositories/     ← SQL queries only — no business logic here
 │   │   ├── user.repository.js
@@ -152,10 +152,9 @@ REFRESH_EXPIRES_IN=7d
 GROQ_API_KEY=        # console.groq.com
 GEMINI_API_KEY=      # aistudio.google.com
 
-# Files
-CLOUDINARY_CLOUD_NAME=
-CLOUDINARY_API_KEY=
-CLOUDINARY_API_SECRET=
+# Files (Supabase Storage — bucket "files", public, folders resumes/ and reports/)
+SUPABASE_URL=
+SUPABASE_SERVICE_ROLE_KEY=
 
 # Video
 LIVEKIT_API_KEY=
