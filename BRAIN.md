@@ -153,3 +153,16 @@ Fixed three confirmed bugs found during a doc/code review pass:
 Also refreshed root/backend/frontend `CLAUDE.md` and `docs/folder-structure.md`, which still described the
 pre-build planning state (claimed `backend/src` didn't exist, frontend was the Vite placeholder, listed
 Axios/Resend/SDK-based LLM calls that were never actually used).
+
+### 2026-06-09 - Fix: "View report" and calendar clicks routing to wrong member profile
+`candidates.id` and `team_members.id` are separate ID namespaces; the profile route `/manager/team/:id`
+expects a `team_members.id`. Both `ReportsPage` and `SchedulePage` were navigating with `candidate_id`
+from their respective APIs, causing "Could not load profile" for every report/calendar link.
+- `backend/src/repositories/report.repository.js` — added `LEFT JOIN team_members` (via `user_id`) in both
+  UNION branches of `getTeamReports`; now selects `tm.id AS team_member_id`.
+- `backend/src/repositories/interview.repository.js` — same join added to `getByCompany` and `getByManager`
+  (the calendar queries); now selects `tm.id AS team_member_id`.
+- `backend/src/services/schedule.service.js` — calendar event map now exposes `teamMemberId`.
+- `frontend/src/pages/manager/ReportsPage.jsx` — "View report" button uses `r.team_member_id` (guarded:
+  only navigates when set, since external/non-team candidates won't have one).
+- `frontend/src/pages/manager/SchedulePage.jsx` — calendar event click uses `ev.teamMemberId`.
