@@ -102,79 +102,79 @@ async function getHistoryByCandidate(candidateId, companyId = null) {
  */
 async function getTeamReports(companyId) {
   return db.query(
-    `SELECT
-       c.id AS candidate_id,
-       tm.id AS team_member_id,
-       u.first_name,
-       u.last_name,
-       u.email,
-       i.type AS interview_type,
-       i.mode,
-       i.created AS scheduled_date,
-       a.id AS attempt_id,
-       a.attempt_num AS attempts,
-       a.status AS attempt_status,
-       a.ended AS completed_date,
-       r.id AS report_id,
-       r.overall_score,
-       10 AS score_max,
-       r.confidence,
-       r.tech_knowledge,
-       r.communication,
-       r.summary,
-       r.strengths,
-       r.pdf_url,
-       r.created AS report_date,
-       COALESCE(sc.decision, CASE WHEN r.id IS NULL THEN 'pending' ELSE 'needs_review' END) AS decision
-     FROM attempts a
-     JOIN interviews i ON i.id = a.interview_id
-     JOIN candidates c ON c.id = i.candidate_id AND c.company_id = i.company_id
-     LEFT JOIN users u ON u.id = c.user_id AND u.deleted IS NULL
-     LEFT JOIN team_members tm ON tm.user_id = c.user_id AND tm.company_id = c.company_id AND tm.deleted IS NULL
-     LEFT JOIN reports r ON r.attempt_id = a.id AND r.status = 'ready'
-     LEFT JOIN scorecards sc ON sc.interview_id = i.id
-     WHERE i.company_id = @companyId
-       AND c.deleted IS NULL
-       AND a.status = 'completed'
+    `SELECT * FROM (
+       SELECT
+         c.id AS candidate_id,
+         tm.id AS team_member_id,
+         u.first_name,
+         u.last_name,
+         u.email,
+         i.type AS interview_type,
+         i.mode,
+         i.created AS scheduled_date,
+         a.id AS attempt_id,
+         a.attempt_num AS attempts,
+         a.status AS attempt_status,
+         a.ended AS completed_date,
+         r.id AS report_id,
+         r.overall_score,
+         10 AS score_max,
+         r.confidence,
+         r.tech_knowledge,
+         r.communication,
+         r.summary,
+         r.strengths,
+         r.pdf_url,
+         r.created AS report_date,
+         COALESCE(sc.decision, CASE WHEN r.id IS NULL THEN 'pending' ELSE 'needs_review' END) AS decision
+       FROM attempts a
+       JOIN interviews i ON i.id = a.interview_id
+       JOIN candidates c ON c.id = i.candidate_id AND c.company_id = i.company_id
+       LEFT JOIN users u ON u.id = c.user_id AND u.deleted IS NULL
+       LEFT JOIN team_members tm ON tm.user_id = c.user_id AND tm.company_id = c.company_id AND tm.deleted IS NULL
+       LEFT JOIN reports r ON r.attempt_id = a.id AND r.status = 'ready'
+       LEFT JOIN scorecards sc ON sc.interview_id = i.id
+       WHERE i.company_id = @companyId
+         AND c.deleted IS NULL
+         AND a.status = 'completed'
 
-     UNION ALL
+       UNION ALL
 
-     -- Human interviews: no attempt row; report inserted with attempt_id = NULL by scorecard submission
-     SELECT
-       c.id AS candidate_id,
-       tm.id AS team_member_id,
-       u.first_name,
-       u.last_name,
-       u.email,
-       i.type AS interview_type,
-       i.mode,
-       i.created AS scheduled_date,
-       NULL AS attempt_id,
-       1 AS attempts,
-       'completed' AS attempt_status,
-       r.created AS completed_date,
-       r.id AS report_id,
-       r.overall_score,
-       10 AS score_max,
-       r.confidence,
-       r.tech_knowledge,
-       r.communication,
-       r.summary,
-       r.strengths,
-       r.pdf_url,
-       r.created AS report_date,
-       COALESCE(sc.decision, 'needs_review') AS decision
-     FROM reports r
-     JOIN interviews i ON i.id = r.interview_id
-     JOIN candidates c ON c.id = r.candidate_id AND c.company_id = i.company_id
-     LEFT JOIN users u ON u.id = c.user_id AND u.deleted IS NULL
-     LEFT JOIN team_members tm ON tm.user_id = c.user_id AND tm.company_id = c.company_id AND tm.deleted IS NULL
-     LEFT JOIN scorecards sc ON sc.interview_id = i.id
-     WHERE i.company_id = @companyId
-       AND c.deleted IS NULL
-       AND r.attempt_id IS NULL
-       AND r.status = 'ready'
-
+       SELECT
+         c.id AS candidate_id,
+         tm.id AS team_member_id,
+         u.first_name,
+         u.last_name,
+         u.email,
+         i.type AS interview_type,
+         i.mode,
+         i.created AS scheduled_date,
+         NULL AS attempt_id,
+         1 AS attempts,
+         'completed' AS attempt_status,
+         r.created AS completed_date,
+         r.id AS report_id,
+         r.overall_score,
+         10 AS score_max,
+         r.confidence,
+         r.tech_knowledge,
+         r.communication,
+         r.summary,
+         r.strengths,
+         r.pdf_url,
+         r.created AS report_date,
+         COALESCE(sc.decision, 'needs_review') AS decision
+       FROM reports r
+       JOIN interviews i ON i.id = r.interview_id
+       JOIN candidates c ON c.id = r.candidate_id AND c.company_id = i.company_id
+       LEFT JOIN users u ON u.id = c.user_id AND u.deleted IS NULL
+       LEFT JOIN team_members tm ON tm.user_id = c.user_id AND tm.company_id = c.company_id AND tm.deleted IS NULL
+       LEFT JOIN scorecards sc ON sc.interview_id = i.id
+       WHERE i.company_id = @companyId
+         AND c.deleted IS NULL
+         AND r.attempt_id IS NULL
+         AND r.status = 'ready'
+     ) AS combined
      ORDER BY COALESCE(report_date, completed_date, scheduled_date) DESC`,
     { companyId }
   )
