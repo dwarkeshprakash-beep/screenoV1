@@ -43,16 +43,13 @@ Last updated: 2026-06-09
 - [ ] Requested schedule date filtering remains deferred.
 
 ## Active Feature
-Feature: Team page + profile UI overhaul (feat/team-profile-ui-overhaul → merged dev)
+Feature: CSV import targets users table with upsert (feat/csv-import-users-upsert → merged dev)
 Status: Complete
 Files involved:
-- `backend/src/repositories/candidate.repository.js` — LEFT JOIN users+departments for org fields; fix getByIdForCompany missing last_assessed
-- `frontend/src/pages/manager/TeamPage.jsx` — new columns (Employee ID, Dept, Location, Position), search bar, filter panel, URL ?search= sync
-- `frontend/src/pages/manager/MemberProfilePage.jsx` — show org fields from users JOIN
-- `frontend/src/components/manager/ScheduleModal.jsx` — 2-option attempt selector, no cooldown/window fields, colored chips, question count 10/20/Full
-- `frontend/src/components/manager/EditMemberModal.jsx` — 3 editable fields only; org fields shown as read-only HRMS block
-- `frontend/src/components/shared/Modal.jsx` — removed backdrop click-to-close (X button only)
-- `frontend/src/components/layout/TopBar.jsx` — notifCount default 0
+- `backend/src/services/team.service.js` — importFromCSV now writes to users table; parses emp_number, department_id, job_title, location; generates one temp bcrypt hash for new users
+- `backend/src/repositories/user.repository.js` — added bulkUpsert: match by email then emp_number; update basic info on existing (never password); insert as role='employee' for new
+- `backend/src/routes/team.routes.js` — importFromCSV call no longer passes managerId
+- `frontend/src/pages/manager/TeamPage.jsx` — import status shows "N new; N existing" instead of "N; skipped N"
 
 ## Key Decisions
 - Screeno is currently internal, single-company focused.
