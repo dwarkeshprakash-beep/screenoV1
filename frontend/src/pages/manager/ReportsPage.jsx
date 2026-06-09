@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Download, Filter } from 'lucide-react'
+import { Download, Filter, FileText, TrendingUp, Star, Clock } from 'lucide-react'
 import Spinner from '../../components/shared/Spinner'
 import ErrorMessage from '../../components/shared/ErrorMessage'
 import EmptyState from '../../components/shared/EmptyState'
@@ -96,25 +96,32 @@ function ReportsPage() {
   }
 
   const statCards = [
-    { label: 'Total interviews', value: stats?.totalInterviews ?? reports.length, sub: 'Completed attempts' },
-    { label: 'Pass rate', value: stats?.passRate == null ? '-' : `${stats.passRate}%`, sub: `${stats?.passCount ?? 0} pass decisions` },
-    { label: 'Avg score', value: stats?.averageScore == null ? '-' : stats.averageScore.toFixed(1), sub: `Out of ${stats?.scoreMax || 10}` },
-    { label: 'Reports pending', value: stats?.reportsPending ?? reports.filter(r => !r.report_id).length, sub: 'Worker queue' },
+    { icon: FileText,   bg: '#EFEDFD', color: '#5B4FE9', label: 'Total interviews', value: stats?.totalInterviews ?? reports.length,                               sub: 'Completed attempts' },
+    { icon: TrendingUp, bg: '#ECFDF5', color: '#059669', label: 'Pass rate',        value: stats?.passRate == null ? '—' : `${stats.passRate}%`,                   sub: `${stats?.passCount ?? 0} pass decisions` },
+    { icon: Star,       bg: '#FFFBEB', color: '#D97706', label: 'Avg score',        value: stats?.averageScore == null ? '—' : stats.averageScore.toFixed(1),       sub: `Out of ${stats?.scoreMax || 10}` },
+    { icon: Clock,      bg: '#FEF2F2', color: '#EF4444', label: 'Pending reports',  value: stats?.reportsPending ?? reports.filter(r => !r.report_id).length,       sub: 'Worker queue' },
   ]
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+
+      {/* Page header */}
       <div>
-        <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#5B4FE9' }}>MANAGER · REPORTS</div>
-        <h1 style={{ fontSize: 26, fontWeight: 700, color: '#0F172A', margin: '6px 0', letterSpacing: '-0.02em' }}>Reports</h1>
+        <h1 style={{ fontSize: 26, fontWeight: 700, color: '#0F172A', margin: '0 0 4px', letterSpacing: '-0.02em' }}>Reports</h1>
+        <p style={{ color: '#6B7280', fontSize: 13, margin: 0 }}>View completed assessments, scores, and hiring decisions.</p>
       </div>
 
+      {/* Stat cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14 }}>
         {statCards.map(s => (
-          <div key={s.label} style={{ ...cardStyle, padding: 16 }}>
-            <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#6B7280' }}>{s.label}</div>
-            <div style={{ fontSize: 26, fontWeight: 700, color: '#0F172A', letterSpacing: '-0.02em', lineHeight: 1.1, marginTop: 4 }}>{s.value}</div>
-            <div style={{ fontSize: 12, color: '#059669', fontWeight: 500, marginTop: 2 }}>{s.sub}</div>
+          <div key={s.label} style={{ ...cardStyle, display: 'flex', alignItems: 'center', gap: 12, padding: 18 }}>
+            <div style={{ width: 44, height: 44, borderRadius: 10, background: s.bg, color: s.color, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <s.icon size={20} />
+            </div>
+            <div>
+              <div style={{ fontSize: 26, fontWeight: 700, color: '#0F172A', letterSpacing: '-0.02em', lineHeight: 1 }}>{s.value}</div>
+              <div style={{ fontSize: 12, color: '#6B7280', marginTop: 3 }}>{s.label}</div>
+            </div>
           </div>
         ))}
       </div>

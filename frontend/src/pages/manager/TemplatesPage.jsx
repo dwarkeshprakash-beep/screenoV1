@@ -123,8 +123,7 @@ function TemplatesPage() {
         </div>
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24, filter: 'blur(2px)', pointerEvents: 'none' }}>
-        <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0 }}>Interview Templates</h1>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', marginBottom: 24, filter: 'blur(2px)', pointerEvents: 'none' }}>
         <Button onClick={() => setShowForm(s => !s)}>
           <Plus size={14} /> New Template
         </Button>

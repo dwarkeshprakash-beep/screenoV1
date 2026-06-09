@@ -259,13 +259,6 @@ function ResumeAnalyzerPage() {
 
   return (
     <div style={{ maxWidth: 980 }}>
-      {/* Page header */}
-      <div style={{ marginBottom: 24 }}>
-        <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#5B4FE9', marginBottom: 4 }}>TOOLS · ANALYZER</div>
-        <h1 style={{ fontFamily: "var(--font-display,'Inter')", fontSize: 26, fontWeight: 700, color: '#0F172A', letterSpacing: '-0.02em', margin: '0 0 6px' }}>Resume Analyzer</h1>
-        <p style={{ fontSize: 13, color: '#64748B', margin: 0 }}>Upload or paste a JD and resume to get a match score, missing skills, and interview focus areas.</p>
-      </div>
-
       {/* Mode toggle */}
       <div style={{ display: 'inline-flex', background: '#F1F5F9', borderRadius: 8, padding: 3, marginBottom: 20, border: '1px solid #E2E8F0' }}>
         {[

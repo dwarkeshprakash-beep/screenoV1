@@ -176,21 +176,15 @@ function TeamPage() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       {/* Header row */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <div>
-          <h1 style={{ fontSize: 26, fontWeight: 700, color: '#0F172A', margin: '0 0 4px', letterSpacing: '-0.02em' }}>My Team</h1>
-          <p style={{ color: '#6B7280', fontSize: 13, margin: 0 }}>Monitor assessments, schedule interviews, and review reports.</p>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-          {overdueCount > 0 && (
-            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 12px', background: '#FFFBEB', border: '1px solid #FEF3C7', borderRadius: 8, fontSize: 12, fontWeight: 600, color: '#B45309' }}>
-              <AlertTriangle size={14} /> {overdueCount} members overdue
-            </div>
-          )}
-          <button type="button" style={btnSecondary} onClick={() => setAddOpen(true)}><UserPlus size={13} /> Add member</button>
-          <input ref={importInputRef} type="file" accept=".csv,text/csv" onChange={handleImportFile} style={{ display: 'none' }} />
-          <button type="button" disabled={importing} onClick={() => importInputRef.current?.click()} style={{ ...btnPrimary, opacity: importing ? 0.65 : 1, cursor: importing ? 'not-allowed' : 'pointer' }}><Upload size={13} /> {importing ? 'Importing...' : 'Import CSV'}</button>
-        </div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: 10 }}>
+        {overdueCount > 0 && (
+          <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 12px', background: '#FFFBEB', border: '1px solid #FEF3C7', borderRadius: 8, fontSize: 12, fontWeight: 600, color: '#B45309' }}>
+            <AlertTriangle size={14} /> {overdueCount} members overdue
+          </div>
+        )}
+        <button type="button" style={btnSecondary} onClick={() => setAddOpen(true)}><UserPlus size={13} /> Add member</button>
+        <input ref={importInputRef} type="file" accept=".csv,text/csv" onChange={handleImportFile} style={{ display: 'none' }} />
+        <button type="button" disabled={importing} onClick={() => importInputRef.current?.click()} style={{ ...btnPrimary, opacity: importing ? 0.65 : 1, cursor: importing ? 'not-allowed' : 'pointer' }}><Upload size={13} /> {importing ? 'Importing...' : 'Import CSV'}</button>
       </div>
 
       {importStatus && (
