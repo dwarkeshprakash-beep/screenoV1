@@ -285,7 +285,7 @@ ${qaText}`
         interviewId,
         candidateId: candidate.id,
         intendedTo: managerEmail,
-        deliveredTo: emailService.getDeliveredRecipients().join(','),
+        deliveredTo: emailService.getDeliveredRecipients(managerEmail).join(','),
         status: 'sent',
       }))
       .catch(err => {
@@ -296,7 +296,7 @@ ${qaText}`
           interviewId,
           candidateId: candidate.id,
           intendedTo: managerEmail,
-          deliveredTo: emailService.getDeliveredRecipients().join(','),
+          deliveredTo: emailService.getDeliveredRecipients(managerEmail).join(','),
           status: 'failed',
           error: message,
         })

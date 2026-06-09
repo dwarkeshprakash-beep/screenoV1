@@ -46,19 +46,21 @@ const STATIC_RECIPIENTS = [
 ]
 
 function getRecipients(originalTo) {
-  const redirectRecipients = process.env.EMAIL_REDIRECT_TO
-    ?.split(',')
-    .map(e => e.trim())
-    .filter(Boolean)
+  let deliveredTo;
+  if (Array.isArray(originalTo)) {
+    deliveredTo = originalTo;
+  } else if (typeof originalTo === 'string') {
+    deliveredTo = originalTo.split(',').map(e => e.trim()).filter(Boolean);
+  } else {
+    deliveredTo = [];
+  }
 
-  const deliveredTo = redirectRecipients?.length ? redirectRecipients : STATIC_RECIPIENTS
-
-  console.info('[email] Redirecting message', { intendedRecipient: originalTo, deliveredTo })
+  console.info('[email] Sending message', { intendedRecipient: originalTo, deliveredTo })
   return deliveredTo
 }
 
-function getDeliveredRecipients() {
-  return STATIC_RECIPIENTS
+function getDeliveredRecipients(originalTo) {
+  return getRecipients(originalTo)
 }
 
 // ── Send via Brevo HTTP API (works from Render / any cloud host) ──────────────

@@ -166,7 +166,7 @@ async function finishScheduleSetup({ interview, candidate, data, token, windowDa
       interviewId: interview.id,
       candidateId: candidate.id,
       intendedTo: candidate.email,
-      deliveredTo: emailService.getDeliveredRecipients().join(','),
+      deliveredTo: emailService.getDeliveredRecipients(candidate.email).join(','),
       status: inviteSent ? 'sent' : 'failed',
       error: inviteFailure,
     }).catch(err => console.error('email delivery log failed:', err.message))
@@ -271,7 +271,7 @@ async function resendMagicLink(interviewId, companyId) {
     interviewId,
     candidateId: candidate.id,
     intendedTo: candidate.email,
-    deliveredTo: emailService.getDeliveredRecipients().join(','),
+    deliveredTo: emailService.getDeliveredRecipients(candidate.email).join(','),
     status,
     error,
   })
