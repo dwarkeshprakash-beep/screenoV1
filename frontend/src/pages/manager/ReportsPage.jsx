@@ -144,7 +144,7 @@ function ReportsPage() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ background: '#F8FAFC' }}>
-                {['CANDIDATE', 'TYPE', 'ATTEMPT', 'DATE', 'OVERALL', 'JD MATCH', 'DECISION', ''].map(h => <th key={h} style={thStyle}>{h}</th>)}
+                {['CANDIDATE', 'TYPE', 'ATTEMPT', 'DATE', 'OVERALL', 'DECISION', ''].map(h => <th key={h} style={thStyle}>{h}</th>)}
               </tr>
             </thead>
             <tbody>
@@ -152,7 +152,6 @@ function ReportsPage() {
                 const name = `${r.first_name || ''} ${r.last_name || ''}`.trim() || r.name || 'Unknown'
                 const overall = r.overall_score != null ? Number(r.overall_score) : null
                 const scoreMax = Number(r.score_max || stats?.scoreMax || 10)
-                const jdMatch = r.jd_match != null ? r.jd_match : null
                 return (
                   <tr key={r.attempt_id || r.report_id || r.candidate_id || i} style={{ cursor: 'pointer', transition: 'background 120ms' }} onMouseEnter={e => e.currentTarget.style.background = '#F8FAFC'} onMouseLeave={e => e.currentTarget.style.background = '#FFF'}>
                     <td style={{ padding: '14px 16px', borderBottom: '1px solid #F1F5F9' }}>
@@ -173,9 +172,6 @@ function ReportsPage() {
                           </span>
                         </div>
                       ) : <span style={{ color: '#94A3B8' }}>-</span>}
-                    </td>
-                    <td style={{ padding: '14px 16px', borderBottom: '1px solid #F1F5F9' }}>
-                      {jdMatch != null ? <span style={{ fontFamily: 'monospace', fontWeight: 700, color: jdMatch >= 75 ? '#047857' : jdMatch >= 60 ? '#B45309' : '#B53618' }}>{jdMatch}%</span> : <span style={{ color: '#94A3B8' }}>-</span>}
                     </td>
                     <td style={{ padding: '14px 16px', borderBottom: '1px solid #F1F5F9' }}><DecisionBadge decision={r.decision} /></td>
                     <td style={{ padding: '14px 16px', borderBottom: '1px solid #F1F5F9' }}>

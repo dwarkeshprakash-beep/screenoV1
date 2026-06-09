@@ -108,7 +108,6 @@ function AIInterviewPage() {
 
   const aiState = isRecording ? 'listening' : isListening ? 'ready' : isProcessing ? 'thinking' : 'speaking'
   const orbConfig = {
-    ready:     { bg: 'radial-gradient(circle at 35% 30%,#D1FAE5,#059669 75%)', shadow: '0 12px 28px rgba(5,150,105,0.24)', label: 'Ready...', Icon: Mic, labelColor: '#059669' },
     speaking:  { bg: 'linear-gradient(135deg,#DEDAFB,#5B4FE9 70%,#4A3FCE)', shadow: '0 12px 36px rgba(91,79,233,0.35)', label: 'Asking…',     Icon: Volume2,  labelColor: '#5B4FE9' },
     thinking:  { bg: 'radial-gradient(circle at 35% 30%,#DEDAFB,#5B4FE9 90%)', shadow: '0 12px 28px rgba(91,79,233,0.18)', label: 'Processing…', Icon: Loader2, labelColor: '#94A3B8' },
     listening: { bg: 'radial-gradient(circle at 35% 30%,#D1FAE5,#059669 75%)', shadow: '0 12px 28px rgba(5,150,105,0.32)', label: 'Listening…',  Icon: Ear,     labelColor: '#059669' },

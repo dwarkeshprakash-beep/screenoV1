@@ -150,7 +150,7 @@ async function saveAnswer({
   }
   // Audio buffer out of scope here — not persisted
 
-  if ((!answerText || answerText.startsWith('[Local transcription not available')) && fallbackText) {
+  if (!answerText && fallbackText) {
     answerText = fallbackText
   }
 
