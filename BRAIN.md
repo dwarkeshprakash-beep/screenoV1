@@ -1,5 +1,5 @@
 # Screeno - Project Brain
-Last updated: 2026-06-08
+Last updated: 2026-06-09
 
 ## What Is Built
 
@@ -43,26 +43,16 @@ Last updated: 2026-06-08
 - [ ] Requested schedule date filtering remains deferred.
 
 ## Active Feature
-Feature: Audit hardening milestone
-Status: Implemented and ready for verification
+Feature: Team page + profile UI overhaul (feat/team-profile-ui-overhaul → merged dev)
+Status: Complete
 Files involved:
-- `backend/src/repositories/candidate.repository.js`
-- `backend/src/repositories/report.repository.js`
-- `backend/src/repositories/schedule-record.repository.js`
-- `backend/src/repositories/email-delivery.repository.js`
-- `backend/src/services/schedule.service.js`
-- `backend/src/services/interview.service.js`
-- `backend/src/services/email.service.js`
-- `backend/src/services/llm.service.js`
-- `backend/src/middleware/rate-limit.js`
-- `backend/server.js`
-- `frontend/src/services/api.js`
-- `frontend/src/pages/manager/ReportsPage.jsx`
-- `frontend/src/pages/manager/DashboardPage.jsx`
-- `frontend/src/pages/manager/TeamPage.jsx`
-- `frontend/src/components/layout/TopBar.jsx`
-- `frontend/src/components/layout/Sidebar.jsx`
-- `frontend/src/components/manager/ScheduleModal.jsx`
+- `backend/src/repositories/candidate.repository.js` — LEFT JOIN users+departments for org fields; fix getByIdForCompany missing last_assessed
+- `frontend/src/pages/manager/TeamPage.jsx` — new columns (Employee ID, Dept, Location, Position), search bar, filter panel, URL ?search= sync
+- `frontend/src/pages/manager/MemberProfilePage.jsx` — show org fields from users JOIN
+- `frontend/src/components/manager/ScheduleModal.jsx` — 2-option attempt selector, no cooldown/window fields, colored chips, question count 10/20/Full
+- `frontend/src/components/manager/EditMemberModal.jsx` — 3 editable fields only; org fields shown as read-only HRMS block
+- `frontend/src/components/shared/Modal.jsx` — removed backdrop click-to-close (X button only)
+- `frontend/src/components/layout/TopBar.jsx` — notifCount default 0
 
 ## Key Decisions
 - Screeno is currently internal, single-company focused.
