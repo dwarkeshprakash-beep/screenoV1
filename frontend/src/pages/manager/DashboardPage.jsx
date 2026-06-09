@@ -46,7 +46,11 @@ function DashboardPage() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20, flex: 1, minHeight: 0 }}>
 
-      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+        <div>
+          <h1 style={{ fontSize: 26, fontWeight: 700, color: '#0F172A', margin: '0 0 4px', letterSpacing: '-0.02em' }}>Dashboard</h1>
+          <p style={{ color: '#6B7280', fontSize: 13, margin: 0 }}>Track your team's assessment progress and hiring activity.</p>
+        </div>
         <button
           onClick={() => navigate('/manager/team')}
           style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#5B4FE9', color: '#FFF', border: 0, borderRadius: 8, fontWeight: 600, padding: '8px 14px', fontSize: 13, cursor: 'pointer', boxShadow: '0 4px 12px rgba(91,79,233,0.2)' }}
