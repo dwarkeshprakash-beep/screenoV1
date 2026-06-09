@@ -1,6 +1,6 @@
 // components/manager/EditMemberModal.jsx
-// Edit a team member's editable fields. Org-level fields (employee ID, department,
-// location, job title) are read from the users/departments tables and are read-only here.
+// Edit a team member's editable fields. Profile fields (employee ID, location, position)
+// update the matching users row via the backend PATCH endpoint.
 
 import { useState, useEffect } from 'react'
 import Modal from '../shared/Modal'
@@ -8,7 +8,7 @@ import Button from '../shared/Button'
 import * as api from '../../services/api'
 
 function EditMemberModal({ open, member, onClose, onDone }) {
-  const [form, setForm] = useState({ firstName: '', lastName: '', email: '' })
+  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', employeeId: '', location: '', position: '' })
   const [loading, setLoading] = useState(false)
   const [removing, setRemoving] = useState(false)
   const [error, setError] = useState(null)
@@ -16,9 +16,12 @@ function EditMemberModal({ open, member, onClose, onDone }) {
   useEffect(() => {
     if (member) {
       setForm({
-        firstName: member.first_name || '',
-        lastName:  member.last_name  || '',
-        email:     member.email      || '',
+        firstName:  member.first_name      || '',
+        lastName:   member.last_name       || '',
+        email:      member.email           || '',
+        employeeId: member.employee_id     || '',
+        location:   member.location        || '',
+        position:   member.current_position || '',
       })
     }
   }, [member])
@@ -73,18 +76,16 @@ function EditMemberModal({ open, member, onClose, onDone }) {
           </div>
           <div>{lbl('Email')}<input type="email" style={inputStyle} onFocus={onFocus} onBlur={onBlur} value={form.email} onChange={e => set('email', e.target.value)} /></div>
 
-          {/* Read-only org fields sourced from users/departments tables */}
-          {(member?.employee_id || member?.department || member?.location || member?.current_position) && (
-            <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: '10px 12px' }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: '#94A3B8', marginBottom: 8, letterSpacing: '0.06em', textTransform: 'uppercase' }}>From HRMS (read-only)</div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 12, color: '#374151' }}>
-                {member.employee_id      && <div><span style={{ color: '#94A3B8' }}>ID: </span>{member.employee_id}</div>}
-                {member.department       && <div><span style={{ color: '#94A3B8' }}>Dept: </span>{member.department}</div>}
-                {member.location         && <div><span style={{ color: '#94A3B8' }}>Location: </span>{member.location}</div>}
-                {member.current_position && <div><span style={{ color: '#94A3B8' }}>Position: </span>{member.current_position}</div>}
+          <div style={{ borderTop: '1px solid #F1F5F9', paddingTop: 14 }}>
+            <div style={{ fontSize: 11, fontWeight: 600, color: '#94A3B8', marginBottom: 12, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Profile details</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                <div>{lbl('Employee ID')}<input style={inputStyle} onFocus={onFocus} onBlur={onBlur} value={form.employeeId} onChange={e => set('employeeId', e.target.value)} placeholder="e.g. EMP-001" /></div>
+                <div>{lbl('Location')}<input style={inputStyle} onFocus={onFocus} onBlur={onBlur} value={form.location} onChange={e => set('location', e.target.value)} placeholder="e.g. Mumbai" /></div>
               </div>
+              <div>{lbl('Job title / Position')}<input style={inputStyle} onFocus={onFocus} onBlur={onBlur} value={form.position} onChange={e => set('position', e.target.value)} placeholder="e.g. Senior Engineer" /></div>
             </div>
-          )}
+          </div>
 
           {error && <p style={{ fontSize: 13, color: 'var(--danger-500)', margin: 0 }}>{error}</p>}
 

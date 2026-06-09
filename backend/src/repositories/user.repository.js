@@ -71,19 +71,24 @@ async function updatePassword(id, passwordHash) {
  * @param {number} companyId
  * @returns {Promise<Array>}
  */
-async function getNotInTeam(companyId) {
+async function getNotInTeam(companyId, managerId) {
   return db.query(
-    `SELECT id, first_name, last_name, email, role
-     FROM users
-     WHERE company_id = @companyId
-       AND deleted IS NULL
-       AND role != 'manager'
-       AND email NOT IN (
-         SELECT email FROM candidates
-         WHERE company_id = @companyId AND deleted IS NULL
+    `SELECT u.id, u.first_name, u.last_name, u.email, u.role,
+            u.emp_number AS employee_id, u.job_title AS current_position,
+            u.location, d.name AS department
+     FROM users u
+     LEFT JOIN departments d ON d.id = u.department_id
+     WHERE u.company_id = @companyId
+       AND u.deleted IS NULL
+       AND u.role != 'manager'
+       AND NOT EXISTS (
+         SELECT 1 FROM team_members tm
+         WHERE tm.manager_id = @managerId
+           AND tm.user_id = u.id
+           AND tm.deleted IS NULL
        )
-     ORDER BY first_name`,
-    { companyId }
+     ORDER BY u.first_name`,
+    { companyId, managerId }
   )
 }
 
@@ -198,4 +203,41 @@ async function bulkUpsert(rows, companyId, tempPasswordHash) {
   return { inserted, updated, errors }
 }
 
-module.exports = { getByEmail, getById, getNotInTeam, getByRole, getByCompany, updateProfile, updatePassword, bulkUpsert }
+/**
+ * Find a user by email scoped to a company.
+ * @param {string} email
+ * @param {number} companyId
+ * @returns {Promise<Object|null>}
+ */
+async function getByEmailForCompany(email, companyId) {
+  const rows = await db.query(
+    `SELECT id, company_id, first_name, last_name, email, role
+     FROM users
+     WHERE email = @email AND company_id = @companyId AND deleted IS NULL
+     LIMIT 1`,
+    { email, companyId }
+  )
+  return rows[0] || null
+}
+
+/**
+ * Update org profile fields (emp_number, job_title, location) for a user.
+ * Called when a manager edits team member profile details.
+ * @param {number} userId
+ * @param {Object} data
+ */
+async function updateOrgProfile(userId, { empNumber, jobTitle, location } = {}) {
+  await db.query(
+    `UPDATE users SET
+       emp_number = COALESCE(@emp_number, emp_number),
+       job_title  = COALESCE(@job_title,  job_title),
+       location   = COALESCE(@location,   location)
+     WHERE id = @id AND deleted IS NULL`,
+    { id: userId, emp_number: empNumber || null, job_title: jobTitle || null, location: location || null }
+  )
+}
+
+module.exports = {
+  getByEmail, getByEmailForCompany, getById, getNotInTeam,
+  getByRole, getByCompany, updateProfile, updatePassword, updateOrgProfile, bulkUpsert,
+}

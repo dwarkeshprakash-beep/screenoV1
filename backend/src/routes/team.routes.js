@@ -26,7 +26,7 @@ router.get('/', async (req, res) => {
 // GET /api/team/not-in-team — org users not yet in this company's candidates table
 router.get('/not-in-team', async (req, res) => {
   try {
-    const users = await teamService.getOrgUsersNotInTeam(req.user.companyId)
+    const users = await teamService.getOrgUsersNotInTeam(req.user.companyId, req.user.id)
     res.json({ success: true, data: users })
   } catch (err) {
     console.error('GET /team/not-in-team failed:', err)
@@ -73,12 +73,12 @@ router.get('/member/:id', async (req, res) => {
 // POST /api/team/member
 router.post('/member', async (req, res) => {
   try {
-    const { firstName, lastName, email, phone, type } = req.body
+    const { firstName, lastName, email, phone, type, existingId } = req.body
     if (!firstName) return res.status(400).json({ success: false, error: 'First name is required' })
     if (!email) return res.status(400).json({ success: false, error: 'Email is required' })
 
     const member = await teamService.addMember(
-      { firstName, lastName, email, phone, type },
+      { firstName, lastName, email, phone, type, userId: existingId },
       req.user.companyId,
       req.user.id
     )
@@ -114,8 +114,10 @@ router.delete('/member/:id', async (req, res) => {
 // GET /api/team/member/:id/interviews — all interviews for a candidate
 router.get('/member/:id/interviews', async (req, res) => {
   try {
-    await teamService.getMember(parseInt(req.params.id, 10), req.user.companyId)
-    const interviews = await interviewRepository.getByCandidate(parseInt(req.params.id, 10))
+    const member = await teamService.getMember(parseInt(req.params.id, 10), req.user.companyId)
+    const interviews = member.candidate_id
+      ? await interviewRepository.getByCandidate(member.candidate_id)
+      : []
     res.json({ success: true, data: interviews })
   } catch (err) {
     console.error('GET /team/member/:id/interviews failed:', err)

@@ -15,8 +15,13 @@ Run the correct migration file in your DB before starting the backend.
 
 ```
 backend/migrations/
-├── 001_supabase.sql     ← run in Supabase SQL Editor
-└── 001_sqlserver.sql    ← run in SSMS (when switching)
+├── 001_supabase.sql                 ← initial schema
+├── 001_sqlserver.sql                ← SQL Server equivalent
+├── 002–007_*.sql                    ← feature additions (see files for details)
+├── 008_profile_columns.sql          ← added last_assessed; removed resume_text/status/type from candidates
+├── 009_team_members.sql             ← created team_members pure-mapping table; backfilled from candidates
+├── 010_candidate_snapshot_cleanup.sql  ← stripped redundant profile columns from candidates
+└── 011_strip_team_members.sql       ← reduced team_members to pure mapping; moved last_assessed to candidates
 ```
 
 ---
@@ -73,30 +78,60 @@ CREATE TABLE refresh_tokens (
 CREATE INDEX idx_refresh_user ON refresh_tokens(user_id);
 
 -- ============================================================
+-- TEAM_MEMBERS
+-- Pure mapping: which users does this manager manage?
+-- No profile data — everything comes from users JOIN.
+-- candidate_id is set when the first interview is scheduled.
+-- ============================================================
+CREATE TABLE team_members (
+    id           SERIAL PRIMARY KEY,
+    company_id   INT NOT NULL,
+    manager_id   INT NOT NULL,   -- users.id of the manager
+    user_id      INT NOT NULL,   -- users.id of the team member
+    candidate_id INT,            -- candidates.id, set on first scheduling
+    created      TIMESTAMPTZ DEFAULT NOW(),
+    deleted      TIMESTAMPTZ
+);
+
+CREATE UNIQUE INDEX idx_team_members_manager_user
+  ON team_members(manager_id, user_id) WHERE deleted IS NULL;
+CREATE INDEX idx_team_members_company
+  ON team_members(company_id) WHERE deleted IS NULL;
+
+-- Profile query (join users + departments):
+-- SELECT tm.*, u.first_name, u.last_name, u.email, u.emp_number AS employee_id,
+--        u.job_title AS current_position, u.location, d.name AS department,
+--        c.last_assessed, c.resume_url
+-- FROM team_members tm
+-- JOIN users u ON u.id = tm.user_id
+-- LEFT JOIN departments d ON d.id = u.department_id
+-- LEFT JOIN candidates c ON c.id = tm.candidate_id
+
+-- ============================================================
 -- CANDIDATES
--- Both internal team members and external applicants
+-- Interview subject record, created when first interview is scheduled.
+-- Identity snapshot (name, email) kept for magic-link emails.
+-- HR profile (employee_id, location, etc.) lives in users, accessed via JOIN.
 -- ============================================================
 CREATE TABLE candidates (
-    id              SERIAL PRIMARY KEY,
-    company_id      INT NOT NULL,
-    manager_id      INT,                -- which manager owns this candidate
-    first_name      VARCHAR(100) NOT NULL,
-    last_name       VARCHAR(100) NOT NULL,
-    email           VARCHAR(255) NOT NULL,
-    phone           VARCHAR(20),
-    type            VARCHAR(20) NOT NULL,  -- 'internal' or 'external'
-    resume_url      VARCHAR(500),          -- Cloudinary URL
-    resume_text     TEXT,                  -- extracted text for AI question generation
-    resume_updated  TIMESTAMPTZ,
-    source          VARCHAR(50),           -- 'manual', 'csv_import', 'referral'
-    status          VARCHAR(20) DEFAULT 'active',
-    created         TIMESTAMPTZ DEFAULT NOW(),
-    deleted         TIMESTAMPTZ,
+    id             SERIAL PRIMARY KEY,
+    company_id     INT NOT NULL,
+    user_id        INT,                    -- users.id link (may be null for external)
+    first_name     VARCHAR(100) NOT NULL,
+    last_name      VARCHAR(100) NOT NULL DEFAULT '',
+    email          VARCHAR(255) NOT NULL,
+    phone          VARCHAR(20),
+    resume_url     VARCHAR(500),           -- Supabase Storage URL
+    resume_text    TEXT,                   -- extracted text for AI question generation
+    resume_updated TIMESTAMPTZ,
+    last_assessed  TIMESTAMPTZ,            -- updated on interview completion
+    source         VARCHAR(50),
+    created        TIMESTAMPTZ DEFAULT NOW(),
+    deleted        TIMESTAMPTZ,
     UNIQUE(company_id, email)
 );
 
 CREATE INDEX idx_candidates_company ON candidates(company_id);
-CREATE INDEX idx_candidates_manager ON candidates(manager_id);
 
 -- ============================================================
 -- INTERVIEWS
@@ -111,9 +146,8 @@ CREATE TABLE interviews (
     type                VARCHAR(20) NOT NULL,   -- 'ai_voice', 'exam', 'human'
     mode                VARCHAR(20) NOT NULL,   -- 'client_mock', 'internal_monthly', 'assessment'
     interview_mode      VARCHAR(20) NOT NULL,   -- 'simple' (pre-gen) or 'adaptive' (LLM per Q)
-    transcription_mode  VARCHAR(20) NOT NULL,   -- 'local' (whisper) or 'api' (groq)
     difficulty          VARCHAR(20) NOT NULL,   -- 'easy', 'medium', 'hard'
-    jd_url              VARCHAR(500),           -- uploaded JD file in Cloudinary
+    jd_url              VARCHAR(500),
     jd_text             TEXT,                   -- extracted JD text for AI
     focus_areas         TEXT,                   -- manager's custom instructions
     max_attempts        INT DEFAULT 3,          -- -1 for unlimited

@@ -73,11 +73,9 @@ async function main() {
   console.log('\n[4] Aligning candidates table...')
 
   await run('candidates.company_id column', `ALTER TABLE candidates ADD COLUMN IF NOT EXISTS company_id INT DEFAULT 1`)
-  await run('candidates.manager_id column', `ALTER TABLE candidates ADD COLUMN IF NOT EXISTS manager_id INT`)
   await run('candidates.resume_text column', `ALTER TABLE candidates ADD COLUMN IF NOT EXISTS resume_text TEXT`)
   await run('candidates.resume_updated column', `ALTER TABLE candidates ADD COLUMN IF NOT EXISTS resume_updated TIMESTAMPTZ`)
   await run('candidates.source column', `ALTER TABLE candidates ADD COLUMN IF NOT EXISTS source VARCHAR(50) DEFAULT 'manual'`)
-  await run('candidates.status column', `ALTER TABLE candidates ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'active'`)
   await run('candidates.deleted column', `ALTER TABLE candidates ADD COLUMN IF NOT EXISTS deleted TIMESTAMPTZ`)
 
   // Add unique constraint on (company_id, email) — ignore if already exists
@@ -108,7 +106,6 @@ async function main() {
   await run('interviews.report_every_n column', `ALTER TABLE interviews ADD COLUMN IF NOT EXISTS report_every_n INT DEFAULT 3`)
   await run('interviews.report_emails column', `ALTER TABLE interviews ADD COLUMN IF NOT EXISTS report_emails TEXT`)
   await run('interviews.interview_mode column',    `ALTER TABLE interviews ADD COLUMN IF NOT EXISTS interview_mode VARCHAR(20) DEFAULT 'simple'`)
-  await run('interviews.transcription_mode column', `ALTER TABLE interviews ADD COLUMN IF NOT EXISTS transcription_mode VARCHAR(20) DEFAULT 'api'`)
   await run('interviews.difficulty column',         `ALTER TABLE interviews ADD COLUMN IF NOT EXISTS difficulty VARCHAR(20) DEFAULT 'medium'`)
   await run('interviews.question_count column',     `ALTER TABLE interviews ADD COLUMN IF NOT EXISTS question_count INT DEFAULT 10`)
   await run('interviews.jd_text column',            `ALTER TABLE interviews ADD COLUMN IF NOT EXISTS jd_text TEXT`)
@@ -178,12 +175,54 @@ async function main() {
   await run('files.deleted column', `ALTER TABLE files ADD COLUMN IF NOT EXISTS deleted TIMESTAMPTZ`)
 
   // ─── 8a. ALTER CANDIDATES TABLE — profile fields (migration 008) ──
-  console.log('\n[8a] Adding candidate profile fields (migration 008)...')
+  console.log('\n[8a] Aligning manager team roster...')
 
-  await run('candidates.employee_id column',      `ALTER TABLE candidates ADD COLUMN IF NOT EXISTS employee_id VARCHAR(50)`)
-  await run('candidates.department column',       `ALTER TABLE candidates ADD COLUMN IF NOT EXISTS department VARCHAR(100)`)
-  await run('candidates.location column',         `ALTER TABLE candidates ADD COLUMN IF NOT EXISTS location VARCHAR(100)`)
-  await run('candidates.current_position column', `ALTER TABLE candidates ADD COLUMN IF NOT EXISTS current_position VARCHAR(150)`)
+  await run('team_members table', `
+    CREATE TABLE IF NOT EXISTS team_members (
+      id SERIAL PRIMARY KEY, company_id INT NOT NULL, manager_id INT NOT NULL,
+      user_id INT, candidate_id INT, first_name VARCHAR(100) NOT NULL,
+      last_name VARCHAR(100) NOT NULL DEFAULT '', email VARCHAR(255) NOT NULL,
+      phone VARCHAR(30), member_type VARCHAR(20) DEFAULT 'internal',
+      employee_id VARCHAR(50), department VARCHAR(100), location VARCHAR(100),
+      current_position VARCHAR(150), resume_url VARCHAR(500), resume_text TEXT,
+      resume_updated TIMESTAMPTZ, last_assessed TIMESTAMPTZ,
+      source VARCHAR(50) DEFAULT 'manual', created TIMESTAMPTZ DEFAULT NOW(),
+      deleted TIMESTAMPTZ
+    )
+  `)
+  await run('team_members manager email index', `
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_team_members_manager_email
+    ON team_members(manager_id, email) WHERE deleted IS NULL
+  `)
+  await run('team_members company index', `
+    CREATE INDEX IF NOT EXISTS idx_team_members_company
+    ON team_members(company_id) WHERE deleted IS NULL
+  `)
+  await run('backfill team_members from candidates', `
+    INSERT INTO team_members (
+      company_id, manager_id, user_id, candidate_id, first_name, last_name,
+      email, phone, employee_id, department, location, current_position,
+      resume_url, resume_text, resume_updated, source, created
+    )
+    SELECT
+      c.company_id, i.manager_id, c.user_id, c.id,
+      c.first_name, c.last_name, c.email, c.phone, u.emp_number,
+      d.name, u.location, u.job_title, c.resume_url, c.resume_text,
+      c.resume_updated, COALESCE(c.source, 'migration'), c.created
+    FROM candidates c
+    LEFT JOIN users u ON u.id = c.user_id
+    LEFT JOIN departments d ON d.id = u.department_id
+    LEFT JOIN LATERAL (
+      SELECT manager_id FROM interviews
+      WHERE candidate_id = c.id AND manager_id IS NOT NULL
+      ORDER BY created DESC LIMIT 1
+    ) i ON TRUE
+    WHERE c.deleted IS NULL
+      AND i.manager_id IS NOT NULL
+    ON CONFLICT DO NOTHING
+  `)
+  await run('candidate_notes.team_member_id column', `ALTER TABLE candidate_notes ADD COLUMN IF NOT EXISTS team_member_id INT`)
+  await run('candidate_notes.candidate_id nullable', `ALTER TABLE candidate_notes ALTER COLUMN candidate_id DROP NOT NULL`)
 
   // ─── 8. ADD QUESTIONS.CREATED IF MISSING ────────────────────
   console.log('\n[8] Aligning questions table...')

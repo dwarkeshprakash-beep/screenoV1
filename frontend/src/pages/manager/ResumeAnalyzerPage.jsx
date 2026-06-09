@@ -249,206 +249,233 @@ function ResumeAnalyzerPage() {
 
   const canAnalyze = (jdText.trim() || jdFile) && (resumeText.trim() || resumeFile)
 
-  const inputStyle = {
-    width: '100%', padding: 12, border: '1px solid #CBD5E1', borderRadius: 8,
-    fontSize: 13, fontFamily: 'inherit', lineHeight: 1.55, outline: 'none', resize: 'vertical',
-    boxSizing: 'border-box', transition: 'border-color 120ms, box-shadow 120ms',
+  // Textarea fills remaining panel height via flex (no magic calc numbers)
+  const taStyle = {
+    flex: 1, width: '100%', height: 0, minHeight: 220,
+    padding: '14px 16px', border: 'none', outline: 'none',
+    resize: 'none', fontSize: 13, fontFamily: 'inherit',
+    lineHeight: 1.65, color: '#0F172A', background: 'transparent',
+    overflowY: 'auto', boxSizing: 'border-box',
   }
-  const onF = e => { e.target.style.borderColor = '#5B4FE9'; e.target.style.boxShadow = '0 0 0 3px rgba(91,79,233,0.18)' }
-  const onB = e => { e.target.style.borderColor = '#CBD5E1'; e.target.style.boxShadow = 'none' }
+
+  const panels = [
+    { title: 'Job Description',  text: jdText,  setText: setJdText,  file: jdFile,  setFile: setJdFile,  ref: jdFileRef,  field: 'jd',     sample: JD_SAMPLE,     ph: 'Paste the job description here, or upload a file…' },
+    { title: 'Candidate Resume', text: resumeText, setText: setResumeText, file: resumeFile, setFile: setResumeFile, ref: resumeFileRef, field: 'resume', sample: RESUME_SAMPLE, ph: 'Paste the resume text here, or upload a file…' },
+  ]
 
   return (
-    <div style={{ maxWidth: 980 }}>
-      {/* Mode toggle */}
-      <div style={{ display: 'inline-flex', background: '#F1F5F9', borderRadius: 8, padding: 3, marginBottom: 20, border: '1px solid #E2E8F0' }}>
-        {[
-          { id: false, label: 'Library',   icon: BookOpen,  desc: 'Fast, local keyword matching' },
-          { id: true,  label: 'AI (Deep)', icon: Sparkles,  desc: 'Semantic analysis via LLM' },
-        ].map(m => {
-          const MIcon = m.icon
-          return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 14, flex: 1, minHeight: 0 }}>
+      <style>{`@keyframes spin { from{transform:rotate(0)} to{transform:rotate(360deg)} } .ta-panel:focus-within { border-color: #5B4FE9 !important; box-shadow: 0 0 0 3px rgba(91,79,233,0.12) !important; }`}</style>
+
+      {/* ── Top bar: mode toggle + AI notice ──────────────────── */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+        <div style={{ display: 'inline-flex', background: '#F1F5F9', borderRadius: 10, padding: 4, border: '1px solid #E2E8F0' }}>
+          {[
+            { id: false, Icon: BookOpen, label: 'Library',   sub: 'Fast · Local' },
+            { id: true,  Icon: Sparkles, label: 'AI (Deep)', sub: 'Semantic · LLM' },
+          ].map(m => (
             <button
               key={String(m.id)}
               onClick={() => setAiMode(m.id)}
               style={{
-                display: 'inline-flex', alignItems: 'center', gap: 6,
-                padding: '7px 14px', borderRadius: 6, border: 'none', fontFamily: 'inherit',
-                background: aiMode === m.id ? '#FFF' : 'transparent',
-                color: aiMode === m.id ? '#0F172A' : '#6B7280',
-                fontWeight: aiMode === m.id ? 600 : 500, fontSize: 13,
-                cursor: 'pointer', boxShadow: aiMode === m.id ? '0 1px 3px rgba(15,23,42,0.08)' : 'none',
-                transition: 'all 120ms',
+                display: 'inline-flex', alignItems: 'center', gap: 8,
+                padding: '10px 20px', borderRadius: 7, border: 'none', fontFamily: 'inherit',
+                background: aiMode === m.id ? '#5B4FE9' : 'transparent',
+                color: aiMode === m.id ? '#FFF' : '#6B7280',
+                fontWeight: 600, fontSize: 14, cursor: 'pointer',
+                boxShadow: aiMode === m.id ? '0 2px 10px rgba(91,79,233,0.32)' : 'none',
+                transition: 'all 150ms',
               }}
             >
-              <MIcon size={14} /> {m.label}
+              <m.Icon size={15} strokeWidth={aiMode === m.id ? 2.5 : 2} />
+              {m.label}
+              {aiMode === m.id && (
+                <span style={{ fontSize: 10, fontWeight: 500, padding: '2px 7px', borderRadius: 999, background: 'rgba(255,255,255,0.22)', letterSpacing: '0.02em' }}>
+                  {m.sub}
+                </span>
+              )}
             </button>
-          )
-        })}
-      </div>
-      {aiMode && (
-        <div style={{ padding: '8px 12px', background: '#EFEDFD', border: '1px solid #C4BFFA', borderRadius: 8, fontSize: 12, color: '#3A31A3', marginBottom: 16 }}>
-          <strong>AI mode:</strong> requires a running backend with GROQ_API_KEY configured. Falls back to library mode if unavailable.
+          ))}
         </div>
-      )}
+      </div>
 
-      {/* Input phase */}
+      {/* ── Input phase ───────────────────────────────────────── */}
       {(phase === 'input' || phase === 'analyzing') && (
-        <div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 16 }}>
-            {[
-              { title: 'Job Description',  text: jdText,  setText: setJdText,  file: jdFile,  setFile: setJdFile,  ref: jdFileRef,  field: 'jd',     sample: JD_SAMPLE,     ph: 'Paste JD here…' },
-              { title: 'Candidate Resume', text: resumeText, setText: setResumeText, file: resumeFile, setFile: setResumeFile, ref: resumeFileRef, field: 'resume', sample: RESUME_SAMPLE, ph: 'Paste resume text here…' },
-            ].map((c, i) => (
-              <div key={i} style={{ background: '#FFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 16, boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                  <span style={{ fontSize: 13, fontWeight: 600, color: '#0F172A' }}>{c.title}</span>
-                  <div style={{ display: 'flex', gap: 8 }}>
+        <>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, flex: 1, minHeight: 0 }}>
+            {panels.map((c, i) => (
+              <div
+                key={i}
+                className="ta-panel"
+                style={{
+                  display: 'flex', flexDirection: 'column',
+                  background: '#FFF', border: '1.5px solid #E2E8F0', borderRadius: 12,
+                  overflow: 'hidden', boxShadow: '0 1px 4px rgba(15,23,42,0.05)',
+                  transition: 'border-color 150ms, box-shadow 150ms',
+                }}
+              >
+                {/* Panel header */}
+                <div style={{ padding: '12px 16px', borderBottom: '1px solid #F1F5F9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: '#0F172A', letterSpacing: '-0.01em' }}>{c.title}</span>
+                  <div style={{ display: 'flex', gap: 6 }}>
                     <button
                       onClick={() => c.ref.current?.click()}
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 11, fontWeight: 600, color: '#5B4FE9', background: '#EFEDFD', border: 'none', borderRadius: 6, padding: '4px 9px', cursor: 'pointer' }}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600, color: '#5B4FE9', background: '#EFEDFD', border: 'none', borderRadius: 6, padding: '5px 10px', cursor: 'pointer', transition: 'background 120ms' }}
+                      onMouseEnter={e => e.currentTarget.style.background = '#E0DBFB'}
+                      onMouseLeave={e => e.currentTarget.style.background = '#EFEDFD'}
                     >
-                      <Upload size={11} /> Upload
+                      <Upload size={12} /> Upload
                     </button>
-                    <button onClick={() => { c.setText(c.sample); c.setFile(null) }} style={{ fontSize: 11, color: '#5B4FE9', fontWeight: 600, background: 'transparent', border: 0, cursor: 'pointer' }}>
+                    <button
+                      onClick={() => { c.setText(c.sample); c.setFile(null) }}
+                      style={{ fontSize: 12, color: '#6B7280', fontWeight: 500, background: '#F1F5F9', border: 0, borderRadius: 6, padding: '5px 10px', cursor: 'pointer', transition: 'all 120ms' }}
+                      onMouseEnter={e => { e.currentTarget.style.background = '#E2E8F0'; e.currentTarget.style.color = '#374151' }}
+                      onMouseLeave={e => { e.currentTarget.style.background = '#F1F5F9'; e.currentTarget.style.color = '#6B7280' }}
+                    >
                       Sample
                     </button>
                   </div>
                   <input ref={c.ref} type="file" accept=".pdf,.doc,.docx,.txt" style={{ display: 'none' }} onChange={e => handleFileSelect(e, c.field)} />
                 </div>
 
+                {/* File indicator */}
                 {c.file && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 8, marginBottom: 8, fontSize: 12 }}>
-                    <FileText size={13} color="#059669" />
-                    <span style={{ color: '#047857', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.file.name}</span>
-                    <button onClick={() => { c.setFile(null); c.setText('') }} style={{ background: 'transparent', border: 0, color: '#6B7280', cursor: 'pointer', padding: 0, fontSize: 13 }}>✕</button>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px', background: '#ECFDF5', borderBottom: '1px solid #A7F3D0', fontSize: 12, flexShrink: 0 }}>
+                    <FileText size={14} color="#059669" />
+                    <span style={{ color: '#047857', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 }}>{c.file.name}</span>
+                    <button onClick={() => { c.setFile(null); c.setText('') }} style={{ background: 'transparent', border: 0, color: '#6B7280', cursor: 'pointer', padding: 2, display: 'inline-flex', fontSize: 16, lineHeight: 1 }}>×</button>
                   </div>
                 )}
 
-                {!c.file && (
-                  <textarea
-                    value={c.text}
-                    onChange={e => c.setText(e.target.value)}
-                    placeholder={c.ph}
-                    rows={12}
-                    style={inputStyle}
-                    onFocus={onF} onBlur={onB}
-                  />
-                )}
+                {/* Textarea — fills remaining panel height */}
+                <textarea
+                  value={c.text}
+                  onChange={e => c.setText(e.target.value)}
+                  placeholder={c.ph}
+                  style={{ ...taStyle, color: c.file ? '#94A3B8' : '#0F172A' }}
+                  disabled={!!c.file}
+                />
               </div>
             ))}
           </div>
 
           {extractError && (
-            <div style={{ padding: '10px 14px', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, fontSize: 13, color: '#B53618', marginBottom: 12 }}>
+            <div style={{ padding: '10px 14px', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, fontSize: 13, color: '#B53618' }}>
               {extractError}
             </div>
           )}
 
-          <button
-            onClick={analyze}
-            disabled={phase === 'analyzing' || !canAnalyze}
-            style={{
-              display: 'inline-flex', alignItems: 'center', gap: 8,
-              padding: '11px 20px', borderRadius: 8, fontFamily: 'inherit',
-              background: !canAnalyze ? '#CBD5E1' : '#5B4FE9',
-              color: '#FFF', border: 0, fontWeight: 600, fontSize: 13,
-              cursor: !canAnalyze || phase === 'analyzing' ? 'not-allowed' : 'pointer',
-              transition: 'all 120ms',
-            }}
-          >
-            {phase === 'analyzing'
-              ? <><Loader2 size={14} style={{ animation: 'spin 1s linear infinite' }} /> {aiMode ? 'Running AI analysis…' : 'Analyzing…'}</>
-              : <>{aiMode ? <Sparkles size={14} /> : <Zap size={14} />} Analyze match</>}
-          </button>
-          <style>{`@keyframes spin { from{transform:rotate(0)} to{transform:rotate(360deg)} }`}</style>
-        </div>
+          {/* Analyze button */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <button
+              onClick={analyze}
+              disabled={phase === 'analyzing' || !canAnalyze}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 9,
+                padding: '12px 32px', borderRadius: 10, fontFamily: 'inherit',
+                background: !canAnalyze ? '#E2E8F0' : '#5B4FE9',
+                color: !canAnalyze ? '#94A3B8' : '#FFF',
+                border: 0, fontWeight: 700, fontSize: 14,
+                cursor: !canAnalyze || phase === 'analyzing' ? 'not-allowed' : 'pointer',
+                boxShadow: canAnalyze && phase !== 'analyzing' ? '0 4px 16px rgba(91,79,233,0.35)' : 'none',
+                transition: 'all 150ms', letterSpacing: '-0.01em',
+              }}
+            >
+              {phase === 'analyzing'
+                ? <><Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} /> {aiMode ? 'Running AI analysis…' : 'Analyzing…'}</>
+                : <>{aiMode ? <Sparkles size={16} /> : <Zap size={16} />} Analyze match</>}
+            </button>
+            {!canAnalyze && (
+              <span style={{ fontSize: 12, color: '#94A3B8' }}>Paste or upload both a JD and a resume to continue.</span>
+            )}
+          </div>
+        </>
       )}
 
-      {/* Results phase */}
+      {/* ── Results phase ─────────────────────────────────────── */}
       {phase === 'results' && res && (() => {
         const v = verdict(res.score)
         const C = 2 * Math.PI * 34
         const VIcon = v.icon
         return (
-          <div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             {res.aiNote && (
-              <div style={{ padding: '8px 12px', background: '#FFFBEB', border: '1px solid #FEF3C7', borderRadius: 8, fontSize: 12, color: '#B45309', marginBottom: 14 }}>
-                ⚠ {res.aiNote}
+              <div style={{ padding: '9px 14px', background: '#FFFBEB', border: '1px solid #FEF3C7', borderRadius: 8, fontSize: 12, color: '#B45309', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <AlertTriangle size={13} /> {res.aiNote}
               </div>
             )}
 
-            <button onClick={reset} style={{ fontSize: 12, color: '#5B4FE9', fontWeight: 600, background: 'transparent', border: 0, cursor: 'pointer', marginBottom: 14, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-              <RotateCcw size={13} /> Edit inputs &amp; re-scan
-            </button>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <button onClick={reset} style={{ fontSize: 13, color: '#5B4FE9', fontWeight: 600, background: 'transparent', border: 0, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <RotateCcw size={14} /> Edit inputs &amp; re-scan
+              </button>
+              <span style={{ fontSize: 11, color: '#94A3B8', background: '#F1F5F9', padding: '4px 10px', borderRadius: 999, fontWeight: 500 }}>
+                {res.mode === 'ai' ? '✦ AI analysis' : '◈ Library analysis'}
+              </span>
+            </div>
 
             {/* Score ring + verdict */}
-            <div style={{ display: 'grid', gridTemplateColumns: '190px 1fr', gap: 20, marginBottom: 20, alignItems: 'center' }}>
-              <div style={{ background: '#FFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 18, textAlign: 'center', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
-                <div style={{ position: 'relative', width: 96, height: 96, margin: '0 auto' }}>
-                  <svg width="96" height="96" style={{ transform: 'rotate(-90deg)' }}>
-                    <circle cx="48" cy="48" r="34" stroke="#F1F5F9" strokeWidth="9" fill="none" />
-                    <circle cx="48" cy="48" r="34" stroke={v.c} strokeWidth="9" fill="none" strokeLinecap="round"
-                      strokeDasharray={`${C * res.score / 100} ${C}`}
+            <div style={{ display: 'grid', gridTemplateColumns: '200px 1fr', gap: 16, alignItems: 'stretch' }}>
+              <div style={{ background: '#FFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '20px 16px', textAlign: 'center', boxShadow: '0 1px 3px rgba(15,23,42,0.04)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ position: 'relative', width: 100, height: 100, margin: '0 auto' }}>
+                  <svg width="100" height="100" style={{ transform: 'rotate(-90deg)' }}>
+                    <circle cx="50" cy="50" r="38" stroke="#F1F5F9" strokeWidth="10" fill="none" />
+                    <circle cx="50" cy="50" r="38" stroke={v.c} strokeWidth="10" fill="none" strokeLinecap="round"
+                      strokeDasharray={`${2 * Math.PI * 38 * res.score / 100} ${2 * Math.PI * 38}`}
                       style={{ transition: 'stroke-dasharray 700ms cubic-bezier(0.2,0,0,1)' }}
                     />
                   </svg>
-                  <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "var(--font-display,'Inter')", fontSize: 26, fontWeight: 700, color: '#0F172A' }}>{res.score}%</span>
+                  <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "var(--font-display,'Inter')", fontSize: 28, fontWeight: 700, color: '#0F172A' }}>{res.score}%</span>
                 </div>
-                <div style={{ fontSize: 12, color: '#64748B', marginTop: 8 }}>JD match rate</div>
+                <div style={{ fontSize: 12, color: '#64748B', marginTop: 10, fontWeight: 500 }}>JD match rate</div>
                 <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>Target: 75%+</div>
-                <div style={{ marginTop: 8, fontSize: 10, color: '#94A3B8', fontWeight: 500 }}>
-                  {res.mode === 'ai' ? '✦ AI analysis' : 'Library analysis'}
-                </div>
               </div>
 
-              <div style={{ background: v.bg, border: `1px solid ${v.bd}`, borderRadius: 12, padding: 18 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
-                  <VIcon size={20} color={v.c} />
-                  <span style={{ fontSize: 16, fontWeight: 700, color: v.c }}>{v.label}</span>
+              <div style={{ background: v.bg, border: `1.5px solid ${v.bd}`, borderRadius: 12, padding: 20, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                  <VIcon size={22} color={v.c} />
+                  <span style={{ fontSize: 18, fontWeight: 700, color: v.c, letterSpacing: '-0.01em' }}>{v.label}</span>
                 </div>
-                <p style={{ fontSize: 13, color: '#374151', lineHeight: 1.6, margin: 0 }}>{v.note}</p>
+                <p style={{ fontSize: 13, color: '#374151', lineHeight: 1.65, margin: 0 }}>{v.note}</p>
                 {res.yJd && (
-                  <div style={{ marginTop: 10, fontSize: 12, color: '#475569', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                  <div style={{ marginTop: 12, fontSize: 12, color: '#475569', display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,0.5)', padding: '6px 10px', borderRadius: 8 }}>
                     <Briefcase size={13} />
-                    JD needs {res.yJd}+ yrs · Resume shows {res.yRes || '—'} yrs {res.yRes && Number(res.yRes) >= Number(res.yJd) ? '✓' : ''}
+                    JD needs {res.yJd}+ yrs · Resume shows {res.yRes || '—'} yrs {res.yRes && Number(res.yRes) >= Number(res.yJd) ? '✓' : '⚠'}
                   </div>
                 )}
               </div>
             </div>
 
-            {/* Keyword counts */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14, marginBottom: 20 }}>
+            {/* Keyword stat cards */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14 }}>
               {[
-                { value: (res.mH?.length || 0) + (res.mS?.length || 0), label: 'Matched keywords', bg: '#FFF', c: '#047857', border: '#E2E8F0' },
-                { value: (res.missH?.length || 0) + (res.missS?.length || 0), label: 'Missing keywords', bg: '#FEF2F2', c: '#DC2626', border: '#FECACA' },
-                { value: res.missH?.length || 0, label: 'Hard skills to focus on', bg: '#FFFBEB', c: '#B45309', border: '#FCD34D' },
+                { value: (res.mH?.length || 0) + (res.mS?.length || 0), label: 'Matched keywords', bg: '#ECFDF5', c: '#047857', bd: '#A7F3D0' },
+                { value: (res.missH?.length || 0) + (res.missS?.length || 0), label: 'Missing keywords', bg: '#FEF2F2', c: '#DC2626', bd: '#FECACA' },
+                { value: res.missH?.length || 0, label: 'Hard skills gap', bg: '#FFFBEB', c: '#B45309', bd: '#FDE68A' },
               ].map((s, i) => (
-                <div key={i} style={{ background: s.bg, border: `1px solid ${s.border}`, borderRadius: 10, padding: 16, textAlign: 'center' }}>
-                  <div style={{ fontSize: 26, fontWeight: 700, color: s.c, margin: 0 }}>{s.value}</div>
-                  <div style={{ fontSize: 12, color: '#64748B', marginTop: 4 }}>{s.label}</div>
+                <div key={i} style={{ background: s.bg, border: `1px solid ${s.bd}`, borderRadius: 10, padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 14 }}>
+                  <div style={{ fontSize: 32, fontWeight: 700, color: s.c, lineHeight: 1 }}>{s.value}</div>
+                  <div style={{ fontSize: 12, color: '#475569', fontWeight: 500, lineHeight: 1.4 }}>{s.label}</div>
                 </div>
               ))}
             </div>
 
-            {/* Interview focus box */}
+            {/* Interview focus */}
             {(res.missH?.length > 0 || res.aiGaps?.length > 0) && (
-              <div style={{ background: '#FFFBEB', border: '1px solid #FCD34D', borderRadius: 10, padding: '14px 16px', marginBottom: 20 }}>
-                <div style={{ fontSize: 13, color: '#92400E', fontWeight: 700, margin: '0 0 6px', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <Target size={14} /> Focus the interview here
+              <div style={{ background: '#FFFBEB', border: '1px solid #FCD34D', borderRadius: 10, padding: '14px 18px' }}>
+                <div style={{ fontSize: 13, color: '#92400E', fontWeight: 700, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Target size={14} /> Probe these in the interview
                 </div>
-                <p style={{ fontSize: 13, color: '#78350F', margin: '0 0 8px' }}>
-                  These required skills are missing from the resume — probe them directly:
-                </p>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                   {[...(res.missH || []), ...(res.aiGaps || [])].map(s => chip(s, 'miss'))}
                 </div>
               </div>
             )}
 
-            {/* AI-specific insights */}
+            {/* AI strengths */}
             {res.mode === 'ai' && res.aiStrengths?.length > 0 && (
-              <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 10, padding: '14px 16px', marginBottom: 20 }}>
-                <div style={{ fontSize: 13, color: '#065F46', fontWeight: 700, margin: '0 0 8px' }}>AI-identified strengths</div>
+              <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 10, padding: '14px 18px' }}>
+                <div style={{ fontSize: 13, color: '#065F46', fontWeight: 700, marginBottom: 8 }}>AI-identified strengths</div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                   {res.aiStrengths.map(s => chip(s, 'ok'))}
                 </div>
@@ -456,47 +483,52 @@ function ResumeAnalyzerPage() {
             )}
 
             {/* Detail tabs */}
-            <div style={{ display: 'flex', gap: 4, marginBottom: 14, borderBottom: '1px solid #E2E8F0' }}>
-              {[['hard', 'Hard skills'], ['soft', 'Soft skills'], ['search', 'Searchability']].map(([id, l]) => (
-                <button key={id} onClick={() => setTab(id)} style={{ padding: '10px 16px', border: 0, background: 'transparent', fontSize: 13, fontWeight: 600, color: tab === id ? '#5B4FE9' : '#94A3B8', borderBottom: tab === id ? '2px solid #5B4FE9' : '2px solid transparent', cursor: 'pointer', fontFamily: 'inherit' }}>{l}</button>
-              ))}
-            </div>
-
-            {tab === 'hard' && (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                <div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: '#047857', marginBottom: 8 }}>Matched ({res.mH?.length || 0})</div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>{res.mH?.length ? res.mH.map(s => chip(s, 'ok')) : <span style={{ fontSize: 13, color: '#94A3B8' }}>None matched</span>}</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: '#B53618', marginBottom: 8 }}>Missing ({res.missH?.length || 0})</div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>{res.missH?.length ? res.missH.map(s => chip(s, 'miss')) : <span style={{ fontSize: 13, color: '#94A3B8' }}>Nothing missing — great</span>}</div>
-                </div>
-              </div>
-            )}
-            {tab === 'soft' && (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                <div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: '#047857', marginBottom: 8 }}>Matched ({res.mS?.length || 0})</div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>{res.mS?.length ? res.mS.map(s => chip(s, 'ok')) : <span style={{ fontSize: 13, color: '#94A3B8' }}>None matched</span>}</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: '#B53618', marginBottom: 8 }}>Missing ({res.missS?.length || 0})</div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>{res.missS?.length ? res.missS.map(s => chip(s, 'miss')) : <span style={{ fontSize: 13, color: '#94A3B8' }}>Nothing missing</span>}</div>
-                </div>
-              </div>
-            )}
-            {tab === 'search' && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {(res.searchChecks || []).map((s, i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '11px 14px', background: s.ok ? '#ECFDF5' : '#FEF2F2', border: `1px solid ${s.ok ? '#A7F3D0' : '#FECACA'}`, borderRadius: 8 }}>
-                    {s.ok ? <CheckCircle2 size={16} color="#059669" /> : <XCircle size={16} color="#DC2626" />}
-                    <span style={{ fontSize: 13, color: '#0F172A' }}>{s.label}</span>
-                  </div>
+            <div style={{ background: '#FFF', border: '1px solid #E2E8F0', borderRadius: 12, overflow: 'hidden', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
+              <div style={{ display: 'flex', borderBottom: '1px solid #E2E8F0' }}>
+                {[['hard', 'Hard skills'], ['soft', 'Soft skills'], ['search', 'Searchability']].map(([id, l]) => (
+                  <button key={id} onClick={() => setTab(id)} style={{ padding: '12px 20px', border: 0, background: 'transparent', fontSize: 13, fontWeight: 600, color: tab === id ? '#5B4FE9' : '#94A3B8', borderBottom: tab === id ? '2px solid #5B4FE9' : '2px solid transparent', cursor: 'pointer', fontFamily: 'inherit', transition: 'color 120ms', marginBottom: -1 }}>
+                    {l}
+                  </button>
                 ))}
-                <p style={{ fontSize: 12, color: '#94A3B8', marginTop: 4 }}>ATS systems parse contact details and standard sections to rank resumes.</p>
               </div>
-            )}
+              <div style={{ padding: 20 }}>
+                {tab === 'hard' && (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: '#047857', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Matched ({res.mH?.length || 0})</div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>{res.mH?.length ? res.mH.map(s => chip(s, 'ok')) : <span style={{ fontSize: 13, color: '#94A3B8' }}>None matched</span>}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: '#B53618', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Missing ({res.missH?.length || 0})</div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>{res.missH?.length ? res.missH.map(s => chip(s, 'miss')) : <span style={{ fontSize: 13, color: '#94A3B8' }}>Nothing missing — great</span>}</div>
+                    </div>
+                  </div>
+                )}
+                {tab === 'soft' && (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: '#047857', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Matched ({res.mS?.length || 0})</div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>{res.mS?.length ? res.mS.map(s => chip(s, 'ok')) : <span style={{ fontSize: 13, color: '#94A3B8' }}>None matched</span>}</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: '#B53618', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Missing ({res.missS?.length || 0})</div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>{res.missS?.length ? res.missS.map(s => chip(s, 'miss')) : <span style={{ fontSize: 13, color: '#94A3B8' }}>Nothing missing</span>}</div>
+                    </div>
+                  </div>
+                )}
+                {tab === 'search' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    {(res.searchChecks || []).map((s, i) => (
+                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 14px', background: s.ok ? '#ECFDF5' : '#FEF2F2', border: `1px solid ${s.ok ? '#A7F3D0' : '#FECACA'}`, borderRadius: 8 }}>
+                        {s.ok ? <CheckCircle2 size={16} color="#059669" /> : <XCircle size={16} color="#DC2626" />}
+                        <span style={{ fontSize: 13, color: '#0F172A', fontWeight: 500 }}>{s.label}</span>
+                      </div>
+                    ))}
+                    <p style={{ fontSize: 12, color: '#94A3B8', marginTop: 4, lineHeight: 1.5 }}>ATS systems parse contact details and standard sections to rank resumes.</p>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         )
       })()}

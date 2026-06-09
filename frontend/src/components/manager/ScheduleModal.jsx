@@ -338,10 +338,10 @@ function ScheduleModal({ open, onClose, member, selectedIds = [], template, onDo
 
     try {
       const batchKey = window.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`
-      await Promise.all(ids.map(candidateId =>
+      await Promise.all(ids.map(teamMemberId =>
         api.createSchedule({
-          idempotencyKey: `${batchKey}:${candidateId}:${primaryStage}`,
-          candidateId,
+          idempotencyKey: `${batchKey}:${teamMemberId}:${primaryStage}`,
+          teamMemberId,
           type: primaryStage,
           mode,
           interviewMode: primaryStage === 'ai_voice' ? voiceMode : primaryStage,

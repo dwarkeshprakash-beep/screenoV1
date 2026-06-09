@@ -54,7 +54,7 @@ async function startInterview(interviewId, candidateId) {
           { who: 'candidate', text: item.answer },
         ]),
         mode: interview.interview_mode,
-        transcriptionMode: interview.transcription_mode,
+        transcriptionMode: 'api',
       }
     }
   }
@@ -104,7 +104,7 @@ async function startInterview(interviewId, candidateId) {
     firstQuestion: questions[0] || null,
     transcript: [],
     mode: interview.interview_mode,
-    transcriptionMode: interview.transcription_mode,
+    transcriptionMode: 'api',
   }
 }
 
@@ -203,6 +203,7 @@ async function completeInterview(interviewId, attemptId, candidateId, status = '
   if (finalStatus === 'completed') {
     const reportJobRepository = require('../repositories/report-job.repository')
     await reportJobRepository.enqueue(interviewId, attemptId)
+    await candidateRepository.updateLastAssessed(interview.candidate_id)
   }
 }
 

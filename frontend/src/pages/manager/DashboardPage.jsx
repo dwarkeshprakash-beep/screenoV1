@@ -44,14 +44,9 @@ function DashboardPage() {
   ]
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 20, flex: 1, minHeight: 0 }}>
 
-      {/* Page header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <div>
-          <h1 style={{ fontSize: 26, fontWeight: 700, color: '#0F172A', margin: '0 0 4px', letterSpacing: '-0.02em' }}>Dashboard</h1>
-          <p style={{ color: '#6B7280', fontSize: 13, margin: 0 }}>Track your team's assessment progress and hiring activity.</p>
-        </div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
         <button
           onClick={() => navigate('/manager/team')}
           style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#5B4FE9', color: '#FFF', border: 0, borderRadius: 8, fontWeight: 600, padding: '8px 14px', fontSize: 13, cursor: 'pointer', boxShadow: '0 4px 12px rgba(91,79,233,0.2)' }}
@@ -82,11 +77,11 @@ function DashboardPage() {
         ))}
       </div>
 
-      {/* Bottom row */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 16 }}>
+      {/* Bottom row — flex:1 so it fills remaining viewport height */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 16, flex: 1, minHeight: 0 }}>
 
         {/* Assessment flow */}
-        <div style={card}>
+        <div style={{ ...card, display: 'flex', flexDirection: 'column' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
             <div style={{ fontSize: 15, fontWeight: 700, color: '#0F172A' }}>Assessment Flow</div>
             <span onClick={() => navigate('/manager/team')} style={{ fontSize: 12, color: '#5B4FE9', fontWeight: 500, cursor: 'pointer' }}>View Team →</span>
@@ -107,17 +102,19 @@ function DashboardPage() {
         </div>
 
         {/* Hiring activity */}
-        <div style={card}>
-          <div style={{ fontSize: 15, fontWeight: 700, color: '#0F172A', marginBottom: 14 }}>Hiring Activity</div>
-          {activity.length === 0 ? (
-            <div style={{ color: '#94A3B8', fontSize: 13, textAlign: 'center', padding: '20px 0' }}>No recent activity.</div>
-          ) : activity.map((a, i) => (
-            <div key={i} style={{ borderTop: i === 0 ? '0' : '1px solid #F1F5F9', padding: '12px 0' }}>
-              <div style={{ fontSize: 13, fontWeight: 500, color: '#0F172A' }}>{a.what}</div>
-              <div style={{ fontSize: 12, color: '#5B4FE9', marginTop: 2 }}>{a.sub}</div>
-              <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>{formatDate(a.when)}</div>
-            </div>
-          ))}
+        <div style={{ ...card, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: '#0F172A', marginBottom: 14, flexShrink: 0 }}>Hiring Activity</div>
+          <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+            {activity.length === 0 ? (
+              <div style={{ color: '#94A3B8', fontSize: 13, textAlign: 'center', padding: '20px 0' }}>No recent activity.</div>
+            ) : activity.map((a, i) => (
+              <div key={i} style={{ borderTop: i === 0 ? '0' : '1px solid #F1F5F9', padding: '12px 0' }}>
+                <div style={{ fontSize: 13, fontWeight: 500, color: '#0F172A' }}>{a.what}</div>
+                <div style={{ fontSize: 12, color: '#5B4FE9', marginTop: 2 }}>{a.sub}</div>
+                <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>{formatDate(a.when)}</div>
+              </div>
+            ))}
+          </div>
         </div>
 
       </div>

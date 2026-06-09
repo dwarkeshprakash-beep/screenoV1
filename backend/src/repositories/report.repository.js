@@ -107,7 +107,6 @@ async function getTeamReports(companyId) {
        c.first_name,
        c.last_name,
        c.email,
-       c.type,
        i.type AS interview_type,
        i.mode,
        i.created AS scheduled_date,

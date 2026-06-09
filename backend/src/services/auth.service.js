@@ -163,7 +163,7 @@ async function validateMagicLink(token) {
       type: interview.type,
       mode: interview.mode,
       interviewMode: interview.interview_mode,
-      transcriptionMode: interview.transcription_mode,
+      transcriptionMode: 'api',
       difficulty: interview.difficulty,
       candidateName: `${interview.candidate_first} ${interview.candidate_last}`,
       companyName: interview.company_name,

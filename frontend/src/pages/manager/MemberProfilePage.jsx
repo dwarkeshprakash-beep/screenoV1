@@ -43,7 +43,7 @@ function SkillTag({ label }) {
 function AssessBadge({ lastAssessed }) {
   if (!lastAssessed) return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 8px', borderRadius: 9999, background: '#FEF2F2', color: '#EF4444', fontSize: 12, fontWeight: 600 }}>Never assessed</span>
   const daysAgo = (Date.now() - new Date(lastAssessed).getTime()) / (1000 * 60 * 60 * 24)
-  if (daysAgo > 90) return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 8px', borderRadius: 9999, background: '#FFFBEB', color: '#D97706', fontSize: 12, fontWeight: 600 }}>Overdue · {Math.round(daysAgo)} days</span>
+  if (daysAgo > 30) return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 8px', borderRadius: 9999, background: '#FFFBEB', color: '#D97706', fontSize: 12, fontWeight: 600 }}>Overdue · {Math.round(daysAgo)} days</span>
   return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 8px', borderRadius: 9999, background: '#ECFDF5', color: '#059669', fontSize: 12, fontWeight: 600 }}>Up to date</span>
 }
 
@@ -80,24 +80,9 @@ function MemberProfilePage() {
 
   const [reportHistory, setReportHistory]     = useState([])
   const [selectedReportId, setSelectedReportId] = useState(null)
-  const [reportHistoryLoading, setReportHistoryLoading] = useState(false)
 
   useEffect(() => { load(); setTranscript(null); setAiInterviews([]); setSelectedInterviewId(null); setReportHistory([]); setSelectedReportId(null) }, [id])
 
-  useEffect(() => {
-    if (tab !== 'analysis' || reportHistory.length > 0) return
-    async function loadReportHistory() {
-      setReportHistoryLoading(true)
-      try {
-        const r = await api.getCandidateReportHistory(id)
-        const sessions = r.data || []
-        setReportHistory(sessions)
-        if (sessions.length > 0) setSelectedReportId(sessions[0].id)
-      } catch { setReportHistory([]) }
-      finally { setReportHistoryLoading(false) }
-    }
-    loadReportHistory()
-  }, [tab, id, reportHistory])
 
   const selectedReport = reportHistory.find(r => r.id === selectedReportId) || report
 
@@ -146,9 +131,21 @@ function MemberProfilePage() {
     setLoading(true)
     setError(null)
     try {
-      const [memberRes, reportRes] = await Promise.all([api.getMember(id), api.getCandidateReport(id)])
-      setMember(memberRes.data)
+      const memberRes = await api.getMember(id)
+      const loadedMember = memberRes.data
+      const candidateId = loadedMember?.candidate_id
+      const [reportRes, historyRes] = candidateId
+        ? await Promise.all([
+          api.getCandidateReport(candidateId),
+          api.getCandidateReportHistory(candidateId),
+        ])
+        : [{ data: null }, { data: [] }]
+
+      setMember(loadedMember)
       setReport(reportRes.data)
+      const history = historyRes.data || []
+      setReportHistory(history)
+      if (history.length > 0) setSelectedReportId(history[0].id)
     } catch {
       setError('Could not load profile. Please try again.')
     } finally {
@@ -174,6 +171,11 @@ function MemberProfilePage() {
 
   const fullName = `${member.first_name || ''} ${member.last_name || ''}`.trim()
   const skills   = member.skills || []
+  const assessmentCount = reportHistory.length
+  const bestScore = reportHistory.reduce((max, r) => {
+    const s = Number(r.overall_score)
+    return (!isNaN(s) && s > 0 && s > max) ? s : max
+  }, 0)
 
   return (
     <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 20 }}>
@@ -231,9 +233,9 @@ function MemberProfilePage() {
               <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#5B4FE9', marginBottom: 14 }}>Performance summary</div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
                 {[
-                  { label: 'Last score',   value: report?.overall_score ? `${report.overall_score}/10` : '—' },
-                  { label: 'Assessments',  value: '—' },
-                  { label: 'Best score',   value: '—' },
+                  { label: 'Last score',   value: report?.overall_score ? `${Number(report.overall_score).toFixed(1)}/10` : '—' },
+                  { label: 'Assessments',  value: assessmentCount || '0' },
+                  { label: 'Best score',   value: bestScore > 0 ? `${bestScore.toFixed(1)}/10` : '—' },
                   { label: 'Days since',   value: member.last_assessed ? `${Math.round((Date.now() - new Date(member.last_assessed).getTime()) / 86400000)}d` : '—' },
                 ].map((s, i) => (
                   <div key={i} style={{ textAlign: 'center', padding: '12px 8px', background: '#F8FAFC', borderRadius: 8 }}>
@@ -262,7 +264,6 @@ function MemberProfilePage() {
 
         {/* Analysis tab */}
         {tab === 'analysis' && (
-          reportHistoryLoading && reportHistory.length === 0 ? <div style={{ padding: 20 }}><Spinner center /></div> :
           selectedReport ? (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
               {reportHistory.length > 1 && (

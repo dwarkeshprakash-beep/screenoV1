@@ -9,6 +9,7 @@ Last updated: 2026-06-09
 - [x] React/Vite frontend with manager, candidate, and interviewer role areas.
 - [x] JWT access token plus HttpOnly refresh cookie.
 - [x] Backend report job queue, retries, scorecards, interview notes, schedule records, and email delivery records.
+- [x] Manager rosters separated from interview candidates through `team_members`.
 
 ### Auth
 - [x] Login with role-scoped JWT claims.
@@ -22,6 +23,7 @@ Last updated: 2026-06-09
 - [x] Reports page based on completed attempts, reports, and scorecard decisions.
 - [x] Static internal email redirect for current test phase.
 - [x] Invite delivery status records and resend API.
+- [x] Adding a member writes to `team_members`; scheduling creates or links the candidate.
 - [ ] Role/opening tracking is not modeled; openings panel is removed.
 
 ### Candidate
@@ -43,6 +45,16 @@ Last updated: 2026-06-09
 - [ ] Requested schedule date filtering remains deferred.
 
 ## Active Feature
+Feature: Separate manager roster from interview candidates
+Status: Complete
+Files involved:
+- `backend/migrations/009_team_members.sql` - creates and backfills the roster table.
+- `backend/src/repositories/team-member.repository.js` - roster CRUD and assessment freshness.
+- `backend/src/services/schedule.service.js` - lazily creates or links candidates on scheduling.
+- `backend/src/routes/upload.routes.js` - roster resume storage with candidate snapshot sync.
+- `frontend/src/components/manager/ScheduleModal.jsx` - sends `teamMemberId`.
+
+## Previous Feature
 Feature: CSV import targets users table with upsert (feat/csv-import-users-upsert → merged dev)
 Status: Complete
 Files involved:
@@ -55,6 +67,8 @@ Files involved:
 - Screeno is currently internal, single-company focused.
 - AI is advisory only; humans make final decisions.
 - Audio is never stored.
+- `team_members` owns roster, profile, resume, and last-assessed state.
+- `candidates` owns interview identity/history and is created on first scheduling.
 - Report scores use a 1-10 backend contract. Frontend must not divide scores.
 - Email delivery is redirected to three static internal recipients during this phase.
 - Frontend bundle splitting is deferred; future fix is route-level lazy loading and removing prototype/demo code from production imports.

@@ -135,7 +135,7 @@ NODE_ENV=development
 DB_TYPE=supabase     # change to 'sqlserver' to switch
 
 # Supabase (current)
-DATABASE_URL=postgresql://postgres.zhnxfghnujizjslygjfs:[YOUR-PASSWORD]@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres
+DATABASE_URL=postgresql://USER:PASSWORD@HOST:6543/postgres
 
 # SQL Server (future)
 DB_SERVER=localhost

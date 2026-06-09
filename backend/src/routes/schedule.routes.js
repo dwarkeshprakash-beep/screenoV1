@@ -66,9 +66,11 @@ router.post('/email-deliveries/:interviewId/resend', async (req, res) => {
 // POST /api/schedule
 router.post('/', async (req, res) => {
   try {
-    const { candidateId, type, interviewMode } = req.body
+    const { teamMemberId, candidateId, type, interviewMode } = req.body
 
-    if (!candidateId) return res.status(400).json({ success: false, error: 'candidateId is required' })
+    if (!teamMemberId && !candidateId) {
+      return res.status(400).json({ success: false, error: 'teamMemberId is required' })
+    }
     if (!type) return res.status(400).json({ success: false, error: 'type is required' })
     if (!interviewMode) return res.status(400).json({ success: false, error: 'interviewMode is required' })
 
@@ -76,8 +78,8 @@ router.post('/', async (req, res) => {
     res.status(201).json({ success: true, data: interview })
   } catch (err) {
     console.error('POST /schedule failed:', err)
-    if (err.message === 'Candidate not found') {
-      return res.status(404).json({ success: false, error: 'Candidate not found' })
+    if (['Candidate not found', 'Team member not found'].includes(err.message)) {
+      return res.status(404).json({ success: false, error: err.message })
     }
     if ([
       'interviewerId is required',

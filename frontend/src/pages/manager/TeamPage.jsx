@@ -43,7 +43,7 @@ function AssessBadge({ lastAssessed }) {
     )
   }
   const daysAgo = (Date.now() - new Date(lastAssessed).getTime()) / (1000 * 60 * 60 * 24)
-  if (daysAgo > 90) {
+  if (daysAgo > 30) {
     return (
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 8px', borderRadius: 9999, background: '#FFFBEB', color: '#D97706', fontSize: 12, fontWeight: 600 }}>
         Overdue
@@ -81,12 +81,15 @@ function TeamPage() {
   const [filterLocation, setFilterLocation] = useState('')
   const [filterPosition, setFilterPosition] = useState('')
 
-  // Sync when TopBar navigates here with ?search= param
+  // Sync when TopBar navigates here with ?search= param.
+  // Only act when the param is present — clearing the URL triggers a re-run with null,
+  // and we must NOT clear searchTerm at that point or the filter disappears immediately.
+  const searchFromURL = searchParams.get('search')
   useEffect(() => {
-    const q = searchParams.get('search') || ''
-    setSearchTerm(q)
-    if (q) setSearchParams({}, { replace: true }) // clean URL after reading
-  }, [searchParams.get('search')])
+    if (!searchFromURL) return
+    setSearchTerm(searchFromURL)
+    setSearchParams({}, { replace: true })
+  }, [searchFromURL])
 
   useEffect(() => { load() }, [])
 
@@ -106,7 +109,7 @@ function TeamPage() {
 
   function isOverdue(m) {
     if (!m.last_assessed) return true
-    return (Date.now() - new Date(m.last_assessed).getTime()) / (1000 * 60 * 60 * 24) > 90
+    return (Date.now() - new Date(m.last_assessed).getTime()) / (1000 * 60 * 60 * 24) > 30
   }
 
   function toggleSelect(id) {
@@ -197,7 +200,7 @@ function TeamPage() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14 }}>
         {[
           { icon: Users,        color: '#5B4FE9', bg: '#EFEDFD', value: members.length,                          label: 'Total team members' },
-          { icon: CheckCircle2, color: '#059669', bg: '#ECFDF5', value: members.filter(m => !isOverdue(m)).length, label: 'Assessed last 90 days' },
+          { icon: CheckCircle2, color: '#059669', bg: '#ECFDF5', value: members.filter(m => !isOverdue(m)).length, label: 'Assessed last 30 days' },
           { icon: Clock,        color: '#D97706', bg: '#FFFBEB', value: overdueCount,                            label: 'Need assessment' },
         ].map((s, i) => (
           <div key={i} style={{ ...cardStyle, display: 'flex', alignItems: 'center', gap: 14, padding: 18 }}>
@@ -212,59 +215,66 @@ function TeamPage() {
         ))}
       </div>
 
-      {/* Search + filters row */}
-      <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-        {/* Search */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#FFF', border: '1px solid #E2E8F0', borderRadius: 8, padding: '7px 12px', flex: 1, minWidth: 240 }}>
-          <Search size={14} color="#94A3B8" />
-          <input
-            type="text"
-            placeholder="Search by name, email or employee ID…"
-            value={searchTerm}
-            onChange={e => setSearchTerm(e.target.value)}
-            style={{ border: 0, outline: 'none', background: 'transparent', fontSize: 13, color: '#0F172A', flex: 1, fontFamily: 'inherit' }}
-          />
-          {searchTerm && (
-            <button type="button" onClick={() => setSearchTerm('')} style={{ background: 'transparent', border: 0, cursor: 'pointer', color: '#94A3B8', display: 'inline-flex', padding: 0 }}>
-              <X size={13} />
-            </button>
-          )}
+      {/* Search + filters row — relative container so the dropdown can float */}
+      <div style={{ position: 'relative' }}>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+          {/* Search */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#FFF', border: '1px solid #E2E8F0', borderRadius: 8, padding: '7px 12px', flex: 1, minWidth: 240 }}>
+            <Search size={14} color="#94A3B8" />
+            <input
+              type="text"
+              placeholder="Search by name, email or employee ID…"
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              style={{ border: 0, outline: 'none', background: 'transparent', fontSize: 13, color: '#0F172A', flex: 1, fontFamily: 'inherit' }}
+            />
+            {searchTerm && (
+              <button type="button" onClick={() => setSearchTerm('')} style={{ background: 'transparent', border: 0, cursor: 'pointer', color: '#94A3B8', display: 'inline-flex', padding: 0 }}>
+                <X size={13} />
+              </button>
+            )}
+          </div>
+
+          {/* Advanced filter toggle */}
+          <button
+            type="button"
+            onClick={() => setShowFilters(f => !f)}
+            style={{ ...btnSecondary, borderColor: hasActiveFilter ? '#5B4FE9' : '#CBD5E1', color: hasActiveFilter ? '#5B4FE9' : '#0F172A' }}
+          >
+            <SlidersHorizontal size={13} /> Filters {hasActiveFilter && `(${[filterLocation, filterPosition].filter(Boolean).length})`}
+          </button>
         </div>
 
-        {/* Advanced filter toggle */}
-        <button
-          type="button"
-          onClick={() => setShowFilters(f => !f)}
-          style={{ ...btnSecondary, position: 'relative', borderColor: hasActiveFilter ? '#5B4FE9' : '#CBD5E1', color: hasActiveFilter ? '#5B4FE9' : '#0F172A' }}
-        >
-          <SlidersHorizontal size={13} /> Filters {hasActiveFilter && `(${[filterLocation, filterPosition].filter(Boolean).length})`}
-        </button>
+        {/* Advanced filter panel — floats over content, no displacement */}
+        {showFilters && (
+          <div style={{
+            position: 'absolute', top: 'calc(100% + 6px)', left: 0, right: 0, zIndex: 20,
+            background: '#FFF', border: '1px solid #E2E8F0', borderRadius: 10,
+            padding: '14px 16px', display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'flex-end',
+            boxShadow: '0 8px 24px rgba(15,23,42,0.10)',
+          }}>
+            <div style={{ flex: 1, minWidth: 160 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: '#374151', marginBottom: 5 }}>Location</div>
+              <select value={filterLocation} onChange={e => setFilterLocation(e.target.value)} style={{ width: '100%', padding: '8px 10px', border: '1px solid #CBD5E1', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', background: '#FFF' }}>
+                <option value="">All locations</option>
+                {locationOptions.map(l => <option key={l} value={l}>{l}</option>)}
+              </select>
+            </div>
+            <div style={{ flex: 1, minWidth: 160 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: '#374151', marginBottom: 5 }}>Current position</div>
+              <select value={filterPosition} onChange={e => setFilterPosition(e.target.value)} style={{ width: '100%', padding: '8px 10px', border: '1px solid #CBD5E1', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', background: '#FFF' }}>
+                <option value="">All positions</option>
+                {positionOptions.map(p => <option key={p} value={p}>{p}</option>)}
+              </select>
+            </div>
+            {hasActiveFilter && (
+              <button type="button" onClick={() => { setFilterLocation(''); setFilterPosition('') }} style={{ ...btnSecondary, alignSelf: 'flex-end' }}>
+                <X size={12} /> Clear filters
+              </button>
+            )}
+          </div>
+        )}
       </div>
-
-      {/* Advanced filter panel */}
-      {showFilters && (
-        <div style={{ background: '#FFF', border: '1px solid #E2E8F0', borderRadius: 10, padding: '14px 16px', display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-          <div style={{ flex: 1, minWidth: 160 }}>
-            <div style={{ fontSize: 11, fontWeight: 600, color: '#374151', marginBottom: 5 }}>Location</div>
-            <select value={filterLocation} onChange={e => setFilterLocation(e.target.value)} style={{ width: '100%', padding: '8px 10px', border: '1px solid #CBD5E1', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', background: '#FFF' }}>
-              <option value="">All locations</option>
-              {locationOptions.map(l => <option key={l} value={l}>{l}</option>)}
-            </select>
-          </div>
-          <div style={{ flex: 1, minWidth: 160 }}>
-            <div style={{ fontSize: 11, fontWeight: 600, color: '#374151', marginBottom: 5 }}>Current position</div>
-            <select value={filterPosition} onChange={e => setFilterPosition(e.target.value)} style={{ width: '100%', padding: '8px 10px', border: '1px solid #CBD5E1', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', background: '#FFF' }}>
-              <option value="">All positions</option>
-              {positionOptions.map(p => <option key={p} value={p}>{p}</option>)}
-            </select>
-          </div>
-          {hasActiveFilter && (
-            <button type="button" onClick={() => { setFilterLocation(''); setFilterPosition('') }} style={{ ...btnSecondary, alignSelf: 'flex-end' }}>
-              <X size={12} /> Clear filters
-            </button>
-          )}
-        </div>
-      )}
 
       {/* Tab bar */}
       <div style={{ display: 'flex', gap: 8 }}>

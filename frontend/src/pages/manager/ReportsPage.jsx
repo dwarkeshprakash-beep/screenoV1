@@ -105,12 +105,6 @@ function ReportsPage() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-      {/* Page header */}
-      <div>
-        <h1 style={{ fontSize: 26, fontWeight: 700, color: '#0F172A', margin: '0 0 4px', letterSpacing: '-0.02em' }}>Reports</h1>
-        <p style={{ color: '#6B7280', fontSize: 13, margin: 0 }}>View completed assessments, scores, and hiring decisions.</p>
-      </div>
-
       {/* Stat cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14 }}>
         {statCards.map(s => (

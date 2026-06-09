@@ -4,6 +4,7 @@
 const crypto = require('crypto')
 const interviewRepository = require('../repositories/interview.repository')
 const candidateRepository = require('../repositories/candidate.repository')
+const teamMemberRepository = require('../repositories/team-member.repository')
 const questionRepository = require('../repositories/question.repository')
 const userRepository = require('../repositories/user.repository')
 const scheduleRecordRepository = require('../repositories/schedule-record.repository')
@@ -19,12 +20,23 @@ const llmService = require('./llm.service')
  * @returns {Promise<Object>} created interview
  */
 async function createSchedule(data, managerId, companyId) {
-  if (!data.candidateId) throw new Error('candidateId is required')
+  if (!data.teamMemberId && !data.candidateId) throw new Error('teamMemberId is required')
   if (!data.type) throw new Error('Interview type is required')
   if (!data.interviewMode) throw new Error('Interview mode is required')
 
-  const candidate = await candidateRepository.getByIdForCompany(data.candidateId, companyId)
-  if (!candidate) throw new Error('Candidate not found')
+  let candidate
+  let teamMember = null
+  if (data.teamMemberId) {
+    teamMember = await teamMemberRepository.getByIdForCompany(data.teamMemberId, companyId)
+    if (!teamMember) throw new Error('Team member not found')
+    candidate = await candidateRepository.upsertFromTeamMember(teamMember)
+    if (!teamMember.candidate_id || teamMember.candidate_id !== candidate.id) {
+      teamMember = await teamMemberRepository.linkCandidate(teamMember.id, candidate.id)
+    }
+  } else {
+    candidate = await candidateRepository.getByIdForCompany(data.candidateId, companyId)
+    if (!candidate) throw new Error('Candidate not found')
+  }
 
   const idempotencyKey = data.idempotencyKey || null
   if (idempotencyKey) {
@@ -68,7 +80,7 @@ async function createSchedule(data, managerId, companyId) {
   const scheduleRecord = idempotencyKey
     ? await scheduleRecordRepository.createPending({
       companyId,
-      candidateId: data.candidateId,
+      candidateId: candidate.id,
       idempotencyKey,
       expires: windowCloses,
     })
@@ -76,13 +88,12 @@ async function createSchedule(data, managerId, companyId) {
 
   const interview = await interviewRepository.create({
     companyId,
-    candidateId: data.candidateId,
+    candidateId: candidate.id,
     managerId,
     interviewerId: data.interviewerId || null,
     type: data.type,
     mode: data.mode || 'internal_monthly',
     interviewMode: data.interviewMode,
-    transcriptionMode: 'api',
     difficulty: data.difficulty || 'medium',
     jdText: data.jdText || null,
     focusAreas: data.focusAreas || null,

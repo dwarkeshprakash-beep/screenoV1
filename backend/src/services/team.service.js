@@ -3,69 +3,124 @@
 
 const bcrypt = require('bcryptjs')
 const crypto = require('crypto')
-const candidateRepository = require('../repositories/candidate.repository')
+const teamMemberRepository = require('../repositories/team-member.repository')
 const userRepository = require('../repositories/user.repository')
+const candidateRepository = require('../repositories/candidate.repository')
 const interviewRepository = require('../repositories/interview.repository')
-const reportRepository = require('../repositories/report.repository')
 const notesRepository = require('../repositories/notes.repository')
 
 /**
- * Get all candidates for a company with optional filter.
+ * Get all team members for a company with optional filter.
+ * Returns team_members rows with profile data joined from users.
  * @param {number} companyId
  * @param {string} filter - 'all' | 'overdue' | 'never'
  * @returns {Promise<Array>}
  */
 async function getTeam(companyId, filter = 'all') {
-  return candidateRepository.getByCompany(companyId, filter)
+  return teamMemberRepository.getByCompany(companyId, filter)
 }
 
 /**
- * Get a single team member by ID.
- * @param {number} id
+ * Get a single team member by team_members.id.
+ * @param {number} id - team_members.id
+ * @param {number} companyId
  * @returns {Promise<Object>}
  */
 async function getMember(id, companyId) {
-  const member = await candidateRepository.getByIdForCompany(id, companyId)
+  const member = await teamMemberRepository.getByIdForCompany(id, companyId)
   if (!member) throw new Error('Member not found')
   return member
 }
 
 /**
- * Add a new team member.
- * @param {Object} data
+ * Add a user to a manager's roster.
+ * If userId is provided, links them directly.
+ * If not (manual entry), looks up by email within the company first; if not
+ * found, creates a minimal users row so the team_members row has a valid user_id.
+ * @param {Object} data - { firstName, lastName, email, phone, userId? }
  * @param {number} companyId
  * @param {number} managerId
  * @returns {Promise<Object>}
  */
 async function addMember(data, companyId, managerId) {
-  if (!data.firstName) throw new Error('First name is required')
   if (!data.email) throw new Error('Email is required')
 
-  return candidateRepository.create({
-    ...data,
-    companyId,
-    managerId,
-  })
+  let userId = data.userId || null
+
+  if (!userId) {
+    const existing = await userRepository.getByEmailForCompany(data.email, companyId)
+    if (existing) {
+      userId = existing.id
+    } else {
+      // Create a minimal placeholder user row so team_members has a user_id
+      const tempPw = await bcrypt.hash('TEMP_' + crypto.randomBytes(8).toString('hex'), 10)
+      const newUsers = await require('../db/connection').query(
+        `INSERT INTO users (company_id, first_name, last_name, email, password, role, status)
+         VALUES (@company_id, @first_name, @last_name, @email, @password, 'employee', 'active')
+         ON CONFLICT (company_id, email) DO NOTHING
+         RETURNING id`,
+        {
+          company_id: companyId,
+          first_name: data.firstName || data.email.split('@')[0],
+          last_name:  data.lastName || '',
+          email:      data.email,
+          password:   tempPw,
+        }
+      )
+      if (newUsers.length > 0) {
+        userId = newUsers[0].id
+      } else {
+        const found = await userRepository.getByEmailForCompany(data.email, companyId)
+        userId = found?.id
+      }
+    }
+  }
+
+  if (!userId) throw new Error('Could not resolve user — email may not belong to this company')
+
+  const tm = await teamMemberRepository.create({ companyId, managerId, userId })
+
+  // Return the full profile view (JOIN to users)
+  return teamMemberRepository.getByIdForCompany(tm.id, companyId)
 }
 
 /**
- * Update a team member's fields.
- * @param {number} id
+ * Update a team member's profile fields in the users table.
+ * team_members itself has no profile columns to update.
+ * @param {number} id - team_members.id
  * @param {Object} data
+ * @param {number} companyId
  * @returns {Promise<Object>}
  */
 async function updateMember(id, data, companyId) {
-  const member = await candidateRepository.update(id, data, companyId)
+  const member = await teamMemberRepository.getByIdForCompany(id, companyId)
   if (!member) throw new Error('Member not found')
-  return member
+
+  // Update profile fields in users (source of truth)
+  if (data.employeeId !== undefined || data.position !== undefined || data.location !== undefined) {
+    await userRepository.updateOrgProfile(member.user_id, {
+      empNumber: data.employeeId || null,
+      jobTitle:  data.position   || null,
+      location:  data.location   || null,
+    })
+  }
+
+  // Update contact snapshot on candidates if it exists
+  if (member.candidate_id && (data.firstName || data.lastName || data.email || data.phone)) {
+    await candidateRepository.update(member.candidate_id, data)
+  }
+
+  // Re-fetch with fresh JOIN data
+  return teamMemberRepository.getByIdForCompany(id, companyId)
 }
 
 /**
  * Soft-delete a team member.
- * @param {number} id
+ * @param {number} id - team_members.id
+ * @param {number} companyId
  */
 async function removeMember(id, companyId) {
-  await candidateRepository.softDelete(id, companyId)
+  await teamMemberRepository.softDelete(id, companyId)
 }
 
 /**
@@ -75,7 +130,7 @@ async function removeMember(id, companyId) {
  */
 async function getStats(companyId) {
   const [members, interviews] = await Promise.all([
-    candidateRepository.getByCompany(companyId, 'all'),
+    teamMemberRepository.getByCompany(companyId, 'all'),
     interviewRepository.getByCompany(companyId),
   ])
 
@@ -99,42 +154,40 @@ async function getActivity(companyId) {
   const interviews = await interviewRepository.getByCompany(companyId)
   return interviews.slice(0, 10).map(i => ({
     what: `${i.type === 'ai_voice' ? 'AI Interview' : i.type === 'exam' ? 'Exam' : 'Live Interview'} scheduled`,
-    sub: `${i.first_name} ${i.last_name}`,
+    sub:  `${i.first_name} ${i.last_name}`,
     when: i.created,
   }))
 }
 
 /**
- * Get all notes for a candidate.
- * @param {number} candidateId
+ * Get all notes for a team member.
+ * @param {number} teamMemberId - team_members.id
+ * @param {number} companyId
  * @returns {Promise<Array>}
  */
-async function getNotes(candidateId, companyId) {
-  await getMember(candidateId, companyId)
-  return notesRepository.getNotes(candidateId)
+async function getNotes(teamMemberId, companyId) {
+  await getMember(teamMemberId, companyId)
+  return notesRepository.getNotes(teamMemberId)
 }
 
 /**
- * Add a note for a candidate.
- * @param {number} candidateId
+ * Add a note for a team member.
+ * @param {number} teamMemberId - team_members.id
  * @param {number} managerId
+ * @param {number} companyId
  * @param {string} note
  * @returns {Promise<Object>}
  */
-async function addNote(candidateId, managerId, companyId, note) {
+async function addNote(teamMemberId, managerId, companyId, note) {
   if (!note || typeof note !== 'string' || !note.trim()) {
     throw new Error('Note must be a non-empty string')
   }
-  await getMember(candidateId, companyId)
-  return notesRepository.createNote(candidateId, managerId, note)
+  const member = await getMember(teamMemberId, companyId)
+  return notesRepository.createNote(teamMemberId, member.candidate_id || null, managerId, note)
 }
 
 /**
  * Import users from a CSV text string into the users table.
- * Existing records (matched by email, then by emp_number) are updated with basic info —
- * password is never touched. New records are inserted as role='employee'.
- * Candidates table is NOT modified — team membership and interview data are unaffected.
- * Managers can add imported users to their team via the "Add Member" field.
  * @param {string} csvText
  * @param {number} companyId
  * @returns {Promise<{ inserted: number, updated: number, errors: string[] }>}
@@ -170,20 +223,22 @@ async function importFromCSV(csvText, companyId) {
     })
   }
 
-  // Generate one temp password hash for all new users in this batch (bcrypt is slow — hash once)
   const tempPasswordHash = await bcrypt.hash('TEMP_' + crypto.randomBytes(8).toString('hex'), 10)
-
   const result = await userRepository.bulkUpsert(rows, companyId, tempPasswordHash)
   return { inserted: result.inserted, updated: result.updated, errors: [...parseErrors, ...result.errors] }
 }
 
 /**
- * Get organisation users not yet in this manager's team (candidates table).
+ * Get organisation users not yet in this manager's team.
  * @param {number} companyId
+ * @param {number} managerId
  * @returns {Promise<Array>}
  */
-async function getOrgUsersNotInTeam(companyId) {
-  return userRepository.getNotInTeam(companyId)
+async function getOrgUsersNotInTeam(companyId, managerId) {
+  return userRepository.getNotInTeam(companyId, managerId)
 }
 
-module.exports = { getTeam, getMember, getOrgUsersNotInTeam, addMember, updateMember, removeMember, getStats, getActivity, getNotes, addNote, importFromCSV }
+module.exports = {
+  getTeam, getMember, getOrgUsersNotInTeam, addMember, updateMember,
+  removeMember, getStats, getActivity, getNotes, addNote, importFromCSV,
+}
