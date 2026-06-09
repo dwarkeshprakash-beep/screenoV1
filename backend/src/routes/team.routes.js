@@ -152,7 +152,7 @@ router.post('/import', async (req, res) => {
   try {
     const { csv } = req.body
     if (!csv) return res.status(400).json({ success: false, error: 'csv is required' })
-    const result = await teamService.importFromCSV(csv, req.user.companyId, req.user.id)
+    const result = await teamService.importFromCSV(csv, req.user.companyId)
     res.json({ success: true, data: result })
   } catch (err) {
     console.error('POST /team/import failed:', err)

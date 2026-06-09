@@ -1,6 +1,8 @@
 // backend/src/services/team.service.js
 // Business logic for team management. No SQL, no HTTP.
 
+const bcrypt = require('bcryptjs')
+const crypto = require('crypto')
 const candidateRepository = require('../repositories/candidate.repository')
 const userRepository = require('../repositories/user.repository')
 const interviewRepository = require('../repositories/interview.repository')
@@ -128,44 +130,51 @@ async function addNote(candidateId, managerId, companyId, note) {
 }
 
 /**
- * Import candidates from a CSV text string.
+ * Import users from a CSV text string into the users table.
+ * Existing records (matched by email, then by emp_number) are updated with basic info —
+ * password is never touched. New records are inserted as role='employee'.
+ * Candidates table is NOT modified — team membership and interview data are unaffected.
+ * Managers can add imported users to their team via the "Add Member" field.
  * @param {string} csvText
  * @param {number} companyId
- * @param {number} managerId
- * @returns {Promise<{ inserted: number, skipped: number, errors: string[] }>}
+ * @returns {Promise<{ inserted: number, updated: number, errors: string[] }>}
  */
-async function importFromCSV(csvText, companyId, managerId) {
+async function importFromCSV(csvText, companyId) {
   const lines = csvText.trim().split('\n').map(l => l.trim()).filter(Boolean)
   if (lines.length < 2) throw new Error('CSV must have a header row and at least one data row')
 
-  // Detect header columns
   const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/\s+/g, '_'))
-  const get = (cols, row, ...names) => {
+  const get = (cols, ...names) => {
     for (const n of names) {
       const i = headers.indexOf(n)
-      if (i >= 0 && cols[i]) return cols[i].trim()
+      if (i >= 0 && cols[i] && cols[i].trim()) return cols[i].trim()
     }
     return null
   }
 
   const rows = []
-  const errors = []
+  const parseErrors = []
   for (let i = 1; i < lines.length; i++) {
     const cols = lines[i].split(',')
-    const firstName = get(cols, null, 'first_name', 'firstname', 'name')
-    const email = get(cols, null, 'email')
-    if (!firstName || !email) { errors.push(`Row ${i + 1}: missing name or email`); continue }
+    const firstName = get(cols, 'first_name', 'firstname', 'name')
+    const email     = get(cols, 'email')
+    if (!firstName || !email) { parseErrors.push(`Row ${i + 1}: missing name or email`); continue }
     rows.push({
       firstName,
-      lastName: get(cols, null, 'last_name', 'lastname') || '',
+      lastName:     get(cols, 'last_name', 'lastname') || '',
       email,
-      phone: get(cols, null, 'phone', 'mobile') || null,
-      type: 'internal',
+      empNumber:    get(cols, 'employee_id', 'emp_number', 'emp_id') || null,
+      departmentId: get(cols, 'department_id', 'dept_id') || null,
+      jobTitle:     get(cols, 'job_title', 'position', 'title') || null,
+      location:     get(cols, 'location') || null,
     })
   }
 
-  const result = await candidateRepository.bulkCreate(rows, companyId, managerId)
-  return { ...result, errors }
+  // Generate one temp password hash for all new users in this batch (bcrypt is slow — hash once)
+  const tempPasswordHash = await bcrypt.hash('TEMP_' + crypto.randomBytes(8).toString('hex'), 10)
+
+  const result = await userRepository.bulkUpsert(rows, companyId, tempPasswordHash)
+  return { inserted: result.inserted, updated: result.updated, errors: [...parseErrors, ...result.errors] }
 }
 
 /**

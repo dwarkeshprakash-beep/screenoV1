@@ -136,7 +136,7 @@ function TeamPage() {
       const csv = await file.text()
       const res = await api.importTeamCSV(csv)
       const data = res.data || {}
-      setImportStatus(`Imported ${data.inserted || 0}; skipped ${data.skipped || 0}${data.errors?.length ? `; ${data.errors.length} row issue(s)` : ''}.`)
+      setImportStatus(`Imported ${data.inserted || 0} new; updated ${data.updated || 0} existing${data.errors?.length ? `; ${data.errors.length} row issue(s)` : ''}.`)
       await load()
     } catch (err) {
       setImportStatus(err.message || 'CSV import failed.')
