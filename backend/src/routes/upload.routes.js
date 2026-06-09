@@ -53,13 +53,13 @@ router.post('/resume', upload.single('resume'), async (req, res) => {
     const member = await teamMemberRepository.getByIdForCompany(teamMemberId, req.user.companyId)
     if (!member) return res.status(404).json({ success: false, error: 'Team member not found' })
 
-    // One resume per candidate — uploading again replaces the existing Supabase Storage asset
+    // One resume per candidate — uploading again replaces the existing Supabase Storage asset.
+    // Upsert a candidates row first so there is always somewhere to store the resume,
+    // even if the team member hasn't been scheduled for an interview yet.
     const resumeText = await extractTextFromBuffer(req.file.buffer, req.file.mimetype, req.file.originalname)
     const { url } = await storageService.uploadResume(req.file.buffer, `team_${teamMemberId}`)
-    await teamMemberRepository.update(teamMemberId, req.user.companyId, { resumeUrl: url, resumeText })
-    if (member.candidate_id) {
-      await candidateRepository.update(member.candidate_id, { resumeUrl: url, resumeText }, req.user.companyId)
-    }
+    const candidate = await candidateRepository.upsertFromTeamMember(member)
+    await candidateRepository.update(candidate.id, { resumeUrl: url, resumeText }, req.user.companyId)
 
     res.json({ success: true, data: { resumeUrl: url } })
   } catch (err) {
