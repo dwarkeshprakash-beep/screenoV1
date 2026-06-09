@@ -175,7 +175,7 @@ function ReportsPage() {
                     </td>
                     <td style={{ padding: '14px 16px', borderBottom: '1px solid #F1F5F9' }}><DecisionBadge decision={r.decision} /></td>
                     <td style={{ padding: '14px 16px', borderBottom: '1px solid #F1F5F9' }}>
-                      <button type="button" onClick={() => navigate(`/manager/team/${r.candidate_id}`)} style={btnSecondary} aria-label={`View report for ${name}`}>View report</button>
+                      <button type="button" onClick={() => { if (r.team_member_id) navigate(`/manager/team/${r.team_member_id}`) }} style={btnSecondary} aria-label={`View report for ${name}`}>View report</button>
                     </td>
                   </tr>
                 )

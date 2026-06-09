@@ -198,6 +198,7 @@ async function getCalendarEvents(companyId, weekStart) {
     id: i.id,
     type: i.type,
     candidateId: i.candidate_id,
+    teamMemberId: i.team_member_id || null,
     candidateName: `${i.first_name || ''} ${i.last_name || ''}`.trim(),
     status: i.status,
     created: i.created,

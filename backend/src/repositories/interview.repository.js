@@ -153,10 +153,12 @@ async function getByToken(token) {
 async function getByCompany(companyId) {
   return db.query(
     `SELECT i.*,
-            cu.first_name, cu.last_name
+            cu.first_name, cu.last_name,
+            tm.id AS team_member_id
      FROM interviews i
      LEFT JOIN candidates c2 ON c2.id = i.candidate_id AND c2.deleted IS NULL
      LEFT JOIN users      cu ON cu.id = c2.user_id     AND cu.deleted IS NULL
+     LEFT JOIN team_members tm ON tm.user_id = c2.user_id AND tm.company_id = i.company_id AND tm.deleted IS NULL
      WHERE i.company_id = @companyId
      ORDER BY i.created DESC`,
     { companyId }
@@ -171,10 +173,12 @@ async function getByCompany(companyId) {
 async function getByManager(managerId) {
   return db.query(
     `SELECT i.*,
-            cu.first_name, cu.last_name
+            cu.first_name, cu.last_name,
+            tm.id AS team_member_id
      FROM interviews i
      LEFT JOIN candidates c2 ON c2.id = i.candidate_id AND c2.deleted IS NULL
      LEFT JOIN users      cu ON cu.id = c2.user_id     AND cu.deleted IS NULL
+     LEFT JOIN team_members tm ON tm.user_id = c2.user_id AND tm.company_id = i.company_id AND tm.deleted IS NULL
      WHERE i.manager_id = @managerId
      ORDER BY i.created DESC`,
     { managerId }

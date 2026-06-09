@@ -185,7 +185,7 @@ function SchedulePage() {
                     return (
                       <div
                         key={ei}
-                        onClick={() => { const cid = ev.candidateId || ev.candidate_id; if (cid) navigate(`/manager/team/${cid}`) }}
+                        onClick={() => { const mid = ev.teamMemberId || ev.team_member_id; if (mid) navigate(`/manager/team/${mid}`) }}
                         style={{ position: 'absolute', left: 4, right: 4, top, height, background: ts.bg, borderLeft: `3px solid ${ts.border}`, borderRadius: 6, padding: '5px 8px', cursor: 'pointer', overflow: 'hidden', transition: 'filter 120ms' }}
                         onMouseEnter={e => e.currentTarget.style.filter = 'brightness(0.95)'}
                         onMouseLeave={e => e.currentTarget.style.filter = 'none'}
