@@ -1,13 +1,17 @@
 // backend/src/services/email.service.js
-// Transactional email via Brevo SMTP + nodemailer.
+// Transactional email via Brevo.
+//
+// Two send paths — chosen automatically:
+//   1. Brevo HTTP API  (if BREVO_API_KEY is set) — works from any host (HTTPS port 443)
+//   2. Brevo SMTP      (nodemailer, ports 587 → 465 fallback) — works from local dev
+//
+// All paths enforce static-only delivery — no real candidate/manager addresses are ever used.
 
 const nodemailer = require('nodemailer')
 
-// ── Dev / staging override ────────────────────────────────────────────────────
-// ─────────────────────────────────────────────────────────────────────────────
+// ── SMTP transporters (local dev) ─────────────────────────────────────────────
 
-// Primary transporter — STARTTLS on port 587 (works from local dev).
-const transporter = nodemailer.createTransport({
+const smtpTransporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
   port: Number(process.env.SMTP_PORT || 587),
   secure: false,
@@ -17,9 +21,8 @@ const transporter = nodemailer.createTransport({
   },
 })
 
-// Fallback transporter — implicit TLS on port 465. Some hosts (Render, etc.)
-// block outbound 587 and time out, but allow 465.
-const transporterAltPort = nodemailer.createTransport({
+// Port 465 fallback — some hosts block 587 but allow 465.
+const smtpTransporterAlt = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
   port: 465,
   secure: true,
@@ -29,84 +32,98 @@ const transporterAltPort = nodemailer.createTransport({
   },
 })
 
-const CONNECTION_ERROR_CODES = ['ETIMEDOUT', 'ESOCKET', 'ECONNECTION', 'ECONNREFUSED']
+const SMTP_CONNECTION_ERRORS = ['ETIMEDOUT', 'ESOCKET', 'ECONNECTION', 'ECONNREFUSED']
 
-/**
- * Send via Brevo SMTP on port 465 (implicit TLS) when the primary port 587
- * connection times out / is blocked by the host's network.
- * @param {object} mailOptions - full nodemailer mail options (already redirected to static recipients)
- */
-async function sendMailViaBrevoAltPort(mailOptions) {
-  return transporterAltPort.sendMail(mailOptions)
-}
+// ── Static recipients — all mail is redirected here ──────────────────────────
 
-const FROM = `"${process.env.MAIL_FROM_NAME || 'Screeno'}" <${process.env.MAIL_FROM_EMAIL}>`
+const FROM_NAME  = process.env.MAIL_FROM_NAME  || 'Screeno'
+const FROM_EMAIL = process.env.MAIL_FROM_EMAIL
+
 const STATIC_RECIPIENTS = [
   'dwarkesh.vajjala@prakashinfotech.com',
   'contact.dwarkesh@gmail.com',
   'dvajjala@gmail.com',
 ]
 
-/**
- * Return controlled recipients when email redirection is configured.
- * @param {string|string[]} originalTo
- * @returns {string|string[]}
- */
 function getRecipients(originalTo) {
   const redirectRecipients = process.env.EMAIL_REDIRECT_TO
     ?.split(',')
-    .map(email => email.trim())
+    .map(e => e.trim())
     .filter(Boolean)
 
   const deliveredTo = redirectRecipients?.length ? redirectRecipients : STATIC_RECIPIENTS
 
-  console.info('[email] Redirecting message', {
-    intendedRecipient: originalTo,
-    deliveredTo,
-  })
+  console.info('[email] Redirecting message', { intendedRecipient: originalTo, deliveredTo })
   return deliveredTo
-}
-
-/**
- * Core send function. Supports multiple recipients, CC, BCC, and attachments.
- * @param {{ to, cc?, bcc?, subject, html?, text?, attachments? }} opts
- */
-async function sendMail({ to, cc, bcc, subject, html, text, attachments = [] }) {
-  if (!to) throw new Error('Email recipient is required')
-  if (!process.env.MAIL_FROM_EMAIL) throw new Error('MAIL_FROM_EMAIL is required')
-
-  const redirectEnabled = true
-
-  const mailOptions = {
-    from: FROM,
-    to: getRecipients(to),
-    cc: redirectEnabled ? undefined : cc,
-    bcc: redirectEnabled ? undefined : bcc,
-    subject,
-    html,
-    text,
-    attachments,
-  }
-
-  try {
-    await transporter.sendMail(mailOptions)
-  } catch (err) {
-    if (!CONNECTION_ERROR_CODES.includes(err.code)) throw err
-
-    console.warn('[email] Port 587 connection failed, retrying on port 465:', err.message)
-    await sendMailViaBrevoAltPort(mailOptions)
-  }
 }
 
 function getDeliveredRecipients() {
   return STATIC_RECIPIENTS
 }
 
-/**
- * Send a magic link to a candidate.
- * @param {string} to - candidate email
- * @param {{ candidateName, interviewToken, companyName, jobTitle, windowDays }} params
- */
+// ── Send via Brevo HTTP API (works from Render / any cloud host) ──────────────
+
+async function sendViaBrevoAPI(recipients, subject, html, text) {
+  const apiKey = process.env.BREVO_API_KEY
+  if (!apiKey) throw new Error('BREVO_API_KEY not set')
+
+  const body = {
+    sender:      { name: FROM_NAME, email: FROM_EMAIL },
+    to:          recipients.map(email => ({ email })),
+    subject,
+    htmlContent: html  || undefined,
+    textContent: text  || undefined,
+  }
+
+  const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+    method:  'POST',
+    headers: { 'api-key': apiKey, 'Content-Type': 'application/json' },
+    body:    JSON.stringify(body),
+  })
+
+  if (!res.ok) {
+    const detail = await res.text()
+    throw new Error(`Brevo API error ${res.status}: ${detail}`)
+  }
+}
+
+// ── Send via SMTP with 465 fallback (local dev) ───────────────────────────────
+
+async function sendViaSmtp(mailOptions) {
+  try {
+    await smtpTransporter.sendMail(mailOptions)
+  } catch (err) {
+    if (!SMTP_CONNECTION_ERRORS.includes(err.code)) throw err
+    console.warn('[email] Port 587 timed out, retrying on port 465:', err.message)
+    await smtpTransporterAlt.sendMail(mailOptions)
+  }
+}
+
+// ── Core send function ────────────────────────────────────────────────────────
+
+async function sendMail({ to, subject, html, text, attachments = [] }) {
+  if (!to)        throw new Error('Email recipient is required')
+  if (!FROM_EMAIL) throw new Error('MAIL_FROM_EMAIL is required')
+
+  const recipients = getRecipients(to)
+
+  if (process.env.BREVO_API_KEY) {
+    await sendViaBrevoAPI(recipients, subject, html, text)
+  } else {
+    const mailOptions = {
+      from:        `"${FROM_NAME}" <${FROM_EMAIL}>`,
+      to:          recipients,
+      subject,
+      html,
+      text,
+      attachments,
+    }
+    await sendViaSmtp(mailOptions)
+  }
+}
+
+// ── Email templates ───────────────────────────────────────────────────────────
+
 async function sendMagicLink(to, { candidateName, interviewToken, companyName, jobTitle, windowDays }) {
   const link = `${process.env.FRONTEND_URL}/interview/${interviewToken}`
 
@@ -144,11 +161,6 @@ async function sendMagicLink(to, { candidateName, interviewToken, companyName, j
   })
 }
 
-/**
- * Notify a manager that a report is ready.
- * @param {string} to - manager email
- * @param {{ candidate, interviewId, companyName }} params
- */
 async function sendReportReady(to, { candidate, interviewId, companyName }) {
   const link = `${process.env.FRONTEND_URL}/manager/team/${candidate.id}`
 
