@@ -50,7 +50,7 @@ function CandidateDashboardPage() {
     }
   }
 
-  const upcoming  = interviews.filter(i => i.status === 'scheduled')
+  const upcoming  = interviews.filter(i => i.status === 'scheduled' || i.status === 'in_progress')
   const completed = interviews.filter(i => i.status === 'completed')
   const avgScore  = completed.length ? (completed.reduce((s, c) => s + (c.score || 0), 0) / completed.length).toFixed(1) : 'N/A'
   const firstName = user.name ? user.name.split(' ')[0] : 'there'

@@ -70,10 +70,24 @@ function InterviewerDashboard() {
 
   const todayLabel = today.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' })
   const hasPending = scorecards.length > 0
-  const weekCount  = schedule.filter(s => s.this_week).length || schedule.length
+
+  const weekStart = new Date(today); weekStart.setDate(today.getDate() - today.getDay() + 1); weekStart.setHours(0, 0, 0, 0)
+  const weekEnd   = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 7)
+  const todayStart = new Date(today); todayStart.setHours(0, 0, 0, 0)
+  const todayEnd   = new Date(today); todayEnd.setHours(23, 59, 59, 999)
+
+  const upcoming  = schedule.filter(iv => iv.status === 'scheduled' || iv.status === 'in_progress')
+  const todayList = upcoming.filter(iv => {
+    const t = new Date(iv.scheduled_start || iv.created)
+    return t >= todayStart && t <= todayEnd
+  })
+  const weekCount = upcoming.filter(iv => {
+    const t = new Date(iv.scheduled_start || iv.created)
+    return t >= weekStart && t < weekEnd
+  }).length
 
   const statCards = [
-    { icon: CalendarDays, bg: '#EFEDFD', color: '#5B4FE9', value: schedule.length || '—',  label: 'Interviews this month' },
+    { icon: CalendarDays, bg: '#EFEDFD', color: '#5B4FE9', value: upcoming.length || '—',  label: 'Upcoming interviews' },
     { icon: CheckSquare,  bg: hasPending ? '#FEF2F2' : '#ECFDF5', color: hasPending ? '#EF4444' : '#059669', value: scorecards.length || '0', label: 'Pending scorecards' },
     { icon: Video,        bg: '#ECFDF5', color: '#059669', value: weekCount || '—', label: 'This week' },
   ]
@@ -101,21 +115,21 @@ function InterviewerDashboard() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <span style={{ fontSize: 15, fontWeight: 700, color: '#0F172A' }}>Today — {todayLabel}</span>
-            <span style={{ fontSize: 12, fontWeight: 600, padding: '2px 8px', borderRadius: 9999, background: '#EFEDFD', color: '#5B4FE9' }}>{schedule.length} interviews</span>
+            <span style={{ fontSize: 12, fontWeight: 600, padding: '2px 8px', borderRadius: 9999, background: '#EFEDFD', color: '#5B4FE9' }}>{todayList.length} interviews</span>
           </div>
           <span style={{ fontSize: 12, color: '#94A3B8', fontWeight: 500 }}>Showing assigned</span>
         </div>
 
-        {schedule.length === 0 ? (
+        {todayList.length === 0 ? (
           <EmptyState message="No interviews scheduled for today." />
         ) : (
-          schedule.map((iv, i) => {
+          todayList.map((iv, i) => {
             const name = `${iv.first_name || ''} ${iv.last_name || ''}`.trim() || 'Candidate'
             const isNext = i === 0
             return (
               <div key={iv.id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 0', borderTop: i === 0 ? '0' : '1px solid #F1F5F9' }}>
                 <div style={{ width: 90, flexShrink: 0 }}>
-                  <div style={{ fontSize: 13, fontFamily: 'monospace', fontWeight: 700, color: '#0F172A' }}>{formatDate(iv.created)}</div>
+                  <div style={{ fontSize: 13, fontFamily: 'monospace', fontWeight: 700, color: '#0F172A' }}>{formatDate(iv.scheduled_start || iv.created)}</div>
                   {isNext && <div style={{ fontSize: 11, color: '#059669', fontWeight: 600, marginTop: 2 }}>Upcoming</div>}
                 </div>
                 <Avatar name={name} size={40} />
