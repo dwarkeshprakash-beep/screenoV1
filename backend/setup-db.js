@@ -177,6 +177,14 @@ async function main() {
 
   await run('files.deleted column', `ALTER TABLE files ADD COLUMN IF NOT EXISTS deleted TIMESTAMPTZ`)
 
+  // ─── 8a. ALTER CANDIDATES TABLE — profile fields (migration 008) ──
+  console.log('\n[8a] Adding candidate profile fields (migration 008)...')
+
+  await run('candidates.employee_id column',      `ALTER TABLE candidates ADD COLUMN IF NOT EXISTS employee_id VARCHAR(50)`)
+  await run('candidates.department column',       `ALTER TABLE candidates ADD COLUMN IF NOT EXISTS department VARCHAR(100)`)
+  await run('candidates.location column',         `ALTER TABLE candidates ADD COLUMN IF NOT EXISTS location VARCHAR(100)`)
+  await run('candidates.current_position column', `ALTER TABLE candidates ADD COLUMN IF NOT EXISTS current_position VARCHAR(150)`)
+
   // ─── 8. ADD QUESTIONS.CREATED IF MISSING ────────────────────
   console.log('\n[8] Aligning questions table...')
 

@@ -1,6 +1,6 @@
 ﻿import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Mail, Phone, MapPin, Briefcase, CalendarPlus, Pencil, FileText, Download, ThumbsUp, ArrowRight, Check } from 'lucide-react'
+import { ArrowLeft, Mail, Phone, MapPin, Briefcase, CalendarPlus, Pencil, FileText, Download, ThumbsUp, ArrowRight, Check, Building2, BadgeCheck } from 'lucide-react'
 import Spinner from '../../components/shared/Spinner'
 import ErrorMessage from '../../components/shared/ErrorMessage'
 import EmptyState from '../../components/shared/EmptyState'
@@ -193,15 +193,16 @@ function MemberProfilePage() {
                 <h1 style={{ fontFamily: "var(--font-display,'Inter')", fontSize: 22, fontWeight: 700, color: '#0F172A', margin: 0, letterSpacing: '-0.02em' }}>{fullName}</h1>
                 <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 9999, background: '#ECFDF5', color: '#047857' }}>Team Member</span>
               </div>
-              <div style={{ display: 'flex', gap: 18, fontSize: 12, color: '#94A3B8', flexWrap: 'wrap', marginBottom: 8 }}>
+              <div style={{ display: 'flex', gap: 18, fontSize: 12, color: '#94A3B8', flexWrap: 'wrap', marginBottom: 6 }}>
                 {member.email && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Mail size={12} />{member.email}</span>}
                 {member.phone && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Phone size={12} />{member.phone}</span>}
+                {member.location && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><MapPin size={12} />{member.location}</span>}
               </div>
-              {skills.length > 0 && (
-                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
-                  {skills.map(sk => <SkillTag key={sk} label={sk} />)}
-                </div>
-              )}
+              <div style={{ display: 'flex', gap: 16, fontSize: 12, color: '#64748B', flexWrap: 'wrap' }}>
+                {member.employee_id && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><BadgeCheck size={12} color="#5B4FE9" />ID: {member.employee_id}</span>}
+                {member.department && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Building2 size={12} color="#5B4FE9" />{member.department}</span>}
+                {member.current_position && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Briefcase size={12} color="#5B4FE9" />{member.current_position}</span>}
+              </div>
             </div>
             <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
               <button onClick={() => setEditOpen(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: '#FFF', border: '1px solid #CBD5E1', borderRadius: 8, fontSize: 12, fontWeight: 600, color: '#0F172A', cursor: 'pointer' }}>

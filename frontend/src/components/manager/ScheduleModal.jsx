@@ -75,9 +75,13 @@ function CandidateChips({ candidates, onRemove, teamList, onAdd, label = 'To' })
         {candidates.map(c => {
           const name = `${c.first_name || ''} ${c.last_name || ''}`.trim() || c.email
           return (
-            <span key={c.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '2px 8px 2px 5px', background: '#EFEDFD', borderRadius: 9999, fontSize: 12, fontWeight: 500, color: '#3A31A3' }}>
-              <TinyAv name={name} /> {name}
-              <button type="button" onClick={e => { e.stopPropagation(); onRemove(c.id) }} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', color: '#6B7280', display: 'inline-flex', lineHeight: 1 }}>
+            <span key={c.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 8px 3px 5px', background: '#EFEDFD', borderRadius: 8, fontSize: 12, fontWeight: 500, color: '#3A31A3' }}>
+              <TinyAv name={name} />
+              <span style={{ display: 'flex', flexDirection: 'column', lineHeight: 1.2 }}>
+                <span style={{ fontWeight: 600 }}>{name}</span>
+                {c.email && name !== c.email && <span style={{ fontSize: 10, color: '#6B7280', fontWeight: 400 }}>{c.email}</span>}
+              </span>
+              <button type="button" onClick={e => { e.stopPropagation(); onRemove(c.id) }} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', color: '#6B7280', display: 'inline-flex', lineHeight: 1, marginLeft: 2 }}>
                 <X size={11} />
               </button>
             </span>
@@ -181,12 +185,12 @@ function EmailChips({ emails, onRemove, orgUsers, onAdd, label, disabledEmails =
       >
         <span style={{ fontSize: 11, fontWeight: 600, color: '#94A3B8', marginRight: 2 }}>{label}:</span>
         {disabledEmails.map(e => (
-          <span key={e} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', background: '#F1F5F9', borderRadius: 9999, fontSize: 12, fontWeight: 500, color: '#475569' }}>
-            {e} <span style={{ fontSize: 10, color: '#94A3B8' }}>(you)</span>
+          <span key={e} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 9999, fontSize: 12, fontWeight: 500, color: '#047857' }}>
+            {e} <span style={{ fontSize: 10, color: '#059669' }}>(you)</span>
           </span>
         ))}
         {emails.map(e => (
-          <span key={e} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '2px 8px', background: '#EFEDFD', borderRadius: 9999, fontSize: 12, fontWeight: 500, color: '#3A31A3' }}>
+          <span key={e} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '2px 8px', background: '#EFEDFD', border: '1px solid #C4B5FD', borderRadius: 9999, fontSize: 12, fontWeight: 500, color: '#3A31A3' }}>
             {e}
             <button type="button" onClick={ev => { ev.stopPropagation(); onRemove(e) }} style={{ background: 'transparent', border: 0, padding: 0, cursor: 'pointer', color: '#6B7280', display: 'inline-flex', lineHeight: 1 }}>
               <X size={11} />
@@ -243,15 +247,12 @@ function ScheduleModal({ open, onClose, member, selectedIds = [], template, onDo
   const [voiceMode, setVoiceMode] = useState('simple')
 
   // ── Step 2 state ────────────────────────────────────────────
-  const [maxAttempts, setMaxAttempts] = useState(3)
-  const [cooldownHours, setCooldown]  = useState(24)
-  const [windowDays, setWindowDays]   = useState(7)
-  const [reportTiming, setReportTiming] = useState('all')
+  const [maxAttempts, setMaxAttempts] = useState(1)          // 1 = one-time link, -1 = unlimited
   const [jdFile, setJdFile]           = useState(null)
   const [jdText, setJdText]           = useState('')
   const [focusAreas, setFocusAreas]   = useState('')
   const [difficulty, setDifficulty]   = useState('medium')
-  const [questionCount, setQuestionCount] = useState(10)
+  const [questionCount, setQuestionCount] = useState(10)     // 10, 20, or 30 (Full)
   const [transcriptionMode, setTranscriptionMode] = useState('api')
   const jdInputRef = useRef(null)
 
@@ -272,7 +273,7 @@ function ScheduleModal({ open, onClose, member, selectedIds = [], template, onDo
     setStep(1); setError(null)
     // Pre-fill from template
     if (template) {
-      setMaxAttempts(template.attempts || 3)
+      setMaxAttempts(template.attempts || 1)
       setFocusAreas(template.description || '')
     }
     // Load team
@@ -346,9 +347,9 @@ function ScheduleModal({ open, onClose, member, selectedIds = [], template, onDo
           interviewMode: primaryStage === 'ai_voice' ? voiceMode : primaryStage,
           transcriptionMode,
           maxAttempts,
-          cooldownHours,
-          windowDays,
-          reportTiming,
+          cooldownHours: 0,
+          windowDays: 30,
+          reportTiming: 'each',
           jdText: jdText || null,
           focusAreas,
           difficulty,
@@ -372,8 +373,7 @@ function ScheduleModal({ open, onClose, member, selectedIds = [], template, onDo
     setStep(1); setError(null)
     setStages([{ id: 'ai_voice' }]); setMode('internal_monthly'); setVoiceMode('simple')
     setJdFile(null); setJdText(''); setFocusAreas('')
-    setDifficulty('medium'); setQuestionCount(10); setMaxAttempts(3); setTranscriptionMode('api')
-    setCooldown(24); setWindowDays(7); setReportTiming('all')
+    setDifficulty('medium'); setQuestionCount(10); setMaxAttempts(1); setTranscriptionMode('api')
     setReportEmails([]); setCandidates([]); setTeamList([]); setInterviewers([]); setOrgUsers([])
     setInterviewerId(''); setScheduledStart('')
     onClose()
@@ -646,24 +646,24 @@ function ScheduleModal({ open, onClose, member, selectedIds = [], template, onDo
             />
           </div>
 
-          {/* Attempts */}
+          {/* Attempt type */}
           <div>
-            {lbl('Attempts allowed')}
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-              {[1, 3, 5, -1].map(v => (
-                pillBtn(maxAttempts === v, () => setMaxAttempts(v), v === -1 ? 'Unlimited' : `${v}`)
+            {lbl('Interview attempts')}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+              {[
+                { id: 1,  label: 'One-time link',    desc: 'Link expires after the candidate completes the interview once.' },
+                { id: -1, label: 'Unlimited tries',  desc: 'Candidate can retake anytime — a new report is generated each time.' },
+              ].map(opt => (
+                <button key={opt.id} type="button" onClick={() => setMaxAttempts(opt.id)} style={{
+                  padding: '12px', borderRadius: 8, cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
+                  border: `1px solid ${maxAttempts === opt.id ? '#5B4FE9' : '#E2E8F0'}`,
+                  background: maxAttempts === opt.id ? '#EFEDFD' : '#FFF',
+                  color: maxAttempts === opt.id ? '#3A31A3' : '#374151',
+                }}>
+                  <div style={{ fontSize: 12, fontWeight: 700 }}>{opt.label}</div>
+                  <div style={{ fontSize: 11, lineHeight: 1.45, marginTop: 4, color: '#6B7280' }}>{opt.desc}</div>
+                </button>
               ))}
-            </div>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <div>
-              {lbl('Cooldown between attempts (hours)')}
-              <input type="number" min={1} max={168} style={field} value={cooldownHours} onChange={e => setCooldown(parseInt(e.target.value, 10))} onFocus={onFocusField} onBlur={onBlurField} />
-            </div>
-            <div>
-              {lbl('Link active for (days)')}
-              <input type="number" min={1} max={30} style={field} value={windowDays} onChange={e => setWindowDays(parseInt(e.target.value, 10))} onFocus={onFocusField} onBlur={onBlurField} />
             </div>
           </div>
 
@@ -676,23 +676,20 @@ function ScheduleModal({ open, onClose, member, selectedIds = [], template, onDo
           </div>
 
           {/* Question count */}
-          {stages[0]?.id === 'ai_voice' && (
-            <div>
-              {lbl('Number of questions', voiceMode === 'adaptive' ? '(target — the AI adapts around this)' : '(fixed list generated upfront)')}
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                {[5, 8, 10, 15].map(v => pillBtn(questionCount === v, () => setQuestionCount(v), `${v}`))}
-              </div>
-            </div>
-          )}
-
-          {/* Report timing */}
           <div>
-            {lbl('Generate report')}
-            <div style={{ display: 'flex', gap: 8 }}>
-              {[{ id: 'each', label: 'After each attempt' }, { id: 'all', label: 'After all attempts' }].map(o => (
-                pillBtn(reportTiming === o.id, () => setReportTiming(o.id), o.label)
-              ))}
+            {lbl('Number of questions', voiceMode === 'adaptive' ? '(target — AI adapts around this)' : stages[0]?.id === 'ai_voice' ? '(fixed list generated upfront)' : '')}
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {[
+                { v: 10, label: '10' },
+                { v: 20, label: '20' },
+                { v: 30, label: 'Full interview' },
+              ].map(({ v, label }) => pillBtn(questionCount === v, () => setQuestionCount(v), label))}
             </div>
+            {questionCount === 30 && (
+              <p style={{ fontSize: 11, color: '#94A3B8', margin: '6px 0 0' }}>
+                Full interview: comprehensive assessment covering all resume, JD, and focus area topics.
+              </p>
+            )}
           </div>
         </div>
       )}
@@ -714,6 +711,21 @@ function ScheduleModal({ open, onClose, member, selectedIds = [], template, onDo
             )}
             {selectedIds.length > 0 && candidates.length === 0 && (
               <p style={{ fontSize: 11, color: '#5B4FE9', margin: '6px 0 0' }}>{selectedIds.length} candidates pre-selected from team page.</p>
+            )}
+            {candidates.length > 0 && (
+              <div style={{ marginTop: 10, overflowX: 'auto', paddingBottom: 4 }}>
+                <div style={{ display: 'flex', gap: 8, minWidth: 'max-content' }}>
+                  {candidates.map(c => {
+                    const name = `${c.first_name || ''} ${c.last_name || ''}`.trim() || c.email
+                    return (
+                      <div key={c.id} style={{ flexShrink: 0, background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: '6px 10px', fontSize: 11 }}>
+                        <div style={{ fontWeight: 600, color: '#0F172A' }}>{name}</div>
+                        {c.email && <div style={{ color: '#6B7280', marginTop: 1 }}>{c.email}</div>}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
             )}
           </div>
 
@@ -767,14 +779,12 @@ function ScheduleModal({ open, onClose, member, selectedIds = [], template, onDo
                 ...(stages[0]?.id === 'ai_voice'
                   ? [
                     ['Voice style', voiceMode === 'adaptive' ? 'Adaptive conversation' : 'Fixed question list'],
-                    ['Questions',   voiceMode === 'adaptive' ? `~${questionCount} (adaptive target)` : `${questionCount}`],
+                    ['Questions',   questionCount === 30 ? 'Full interview' : (voiceMode === 'adaptive' ? `~${questionCount} (adaptive target)` : `${questionCount}`)],
                   ]
-                  : []),
+                  : [['Questions', questionCount === 30 ? 'Full interview' : `${questionCount}`]]),
                 ['Stages',        stages.map(s => INTERVIEW_TYPES.find(t => t.id === s.id)?.label).join(' → ')],
-                ['Attempts',      maxAttempts === -1 ? 'Unlimited' : maxAttempts],
-                ['Window',        `${windowDays} days`],
+                ['Attempts',      maxAttempts === -1 ? 'Unlimited (report per try)' : 'One-time link'],
                 ['Difficulty',    difficulty.charAt(0).toUpperCase() + difficulty.slice(1)],
-                ['Report',        reportTiming === 'each' ? 'After each attempt' : 'After all attempts'],
               ].map(([k, v]) => (
                 <div key={k}>
                   <span style={{ color: '#94A3B8' }}>{k}: </span>
@@ -790,10 +800,10 @@ function ScheduleModal({ open, onClose, member, selectedIds = [], template, onDo
               <div style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 8 }}>Report recipients</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
                 {managerEmail && (
-                  <span style={{ padding: '3px 9px', background: '#F1F5F9', borderRadius: 9999, fontSize: 11, fontWeight: 500, color: '#475569' }}>{managerEmail} (you)</span>
+                  <span style={{ padding: '3px 9px', background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 9999, fontSize: 11, fontWeight: 500, color: '#047857' }}>{managerEmail} (you)</span>
                 )}
                 {reportEmails.map(e => (
-                  <span key={e} style={{ padding: '3px 9px', background: '#EFEDFD', borderRadius: 9999, fontSize: 11, fontWeight: 500, color: '#3A31A3' }}>{e}</span>
+                  <span key={e} style={{ padding: '3px 9px', background: '#EFEDFD', border: '1px solid #C4B5FD', borderRadius: 9999, fontSize: 11, fontWeight: 500, color: '#3A31A3' }}>{e}</span>
                 ))}
               </div>
             </div>

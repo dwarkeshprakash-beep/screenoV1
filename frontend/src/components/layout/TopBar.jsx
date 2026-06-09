@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Bell, Search } from 'lucide-react'
 
-function TopBar({ title = '', subtitle = '', action = null, notifCount = 2, role = 'manager' }) {
+function TopBar({ title = '', subtitle = '', action = null, notifCount = 0, role = 'manager' }) {
   const navigate = useNavigate()
   const [query, setQuery] = useState('')
   const isManager = role === 'manager'

@@ -1,18 +1,12 @@
 // components/manager/EditMemberModal.jsx
-// Edit a team member's profile or remove them.
+// Edit a team member's editable fields. Org-level fields (employee ID, department,
+// location, job title) are read from the users/departments tables and are read-only here.
 
 import { useState, useEffect } from 'react'
 import Modal from '../shared/Modal'
-import Input from '../shared/Input'
 import Button from '../shared/Button'
 import * as api from '../../services/api'
 
-/**
- * @param {boolean} open
- * @param {Object} member
- * @param {Function} onClose
- * @param {Function} onDone
- */
 function EditMemberModal({ open, member, onClose, onDone }) {
   const [form, setForm] = useState({ firstName: '', lastName: '', email: '' })
   const [loading, setLoading] = useState(false)
@@ -21,7 +15,11 @@ function EditMemberModal({ open, member, onClose, onDone }) {
 
   useEffect(() => {
     if (member) {
-      setForm({ firstName: member.first_name || '', lastName: member.last_name || '', email: member.email || '' })
+      setForm({
+        firstName: member.first_name || '',
+        lastName:  member.last_name  || '',
+        email:     member.email      || '',
+      })
     }
   }, [member])
 
@@ -56,17 +54,39 @@ function EditMemberModal({ open, member, onClose, onDone }) {
     }
   }
 
+  const inputStyle = {
+    width: '100%', padding: '9px 12px', border: '1px solid #CBD5E1', borderRadius: 8,
+    fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box',
+    transition: 'border-color 120ms, box-shadow 120ms',
+  }
+  const onFocus = e => { e.target.style.borderColor = '#5B4FE9'; e.target.style.boxShadow = '0 0 0 3px rgba(91,79,233,0.18)' }
+  const onBlur  = e => { e.target.style.borderColor = '#CBD5E1'; e.target.style.boxShadow = 'none' }
+  const lbl = text => <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 5 }}>{text}</label>
+
   return (
     <Modal open={open} onClose={onClose} title="Edit Member" size="sm">
       <form onSubmit={handleSave}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <Input id="edit-first" label="First name" value={form.firstName} onChange={e => set('firstName', e.target.value)} />
-            <Input id="edit-last" label="Last name" value={form.lastName} onChange={e => set('lastName', e.target.value)} />
+            <div>{lbl('First name')}<input style={inputStyle} onFocus={onFocus} onBlur={onBlur} value={form.firstName} onChange={e => set('firstName', e.target.value)} /></div>
+            <div>{lbl('Last name')}<input style={inputStyle} onFocus={onFocus} onBlur={onBlur} value={form.lastName} onChange={e => set('lastName', e.target.value)} /></div>
           </div>
-          <Input id="edit-email" label="Email" type="email" value={form.email} onChange={e => set('email', e.target.value)} />
+          <div>{lbl('Email')}<input type="email" style={inputStyle} onFocus={onFocus} onBlur={onBlur} value={form.email} onChange={e => set('email', e.target.value)} /></div>
 
-          {error && <p style={{ fontSize: 13, color: 'var(--danger-500)' }}>{error}</p>}
+          {/* Read-only org fields sourced from users/departments tables */}
+          {(member?.employee_id || member?.department || member?.location || member?.current_position) && (
+            <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, padding: '10px 12px' }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: '#94A3B8', marginBottom: 8, letterSpacing: '0.06em', textTransform: 'uppercase' }}>From HRMS (read-only)</div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 12, color: '#374151' }}>
+                {member.employee_id      && <div><span style={{ color: '#94A3B8' }}>ID: </span>{member.employee_id}</div>}
+                {member.department       && <div><span style={{ color: '#94A3B8' }}>Dept: </span>{member.department}</div>}
+                {member.location         && <div><span style={{ color: '#94A3B8' }}>Location: </span>{member.location}</div>}
+                {member.current_position && <div><span style={{ color: '#94A3B8' }}>Position: </span>{member.current_position}</div>}
+              </div>
+            </div>
+          )}
+
+          {error && <p style={{ fontSize: 13, color: 'var(--danger-500)', margin: 0 }}>{error}</p>}
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
             <button

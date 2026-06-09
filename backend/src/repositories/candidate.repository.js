@@ -3,14 +3,8 @@
 
 const db = require('../db/connection')
 
-/**
- * Get all candidates for a company with optional filter.
- * @param {number} companyId
- * @param {string} filter - 'all' | 'overdue' | 'never'
- * @returns {Promise<Array>}
- */
-async function getByCompany(companyId, filter = 'all') {
-  const latestAssessmentSql = `NULLIF(GREATEST(
+// Computed last_assessed column — reused in both list and single-record queries.
+const LAST_ASSESSED_SQL = `NULLIF(GREATEST(
     COALESCE((
       SELECT MAX(a.ended)
       FROM interviews i
@@ -24,11 +18,20 @@ async function getByCompany(companyId, filter = 'all') {
     ), 'epoch'::timestamptz)
   ), 'epoch'::timestamptz)`
 
+/**
+ * Get all candidates for a company with optional filter.
+ * Profile fields (emp_number, job_title, location, department) are pulled from
+ * the users table via a LEFT JOIN on email + company_id.
+ * @param {number} companyId
+ * @param {string} filter - 'all' | 'overdue' | 'never'
+ * @returns {Promise<Array>}
+ */
+async function getByCompany(companyId, filter = 'all') {
   let whereExtra = ''
   if (filter === 'never') {
-    whereExtra = `AND ${latestAssessmentSql} IS NULL`
+    whereExtra = `AND ${LAST_ASSESSED_SQL} IS NULL`
   } else if (filter === 'overdue') {
-    whereExtra = `AND ${latestAssessmentSql} < NOW() - INTERVAL '90 days'`
+    whereExtra = `AND ${LAST_ASSESSED_SQL} < NOW() - INTERVAL '90 days'`
   }
 
   return db.query(
@@ -43,8 +46,14 @@ async function getByCompany(companyId, filter = 'all') {
        c.resume_updated,
        c.status,
        c.created,
-       ${latestAssessmentSql} AS last_assessed
+       u.emp_number      AS employee_id,
+       u.job_title       AS current_position,
+       u.location        AS location,
+       d.name            AS department,
+       ${LAST_ASSESSED_SQL} AS last_assessed
      FROM candidates c
+     LEFT JOIN users       u ON u.email = c.email AND u.company_id = c.company_id AND u.deleted IS NULL
+     LEFT JOIN departments d ON d.id = u.department_id
      WHERE c.company_id = @companyId
        AND c.deleted IS NULL
        ${whereExtra}
@@ -54,7 +63,32 @@ async function getByCompany(companyId, filter = 'all') {
 }
 
 /**
- * Get a single candidate by ID.
+ * Get a single candidate by ID, scoped to a company.
+ * Includes the same profile JOIN and computed last_assessed.
+ * @param {number} id
+ * @param {number} companyId
+ * @returns {Promise<Object|null>}
+ */
+async function getByIdForCompany(id, companyId) {
+  const rows = await db.query(
+    `SELECT
+       c.*,
+       u.emp_number      AS employee_id,
+       u.job_title       AS current_position,
+       u.location        AS location,
+       d.name            AS department,
+       ${LAST_ASSESSED_SQL} AS last_assessed
+     FROM candidates c
+     LEFT JOIN users       u ON u.email = c.email AND u.company_id = c.company_id AND u.deleted IS NULL
+     LEFT JOIN departments d ON d.id = u.department_id
+     WHERE c.id = @id AND c.company_id = @companyId AND c.deleted IS NULL`,
+    { id, companyId }
+  )
+  return rows[0] || null
+}
+
+/**
+ * Get a single candidate by ID (no company scope).
  * @param {number} id
  * @returns {Promise<Object|null>}
  */
@@ -62,15 +96,6 @@ async function getById(id) {
   const rows = await db.query(
     `SELECT * FROM candidates WHERE id = @id AND deleted IS NULL`,
     { id }
-  )
-  return rows[0] || null
-}
-
-async function getByIdForCompany(id, companyId) {
-  const rows = await db.query(
-    `SELECT * FROM candidates
-     WHERE id = @id AND company_id = @companyId AND deleted IS NULL`,
-    { id, companyId }
   )
   return rows[0] || null
 }
@@ -89,28 +114,30 @@ async function create(data) {
        (@company_id, @manager_id, @first_name, @last_name, @email, @phone, @type, @source)
      ON CONFLICT (company_id, email)
      DO UPDATE SET
-       deleted     = NULL,
-       first_name  = EXCLUDED.first_name,
-       last_name   = EXCLUDED.last_name,
-       phone       = EXCLUDED.phone,
-       manager_id  = EXCLUDED.manager_id
+       deleted    = NULL,
+       first_name = EXCLUDED.first_name,
+       last_name  = EXCLUDED.last_name,
+       phone      = EXCLUDED.phone,
+       manager_id = EXCLUDED.manager_id
      RETURNING *`,
     {
       company_id: data.companyId,
       manager_id: data.managerId || null,
       first_name: data.firstName,
-      last_name: data.lastName || '',
-      email: data.email,
-      phone: data.phone || null,
-      type: data.type || 'internal',
-      source: data.source || 'manual',
+      last_name:  data.lastName || '',
+      email:      data.email,
+      phone:      data.phone || null,
+      type:       data.type || 'internal',
+      source:     data.source || 'manual',
     }
   )
   return rows[0]
 }
 
 /**
- * Update a candidate's fields.
+ * Update a candidate's editable fields (name, email, phone, resume).
+ * Profile org fields (emp_number, job_title, location, department) live in users
+ * table and are not updated here.
  * @param {number} id
  * @param {Object} data
  * @returns {Promise<Object>}
@@ -132,12 +159,12 @@ async function update(id, data, companyId = null) {
      RETURNING *`,
     {
       id,
-      company_id: companyId,
-      first_name: data.firstName || null,
-      last_name: data.lastName || null,
-      email: data.email || null,
-      phone: data.phone || null,
-      resume_url: data.resumeUrl || null,
+      company_id:  companyId,
+      first_name:  data.firstName || null,
+      last_name:   data.lastName  || null,
+      email:       data.email     || null,
+      phone:       data.phone     || null,
+      resume_url:  data.resumeUrl  || null,
       resume_text: data.resumeText || null,
     }
   )
@@ -175,11 +202,11 @@ async function bulkCreate(rows, companyId, managerId) {
         company_id: companyId,
         manager_id: managerId,
         first_name: row.firstName,
-        last_name: row.lastName || '',
-        email: row.email,
-        phone: row.phone || null,
-        type: row.type || 'internal',
-        source: 'csv_import',
+        last_name:  row.lastName || '',
+        email:      row.email,
+        phone:      row.phone || null,
+        type:       row.type || 'internal',
+        source:     'csv_import',
       }
     )
     if (result.length > 0) inserted++

@@ -28,7 +28,6 @@ function Modal({ open, onClose, title, children, size = 'md' }) {
       role="dialog"
       aria-modal="true"
       aria-labelledby="modal-title"
-      onClick={onClose}
       style={{
         position: 'fixed',
         inset: 0,
@@ -41,7 +40,6 @@ function Modal({ open, onClose, title, children, size = 'md' }) {
       }}
     >
       <div
-        onClick={(e) => e.stopPropagation()}
         style={{
           background: 'var(--bg-surface)',
           borderRadius: 'var(--radius-xl)',
