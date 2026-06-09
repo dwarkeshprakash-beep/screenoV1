@@ -30,9 +30,10 @@ router.get('/scorecards', async (req, res) => {
   try {
     const rows = await db.query(
       `SELECT i.id, i.candidate_id, i.created,
-              c.first_name, c.last_name
+              cu.first_name, cu.last_name
        FROM interviews i
-       LEFT JOIN candidates c ON c.id = i.candidate_id
+       LEFT JOIN candidates c  ON c.id    = i.candidate_id AND c.deleted IS NULL
+       LEFT JOIN users      cu ON cu.id   = c.user_id      AND cu.deleted IS NULL
        WHERE i.type = 'human'
          AND i.interviewer_id = @interviewerId
          AND i.status = 'completed'

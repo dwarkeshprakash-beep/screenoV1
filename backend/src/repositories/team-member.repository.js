@@ -1,18 +1,23 @@
 // backend/src/repositories/team-member.repository.js
 // SQL queries for team_members (pure manager → user mapping).
-// Profile data (name, email, location, etc.) is NOT on team_members — it comes
-// from users via JOIN. Assessment state (last_assessed) is on candidates via JOIN.
+//
+// Schema: id, company_id, manager_id, user_id, created, deleted
+//
+// Profile data (name, email, location, etc.) comes from users JOIN.
+// Assessment state (last_assessed, resume_url) comes from candidates JOIN via user_id.
+// There is NO candidate_id column on team_members — the link is:
+//   candidates.user_id = team_members.user_id AND candidates.company_id = team_members.company_id
 
 const db = require('../db/connection')
 
-// Common SELECT columns — used in both list and single-record queries.
 const SELECT_COLS = `
-  tm.id, tm.company_id, tm.manager_id, tm.user_id, tm.candidate_id, tm.created,
+  tm.id, tm.company_id, tm.manager_id, tm.user_id, tm.created,
   u.first_name, u.last_name, u.email,
   u.emp_number     AS employee_id,
   u.job_title      AS current_position,
   u.location,
   d.name           AS department,
+  c.id             AS candidate_id,
   c.last_assessed,
   c.resume_url,
   c.resume_updated`
@@ -20,7 +25,9 @@ const SELECT_COLS = `
 const JOIN_PROFILE = `
   JOIN users u ON u.id = tm.user_id AND u.deleted IS NULL
   LEFT JOIN departments d ON d.id = u.department_id
-  LEFT JOIN candidates c ON c.id = tm.candidate_id AND c.deleted IS NULL`
+  LEFT JOIN candidates  c ON c.user_id    = tm.user_id
+                          AND c.company_id = tm.company_id
+                          AND c.deleted IS NULL`
 
 /**
  * List all active roster members for a company.
@@ -31,7 +38,7 @@ const JOIN_PROFILE = `
  */
 async function getByCompany(companyId, filter = 'all') {
   let filterSql = ''
-  if (filter === 'never') filterSql = 'AND (tm.candidate_id IS NULL OR c.last_assessed IS NULL)'
+  if (filter === 'never')   filterSql = 'AND c.last_assessed IS NULL'
   if (filter === 'overdue') filterSql = "AND c.last_assessed < NOW() - INTERVAL '30 days'"
 
   return db.query(
@@ -89,22 +96,6 @@ async function create(data) {
 }
 
 /**
- * Set candidate_id on a team member row after an interview is first scheduled.
- * @param {number} id - team_members.id
- * @param {number} candidateId
- * @returns {Promise<Object|null>}
- */
-async function linkCandidate(id, candidateId) {
-  const rows = await db.query(
-    `UPDATE team_members SET candidate_id = @candidateId
-     WHERE id = @id AND deleted IS NULL
-     RETURNING *`,
-    { id, candidateId }
-  )
-  return rows[0] || null
-}
-
-/**
  * Soft-delete a roster member.
  * @param {number} id
  * @param {number} companyId
@@ -117,4 +108,4 @@ async function softDelete(id, companyId) {
   )
 }
 
-module.exports = { getByCompany, getByIdForCompany, create, linkCandidate, softDelete }
+module.exports = { getByCompany, getByIdForCompany, create, softDelete }

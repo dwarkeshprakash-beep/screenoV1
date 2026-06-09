@@ -30,9 +30,6 @@ async function createSchedule(data, managerId, companyId) {
     teamMember = await teamMemberRepository.getByIdForCompany(data.teamMemberId, companyId)
     if (!teamMember) throw new Error('Team member not found')
     candidate = await candidateRepository.upsertFromTeamMember(teamMember)
-    if (!teamMember.candidate_id || teamMember.candidate_id !== candidate.id) {
-      teamMember = await teamMemberRepository.linkCandidate(teamMember.id, candidate.id)
-    }
   } else {
     candidate = await candidateRepository.getByIdForCompany(data.candidateId, companyId)
     if (!candidate) throw new Error('Candidate not found')

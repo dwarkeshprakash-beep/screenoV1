@@ -1,23 +1,28 @@
 // backend/src/repositories/candidate.repository.js
 // SQL queries for the candidates table.
-// candidates = interview subjects; profile data comes from users via user_id JOIN.
+//
+// candidates = interview subject record. No identity data stored here.
+// name / email / phone come exclusively from users via user_id JOIN.
+//
+// Schema:
+//   id, user_id (NOT NULL), company_id, last_assessed,
+//   resume_url, resume_text, resume_updated, source, created, deleted
 
 const db = require('../db/connection')
 
-// Profile columns from users JOIN — used in detail views (profile page, schedule).
-const PROFILE_JOIN = `
-  LEFT JOIN users       u ON u.id = c.user_id AND u.deleted IS NULL
-  LEFT JOIN departments d ON d.id = u.department_id`
-
-const PROFILE_COLS = `
+// Columns always pulled from users JOIN — returned on every candidate query.
+const USER_COLS = `u.first_name, u.last_name, u.email,
   u.emp_number     AS employee_id,
   u.job_title      AS current_position,
   u.location,
   d.name           AS department`
 
+const USER_JOIN = `
+  JOIN users        u ON u.id = c.user_id AND u.deleted IS NULL
+  LEFT JOIN departments d ON d.id = u.department_id`
+
 /**
- * Get all candidates for a company with optional filter.
- * Used by reports and schedule pages (not the team roster — that goes via team_members).
+ * Get all candidates for a company.
  * @param {number} companyId
  * @param {string} filter - 'all' | 'overdue' | 'never'
  * @returns {Promise<Array>}
@@ -28,30 +33,29 @@ async function getByCompany(companyId, filter = 'all') {
   if (filter === 'overdue') whereExtra = "AND c.last_assessed < NOW() - INTERVAL '30 days'"
 
   return db.query(
-    `SELECT c.id, c.user_id, c.first_name, c.last_name, c.email, c.phone,
-            c.resume_url, c.resume_updated, c.source, c.created, c.last_assessed,
-            ${PROFILE_COLS}
-     FROM candidates c ${PROFILE_JOIN}
+    `SELECT c.id, c.user_id, c.company_id, c.last_assessed,
+            c.resume_url, c.resume_updated, c.source, c.created,
+            ${USER_COLS}
+     FROM candidates c ${USER_JOIN}
      WHERE c.company_id = @companyId AND c.deleted IS NULL
        ${whereExtra}
-     ORDER BY c.first_name, c.last_name`,
+     ORDER BY u.first_name, u.last_name`,
     { companyId }
   )
 }
 
 /**
  * Get a single candidate by ID, scoped to a company.
- * Includes profile fields from users JOIN.
  * @param {number} id
  * @param {number} companyId
  * @returns {Promise<Object|null>}
  */
 async function getByIdForCompany(id, companyId) {
   const rows = await db.query(
-    `SELECT c.id, c.user_id, c.first_name, c.last_name, c.email, c.phone,
-            c.resume_url, c.resume_updated, c.source, c.created, c.last_assessed,
-            ${PROFILE_COLS}
-     FROM candidates c ${PROFILE_JOIN}
+    `SELECT c.id, c.user_id, c.company_id, c.last_assessed,
+            c.resume_url, c.resume_updated, c.source, c.created,
+            ${USER_COLS}
+     FROM candidates c ${USER_JOIN}
      WHERE c.id = @id AND c.company_id = @companyId AND c.deleted IS NULL`,
     { id, companyId }
   )
@@ -59,67 +63,67 @@ async function getByIdForCompany(id, companyId) {
 }
 
 /**
- * Get a single candidate by ID (no company scope — used by report/interview services).
+ * Get a single candidate by ID — used by report/interview services.
+ * Returns user profile fields so callers don't need a separate users lookup.
  * @param {number} id
  * @returns {Promise<Object|null>}
  */
 async function getById(id) {
   const rows = await db.query(
-    `SELECT * FROM candidates WHERE id = @id AND deleted IS NULL`,
+    `SELECT c.id, c.user_id, c.company_id, c.last_assessed,
+            c.resume_url, c.resume_text, c.resume_updated, c.source, c.created,
+            ${USER_COLS}
+     FROM candidates c ${USER_JOIN}
+     WHERE c.id = @id AND c.deleted IS NULL`,
     { id }
   )
   return rows[0] || null
 }
 
 /**
- * Find a candidate by email within a company.
- * @param {string} email
+ * Find a candidate by user_id within a company.
+ * @param {number} userId
  * @param {number} companyId
  * @returns {Promise<Object|null>}
  */
-async function getByEmail(email, companyId) {
+async function getByUserId(userId, companyId) {
   const rows = await db.query(
-    `SELECT id, company_id, user_id, first_name, last_name, email
-     FROM candidates
-     WHERE email = @email AND company_id = @companyId AND deleted IS NULL
+    `SELECT c.id, c.user_id, c.company_id, c.last_assessed,
+            c.resume_url, c.resume_updated, c.source, c.created,
+            ${USER_COLS}
+     FROM candidates c ${USER_JOIN}
+     WHERE c.user_id = @userId AND c.company_id = @companyId AND c.deleted IS NULL
      LIMIT 1`,
-    { email, companyId }
+    { userId, companyId }
   )
   return rows[0] || null
 }
 
 /**
- * Create or reactivate a candidate from a team member object.
- * Called by schedule.service when an interview is first scheduled for a team member.
- * The team member object must include first_name, last_name, email, company_id, user_id.
- * @param {Object} teamMember - result from teamMemberRepository.getByIdForCompany
+ * Create or reactivate a candidate from a team member.
+ * Called by schedule.service when an interview is first scheduled.
+ * ON CONFLICT uses (company_id, user_id) — no identity data stored here.
+ * @param {Object} teamMember - must include company_id, user_id
  * @returns {Promise<Object>}
  */
 async function upsertFromTeamMember(teamMember) {
   const rows = await db.query(
-    `INSERT INTO candidates (company_id, user_id, first_name, last_name, email, source)
-     VALUES (@company_id, @user_id, @first_name, @last_name, @email, @source)
-     ON CONFLICT (company_id, email) DO UPDATE SET
-       deleted    = NULL,
-       user_id    = COALESCE(candidates.user_id, EXCLUDED.user_id),
-       first_name = EXCLUDED.first_name,
-       last_name  = EXCLUDED.last_name
+    `INSERT INTO candidates (company_id, user_id, source)
+     VALUES (@company_id, @user_id, @source)
+     ON CONFLICT (company_id, user_id) DO UPDATE SET deleted = NULL
      RETURNING *`,
     {
       company_id: teamMember.company_id,
-      user_id:    teamMember.user_id || null,
-      first_name: teamMember.first_name,
-      last_name:  teamMember.last_name || '',
-      email:      teamMember.email,
+      user_id:    teamMember.user_id,
       source:     'manual',
     }
   )
-  return rows[0]
+  // Re-fetch with user JOIN so callers get name/email without a second query
+  return getById(rows[0].id)
 }
 
 /**
- * Set last_assessed = NOW() for a candidate after a completed interview.
- * Called by interview.service.completeInterview.
+ * Set last_assessed = NOW() after a completed interview.
  * @param {number} id
  */
 async function updateLastAssessed(id) {
@@ -131,9 +135,9 @@ async function updateLastAssessed(id) {
 }
 
 /**
- * Update a candidate's resume fields.
+ * Update resume fields on a candidate.
  * @param {number} id
- * @param {Object} data
+ * @param {Object} data - { resumeUrl?, resumeText? }
  * @param {number|null} companyId
  * @returns {Promise<Object>}
  */
@@ -141,11 +145,8 @@ async function update(id, data, companyId = null) {
   const rows = await db.query(
     `UPDATE candidates
      SET
-       first_name     = COALESCE(@first_name,   first_name),
-       last_name      = COALESCE(@last_name,    last_name),
-       email          = COALESCE(@email,         email),
-       phone          = COALESCE(@phone,         phone),
-       resume_url     = COALESCE(@resume_url,    resume_url),
+       resume_url     = COALESCE(@resume_url,  resume_url),
+       resume_text    = COALESCE(@resume_text, resume_text),
        resume_updated = CASE WHEN @resume_url::text IS NOT NULL THEN NOW() ELSE resume_updated END
      WHERE id = @id
        AND (@company_id::int IS NULL OR company_id = @company_id)
@@ -153,12 +154,9 @@ async function update(id, data, companyId = null) {
      RETURNING *`,
     {
       id,
-      company_id: companyId,
-      first_name: data.firstName  || null,
-      last_name:  data.lastName   || null,
-      email:      data.email      || null,
-      phone:      data.phone      || null,
-      resume_url: data.resumeUrl  || null,
+      company_id:  companyId,
+      resume_url:  data.resumeUrl  || null,
+      resume_text: data.resumeText || null,
     }
   )
   return rows[0]
@@ -166,8 +164,6 @@ async function update(id, data, companyId = null) {
 
 /**
  * Soft-delete a candidate.
- * @param {number} id
- * @param {number} companyId
  */
 async function softDelete(id, companyId) {
   await db.query(
@@ -177,36 +173,7 @@ async function softDelete(id, companyId) {
   )
 }
 
-/**
- * Bulk-insert candidates from CSV rows, skipping duplicates.
- * @param {Array<Object>} rows
- * @param {number} companyId
- * @param {number} managerId
- * @returns {Promise<{ inserted: number, skipped: number }>}
- */
-async function bulkCreate(rows, companyId, managerId) {
-  let inserted = 0
-  for (const row of rows) {
-    const result = await db.query(
-      `INSERT INTO candidates (company_id, first_name, last_name, email, phone, source)
-       VALUES (@company_id, @first_name, @last_name, @email, @phone, @source)
-       ON CONFLICT (company_id, email) DO NOTHING
-       RETURNING id`,
-      {
-        company_id: companyId,
-        first_name: row.firstName,
-        last_name:  row.lastName || '',
-        email:      row.email,
-        phone:      row.phone || null,
-        source:     'csv_import',
-      }
-    )
-    if (result.length > 0) inserted++
-  }
-  return { inserted, skipped: rows.length - inserted }
-}
-
 module.exports = {
-  getByCompany, getById, getByIdForCompany, getByEmail,
-  upsertFromTeamMember, updateLastAssessed, update, softDelete, bulkCreate,
+  getByCompany, getById, getByIdForCompany, getByUserId,
+  upsertFromTeamMember, updateLastAssessed, update, softDelete,
 }

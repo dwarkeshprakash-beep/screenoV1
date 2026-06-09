@@ -104,9 +104,9 @@ async function getTeamReports(companyId) {
   return db.query(
     `SELECT
        c.id AS candidate_id,
-       c.first_name,
-       c.last_name,
-       c.email,
+       u.first_name,
+       u.last_name,
+       u.email,
        i.type AS interview_type,
        i.mode,
        i.created AS scheduled_date,
@@ -128,6 +128,7 @@ async function getTeamReports(companyId) {
      FROM attempts a
      JOIN interviews i ON i.id = a.interview_id
      JOIN candidates c ON c.id = i.candidate_id AND c.company_id = i.company_id
+     LEFT JOIN users      u  ON u.id  = c.user_id AND u.deleted IS NULL
      LEFT JOIN reports r ON r.attempt_id = a.id AND r.status = 'ready'
      LEFT JOIN scorecards sc ON sc.interview_id = i.id
      WHERE i.company_id = @companyId

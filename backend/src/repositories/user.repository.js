@@ -237,7 +237,32 @@ async function updateOrgProfile(userId, { empNumber, jobTitle, location } = {}) 
   )
 }
 
+/**
+ * Create a minimal placeholder user row (for team members added by email only).
+ * ON CONFLICT (company_id, email) DO NOTHING — safe to call even if the row exists.
+ * @param {number} companyId
+ * @param {Object} data - { firstName, lastName, email, passwordHash }
+ * @returns {Promise<Object|null>} inserted row, or null if conflict
+ */
+async function createMinimal(companyId, { firstName, lastName, email, passwordHash }) {
+  const rows = await db.query(
+    `INSERT INTO users (company_id, first_name, last_name, email, password, role, status)
+     VALUES (@company_id, @first_name, @last_name, @email, @password, 'employee', 'active')
+     ON CONFLICT (company_id, email) DO NOTHING
+     RETURNING id`,
+    {
+      company_id: companyId,
+      first_name: firstName || email.split('@')[0],
+      last_name:  lastName  || '',
+      email,
+      password:   passwordHash,
+    }
+  )
+  return rows[0] || null
+}
+
 module.exports = {
   getByEmail, getByEmailForCompany, getById, getNotInTeam,
-  getByRole, getByCompany, updateProfile, updatePassword, updateOrgProfile, bulkUpsert,
+  getByRole, getByCompany, updateProfile, updatePassword, updateOrgProfile,
+  bulkUpsert, createMinimal,
 }

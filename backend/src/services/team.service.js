@@ -52,23 +52,15 @@ async function addMember(data, companyId, managerId) {
     if (existing) {
       userId = existing.id
     } else {
-      // Create a minimal placeholder user row so team_members has a user_id
       const tempPw = await bcrypt.hash('TEMP_' + crypto.randomBytes(8).toString('hex'), 10)
-      const newUsers = await require('../db/connection').query(
-        `INSERT INTO users (company_id, first_name, last_name, email, password, role, status)
-         VALUES (@company_id, @first_name, @last_name, @email, @password, 'employee', 'active')
-         ON CONFLICT (company_id, email) DO NOTHING
-         RETURNING id`,
-        {
-          company_id: companyId,
-          first_name: data.firstName || data.email.split('@')[0],
-          last_name:  data.lastName || '',
-          email:      data.email,
-          password:   tempPw,
-        }
-      )
-      if (newUsers.length > 0) {
-        userId = newUsers[0].id
+      const newUser = await userRepository.createMinimal(companyId, {
+        firstName:    data.firstName,
+        lastName:     data.lastName,
+        email:        data.email,
+        passwordHash: tempPw,
+      })
+      if (newUser) {
+        userId = newUser.id
       } else {
         const found = await userRepository.getByEmailForCompany(data.email, companyId)
         userId = found?.id
@@ -96,7 +88,13 @@ async function updateMember(id, data, companyId) {
   const member = await teamMemberRepository.getByIdForCompany(id, companyId)
   if (!member) throw new Error('Member not found')
 
-  // Update profile fields in users (source of truth)
+  // All profile data lives on users — update there
+  if (data.firstName !== undefined || data.lastName !== undefined) {
+    await userRepository.updateProfile(member.user_id, {
+      firstName: data.firstName || null,
+      lastName:  data.lastName  || null,
+    })
+  }
   if (data.employeeId !== undefined || data.position !== undefined || data.location !== undefined) {
     await userRepository.updateOrgProfile(member.user_id, {
       empNumber: data.employeeId || null,
@@ -105,9 +103,12 @@ async function updateMember(id, data, companyId) {
     })
   }
 
-  // Update contact snapshot on candidates if it exists
-  if (member.candidate_id && (data.firstName || data.lastName || data.email || data.phone)) {
-    await candidateRepository.update(member.candidate_id, data)
+  // Update resume fields on candidates if they have a candidate record
+  if (member.candidate_id && (data.resumeUrl !== undefined || data.resumeText !== undefined)) {
+    await candidateRepository.update(member.candidate_id, {
+      resumeUrl:  data.resumeUrl  || null,
+      resumeText: data.resumeText || null,
+    })
   }
 
   // Re-fetch with fresh JOIN data
