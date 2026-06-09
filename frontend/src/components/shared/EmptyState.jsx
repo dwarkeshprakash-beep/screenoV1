@@ -9,7 +9,7 @@ function EmptyState({ message = 'Nothing here yet.', action }) {
         alignItems: 'center',
         gap: '16px',
         padding: '48px 24px',
-        color: 'var(--text-secondary)',
+        color: 'var(--fg-muted)',
         textAlign: 'center',
       }}
     >

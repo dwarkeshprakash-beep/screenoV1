@@ -69,7 +69,7 @@ function Modal({ open, onClose, title, children, size = 'md' }) {
               background: 'none',
               border: 'none',
               fontSize: '20px',
-              color: 'var(--text-secondary)',
+              color: 'var(--fg-muted)',
               cursor: 'pointer',
               lineHeight: 1,
             }}

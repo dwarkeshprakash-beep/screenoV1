@@ -25,7 +25,7 @@ function Input({
           style={{
             fontSize: '13px',
             fontWeight: 500,
-            color: 'var(--text-primary)',
+            color: 'var(--fg-primary)',
           }}
         >
           {label}
@@ -49,7 +49,7 @@ function Input({
             : '1px solid var(--border-default)',
           borderRadius: 'var(--radius-md)',
           background: 'var(--bg-surface)',
-          color: 'var(--text-primary)',
+          color: 'var(--fg-primary)',
           outline: 'none',
           width: '100%',
           transition: 'border-color 0.15s',

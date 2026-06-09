@@ -20,7 +20,7 @@ function Button({
 }) {
   const styles = {
     primary:   { background: 'var(--brand-500)', color: '#fff', border: 'none' },
-    secondary: { background: 'transparent', color: 'var(--text-primary)', border: '1px solid var(--border-default)' },
+    secondary: { background: 'transparent', color: 'var(--fg-primary)', border: '1px solid var(--border-default)' },
     danger:    { background: 'var(--danger-500)', color: '#fff', border: 'none' },
     ghost:     { background: 'transparent', color: 'var(--brand-500)', border: 'none' },
   }
