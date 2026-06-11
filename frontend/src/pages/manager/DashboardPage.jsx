@@ -6,7 +6,7 @@ import ErrorMessage from '../../components/shared/ErrorMessage'
 import * as api from '../../services/api'
 import { formatDate } from '../../utils/helpers'
 
-const card = { background: '#FFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 20, boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }
+const card = { background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderRadius: 'var(--radius-lg)', padding: '1.25rem', boxShadow: 'var(--shadow-sm)' }
 
 function DashboardPage() {
   const navigate = useNavigate()
@@ -44,23 +44,23 @@ function DashboardPage() {
   ]
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20, flex: 1, minHeight: 0 }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', flex: 1, minHeight: 0 }}>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
-          <h1 style={{ fontSize: 26, fontWeight: 700, color: '#0F172A', margin: '0 0 4px', letterSpacing: '-0.02em' }}>Dashboard</h1>
-          <p style={{ color: '#6B7280', fontSize: 13, margin: 0 }}>Track your team's assessment progress and hiring activity.</p>
+          <h1 style={{ fontSize: 'var(--fs-3xl)', fontWeight: 'var(--fw-bold)', color: 'var(--fg-primary)', margin: '0 0 0.25rem', letterSpacing: 'var(--tracking-tight)' }}>Dashboard</h1>
+          <p style={{ color: 'var(--fg-muted)', fontSize: 'var(--fs-sm)', margin: 0 }}>Track your team's assessment progress and hiring activity.</p>
         </div>
         <button
           onClick={() => navigate('/manager/team')}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#5B4FE9', color: '#FFF', border: 0, borderRadius: 8, fontWeight: 600, padding: '8px 14px', fontSize: 13, cursor: 'pointer', boxShadow: '0 4px 12px rgba(91,79,233,0.2)' }}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.375rem', background: 'var(--brand-500)', color: 'var(--fg-on-brand)', border: 0, borderRadius: 'var(--radius-md)', fontWeight: 'var(--fw-semibold)', padding: '0.5rem 0.875rem', fontSize: 'var(--fs-sm)', cursor: 'pointer', boxShadow: '0 4px 12px rgba(91,79,233,0.2)' }}
         >
           <Users size={14} /> My Team
         </button>
       </div>
 
       {/* Stat cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(18rem, 1fr))', gap: '0.875rem' }}>
         {statCards.map((s, i) => (
           <div
             key={i}
@@ -69,37 +69,37 @@ function DashboardPage() {
             onMouseEnter={e => { if (s.to) e.currentTarget.style.boxShadow = '0 4px 12px rgba(15,23,42,0.08)' }}
             onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 1px 3px rgba(15,23,42,0.04)' }}
           >
-            <div style={{ width: 44, height: 44, borderRadius: 10, background: s.bg, color: s.color, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <div style={{ width: '2.75rem', height: '2.75rem', borderRadius: '0.625rem', background: s.bg, color: s.color, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <s.icon size={20} />
             </div>
             <div>
-              <div style={{ fontSize: 28, fontWeight: 700, color: '#0F172A', letterSpacing: '-0.02em', lineHeight: 1 }}>{s.value}</div>
-              <div style={{ fontSize: 12, color: '#6B7280', marginTop: 3 }}>{s.label}</div>
-              {s.to && <span style={{ color: '#5B4FE9', fontSize: 12, fontWeight: 500, marginTop: 4, display: 'block' }}>{s.link}</span>}
+              <div style={{ fontSize: '1.75rem', fontWeight: 'var(--fw-bold)', color: 'var(--fg-primary)', letterSpacing: 'var(--tracking-tight)', lineHeight: 1 }}>{s.value}</div>
+              <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--fg-muted)', marginTop: '0.1875rem' }}>{s.label}</div>
+              {s.to && <span style={{ color: 'var(--brand-500)', fontSize: 'var(--fs-xs)', fontWeight: 'var(--fw-medium)', marginTop: '0.25rem', display: 'block' }}>{s.link}</span>}
             </div>
           </div>
         ))}
       </div>
 
       {/* Bottom row — flex:1 so it fills remaining viewport height */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: 16, flex: 1, minHeight: 0 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(20rem, 1fr))', gap: '1rem', flex: 1, minHeight: 0 }}>
 
         {/* Assessment flow */}
         <div style={{ ...card, display: 'flex', flexDirection: 'column' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <div style={{ fontSize: 15, fontWeight: 700, color: '#0F172A' }}>Assessment Flow</div>
-            <span onClick={() => navigate('/manager/team')} style={{ fontSize: 12, color: '#5B4FE9', fontWeight: 500, cursor: 'pointer' }}>View Team →</span>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap' }}>
+            <div style={{ fontSize: 'var(--fs-md)', fontWeight: 'var(--fw-bold)', color: 'var(--fg-primary)' }}>Assessment Flow</div>
+            <span onClick={() => navigate('/manager/team')} style={{ fontSize: 'var(--fs-xs)', color: 'var(--brand-500)', fontWeight: 'var(--fw-medium)', cursor: 'pointer' }}>View Team →</span>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(10rem, 1fr))', gap: '0.75rem' }}>
             {[
               ['1', 'Add team members', 'Create or import internal candidates.'],
               ['2', 'Schedule assessments', 'Send AI, exam, or human interview invites.'],
               ['3', 'Review reports', 'Use completed attempts and scorecards for decisions.'],
             ].map(([num, title, text]) => (
-              <div key={num} style={{ border: '1px solid #F1F5F9', borderRadius: 10, padding: 14, background: '#F8FAFC' }}>
-                <div style={{ width: 24, height: 24, borderRadius: 9999, background: '#EFEDFD', color: '#5B4FE9', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700 }}>{num}</div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#0F172A', marginTop: 10 }}>{title}</div>
-                <div style={{ fontSize: 12, color: '#6B7280', lineHeight: 1.45, marginTop: 4 }}>{text}</div>
+              <div key={num} style={{ border: '1px solid var(--slate-100)', borderRadius: 'var(--radius-md)', padding: '0.875rem', background: 'var(--bg-page)' }}>
+                <div style={{ width: '1.5rem', height: '1.5rem', borderRadius: 'var(--radius-full)', background: 'var(--brand-50)', color: 'var(--brand-500)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontSize: 'var(--fs-xs)', fontWeight: 'var(--fw-bold)' }}>{num}</div>
+                <div style={{ fontSize: 'var(--fs-sm)', fontWeight: 'var(--fw-bold)', color: 'var(--fg-primary)', marginTop: '0.625rem' }}>{title}</div>
+                <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--fg-muted)', lineHeight: 'var(--lh-normal)', marginTop: '0.25rem' }}>{text}</div>
               </div>
             ))}
           </div>

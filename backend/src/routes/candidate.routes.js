@@ -11,10 +11,11 @@ const router = express.Router()
 
 router.use(authMiddleware, requireRole('candidate'))
 
-// GET /api/candidate/interviews  — candidate's own interview list (via magic link JWT)
+// GET /api/candidate/interviews — candidate's own interview list
 router.get('/interviews', async (req, res) => {
   try {
-    const candidateId = req.user.candidateId || req.user.id
+    const candidateId = req.user.internalUserId || req.user.externalCandidateId
+    if (!candidateId) return res.json({ success: true, data: [] })
     const interviews = await interviewRepository.getByCandidate(candidateId)
     res.json({ success: true, data: interviews })
   } catch (err) {
@@ -26,7 +27,8 @@ router.get('/interviews', async (req, res) => {
 // GET /api/candidate/report — latest report for the authenticated candidate (used by DonePage)
 router.get('/report', async (req, res) => {
   try {
-    const candidateId = req.user.candidateId || req.user.id
+    const candidateId = req.user.internalUserId || req.user.externalCandidateId
+    if (!candidateId) return res.json({ success: true, data: null })
     const report = await reportRepository.getLatestByCandidate(candidateId)
     res.json({ success: true, data: report || null })
   } catch (err) {
@@ -35,9 +37,12 @@ router.get('/report', async (req, res) => {
   }
 })
 
+// POST /api/candidate/livekit-token
 router.post('/livekit-token', async (req, res) => {
   try {
-    const interview = await interviewRepository.getByIdForCandidate(req.user.interviewId, req.user.candidateId)
+    const interviewId = req.user.interviewId
+    const candidateId = req.user.internalUserId || req.user.externalCandidateId
+    const interview = await interviewRepository.getByIdForCandidate(interviewId, candidateId)
     if (!interview || interview.type !== 'human') {
       return res.status(404).json({ success: false, error: 'Interview not found' })
     }
@@ -45,7 +50,7 @@ router.post('/livekit-token', async (req, res) => {
     const at = new AccessToken(
       process.env.LIVEKIT_API_KEY?.trim(),
       process.env.LIVEKIT_API_SECRET?.trim(),
-      { identity: `candidate-${req.user.candidateId}`, ttl: '2h' }
+      { identity: `candidate-${candidateId}`, ttl: '2h' }
     )
     at.addGrant({ roomJoin: true, room: `interview-${interview.id}`, canPublish: true, canSubscribe: true })
     const rawToken = at.toJwt()

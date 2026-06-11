@@ -1,20 +1,16 @@
 // backend/src/routes/upload.routes.js
-// Upload endpoints — resume upload to Supabase Storage, text extraction, AI resume analysis.
-// HTTP only: receive → call service → respond.
-
 const express = require('express')
 const authMiddleware = require('../middleware/auth')
 const requireRole = require('../middleware/role')
 const upload = require('../middleware/upload')
 const storageService = require('../services/storage.service')
-const candidateRepository = require('../repositories/candidate.repository')
 const teamMemberRepository = require('../repositories/team-member.repository')
+const userRepository = require('../repositories/user.repository')
 const llmService = require('../services/llm.service')
 
 const router = express.Router()
 router.use(authMiddleware, requireRole('manager'))
 
-// Helper: extract plain text from file buffer by MIME type / extension
 async function extractTextFromBuffer(buffer, mimetype, originalname) {
   const name = (originalname || '').toLowerCase()
   if (mimetype === 'text/plain' || name.endsWith('.txt')) {
@@ -38,11 +34,6 @@ async function extractTextFromBuffer(buffer, mimetype, originalname) {
   return ''
 }
 
-/**
- * POST /api/upload/resume
- * Uploads a PDF resume to Supabase Storage and saves the URL to the candidate record.
- * Body: multipart/form-data — fields: resume (file), candidateId (string)
- */
 router.post('/resume', upload.single('resume'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ success: false, error: 'No file provided' })
@@ -50,16 +41,11 @@ router.post('/resume', upload.single('resume'), async (req, res) => {
     const teamMemberId = parseInt(req.body.teamMemberId, 10)
     if (!teamMemberId) return res.status(400).json({ success: false, error: 'teamMemberId is required' })
 
-    const member = await teamMemberRepository.getByIdForCompany(teamMemberId, req.user.companyId)
+    const member = await teamMemberRepository.getByIdForManager(teamMemberId, req.user.id)
     if (!member) return res.status(404).json({ success: false, error: 'Team member not found' })
 
-    // One resume per candidate — uploading again replaces the existing Supabase Storage asset.
-    // Upsert a candidates row first so there is always somewhere to store the resume,
-    // even if the team member hasn't been scheduled for an interview yet.
-    const resumeText = await extractTextFromBuffer(req.file.buffer, req.file.mimetype, req.file.originalname)
-    const { url } = await storageService.uploadResume(req.file.buffer, `team_${teamMemberId}`)
-    const candidate = await candidateRepository.upsertFromTeamMember(member)
-    await candidateRepository.update(candidate.id, { resumeUrl: url, resumeText }, req.user.companyId)
+    const { url } = await storageService.uploadResume(req.file.buffer, `user_${member.user_id}`)
+    await userRepository.updateProfile(member.user_id, { resumeUrl: url })
 
     res.json({ success: true, data: { resumeUrl: url } })
   } catch (err) {
@@ -68,11 +54,6 @@ router.post('/resume', upload.single('resume'), async (req, res) => {
   }
 })
 
-/**
- * POST /api/upload/extract-text
- * Extracts plain text from an uploaded PDF, DOCX, or TXT file.
- * Body: multipart/form-data — field: file
- */
 router.post('/extract-text', upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ success: false, error: 'No file provided' })
@@ -84,12 +65,6 @@ router.post('/extract-text', upload.single('file'), async (req, res) => {
   }
 })
 
-/**
- * POST /api/upload/analyze-resume
- * AI-powered semantic analysis of a resume against a JD.
- * Body: JSON { jd: string, resume: string }
- * Returns: { score, mH, missH, mS, missS, aiStrengths, aiGaps, aiNote, ... }
- */
 router.post('/analyze-resume', express.json(), async (req, res) => {
   const { jd, resume } = req.body || {}
   if (!jd || !resume) {
@@ -120,7 +95,6 @@ Be precise. Only list skills that are genuinely required in the JD or genuinely 
 
   try {
     const raw = await llmService.callRaw(prompt)
-    // Parse JSON from LLM response
     const jsonMatch = raw.match(/\{[\s\S]*\}/)
     if (!jsonMatch) throw new Error('No JSON in LLM response')
     const data = JSON.parse(jsonMatch[0])

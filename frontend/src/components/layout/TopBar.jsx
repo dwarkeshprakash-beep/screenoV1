@@ -17,14 +17,14 @@ function notifMeta(what = '') {
 function NotifDropdown({ items, loading, onClose, onViewAll }) {
   return (
     <div style={{
-      position: 'absolute', top: 'calc(100% + 8px)', right: 0,
-      width: 360, background: '#FFF', borderRadius: 12,
-      border: '1px solid #E2E8F0', boxShadow: '0 12px 32px rgba(15,23,42,0.14)',
+      position: 'absolute', top: 'calc(100% + 0.5rem)', right: 0,
+      width: '22.5rem', background: 'var(--bg-surface)', borderRadius: 'var(--radius-lg)',
+      border: '1px solid var(--border-default)', boxShadow: 'var(--shadow-lg)',
       zIndex: 200, overflow: 'hidden',
     }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 16px', borderBottom: '1px solid #F1F5F9' }}>
-        <span style={{ fontSize: 14, fontWeight: 700, color: '#0F172A' }}>Notifications</span>
-        <button type="button" onClick={onClose} style={{ background: 'transparent', border: 0, color: '#94A3B8', cursor: 'pointer', display: 'inline-flex', padding: 2, borderRadius: 4 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.875rem 1rem', borderBottom: '1px solid var(--slate-100)' }}>
+        <span style={{ fontSize: 'var(--fs-base)', fontWeight: 'var(--fw-bold)', color: 'var(--fg-primary)' }}>Notifications</span>
+        <button type="button" onClick={onClose} style={{ background: 'transparent', border: 0, color: 'var(--fg-subtle)', cursor: 'pointer', display: 'inline-flex', padding: '0.125rem', borderRadius: 'var(--radius-sm)' }}>
           <X size={14} />
         </button>
       </div>
@@ -124,27 +124,27 @@ function TopBar({ title = '', subtitle = '', action = null, role = 'manager' }) 
 
   return (
     <header style={{
-      height: 56, background: '#FFF', borderBottom: '1px solid #E2E8F0',
+      height: '3.5rem', background: 'var(--bg-surface)', borderBottom: '1px solid var(--border-default)',
       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      padding: '0 24px', flexShrink: 0,
+      padding: '0 1.5rem', flexShrink: 0,
     }}>
       <div>
-        <h1 style={{ fontFamily: "var(--font-display, 'Inter')", fontSize: 18, fontWeight: 700, color: '#0F172A', margin: 0, letterSpacing: '-0.015em' }}>
+        <h1 style={{ fontFamily: "var(--font-display)", fontSize: 'var(--fs-xl)', fontWeight: 'var(--fw-bold)', color: 'var(--fg-primary)', margin: 0, letterSpacing: 'var(--tracking-tight)' }}>
           {title}
         </h1>
-        {subtitle && <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 1 }}>{subtitle}</div>}
+        {subtitle && <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--fg-subtle)', marginTop: '0.0625rem' }}>{subtitle}</div>}
       </div>
 
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
         {isManager && (
-          <form onSubmit={submitSearch} role="search" style={{ display: 'flex', alignItems: 'center', gap: 8, background: '#F1F5F9', borderRadius: 8, padding: '7px 12px', width: 260 }}>
-            <Search size={13} color="#94A3B8" />
+          <form onSubmit={submitSearch} role="search" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--slate-100)', borderRadius: 'var(--radius-md)', padding: '0.4375rem 0.75rem', width: '16.25rem', maxWidth: '100%' }}>
+            <Search size={13} color="var(--fg-subtle)" />
             <input
               aria-label="Search candidates"
               value={query}
               onChange={e => setQuery(e.target.value)}
               placeholder="Search candidates..."
-              style={{ border: 0, outline: 'none', background: 'transparent', fontSize: 13, color: '#0F172A', flex: 1, fontFamily: 'inherit' }}
+              style={{ border: 0, outline: 'none', background: 'transparent', fontSize: 'var(--fs-sm)', color: 'var(--fg-primary)', flex: 1, fontFamily: 'inherit', width: '100%' }}
             />
           </form>
         )}
@@ -155,17 +155,17 @@ function TopBar({ title = '', subtitle = '', action = null, role = 'manager' }) 
             aria-label="Open notifications"
             onClick={toggleNotif}
             style={{
-              width: 36, height: 36, borderRadius: 8,
-              background: notifOpen ? '#EFEDFD' : '#F1F5F9',
-              border: notifOpen ? '1px solid #C4BFFA' : '1px solid transparent',
+              width: '2.25rem', height: '2.25rem', borderRadius: 'var(--radius-md)',
+              background: notifOpen ? 'var(--brand-50)' : 'var(--slate-100)',
+              border: notifOpen ? '1px solid var(--brand-200)' : '1px solid transparent',
               display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-              cursor: 'pointer', transition: 'all 120ms',
+              cursor: 'pointer', transition: 'all var(--dur-fast)',
             }}
           >
-            <Bell size={15} color={notifOpen ? '#5B4FE9' : '#374151'} />
+            <Bell size={15} color={notifOpen ? 'var(--brand-500)' : 'var(--fg-body)'} />
           </button>
           {hasActivity && !notifOpen && (
-            <span aria-hidden="true" style={{ position: 'absolute', top: 6, right: 6, width: 8, height: 8, borderRadius: 9999, background: '#EF4444', boxShadow: '0 0 0 2px #FFF' }} />
+            <span aria-hidden="true" style={{ position: 'absolute', top: '0.375rem', right: '0.375rem', width: '0.5rem', height: '0.5rem', borderRadius: 'var(--radius-full)', background: 'var(--danger-500)', boxShadow: '0 0 0 2px var(--bg-surface)' }} />
           )}
 
           {notifOpen && (

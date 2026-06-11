@@ -1,122 +1,53 @@
 // backend/src/services/schedule.service.js
-// Business logic for scheduling interviews.
-
 const crypto = require('crypto')
 const interviewRepository = require('../repositories/interview.repository')
-const candidateRepository = require('../repositories/candidate.repository')
+const externalCandidateRepository = require('../repositories/external-candidate.repository')
 const teamMemberRepository = require('../repositories/team-member.repository')
-const questionRepository = require('../repositories/question.repository')
 const userRepository = require('../repositories/user.repository')
-const scheduleRecordRepository = require('../repositories/schedule-record.repository')
 const emailDeliveryRepository = require('../repositories/email-delivery.repository')
 const emailService = require('./email.service')
-const llmService = require('./llm.service')
 
-/**
- * Create a scheduled interview and send the candidate's magic link.
- * @param {Object} data - schedule form data
- * @param {number} managerId
- * @param {number} companyId
- * @returns {Promise<Object>} created interview
- */
 async function createSchedule(data, managerId, companyId) {
-  if (!data.teamMemberId && !data.candidateId) throw new Error('teamMemberId is required')
+  if (!data.teamMemberId && !data.candidateId) throw new Error('teamMemberId or candidateId is required')
   if (!data.type) throw new Error('Interview type is required')
   if (!data.interviewMode) throw new Error('Interview mode is required')
 
-  let candidate
-  let teamMember = null
+  let candidateName = ''
+  let candidateEmail = ''
+  let internalUserId = null
+  let externalCandidateId = null
+
   if (data.teamMemberId) {
-    teamMember = await teamMemberRepository.getByIdForCompany(data.teamMemberId, companyId)
+    const teamMember = await teamMemberRepository.getByIdForManager(data.teamMemberId, managerId)
     if (!teamMember) throw new Error('Team member not found')
-    candidate = await candidateRepository.upsertFromTeamMember(teamMember)
+    internalUserId = teamMember.user_id
+    candidateName = `${teamMember.first_name} ${teamMember.last_name}`
+    candidateEmail = teamMember.email
   } else {
-    candidate = await candidateRepository.getByIdForCompany(data.candidateId, companyId)
+    const candidate = await externalCandidateRepository.getById(data.candidateId)
     if (!candidate) throw new Error('Candidate not found')
-  }
-
-  const idempotencyKey = data.idempotencyKey || null
-  if (idempotencyKey) {
-    const existingRecord = await scheduleRecordRepository.getByKey(companyId, idempotencyKey)
-    if (existingRecord?.interview_id) {
-      const existingInterview = await interviewRepository.getByIdForCompany(existingRecord.interview_id, companyId)
-      if (existingInterview) {
-        return {
-          ...existingInterview,
-          inviteSent: true,
-          idempotentReplay: true,
-        }
-      }
-    }
-  }
-
-  let scheduledStart = data.scheduledStart || null
-  let scheduledEnd = data.scheduledEnd || null
-  if (data.type === 'human') {
-    if (!data.interviewerId) throw new Error('interviewerId is required')
-    if (!scheduledStart) throw new Error('scheduledStart is required')
-    const interviewer = await userRepository.getById(data.interviewerId)
-    if (!interviewer || interviewer.company_id !== companyId || interviewer.role !== 'interviewer') {
-      throw new Error('Interviewer not found')
-    }
-    const start = new Date(scheduledStart)
-    const end = scheduledEnd ? new Date(scheduledEnd) : new Date(start.getTime() + 60 * 60 * 1000)
-    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) {
-      throw new Error('Invalid appointment time')
-    }
-    const conflicts = await interviewRepository.countHumanConflicts(data.interviewerId, start, end)
-    if (conflicts > 0) throw new Error('Interviewer is not available at that time')
-    scheduledStart = start
-    scheduledEnd = end
+    externalCandidateId = candidate.id
+    candidateName = `${candidate.first_name} ${candidate.last_name}`
+    candidateEmail = candidate.email
   }
 
   const token = crypto.randomBytes(32).toString('hex')
   const windowDays = data.windowDays || 7
-  const windowCloses = new Date(Date.now() + windowDays * 24 * 60 * 60 * 1000)
-  const tokenExpires = windowCloses
-  const scheduleRecord = idempotencyKey
-    ? await scheduleRecordRepository.createPending({
-      companyId,
-      candidateId: candidate.id,
-      idempotencyKey,
-      expires: windowCloses,
-    })
-    : null
+  const tokenExpires = new Date(Date.now() + windowDays * 24 * 60 * 60 * 1000)
 
   const interview = await interviewRepository.create({
-    companyId,
-    candidateId: candidate.id,
     managerId,
-    interviewerId: data.interviewerId || null,
+    internalUserId,
+    externalCandidateId,
     type: data.type,
-    mode: data.mode || 'internal_monthly',
     interviewMode: data.interviewMode,
     difficulty: data.difficulty || 'medium',
-    jdText: data.jdText || null,
-    focusAreas: data.focusAreas || null,
     questionCount: data.questionCount || 10,
-    maxAttempts: data.maxAttempts || 3,
-    cooldownHours: data.cooldownHours || 24,
-    windowDays,
-    reportTiming: data.reportTiming || 'all',
-    reportEveryN: data.reportEveryN || 3,
-    reportEmails: data.reportEmails || null,
     token,
     tokenExpires,
-    windowCloses,
-    scheduledStart,
-    scheduledEnd,
-    timezone: data.timezone || null,
   })
 
-  if (scheduleRecord) {
-    await scheduleRecordRepository.markCompleted(scheduleRecord.id, interview.id)
-  }
-
-  // Generate exam questions (LLM + judge validation) and send the invite email in the
-  // background — together they can take well over a minute, which would blow past the
-  // request's socket timeout (server.js) and surface to the client as a 502 if awaited here.
-  finishScheduleSetup({ interview, candidate, data, token, windowDays }).catch(err =>
+  finishScheduleSetup({ interview, candidateEmail, candidateName, data, token, windowDays }).catch(err =>
     console.error('finishScheduleSetup failed:', err)
   )
 
@@ -128,29 +59,12 @@ async function createSchedule(data, managerId, companyId) {
   }
 }
 
-/**
- * Generate exam questions (if needed) and send the candidate's magic-link invite email.
- * Runs in the background after the schedule response has already been sent — LLM
- * generation and judge validation can take well over a minute.
- * @param {Object} ctx
- */
-async function finishScheduleSetup({ interview, candidate, data, token, windowDays }) {
-  if (data.type === 'exam' || data.type === 'ai_exam') {
-    const questions = await llmService.generateExamQuestions({
-      resume: candidate.resume_text,
-      jd: data.jdText,
-      focusAreas: data.focusAreas,
-      difficulty: data.difficulty,
-      count: 10,
-    })
-    await questionRepository.createMany(interview.id, null, questions)
-  }
-
+async function finishScheduleSetup({ interview, candidateEmail, candidateName, data, token, windowDays }) {
   let inviteSent = false
   let inviteFailure = null
   try {
-    await emailService.sendMagicLink(candidate.email, {
-      candidateName: `${candidate.first_name} ${candidate.last_name}`,
+    await emailService.sendMagicLink(candidateEmail, {
+      candidateName,
       interviewToken: token,
       companyName: data.companyName || 'Your company',
       jobTitle: data.jobTitle || 'Assessment',
@@ -164,70 +78,24 @@ async function finishScheduleSetup({ interview, candidate, data, token, windowDa
     await emailDeliveryRepository.create({
       kind: 'magic_link',
       interviewId: interview.id,
-      candidateId: candidate.id,
-      intendedTo: candidate.email,
-      deliveredTo: emailService.getDeliveredRecipients(candidate.email).join(','),
+      intendedTo: candidateEmail,
+      deliveredTo: emailService.getDeliveredRecipients(candidateEmail).join(','),
       status: inviteSent ? 'sent' : 'failed',
       error: inviteFailure,
     }).catch(err => console.error('email delivery log failed:', err.message))
   }
 }
 
-/**
- * Get calendar events for a company within a date range.
- * @param {number} companyId
- * @param {string} weekStart - ISO date string (optional)
- * @returns {Promise<Array>}
- */
-async function getCalendarEvents(companyId, weekStart) {
-  const interviews = await interviewRepository.getByCompany(companyId)
-
-  let filtered = interviews
-  if (weekStart) {
-    const start = new Date(weekStart)
-    start.setHours(0, 0, 0, 0)
-    const end = new Date(start)
-    end.setDate(end.getDate() + 7)
-    filtered = interviews.filter(i => {
-      const d = new Date(i.scheduled_start || i.created)
-      return d >= start && d < end
-    })
-  }
-
-  return filtered.map(i => ({
+async function getCalendarEvents(managerId) {
+  const interviews = await interviewRepository.getByManager(managerId)
+  return interviews.map(i => ({
     id: i.id,
     type: i.type,
-    candidateId: i.candidate_id,
-    teamMemberId: i.team_member_id || null,
-    candidateName: `${i.first_name || ''} ${i.last_name || ''}`.trim(),
+    candidateName: `${i.candidate_first || ''} ${i.candidate_last || ''}`.trim(),
     status: i.status,
     created: i.created,
-    start: i.scheduled_start,
-    end: i.scheduled_end,
-    duration_minutes: i.scheduled_start && i.scheduled_end
-      ? Math.round((new Date(i.scheduled_end) - new Date(i.scheduled_start)) / 60000)
-      : 60,
-    windowCloses: i.window_closes,
+    teamMemberId: i.team_member_id || null,
   }))
-}
-
-/**
- * Return 5 available interview slots starting tomorrow, spaced across business hours.
- * In a full implementation this would query the DB for real availability.
- * @param {string} token - candidate magic-link token (reserved for future DB lookup)
- * @returns {Promise<Array>}
- */
-async function getAvailableSlots(token) {
-  const slots = []
-  const base = new Date()
-  const hours = [9, 11, 14, 16, 10]
-  for (let i = 0; i < 5; i++) {
-    const d = new Date(base)
-    d.setDate(d.getDate() + i + 1)
-    d.setHours(hours[i], 0, 0, 0)
-    slots.push({ id: i + 1, datetime: d.toISOString(), duration: 60 })
-  }
-  return slots
 }
 
 async function getInterviewers(companyId) {
@@ -239,55 +107,66 @@ async function getOrgUsers(companyId) {
 }
 
 async function getEmailDeliveries(interviewId, companyId) {
-  const interview = await interviewRepository.getByIdForCompany(interviewId, companyId)
+  const interview = await interviewRepository.getById(interviewId)
   if (!interview) throw new Error('Interview not found')
-  return emailDeliveryRepository.listByInterview(interviewId)
+  return emailDeliveryRepository.getByInterview(interviewId)
 }
 
 async function resendMagicLink(interviewId, companyId) {
-  const interview = await interviewRepository.getByIdForCompany(interviewId, companyId)
+  const interview = await interviewRepository.getById(interviewId)
   if (!interview) throw new Error('Interview not found')
 
-  const candidate = await candidateRepository.getByIdForCompany(interview.candidate_id, companyId)
-  if (!candidate) throw new Error('Candidate not found')
+  const candidateEmail = interview.candidate_email
+  const candidateName  = `${interview.candidate_first || ''} ${interview.candidate_last || ''}`.trim()
 
-  let status = 'sent'
-  let error = null
+  if (!candidateEmail) throw new Error('Candidate not found')
+
+  let inviteSent = false
+  let inviteFailure = null
   try {
-    await emailService.sendMagicLink(candidate.email, {
-      candidateName: `${candidate.first_name} ${candidate.last_name}`,
+    await emailService.sendMagicLink(candidateEmail, {
+      candidateName,
       interviewToken: interview.token,
-      companyName: 'Your company',
+      companyName: '',
       jobTitle: 'Assessment',
-      windowDays: interview.window_days,
+      windowDays: 7,
     })
+    inviteSent = true
   } catch (err) {
-    status = 'failed'
-    error = err.message || 'Invite email failed. Please contact administration.'
+    inviteFailure = err.message
+    console.error('resendMagicLink failed:', err)
   }
 
   await emailDeliveryRepository.create({
     kind: 'magic_link_resend',
     interviewId,
-    candidateId: candidate.id,
-    intendedTo: candidate.email,
-    deliveredTo: emailService.getDeliveredRecipients(candidate.email).join(','),
-    status,
-    error,
-  })
+    intendedTo: candidateEmail,
+    deliveredTo: emailService.getDeliveredRecipients(candidateEmail).join(','),
+    status: inviteSent ? 'sent' : 'failed',
+    error: inviteFailure,
+  }).catch(err => console.error('resend delivery log failed:', err.message))
 
+  return { status: inviteSent ? 'sent' : 'failed', message: inviteSent ? 'Resent successfully' : inviteFailure }
+}
+
+// Returns available interview metadata for the magic-link landing page
+async function getAvailableSlots(token) {
+  const interview = await interviewRepository.getByToken(token)
+  if (!interview) return null
   return {
-    status,
-    message: status === 'sent' ? 'Invite resent.' : 'Invite resend failed. Please contact administration.',
+    id: interview.id,
+    type: interview.type,
+    status: interview.status,
+    tokenExpires: interview.token_expires,
   }
 }
 
 module.exports = {
   createSchedule,
   getCalendarEvents,
-  getAvailableSlots,
   getInterviewers,
   getOrgUsers,
   getEmailDeliveries,
   resendMagicLink,
+  getAvailableSlots,
 }

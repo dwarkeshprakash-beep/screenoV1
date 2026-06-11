@@ -43,7 +43,7 @@ router.patch('/', async (req, res) => {
 
       // getById omits password for safety — fetch the full row to verify the hash
       const rows = await db.query(
-        `SELECT * FROM users WHERE id = @id AND deleted IS NULL`,
+        `SELECT * FROM users WHERE id = @id`,
         { id: req.user.id }
       )
       const fullUser = rows[0]

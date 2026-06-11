@@ -133,11 +133,11 @@ function MemberProfilePage() {
     try {
       const memberRes = await api.getMember(id)
       const loadedMember = memberRes.data
-      const candidateId = loadedMember?.candidate_id
-      const [reportRes, historyRes] = candidateId
+      const userId = loadedMember?.user_id
+      const [reportRes, historyRes] = userId
         ? await Promise.all([
-          api.getCandidateReport(candidateId),
-          api.getCandidateReportHistory(candidateId),
+          api.getCandidateReport(userId),
+          api.getCandidateReportHistory(userId),
         ])
         : [{ data: null }, { data: [] }]
 

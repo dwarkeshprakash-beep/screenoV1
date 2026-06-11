@@ -102,7 +102,7 @@ function InterviewerDashboard() {
       </div>
 
       {/* Stat cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(18rem, 1fr))', gap: '0.875rem' }}>
         {statCards.map((s, i) => (
           <div key={i} style={{ ...card, display: 'flex', alignItems: 'center', gap: 14, padding: 18 }}>
             <div style={{ width: 44, height: 44, borderRadius: 10, background: s.bg, color: s.color, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -203,7 +203,7 @@ function InterviewerDashboard() {
           <span style={{ fontSize: 15, fontWeight: 700, color: '#0F172A' }}>This week</span>
           <span style={{ fontSize: 12, color: '#94A3B8', fontWeight: 500 }}>Calendar sync planned</span>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7,1fr)', gap: 8 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(4rem, 1fr))', gap: '0.5rem' }}>
           {weekDays.map((d, i) => (
             <div key={i} style={{ padding: '12px 4px', textAlign: 'center', borderRadius: 10, background: d.today ? '#EFEDFD' : '#F8FAFC', border: `1px solid ${d.today ? '#5B4FE9' : '#F1F5F9'}` }}>
               <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: d.today ? '#5B4FE9' : '#94A3B8' }}>{d.d}</div>

@@ -10,12 +10,12 @@ function CandidateLayout() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ minHeight: '100svh', display: 'flex', flexDirection: 'column' }}>
       <header style={{
-        background: '#FFF',
-        borderBottom: '1px solid #E2E8F0',
-        height: 56,
-        padding: '0 24px',
+        background: 'var(--bg-surface)',
+        borderBottom: '1px solid var(--border-default)',
+        height: '3.5rem',
+        padding: '0 1.5rem',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
@@ -29,20 +29,20 @@ function CandidateLayout() {
           style={{ display: 'inline-flex', alignItems: 'center', gap: 8, cursor: localStorage.getItem('accessToken') ? 'pointer' : 'default' }}
         >
           <div style={{
-            width: 28,
-            height: 28,
-            borderRadius: 7,
-            background: 'linear-gradient(135deg,#5B4FE9,#4A3FCE)',
+            width: '1.75rem',
+            height: '1.75rem',
+            borderRadius: '0.4375rem',
+            background: 'linear-gradient(135deg,var(--brand-500),var(--brand-600))',
             position: 'relative',
           }}>
-            <div style={{ position: 'absolute', left: 6, top: 9, width: 16, height: 2.5, background: '#FFF', borderRadius: 2, opacity: 0.95 }} />
-            <div style={{ position: 'absolute', left: 6, top: 15, width: 16, height: 2.5, background: '#FFF', borderRadius: 2, opacity: 0.6 }} />
+            <div style={{ position: 'absolute', left: '0.375rem', top: '0.5625rem', width: '1rem', height: '0.15625rem', background: '#FFF', borderRadius: '0.125rem', opacity: 0.95 }} />
+            <div style={{ position: 'absolute', left: '0.375rem', top: '0.9375rem', width: '1rem', height: '0.15625rem', background: '#FFF', borderRadius: '0.125rem', opacity: 0.6 }} />
           </div>
-          <span style={{ fontSize: 17, fontWeight: 700, color: '#0F172A', letterSpacing: '-0.02em' }}>Screeno</span>
+          <span style={{ fontSize: '1.0625rem', fontWeight: 'var(--fw-bold)', color: 'var(--fg-primary)', letterSpacing: 'var(--tracking-tight)' }}>Screeno</span>
         </div>
 
-        <span style={{ fontSize: 13, color: '#94A3B8' }}>
-          Need help? <a href="mailto:dwarkesh.vajjala@prakashinfotech.com" style={{ color: '#5B4FE9', cursor: 'pointer', textDecoration: 'none', fontWeight: 600 }}>Support</a>
+        <span style={{ fontSize: 'var(--fs-sm)', color: 'var(--fg-subtle)' }}>
+          Need help? <a href="mailto:support@screeno.ai" style={{ color: 'var(--fg-link)', cursor: 'pointer', textDecoration: 'none', fontWeight: 'var(--fw-semibold)' }}>Support</a>
         </span>
       </header>
 

@@ -268,3 +268,12 @@ export const updateManagerProfile = (data) =>
 export const getInterviewerProfile    = () => request('/api/profile')
 export const updateInterviewerProfile = (data) =>
   request('/api/profile', { method: 'PATCH', body: JSON.stringify(data) })
+
+// ── ASSESSMENTS & CLIENTS ────────────────────────────────────
+export const getMonthlyAssessments = () => request('/api/assessments/monthly')
+export const createMonthlyAssessment = (data) => request('/api/assessments/monthly', { method: 'POST', body: JSON.stringify(data) })
+export const getClientTemplates = () => request('/api/templates/client')
+export const createClientTemplate = (data) => request('/api/templates/client', { method: 'POST', body: JSON.stringify(data) })
+
+// ── CANDIDATE PROFILE ────────────────────────────────────────
+export const updateCandidateProfile = (data) => request('/api/profile', { method: 'PATCH', body: JSON.stringify(data) })

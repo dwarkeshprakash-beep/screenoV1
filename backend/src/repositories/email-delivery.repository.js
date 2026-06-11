@@ -1,30 +1,31 @@
 // backend/src/repositories/email-delivery.repository.js
-// SQL queries for transactional email delivery status.
-
 const db = require('../db/connection')
 
 async function create(data) {
   const rows = await db.query(
-    `INSERT INTO email_deliveries
-       (kind, interview_id, candidate_id, intended_to, delivered_to, status, error, attempts)
-     VALUES
-       (@kind, @interviewId, @candidateId, @intendedTo, @deliveredTo, @status, @error, @attempts)
+    `INSERT INTO email_deliveries (kind, interview_id, intended_to, delivered_to, status, error)
+     VALUES (@kind, @interview_id, @intended_to, @delivered_to, @status, @error)
      RETURNING *`,
     {
-      kind: data.kind,
-      interviewId: data.interviewId || null,
-      candidateId: data.candidateId || null,
-      intendedTo: data.intendedTo,
-      deliveredTo: data.deliveredTo,
-      status: data.status,
-      error: data.error || null,
-      attempts: data.attempts || 1,
+      kind:         data.kind,
+      interview_id: data.interviewId || null,
+      intended_to:  data.intendedTo,
+      delivered_to: data.deliveredTo,
+      status:       data.status,
+      error:        data.error || null
     }
   )
   return rows[0]
 }
 
-async function listByInterview(interviewId) {
+async function updateStatus(id, status, error = null) {
+  await db.query(
+    `UPDATE email_deliveries SET status = @status, error = @error WHERE id = @id`,
+    { id, status, error }
+  )
+}
+
+async function getByInterview(interviewId) {
   return db.query(
     `SELECT * FROM email_deliveries
      WHERE interview_id = @interviewId
@@ -33,4 +34,4 @@ async function listByInterview(interviewId) {
   )
 }
 
-module.exports = { create, listByInterview }
+module.exports = { create, updateStatus, getByInterview }

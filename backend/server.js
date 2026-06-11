@@ -20,6 +20,8 @@ const templateRoutes = require('./src/routes/template.routes')
 const examRoutes = require('./src/routes/exam.routes')
 const uploadRoutes = require('./src/routes/upload.routes')
 const profileRoutes = require('./src/routes/profile.routes')
+const clientTemplateRoutes = require('./src/routes/client-template.routes')
+const monthlyAssessmentRoutes = require('./src/routes/monthly-assessment.routes')
 const reportJobService = require('./src/services/report-job.service')
 
 const app = express()
@@ -78,6 +80,8 @@ app.use('/api/templates', templateRoutes)
 app.use('/api/exam', examRoutes)
 app.use('/api/upload', uploadRoutes)
 app.use('/api/profile', profileRoutes)
+app.use('/api/templates/client', clientTemplateRoutes)
+app.use('/api/assessments/monthly', monthlyAssessmentRoutes)
 
 // Health check — used by uptime monitors and deploy checks
 app.get('/health', (req, res) => {

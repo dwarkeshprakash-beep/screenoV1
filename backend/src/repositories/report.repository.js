@@ -1,238 +1,85 @@
 // backend/src/repositories/report.repository.js
-// SQL queries for the reports table.
-
 const db = require('../db/connection')
 
-/**
- * Create a new report record.
- * @param {Object} data
- * @returns {Promise<Object>}
- */
-async function create(data) {
+async function create(interviewId, summary, strengths, pdfUrl) {
   const rows = await db.query(
-    `INSERT INTO reports
-       (interview_id, attempt_id, candidate_id, overall_score, confidence,
-        tech_knowledge, communication, summary, strengths, tips, status)
-     VALUES
-       (@interviewId, @attemptId, @candidateId, @overallScore, @confidence,
-        @techKnowledge, @communication, @summary, @strengths, @tips, 'ready')
+    `INSERT INTO reports (interview_id, summary, strengths, pdf_url, status)
+     VALUES (@interview_id, @summary, @strengths, @pdf_url, 'generating')
      RETURNING *`,
-    {
-      interviewId: data.interviewId,
-      attemptId: data.attemptId || null,
-      candidateId: data.candidateId,
-      overallScore: data.overall_score || null,
-      confidence: data.confidence || null,
-      techKnowledge: data.tech_knowledge || null,
-      communication: data.communication || null,
-      summary: data.summary || null,
-      strengths: data.strengths ? JSON.stringify(data.strengths) : null,
-      tips: data.tips ? JSON.stringify(data.tips) : null,
-    }
+    { interview_id: interviewId, summary, strengths: JSON.stringify(strengths), pdf_url: pdfUrl }
   )
   return rows[0]
 }
 
-/**
- * Get all reports for a candidate (newest first).
- * @param {number} candidateId
- * @returns {Promise<Array>}
- */
-async function getByCandidate(candidateId) {
-  return db.query(
-    `SELECT * FROM reports
-     WHERE candidate_id = @candidateId
-     ORDER BY created DESC`,
-    { candidateId }
-  )
-}
-
-async function getByAttempt(attemptId) {
-  const rows = await db.query(
-    `SELECT * FROM reports WHERE attempt_id = @attemptId ORDER BY created DESC LIMIT 1`,
-    { attemptId }
-  )
-  return rows[0] || null
-}
-
-/**
- * Get the most recent report for a candidate.
- * @param {number} candidateId
- * @returns {Promise<Object|null>}
- */
-async function getLatestByCandidate(candidateId, companyId = null) {
-  const rows = await db.query(
-    `SELECT r.* FROM reports r
-     JOIN candidates c ON c.id = r.candidate_id
-     WHERE r.candidate_id = @candidateId
-       AND (@companyId::int IS NULL OR c.company_id = @companyId)
-       AND r.status = 'ready'
-     ORDER BY r.created DESC
-     LIMIT 1`,
-    { candidateId, companyId }
-  )
-  return rows[0] || null
-}
-
-/**
- * Get every ready report for a candidate, newest first — full session history
- * (not just the latest), scoped to the manager's company.
- * @param {number} candidateId
- * @param {number|null} companyId
- * @returns {Promise<Array>}
- */
-async function getHistoryByCandidate(candidateId, companyId = null) {
-  return db.query(
-    `SELECT r.*, i.type AS interview_type, i.mode AS interview_mode
-     FROM reports r
-     JOIN candidates c ON c.id = r.candidate_id
-     LEFT JOIN interviews i ON i.id = r.interview_id
-     WHERE r.candidate_id = @candidateId
-       AND (@companyId::int IS NULL OR c.company_id = @companyId)
-       AND r.status = 'ready'
-     ORDER BY r.created DESC`,
-    { candidateId, companyId }
-  )
-}
-
-/**
- * Get all team reports for a company (join candidates + latest reports).
- * @param {number} companyId
- * @returns {Promise<Array>}
- */
-async function getTeamReports(companyId) {
-  return db.query(
-    `SELECT * FROM (
-       SELECT
-         c.id AS candidate_id,
-         tm.id AS team_member_id,
-         u.first_name,
-         u.last_name,
-         u.email,
-         i.type AS interview_type,
-         i.mode,
-         i.created AS scheduled_date,
-         a.id AS attempt_id,
-         a.attempt_num AS attempts,
-         a.status AS attempt_status,
-         a.ended AS completed_date,
-         r.id AS report_id,
-         r.overall_score,
-         10 AS score_max,
-         r.confidence,
-         r.tech_knowledge,
-         r.communication,
-         r.summary,
-         r.strengths,
-         r.pdf_url,
-         r.created AS report_date,
-         COALESCE(sc.decision, CASE WHEN r.id IS NULL THEN 'pending' ELSE 'needs_review' END) AS decision
-       FROM attempts a
-       JOIN interviews i ON i.id = a.interview_id
-       JOIN candidates c ON c.id = i.candidate_id AND c.company_id = i.company_id
-       LEFT JOIN users u ON u.id = c.user_id AND u.deleted IS NULL
-       LEFT JOIN team_members tm ON tm.user_id = c.user_id AND tm.company_id = c.company_id AND tm.deleted IS NULL
-       LEFT JOIN reports r ON r.attempt_id = a.id AND r.status = 'ready'
-       LEFT JOIN scorecards sc ON sc.interview_id = i.id
-       WHERE i.company_id = @companyId
-         AND c.deleted IS NULL
-         AND a.status = 'completed'
-
-       UNION ALL
-
-       SELECT
-         c.id AS candidate_id,
-         tm.id AS team_member_id,
-         u.first_name,
-         u.last_name,
-         u.email,
-         i.type AS interview_type,
-         i.mode,
-         i.created AS scheduled_date,
-         NULL AS attempt_id,
-         1 AS attempts,
-         'completed' AS attempt_status,
-         r.created AS completed_date,
-         r.id AS report_id,
-         r.overall_score,
-         10 AS score_max,
-         r.confidence,
-         r.tech_knowledge,
-         r.communication,
-         r.summary,
-         r.strengths,
-         r.pdf_url,
-         r.created AS report_date,
-         COALESCE(sc.decision, 'needs_review') AS decision
-       FROM reports r
-       JOIN interviews i ON i.id = r.interview_id
-       JOIN candidates c ON c.id = r.candidate_id AND c.company_id = i.company_id
-       LEFT JOIN users u ON u.id = c.user_id AND u.deleted IS NULL
-       LEFT JOIN team_members tm ON tm.user_id = c.user_id AND tm.company_id = c.company_id AND tm.deleted IS NULL
-       LEFT JOIN scorecards sc ON sc.interview_id = i.id
-       WHERE i.company_id = @companyId
-         AND c.deleted IS NULL
-         AND r.attempt_id IS NULL
-         AND r.status = 'ready'
-     ) AS combined
-     ORDER BY COALESCE(report_date, completed_date, scheduled_date) DESC`,
-    { companyId }
-  )
-}
-
-async function getTeamReportStats(companyId) {
-  const rows = await db.query(
-    `WITH all_rows AS (
-       SELECT r.id AS report_id, r.overall_score, sc.decision
-       FROM attempts a
-       JOIN interviews i ON i.id = a.interview_id
-       JOIN candidates c ON c.id = i.candidate_id AND c.company_id = i.company_id
-       LEFT JOIN reports r ON r.attempt_id = a.id AND r.status = 'ready'
-       LEFT JOIN scorecards sc ON sc.interview_id = i.id
-       WHERE i.company_id = @companyId AND c.deleted IS NULL AND a.status = 'completed'
-       UNION ALL
-       SELECT r.id AS report_id, r.overall_score, sc.decision
-       FROM reports r
-       JOIN interviews i ON i.id = r.interview_id
-       JOIN candidates c ON c.id = r.candidate_id AND c.company_id = i.company_id
-       LEFT JOIN scorecards sc ON sc.interview_id = i.id
-       WHERE i.company_id = @companyId AND c.deleted IS NULL AND r.attempt_id IS NULL AND r.status = 'ready'
-     )
-     SELECT
-       COUNT(*)::INT AS total_interviews,
-       COUNT(report_id)::INT AS reports_ready,
-       COUNT(decision)::INT AS decisions_recorded,
-       COUNT(*) FILTER (WHERE decision = 'pass')::INT AS pass_count,
-       ROUND(AVG(overall_score)::numeric, 1) AS average_score,
-       COUNT(*) FILTER (WHERE report_id IS NULL)::INT AS reports_pending
-     FROM all_rows`,
-    { companyId }
-  )
-  const stats = rows[0] || {}
-  const total = Number(stats.total_interviews || 0)
-  const passCount = Number(stats.pass_count || 0)
-  return {
-    totalInterviews: total,
-    reportsReady: Number(stats.reports_ready || 0),
-    decisionsRecorded: Number(stats.decisions_recorded || 0),
-    passCount,
-    passRate: total ? Math.round((passCount / total) * 100) : null,
-    averageScore: stats.average_score == null ? null : Number(stats.average_score),
-    reportsPending: Number(stats.reports_pending || 0),
-    scoreMax: 10,
-  }
-}
-
-/**
- * Save the report PDF URL (Supabase Storage) on a report row.
- * @param {number} id
- * @param {string} pdfUrl
- */
-async function updatePdfUrl(id, pdfUrl) {
+async function updateStatus(id, status, pdfUrl = null) {
   await db.query(
-    `UPDATE reports SET pdf_url = @pdfUrl WHERE id = @id`,
-    { id, pdfUrl }
+    `UPDATE reports SET
+       status = @status,
+       pdf_url = COALESCE(@pdf_url, pdf_url)
+     WHERE id = @id`,
+    { id, status, pdf_url: pdfUrl }
   )
 }
 
-module.exports = { create, getByCandidate, getByAttempt, getLatestByCandidate, getHistoryByCandidate, getTeamReports, getTeamReportStats, updatePdfUrl }
+async function getByInterview(interviewId) {
+  const rows = await db.query(
+    `SELECT * FROM reports WHERE interview_id = @interviewId ORDER BY created DESC LIMIT 1`,
+    { interviewId }
+  )
+  return rows[0] || null
+}
+
+async function getReportsByManager(managerId) {
+  return db.query(`
+    SELECT r.*,
+           COALESCE(iu.first_name, ec.first_name) AS candidate_first,
+           COALESCE(iu.last_name,  ec.last_name)  AS candidate_last,
+           i.type AS interview_type,
+           i.created AS interview_date,
+           tm.id AS team_member_id
+    FROM reports r
+    JOIN interviews i ON i.id = r.interview_id
+    LEFT JOIN users iu ON iu.id = i.internal_user_id
+    LEFT JOIN external_candidates ec ON ec.id = i.external_candidate_id
+    LEFT JOIN team_members tm ON tm.user_id = i.internal_user_id AND tm.manager_id = i.manager_id
+    WHERE i.manager_id = @managerId
+    ORDER BY r.created DESC
+  `, { managerId })
+}
+
+async function getStatsByManager(managerId) {
+  const rows = await db.query(`
+    SELECT COUNT(*) AS total_reports
+    FROM reports r
+    JOIN interviews i ON i.id = r.interview_id
+    WHERE i.manager_id = @managerId AND r.status = 'ready'
+  `, { managerId })
+  return rows[0] || { total_reports: 0 }
+}
+
+// Latest report for a candidate (by internal_user_id) — used by candidate Done page
+async function getLatestByCandidate(candidateId) {
+  const rows = await db.query(`
+    SELECT r.*
+    FROM reports r
+    JOIN interviews i ON i.id = r.interview_id
+    WHERE i.internal_user_id = @candidateId
+       OR i.external_candidate_id = @candidateId
+    ORDER BY r.created DESC
+    LIMIT 1
+  `, { candidateId })
+  return rows[0] || null
+}
+
+// All reports for a user (newest first) — for MemberProfilePage history tab
+async function getHistoryByUser(userId) {
+  return db.query(`
+    SELECT r.*, i.type AS interview_type, i.created AS interview_date
+    FROM reports r
+    JOIN interviews i ON i.id = r.interview_id
+    WHERE i.internal_user_id = @userId
+    ORDER BY r.created DESC
+  `, { userId })
+}
+
+module.exports = { create, updateStatus, getByInterview, getReportsByManager, getStatsByManager, getLatestByCandidate, getHistoryByUser }

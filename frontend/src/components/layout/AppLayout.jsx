@@ -8,6 +8,8 @@ import { LogOut } from 'lucide-react'
 const PAGE_META = {
   '/manager/dashboard':        { title: 'Team Overview',      subtitle: 'Your team at a glance' },
   '/manager/team':             { title: 'My Team',            subtitle: 'Manage team members and assessments' },
+  '/manager/monthly':          { title: 'Monthly Assessment', subtitle: 'Manage recurring team assessments' },
+  '/manager/clients':          { title: 'Client Interviews',  subtitle: 'Template and schedule client interviews' },
   '/manager/schedule':         { title: 'Schedule',           subtitle: 'Upcoming interviews and sessions' },
   '/manager/reports':          { title: 'Reports',            subtitle: 'Analytics and candidate insights' },
   '/manager/templates':        { title: 'Templates',          subtitle: 'Interview and exam templates' },
@@ -110,16 +112,16 @@ function AppLayout({ role = 'manager' }) {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <RoleBar role={role} onLogout={handleLogout} onLogoClick={handleLogoClick} />
 
-      <div style={{ display: 'flex', flex: 1 }}>
+      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         <Sidebar role={role} onLogout={handleLogout} />
 
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0 }}>
           <TopBar title={title} subtitle={subtitle} role={role} />
 
-          <main style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '24px 28px', background: '#F8FAFC', overflowY: 'scroll' }}>
+          <main style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '1.5rem 1.75rem', background: '#F8FAFC', overflowY: 'auto' }}>
             <Outlet />
           </main>
         </div>

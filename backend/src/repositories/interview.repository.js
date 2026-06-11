@@ -1,124 +1,44 @@
 // backend/src/repositories/interview.repository.js
-// SQL queries for the interviews table.
-//
-// candidates no longer stores first_name/last_name/email — get them via users JOIN.
-
 const db = require('../db/connection')
 
-// Reusable fragments for pulling candidate identity from users
-const CANDIDATE_USER_JOIN = `
-  LEFT JOIN candidates c2 ON c2.id = i.candidate_id AND c2.deleted IS NULL
-  LEFT JOIN users      cu ON cu.id = c2.user_id   AND cu.deleted IS NULL`
+const CANDIDATE_JOIN = `
+  LEFT JOIN users iu ON iu.id = i.internal_user_id
+  LEFT JOIN external_candidates ec ON ec.id = i.external_candidate_id`
 
-const CANDIDATE_USER_COLS = `
-  cu.first_name AS candidate_first, cu.last_name AS candidate_last, cu.email AS candidate_email`
+const CANDIDATE_COLS = `
+  COALESCE(iu.first_name, ec.first_name) AS candidate_first,
+  COALESCE(iu.last_name, ec.last_name)   AS candidate_last,
+  COALESCE(iu.email, ec.email)           AS candidate_email`
 
-/**
- * Create a new interview record.
- * @param {Object} data
- * @returns {Promise<Object>}
- */
 async function create(data) {
   const rows = await db.query(
     `INSERT INTO interviews
-       (company_id, candidate_id, manager_id, scheduled_by, interviewer_id, type, mode, interview_mode,
-        difficulty, jd_text, focus_areas, question_count, max_attempts, cooldown_hours, window_days,
-        report_timing, report_every_n, report_emails, token, token_expires, window_closes,
-        scheduled_start, scheduled_end, timezone)
+       (manager_id, internal_user_id, external_candidate_id, type, interview_mode,
+        difficulty, question_count, token, token_expires)
      VALUES
-       (@company_id, @candidate_id, @manager_id, @scheduled_by, @interviewer_id, @type, @mode, @interview_mode,
-        @difficulty, @jd_text, @focus_areas, @question_count, @max_attempts, @cooldown_hours, @window_days,
-        @report_timing, @report_every_n, @report_emails, @token, @token_expires, @window_closes,
-        @scheduled_start, @scheduled_end, @timezone)
+       (@manager_id, @internal_user_id, @external_candidate_id, @type, @interview_mode,
+        @difficulty, @question_count, @token, @token_expires)
      RETURNING *`,
     {
-      company_id:    data.companyId,
-      candidate_id:  data.candidateId,
-      manager_id:    data.managerId,
-      scheduled_by:  data.managerId,
-      interviewer_id: data.interviewerId || null,
-      type:          data.type || 'ai_voice',
-      mode:          data.mode || 'internal_monthly',
-      interview_mode: data.interviewMode || 'simple',
-      difficulty:    data.difficulty || 'medium',
-      jd_text:       data.jdText || null,
-      focus_areas:   data.focusAreas || null,
-      question_count: data.questionCount || 10,
-      max_attempts:  data.maxAttempts || 3,
-      cooldown_hours: data.cooldownHours || 24,
-      window_days:   data.windowDays || 7,
-      report_timing: data.reportTiming || 'all',
-      report_every_n: data.reportEveryN || 3,
-      report_emails: data.reportEmails ? JSON.stringify(data.reportEmails) : null,
-      token:         data.token,
-      token_expires: data.tokenExpires,
-      window_closes: data.windowCloses,
-      scheduled_start: data.scheduledStart || null,
-      scheduled_end:   data.scheduledEnd   || null,
-      timezone:      data.timezone || null,
+      manager_id:            data.managerId,
+      internal_user_id:      data.internalUserId || null,
+      external_candidate_id: data.externalCandidateId || null,
+      type:                  data.type || 'ai_voice',
+      interview_mode:        data.interviewMode || 'simple',
+      difficulty:            data.difficulty || 'medium',
+      question_count:        data.questionCount || 10,
+      token:                 data.token,
+      token_expires:         data.tokenExpires,
     }
   )
   return rows[0]
 }
 
-async function getByIdForCandidate(id, candidateId) {
-  const rows = await db.query(
-    `SELECT * FROM interviews
-     WHERE id = @id AND candidate_id = @candidateId`,
-    { id, candidateId }
-  )
-  return rows[0] || null
-}
-
-async function getByIdForCompany(id, companyId) {
-  const rows = await db.query(
-    `SELECT i.*, ${CANDIDATE_USER_COLS}
-     FROM interviews i ${CANDIDATE_USER_JOIN}
-     WHERE i.id = @id AND i.company_id = @companyId`,
-    { id, companyId }
-  )
-  return rows[0] || null
-}
-
-async function getAssignedHuman(id, interviewerId) {
-  const rows = await db.query(
-    `SELECT i.*, ${CANDIDATE_USER_COLS}
-     FROM interviews i ${CANDIDATE_USER_JOIN}
-     WHERE i.id = @id AND i.interviewer_id = @interviewerId AND i.type = 'human'`,
-    { id, interviewerId }
-  )
-  return rows[0] || null
-}
-
-async function countHumanConflicts(interviewerId, scheduledStart, scheduledEnd) {
-  const rows = await db.query(
-    `SELECT COUNT(*) AS count
-     FROM interviews
-     WHERE interviewer_id = @interviewerId
-       AND type = 'human'
-       AND status IN ('scheduled', 'in_progress')
-       AND scheduled_start IS NOT NULL
-       AND scheduled_end IS NOT NULL
-       AND scheduled_start < @scheduledEnd
-       AND scheduled_end > @scheduledStart`,
-    { interviewerId, scheduledStart, scheduledEnd }
-  )
-  return parseInt(rows[0].count, 10)
-}
-
-/**
- * Get an interview by ID — includes candidate name/email and manager email.
- * Used by interview.service for report generation.
- * @param {number} id
- * @returns {Promise<Object|null>}
- */
 async function getById(id) {
   const rows = await db.query(
-    `SELECT i.*,
-            ${CANDIDATE_USER_COLS},
-            mu.email AS manager_email
+    `SELECT i.*, ${CANDIDATE_COLS}, mu.email AS manager_email
      FROM interviews i
-     ${CANDIDATE_USER_JOIN}
+     ${CANDIDATE_JOIN}
      LEFT JOIN users mu ON mu.id = i.manager_id
      WHERE i.id = @id`,
     { id }
@@ -126,70 +46,99 @@ async function getById(id) {
   return rows[0] || null
 }
 
-/**
- * Find an interview by its magic-link token.
- * @param {string} token
- * @returns {Promise<Object|null>}
- */
 async function getByToken(token) {
   const rows = await db.query(
-    `SELECT i.*,
-            ${CANDIDATE_USER_COLS},
-            co.name AS company_name
+    `SELECT i.*, ${CANDIDATE_COLS}
      FROM interviews i
-     ${CANDIDATE_USER_JOIN}
-     LEFT JOIN companies co ON co.id = i.company_id
+     ${CANDIDATE_JOIN}
      WHERE i.token = @token`,
     { token }
   )
   return rows[0] || null
 }
 
-/**
- * Get all interviews for a company (for calendar view).
- * @param {number} companyId
- * @returns {Promise<Array>}
- */
-async function getByCompany(companyId) {
-  return db.query(
-    `SELECT i.*,
-            cu.first_name, cu.last_name,
-            tm.id AS team_member_id
-     FROM interviews i
-     LEFT JOIN candidates c2 ON c2.id = i.candidate_id AND c2.deleted IS NULL
-     LEFT JOIN users      cu ON cu.id = c2.user_id     AND cu.deleted IS NULL
-     LEFT JOIN team_members tm ON tm.user_id = c2.user_id AND tm.company_id = i.company_id AND tm.deleted IS NULL
-     WHERE i.company_id = @companyId
-     ORDER BY i.created DESC`,
-    { companyId }
-  )
-}
-
-/**
- * Get all interviews managed by a specific manager.
- * @param {number} managerId
- * @returns {Promise<Array>}
- */
 async function getByManager(managerId) {
   return db.query(
-    `SELECT i.*,
-            cu.first_name, cu.last_name,
+    `SELECT i.*, ${CANDIDATE_COLS},
             tm.id AS team_member_id
      FROM interviews i
-     LEFT JOIN candidates c2 ON c2.id = i.candidate_id AND c2.deleted IS NULL
-     LEFT JOIN users      cu ON cu.id = c2.user_id     AND cu.deleted IS NULL
-     LEFT JOIN team_members tm ON tm.user_id = c2.user_id AND tm.company_id = i.company_id AND tm.deleted IS NULL
+     ${CANDIDATE_JOIN}
+     LEFT JOIN team_members tm ON tm.user_id = i.internal_user_id AND tm.manager_id = i.manager_id
      WHERE i.manager_id = @managerId
      ORDER BY i.created DESC`,
     { managerId }
   )
 }
 
-/**
- * Update interview status.
- * @param {number} id
- * @param {string} status
- */
+async function getByInternalUser(userId) {
+  return db.query(
+    `SELECT i.*, ${CANDIDATE_COLS}
+     FROM interviews i
+     ${CANDIDATE_JOIN}
+     WHERE i.internal_user_id = @userId
+     ORDER BY i.created DESC`,
+    { userId }
+  )
+}
+
+// Alias used by team.routes.js
+const getByInternalUserId = getByInternalUser
+
+async function getByCompany(companyId) {
+  return db.query(
+    `SELECT i.*, ${CANDIDATE_COLS}
+     FROM interviews i
+     ${CANDIDATE_JOIN}
+     LEFT JOIN users mu ON mu.id = i.manager_id
+     WHERE mu.company_id = @companyId
+     ORDER BY i.created DESC`,
+    { companyId }
+  )
+}
+
+// Candidate's own interviews (by internal_user_id or external_candidate_id)
+async function getByCandidate(candidateId) {
+  return db.query(
+    `SELECT i.*, ${CANDIDATE_COLS}
+     FROM interviews i
+     ${CANDIDATE_JOIN}
+     WHERE i.internal_user_id = @candidateId
+        OR i.external_candidate_id = @candidateId
+     ORDER BY i.created DESC`,
+    { candidateId }
+  )
+}
+
+// Used for candidate magic-link flows — look up by interview ID and assert ownership
+async function getByIdForCandidate(interviewId, candidateId) {
+  const rows = await db.query(
+    `SELECT i.*, ${CANDIDATE_COLS}
+     FROM interviews i
+     ${CANDIDATE_JOIN}
+     WHERE i.id = @interviewId
+       AND (i.internal_user_id = @candidateId OR i.external_candidate_id = @candidateId)`,
+    { interviewId, candidateId }
+  )
+  return rows[0] || null
+}
+
+// Used by interviewer routes — get a human interview assigned to a specific interviewer
+// Human interviews are type='human'; we match by manager company for now since we removed interviewer_id
+async function getAssignedHuman(interviewId, interviewerId) {
+  const rows = await db.query(
+    `SELECT i.*, ${CANDIDATE_COLS}
+     FROM interviews i
+     ${CANDIDATE_JOIN}
+     LEFT JOIN users mu ON mu.id = i.manager_id
+     LEFT JOIN users iv ON iv.id = @interviewerId
+     WHERE i.id = @interviewId
+       AND i.type = 'human'
+       AND mu.company_id = iv.company_id`,
+    { interviewId, interviewerId }
+  )
+  return rows[0] || null
+}
+
 async function updateStatus(id, status) {
   await db.query(
     `UPDATE interviews SET status = @status WHERE id = @id`,
@@ -197,25 +146,22 @@ async function updateStatus(id, status) {
   )
 }
 
-/**
- * Get all interviews for a specific candidate.
- * @param {number} candidateId
- * @returns {Promise<Array>}
- */
-async function getByCandidate(candidateId) {
-  return db.query(
-    `SELECT i.*,
-            cu.first_name, cu.last_name
-     FROM interviews i
-     LEFT JOIN candidates c2 ON c2.id = i.candidate_id AND c2.deleted IS NULL
-     LEFT JOIN users      cu ON cu.id = c2.user_id     AND cu.deleted IS NULL
-     WHERE i.candidate_id = @candidateId
-     ORDER BY i.created DESC`,
-    { candidateId }
+async function markStarted(id) {
+  await db.query(
+    `UPDATE interviews SET status = 'in_progress', started_at = NOW() WHERE id = @id`,
+    { id }
+  )
+}
+
+async function markCompleted(id, result = 'completed') {
+  await db.query(
+    `UPDATE interviews SET status = 'completed', ended_at = NOW(), result = @result WHERE id = @id`,
+    { id, result }
   )
 }
 
 module.exports = {
-  create, getById, getByIdForCandidate, getByIdForCompany, getAssignedHuman,
-  getByToken, getByCompany, getByManager, getByCandidate, countHumanConflicts, updateStatus,
+  create, getById, getByToken, getByManager, getByInternalUser, getByInternalUserId,
+  getByCompany, getByCandidate, getByIdForCandidate, getAssignedHuman,
+  updateStatus, markStarted, markCompleted
 }

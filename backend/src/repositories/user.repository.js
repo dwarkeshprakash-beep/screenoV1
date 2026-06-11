@@ -1,63 +1,41 @@
 // backend/src/repositories/user.repository.js
-// SQL queries for the users table only.
-
 const db = require('../db/connection')
 
-/**
- * Find a user by email (active only).
- * @param {string} email
- * @returns {Promise<Object|null>}
- */
 async function getByEmail(email) {
   const rows = await db.query(
-    `SELECT id, company_id, first_name, last_name, email, password, role, status
+    `SELECT id, company_id, first_name, last_name, email, password, role, resume_url, tags
      FROM users
-     WHERE email = @email AND deleted IS NULL`,
+     WHERE email = @email`,
     { email }
   )
   return rows[0] || null
 }
 
-/**
- * Find a user by ID (active only).
- * @param {number} id
- * @returns {Promise<Object|null>}
- */
 async function getById(id) {
   const rows = await db.query(
-    `SELECT id, company_id, first_name, last_name, email, role, status
+    `SELECT id, company_id, first_name, last_name, email, role, resume_url, tags
      FROM users
-     WHERE id = @id AND deleted IS NULL`,
+     WHERE id = @id`,
     { id }
   )
   return rows[0] || null
 }
 
-/**
- * Update a user's first and last name.
- * Uses COALESCE so null values leave the existing data intact.
- * @param {number} id
- * @param {{ firstName?: string, lastName?: string }} fields
- * @returns {Promise<Object>}
- */
-async function updateProfile(id, { firstName, lastName }) {
+async function updateProfile(id, { firstName, lastName, resumeUrl, tags }) {
   const rows = await db.query(
     `UPDATE users
      SET
        first_name = COALESCE(@first_name, first_name),
-       last_name  = COALESCE(@last_name,  last_name)
-     WHERE id = @id AND deleted IS NULL
+       last_name  = COALESCE(@last_name,  last_name),
+       resume_url = COALESCE(@resume_url, resume_url),
+       tags       = COALESCE(@tags,       tags)
+     WHERE id = @id
      RETURNING *`,
-    { id, first_name: firstName || null, last_name: lastName || null }
+    { id, first_name: firstName || null, last_name: lastName || null, resume_url: resumeUrl || null, tags: tags ? JSON.stringify(tags) : null }
   )
   return rows[0]
 }
 
-/**
- * Update a user's hashed password.
- * @param {number} id
- * @param {string} passwordHash - bcrypt hash
- */
 async function updatePassword(id, passwordHash) {
   await db.query(
     `UPDATE users SET password = @password WHERE id = @id`,
@@ -65,12 +43,6 @@ async function updatePassword(id, passwordHash) {
   )
 }
 
-/**
- * Get users in a company whose email is NOT already in the candidates table for that company.
- * Used by AddCandidateModal "Find in organisation" tab.
- * @param {number} companyId
- * @returns {Promise<Array>}
- */
 async function getNotInTeam(companyId, managerId) {
   return db.query(
     `SELECT u.id, u.first_name, u.last_name, u.email, u.role,
@@ -79,13 +51,11 @@ async function getNotInTeam(companyId, managerId) {
      FROM users u
      LEFT JOIN departments d ON d.id = u.department_id
      WHERE u.company_id = @companyId
-       AND u.deleted IS NULL
        AND u.role != 'manager'
        AND NOT EXISTS (
          SELECT 1 FROM team_members tm
          WHERE tm.manager_id = @managerId
            AND tm.user_id = u.id
-           AND tm.deleted IS NULL
        )
      ORDER BY u.first_name`,
     { companyId, managerId }
@@ -98,8 +68,6 @@ async function getByRole(companyId, role) {
      FROM users
      WHERE company_id = @companyId
        AND role = @role
-       AND deleted IS NULL
-       AND status = 'active'
      ORDER BY first_name`,
     { companyId, role }
   )
@@ -110,23 +78,11 @@ async function getByCompany(companyId) {
     `SELECT id, first_name, last_name, email, role
      FROM users
      WHERE company_id = @companyId
-       AND deleted IS NULL
-       AND status = 'active'
      ORDER BY first_name`,
     { companyId }
   )
 }
 
-/**
- * Bulk upsert users from CSV rows into the users table.
- * Match by email first; if no email match and emp_number provided, match by emp_number.
- * Existing records: update name, email, emp_number, department_id, job_title, location — never password.
- * New records: insert with role='employee', status='active', and a temp password hash.
- * @param {Array<Object>} rows
- * @param {number} companyId
- * @param {string} tempPasswordHash - bcrypt hash used for all new-user rows
- * @returns {Promise<{ inserted: number, updated: number, errors: string[] }>}
- */
 async function bulkUpsert(rows, companyId, tempPasswordHash) {
   let inserted = 0
   let updated = 0
@@ -134,18 +90,16 @@ async function bulkUpsert(rows, companyId, tempPasswordHash) {
 
   for (const row of rows) {
     try {
-      // 1. Try to find by email
       let existing = null
       const byEmail = await db.query(
-        `SELECT id FROM users WHERE company_id = @company_id AND email = @email AND deleted IS NULL LIMIT 1`,
+        `SELECT id FROM users WHERE company_id = @company_id AND email = @email LIMIT 1`,
         { company_id: companyId, email: row.email }
       )
       if (byEmail.length > 0) existing = byEmail[0]
 
-      // 2. Fall back to emp_number lookup
       if (!existing && row.empNumber) {
         const byEmp = await db.query(
-          `SELECT id FROM users WHERE company_id = @company_id AND emp_number = @emp_number AND deleted IS NULL LIMIT 1`,
+          `SELECT id FROM users WHERE company_id = @company_id AND emp_number = @emp_number LIMIT 1`,
           { company_id: companyId, emp_number: row.empNumber }
         )
         if (byEmp.length > 0) existing = byEmp[0]
@@ -161,7 +115,7 @@ async function bulkUpsert(rows, companyId, tempPasswordHash) {
              department_id = COALESCE(@department_id, department_id),
              job_title     = COALESCE(@job_title,     job_title),
              location      = COALESCE(@location,      location)
-           WHERE id = @id AND deleted IS NULL`,
+           WHERE id = @id`,
           {
             id:            existing.id,
             first_name:    row.firstName    || null,
@@ -177,10 +131,10 @@ async function bulkUpsert(rows, companyId, tempPasswordHash) {
       } else {
         await db.query(
           `INSERT INTO users
-             (company_id, first_name, last_name, email, emp_number, department_id, job_title, location, password, role, status)
+             (company_id, first_name, last_name, email, emp_number, department_id, job_title, location, password, role)
            VALUES
-             (@company_id, @first_name, @last_name, @email, @emp_number, @department_id, @job_title, @location, @password, 'employee', 'active')
-           ON CONFLICT (company_id, email) DO NOTHING`,
+             (@company_id, @first_name, @last_name, @email, @emp_number, @department_id, @job_title, @location, @password, 'employee')
+           ON CONFLICT (email) DO NOTHING`,
           {
             company_id:    companyId,
             first_name:    row.firstName,
@@ -199,56 +153,36 @@ async function bulkUpsert(rows, companyId, tempPasswordHash) {
       errors.push(`${row.email}: ${err.message}`)
     }
   }
-
   return { inserted, updated, errors }
 }
 
-/**
- * Find a user by email scoped to a company.
- * @param {string} email
- * @param {number} companyId
- * @returns {Promise<Object|null>}
- */
 async function getByEmailForCompany(email, companyId) {
   const rows = await db.query(
     `SELECT id, company_id, first_name, last_name, email, role
      FROM users
-     WHERE email = @email AND company_id = @companyId AND deleted IS NULL
+     WHERE email = @email AND company_id = @companyId
      LIMIT 1`,
     { email, companyId }
   )
   return rows[0] || null
 }
 
-/**
- * Update org profile fields (emp_number, job_title, location) for a user.
- * Called when a manager edits team member profile details.
- * @param {number} userId
- * @param {Object} data
- */
 async function updateOrgProfile(userId, { empNumber, jobTitle, location } = {}) {
   await db.query(
     `UPDATE users SET
        emp_number = COALESCE(@emp_number, emp_number),
        job_title  = COALESCE(@job_title,  job_title),
        location   = COALESCE(@location,   location)
-     WHERE id = @id AND deleted IS NULL`,
+     WHERE id = @id`,
     { id: userId, emp_number: empNumber || null, job_title: jobTitle || null, location: location || null }
   )
 }
 
-/**
- * Create a minimal placeholder user row (for team members added by email only).
- * ON CONFLICT (company_id, email) DO NOTHING — safe to call even if the row exists.
- * @param {number} companyId
- * @param {Object} data - { firstName, lastName, email, passwordHash }
- * @returns {Promise<Object|null>} inserted row, or null if conflict
- */
 async function createMinimal(companyId, { firstName, lastName, email, passwordHash }) {
   const rows = await db.query(
-    `INSERT INTO users (company_id, first_name, last_name, email, password, role, status)
-     VALUES (@company_id, @first_name, @last_name, @email, @password, 'employee', 'active')
-     ON CONFLICT (company_id, email) DO NOTHING
+    `INSERT INTO users (company_id, first_name, last_name, email, password, role)
+     VALUES (@company_id, @first_name, @last_name, @email, @password, 'employee')
+     ON CONFLICT (email) DO NOTHING
      RETURNING id`,
     {
       company_id: companyId,

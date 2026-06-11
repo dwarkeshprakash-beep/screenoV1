@@ -45,14 +45,14 @@ function AddCandidateModal({ open, onClose, onDone }) {
   const searchRef = useRef(null)
 
   // ── Manual tab state ──────────────────────────────────────────
-  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', phone: '', type: 'internal' })
+  const [form, setForm] = useState({ firstName: '', lastName: '', email: '', phone: '', employeeId: '', department: '', position: '', source: 'LinkedIn', type: 'internal' })
   const setF = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
   useEffect(() => {
     if (!open) {
       setTab(TAB_FIND); setError(null); setSuccess(null)
       setSearch(''); setSelected(new Set())
-      setForm({ firstName: '', lastName: '', email: '', phone: '', type: 'internal' })
+      setForm({ firstName: '', lastName: '', email: '', phone: '', employeeId: '', department: '', position: '', source: 'LinkedIn', type: 'internal' })
       return
     }
     loadUsers()
@@ -123,6 +123,10 @@ function AddCandidateModal({ open, onClose, onDone }) {
         lastName:  form.lastName.trim(),
         email:     form.email.trim(),
         phone:     form.phone.trim(),
+        employeeId: form.employeeId.trim(),
+        department: form.department.trim(),
+        position:  form.position.trim(),
+        source:    form.type === 'external' ? form.source : null,
         type:      form.type,
       })
       setSuccess(`${form.firstName} added to your team.`)
@@ -318,6 +322,64 @@ function AddCandidateModal({ open, onClose, onDone }) {
                 onBlur={e => { e.target.style.borderColor = '#CBD5E1'; e.target.style.boxShadow = 'none' }}
               />
             </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div>
+                {lbl('Employee ID')}
+                <input
+                  type="text"
+                  placeholder="EMP123"
+                  value={form.employeeId}
+                  onChange={e => setF('employeeId', e.target.value)}
+                  style={inputStyle}
+                  onFocus={e => { e.target.style.borderColor = '#5B4FE9'; e.target.style.boxShadow = '0 0 0 3px rgba(91,79,233,0.18)' }}
+                  onBlur={e => { e.target.style.borderColor = '#CBD5E1'; e.target.style.boxShadow = 'none' }}
+                />
+              </div>
+              <div>
+                {lbl('Department')}
+                <input
+                  type="text"
+                  placeholder="Engineering"
+                  value={form.department}
+                  onChange={e => setF('department', e.target.value)}
+                  style={inputStyle}
+                  onFocus={e => { e.target.style.borderColor = '#5B4FE9'; e.target.style.boxShadow = '0 0 0 3px rgba(91,79,233,0.18)' }}
+                  onBlur={e => { e.target.style.borderColor = '#CBD5E1'; e.target.style.boxShadow = 'none' }}
+                />
+              </div>
+            </div>
+
+            <div>
+              {lbl('Role / Position')}
+              <input
+                type="text"
+                placeholder="Frontend Developer"
+                value={form.position}
+                onChange={e => setF('position', e.target.value)}
+                style={inputStyle}
+                onFocus={e => { e.target.style.borderColor = '#5B4FE9'; e.target.style.boxShadow = '0 0 0 3px rgba(91,79,233,0.18)' }}
+                onBlur={e => { e.target.style.borderColor = '#CBD5E1'; e.target.style.boxShadow = 'none' }}
+              />
+            </div>
+
+            {form.type === 'external' && (
+              <div>
+                {lbl('Source')}
+                <select
+                  value={form.source}
+                  onChange={e => setF('source', e.target.value)}
+                  style={inputStyle}
+                  onFocus={e => { e.target.style.borderColor = '#5B4FE9'; e.target.style.boxShadow = '0 0 0 3px rgba(91,79,233,0.18)' }}
+                  onBlur={e => { e.target.style.borderColor = '#CBD5E1'; e.target.style.boxShadow = 'none' }}
+                >
+                  <option value="LinkedIn">LinkedIn</option>
+                  <option value="Naukri">Naukri</option>
+                  <option value="Referral">Referral</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+            )}
 
             <div>
               {lbl('Member type')}

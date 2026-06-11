@@ -366,10 +366,87 @@ async function callRaw(prompt) {
   }
 }
 
+/**
+ * Extract skill tags from a job description or resume text.
+ * @param {string} text
+ * @returns {Promise<string[]>}
+ */
+async function extractTagsFromText(text) {
+  const prompt = `Extract the top 8-12 technical skill tags from this job description or resume text.
+Return ONLY a JSON array of short tag strings (e.g. ["React", "Node.js", "PostgreSQL"]).
+No explanations, no markdown.
+
+Text:
+${cleanText(text, '')}`
+
+  let raw
+  try {
+    raw = await callRaw(prompt)
+    const tags = parseJSON(raw)
+    if (Array.isArray(tags)) return tags.map(t => String(t).trim()).filter(Boolean).slice(0, 12)
+  } catch {
+    // fallback: return empty array rather than crashing
+  }
+  return []
+}
+
+/**
+ * Generate sub-topics for a given subject + topic at a given difficulty level.
+ * @param {string} subject
+ * @param {string} topic
+ * @param {string} difficulty - easy|medium|hard
+ * @returns {Promise<string[]>}
+ */
+async function generateSubtopics(subject, topic, difficulty = 'medium') {
+  const prompt = `You are designing a monthly technical assessment. The subject is "${subject}" and the topic is "${topic}" (difficulty: ${difficulty}).
+Generate 8-12 specific sub-topics a candidate should master for this topic at this difficulty level.
+Return ONLY a JSON array of short sub-topic strings.
+Example: ["Hooks (useState, useEffect)", "Context API", "React Router v6"]
+Return only the JSON array, nothing else.`
+
+  try {
+    const raw = await callRaw(prompt)
+    const list = parseJSON(raw)
+    if (Array.isArray(list)) return list.map(t => String(t).trim()).filter(Boolean).slice(0, 12)
+  } catch {}
+  return []
+}
+
+/**
+ * Generate an interview-style JD from a set of topics and sub-topics.
+ * @param {string} subject
+ * @param {string[]} subTopics
+ * @param {string} difficulty
+ * @returns {Promise<string>}
+ */
+async function generateJDFromTopics(subject, subTopics, difficulty = 'medium') {
+  const topicList = Array.isArray(subTopics) ? subTopics.join(', ') : subTopics
+  const systemPrompt = `You are a senior engineer writing an internal study guide / interview JD for a monthly assessment.
+Write a clear, practical document covering the following topics.
+Include: what the candidate is expected to know, key concepts for each sub-topic, and 2-3 sample question themes (not full questions).
+Keep it under 500 words. Plain text, no markdown headers.`
+
+  const userPrompt = `Subject: ${subject}
+Difficulty: ${difficulty}
+Topics to cover: ${topicList}`
+
+  let text
+  try {
+    text = await callGroq(systemPrompt, userPrompt)
+  } catch (err) {
+    console.error('Groq generateJDFromTopics failed, trying Gemini:', err.message)
+    text = await callGemini(`${systemPrompt}\n\n${userPrompt}`)
+  }
+  return cleanText(text, 'Study material generation failed. Please try again.')
+}
+
 module.exports = {
   generateQuestions,
   generateExamQuestions,
   getAdaptiveQuestion,
   generateReport,
+  extractTagsFromText,
+  generateSubtopics,
+  generateJDFromTopics,
   callRaw,
 }

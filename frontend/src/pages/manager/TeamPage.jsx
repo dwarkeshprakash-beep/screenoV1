@@ -64,6 +64,7 @@ function TeamPage() {
   const [members, setMembers]           = useState([])
   const [loading, setLoading]           = useState(true)
   const [error, setError]               = useState(null)
+  const [teamType, setTeamType]         = useState('internal')
   const [tab, setTab]                   = useState('all')
   const [selected, setSelected]         = useState(new Set())
   const [scheduleOpen, setScheduleOpen] = useState(false)
@@ -156,6 +157,10 @@ function TeamPage() {
   // ── Filter pipeline ──────────────────────────────────────────
   const term = searchTerm.trim().toLowerCase()
   const filtered = members.filter(m => {
+    const isExt = m.type === 'external'
+    if (teamType === 'internal' && isExt) return false
+    if (teamType === 'external' && !isExt) return false
+
     if (tab === 'attention' && !isOverdue(m)) return false
     if (term) {
       const haystack = `${m.first_name || ''} ${m.last_name || ''} ${m.email || ''} ${m.employee_id || ''}`.toLowerCase()
@@ -196,8 +201,21 @@ function TeamPage() {
         </div>
       )}
 
+      {/* Internal/External Sub-nav */}
+      <div style={{ display: 'flex', borderBottom: '1px solid #E2E8F0' }}>
+        <button onClick={() => { setTeamType('internal'); setSelected(new Set()) }} style={{ flex: 1, padding: '10px 0', background: 'transparent', border: 'none', borderBottom: teamType === 'internal' ? '2px solid #5B4FE9' : '2px solid transparent', color: teamType === 'internal' ? '#5B4FE9' : '#64748B', fontWeight: teamType === 'internal' ? 600 : 500, cursor: 'pointer', fontSize: 14 }}>Internal employees</button>
+        <button onClick={() => { setTeamType('external'); setSelected(new Set()) }} style={{ flex: 1, padding: '10px 0', background: 'transparent', border: 'none', borderBottom: teamType === 'external' ? '2px solid #5B4FE9' : '2px solid transparent', color: teamType === 'external' ? '#5B4FE9' : '#64748B', fontWeight: teamType === 'external' ? 600 : 500, cursor: 'pointer', fontSize: 14 }}>External users</button>
+      </div>
+
+      {teamType === 'external' && (
+        <div style={{ padding: '10px 14px', background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 8, fontSize: 12, color: '#475569', display: 'flex', gap: 8, alignItems: 'center' }}>
+          <AlertTriangle size={14} color="#64748B" />
+          External users are read-only and managed by HR. They cannot be removed from this view.
+        </div>
+      )}
+
       {/* Stat cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(18rem, 1fr))', gap: '0.875rem' }}>
         {[
           { icon: Users,        color: '#5B4FE9', bg: '#EFEDFD', value: members.length,                          label: 'Total team members' },
           { icon: CheckCircle2, color: '#059669', bg: '#ECFDF5', value: members.filter(m => !isOverdue(m)).length, label: 'Assessed last 30 days' },
@@ -296,16 +314,17 @@ function TeamPage() {
       ) : rows.length === 0 ? (
         <EmptyState message={searchTerm || hasActiveFilter ? 'No team members match your filters.' : tab === 'all' ? 'No team members yet. Add your first member.' : 'No members need attention.'} />
       ) : (
-        <div style={{ background: '#FFF', border: '1px solid #E2E8F0', borderRadius: 12, overflow: 'hidden', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+        <div style={{ background: '#FFF', border: '1px solid #E2E8F0', borderRadius: '0.75rem', overflowX: 'auto', overflowY: 'hidden', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8125rem' }}>
             <thead>
               <tr style={{ background: '#F8FAFC' }}>
                 <th style={{ ...thStyle, width: 36 }}>
-                  <input type="checkbox" checked={allSel} onChange={toggleAll} style={{ accentColor: '#5B4FE9', cursor: 'pointer' }} />
+                  {teamType === 'internal' && <input type="checkbox" checked={allSel} onChange={toggleAll} style={{ accentColor: '#5B4FE9', cursor: 'pointer' }} />}
                 </th>
-                {['TEAM MEMBER', 'EMPLOYEE ID', 'DEPARTMENT', 'LOCATION', 'CURRENT POSITION', 'LAST ASSESSMENT', 'ACTIONS'].map(h => (
+                {['TEAM MEMBER', 'EMPLOYEE ID', 'DEPARTMENT', 'LOCATION', 'CURRENT POSITION', 'LAST ASSESSMENT'].map(h => (
                   <th key={h} style={thStyle}>{h}</th>
                 ))}
+                {teamType === 'internal' && <th style={thStyle}>ACTIONS</th>}
               </tr>
             </thead>
             <tbody>
@@ -320,7 +339,7 @@ function TeamPage() {
                     onMouseLeave={e => { if (!sel) e.currentTarget.style.background = '#FFF' }}
                   >
                     <td style={{ padding: '14px 16px', borderBottom: '1px solid #F1F5F9' }} onClick={e => e.stopPropagation()}>
-                      <input type="checkbox" checked={sel} onChange={() => toggleSelect(m.id)} style={{ accentColor: '#5B4FE9', cursor: 'pointer' }} />
+                      {teamType === 'internal' && <input type="checkbox" checked={sel} onChange={() => toggleSelect(m.id)} style={{ accentColor: '#5B4FE9', cursor: 'pointer' }} />}
                     </td>
                     <td style={{ padding: '14px 16px', borderBottom: '1px solid #F1F5F9' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -347,14 +366,16 @@ function TeamPage() {
                       <AssessBadge lastAssessed={m.last_assessed} />
                       {m.last_assessed && <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 3 }}>{formatDate(m.last_assessed)}</div>}
                     </td>
-                    <td style={{ padding: '14px 16px', borderBottom: '1px solid #F1F5F9' }} onClick={e => e.stopPropagation()}>
-                      <button
-                        onClick={() => openSchedule(m)}
-                        style={{ background: '#FFF', color: '#0F172A', border: '1px solid #CBD5E1', borderRadius: 8, fontWeight: 600, padding: '5px 10px', fontSize: 12, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}
-                      >
-                        <CalendarPlus size={12} /> Schedule
-                      </button>
-                    </td>
+                    {teamType === 'internal' && (
+                      <td style={{ padding: '14px 16px', borderBottom: '1px solid #F1F5F9' }} onClick={e => e.stopPropagation()}>
+                        <button
+                          onClick={() => openSchedule(m)}
+                          style={{ background: '#FFF', color: '#0F172A', border: '1px solid #CBD5E1', borderRadius: 8, fontWeight: 600, padding: '5px 10px', fontSize: 12, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                        >
+                          <CalendarPlus size={12} /> Schedule
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 )
               })}

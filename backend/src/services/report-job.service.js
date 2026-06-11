@@ -7,15 +7,15 @@ async function processReportJobs() {
   if (running) return
   running = true
   try {
-    const jobs = await reportJobRepository.getReady(3)
+    const jobs = await reportJobRepository.getPendingJobs()
     for (const job of jobs) {
-      await reportJobRepository.markRunning(job.id)
+      await reportJobRepository.markStarted(job.id)
       try {
-        await interviewService.generateReport(job.interview_id, job.attempt_id)
+        await interviewService.generateReport(job.interview_id)
         await reportJobRepository.markCompleted(job.id)
       } catch (err) {
         console.error('report job failed:', err)
-        await reportJobRepository.markError(job.id, err.message)
+        await reportJobRepository.markFailed(job.id, err.message)
       }
     }
   } finally {

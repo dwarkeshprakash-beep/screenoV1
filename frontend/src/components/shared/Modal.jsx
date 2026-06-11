@@ -9,7 +9,7 @@ import { useEffect } from 'react'
  * @param {'sm'|'md'|'lg'} size
  */
 function Modal({ open, onClose, title, children, size = 'md' }) {
-  const widths = { sm: '400px', md: '560px', lg: '800px' }
+  const widths = { sm: '25rem', md: '35rem', lg: '50rem' }
 
   // Close on Escape key
   useEffect(() => {
@@ -36,7 +36,7 @@ function Modal({ open, onClose, title, children, size = 'md' }) {
         alignItems: 'center',
         justifyContent: 'center',
         zIndex: 1000,
-        padding: '16px',
+        padding: '1rem',
       }}
     >
       <div
@@ -56,10 +56,10 @@ function Modal({ open, onClose, title, children, size = 'md' }) {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          padding: '20px 24px',
+          padding: '1.25rem 1.5rem',
           borderBottom: '1px solid var(--border-default)',
         }}>
-          <h2 id="modal-title" style={{ fontSize: '16px', fontWeight: 600 }}>
+          <h2 id="modal-title" style={{ fontSize: 'var(--fs-lg)', fontWeight: 'var(--fw-bold)', color: 'var(--fg-primary)', margin: 0 }}>
             {title}
           </h2>
           <button
@@ -68,7 +68,7 @@ function Modal({ open, onClose, title, children, size = 'md' }) {
             style={{
               background: 'none',
               border: 'none',
-              fontSize: '20px',
+              fontSize: '1.25rem',
               color: 'var(--fg-muted)',
               cursor: 'pointer',
               lineHeight: 1,
@@ -79,7 +79,7 @@ function Modal({ open, onClose, title, children, size = 'md' }) {
         </div>
 
         {/* Body */}
-        <div style={{ padding: '24px', overflowY: 'auto', flex: 1 }}>
+        <div style={{ padding: '1.5rem', overflowY: 'auto', flex: 1, minHeight: 0 }}>
           {children}
         </div>
       </div>
