@@ -1,24 +1,52 @@
-// backend/src/repositories/report.repository.js
 const db = require('../db/connection')
 
-async function create(interviewId, summary, strengths, pdfUrl) {
+async function upsertGenerating({ interviewId, scorecardId, summary, strengths }) {
+  const existing = await getByInterview(interviewId)
+  if (existing) {
+    const rows = await db.query(
+      `UPDATE reports SET
+         scorecard_id = @scorecardId,
+         summary = @summary,
+         strengths = @strengths,
+         status = 'generating'
+       WHERE id = @id
+       RETURNING *`,
+      {
+        id: existing.id,
+        scorecardId,
+        summary,
+        strengths: JSON.stringify(strengths || []),
+      }
+    )
+    return rows[0]
+  }
+
   const rows = await db.query(
-    `INSERT INTO reports (interview_id, summary, strengths, pdf_url, status)
-     VALUES (@interview_id, @summary, @strengths, @pdf_url, 'generating')
+    `INSERT INTO reports
+       (interview_id, scorecard_id, summary, strengths, status)
+     VALUES
+       (@interviewId, @scorecardId, @summary, @strengths, 'generating')
      RETURNING *`,
-    { interview_id: interviewId, summary, strengths: JSON.stringify(strengths), pdf_url: pdfUrl }
+    {
+      interviewId,
+      scorecardId,
+      summary,
+      strengths: JSON.stringify(strengths || []),
+    }
   )
   return rows[0]
 }
 
 async function updateStatus(id, status, pdfUrl = null) {
-  await db.query(
+  const rows = await db.query(
     `UPDATE reports SET
        status = @status,
-       pdf_url = COALESCE(@pdf_url, pdf_url)
-     WHERE id = @id`,
-    { id, status, pdf_url: pdfUrl }
+       pdf_url = COALESCE(@pdfUrl, pdf_url)
+     WHERE id = @id
+     RETURNING *`,
+    { id, status, pdfUrl }
   )
+  return rows[0] || null
 }
 
 async function getByInterview(interviewId) {
@@ -30,13 +58,13 @@ async function getByInterview(interviewId) {
 }
 
 async function getReportsByManager(managerId, source = null) {
-  const sourceFilter = source === 'client'  ? 'AND i.client_template_id IS NOT NULL'
-                     : source === 'monthly' ? 'AND i.monthly_assessment_id IS NOT NULL'
-                     : ''
+  const sourceFilter = source === 'client' ? 'AND i.client_template_id IS NOT NULL'
+    : source === 'monthly' ? 'AND i.monthly_assessment_id IS NOT NULL'
+      : ''
   return db.query(`
     SELECT r.*,
            COALESCE(iu.first_name, ec.first_name) AS candidate_first,
-           COALESCE(iu.last_name,  ec.last_name)  AS candidate_last,
+           COALESCE(iu.last_name, ec.last_name) AS candidate_last,
            i.type AS interview_type,
            i.created AS interview_date,
            i.client_template_id,
@@ -70,22 +98,47 @@ async function getStatsByManager(managerId) {
   return rows[0] || { total_reports: 0 }
 }
 
-// Latest report for a candidate (by internal_user_id) — used by candidate Done page
-async function getLatestByCandidate(candidateId) {
+async function getLatestByCandidateIdentity(
+  { internalUserId = null, externalCandidateId = null },
+  interviewId = null
+) {
+  const candidatePredicate = internalUserId
+    ? { sql: 'i.internal_user_id = @candidateId', candidateId: internalUserId }
+    : externalCandidateId
+      ? { sql: 'i.external_candidate_id = @candidateId', candidateId: externalCandidateId }
+      : { sql: '1 = 0', candidateId: null }
+  const interviewPredicate = interviewId ? 'AND i.id = @interviewId' : ''
   const rows = await db.query(`
     SELECT r.*
     FROM reports r
     JOIN interviews i ON i.id = r.interview_id
-    WHERE i.internal_user_id = @candidateId
-       OR i.external_candidate_id = @candidateId
+    WHERE ${candidatePredicate.sql}
+      ${interviewPredicate}
     ORDER BY r.created DESC
     LIMIT 1
-  `, { candidateId })
+  `, {
+    ...(candidatePredicate.candidateId === null
+      ? {}
+      : { candidateId: candidatePredicate.candidateId }),
+    ...(interviewId ? { interviewId } : {}),
+  })
   return rows[0] || null
 }
 
-// All reports for a user (newest first) — for MemberProfilePage history tab
-async function getHistoryByUser(userId) {
+async function getLatestByInternalUserForManager(userId, managerId) {
+  const rows = await db.query(`
+    SELECT r.*
+    FROM reports r
+    JOIN interviews i ON i.id = r.interview_id
+    WHERE i.internal_user_id = @userId
+      AND i.manager_id = @managerId
+    ORDER BY r.created DESC
+    LIMIT 1
+  `, { userId, managerId })
+  return rows[0] || null
+}
+
+async function getHistoryByUserForManager(userId, managerId) {
   return db.query(`
     SELECT r.*, i.type AS interview_type, i.created AS interview_date,
            sc.overall AS overall_score, sc.confidence, sc.tech_knowledge, sc.communication,
@@ -94,8 +147,18 @@ async function getHistoryByUser(userId) {
     JOIN interviews i ON i.id = r.interview_id
     LEFT JOIN scorecards sc ON sc.interview_id = r.interview_id
     WHERE i.internal_user_id = @userId
+      AND i.manager_id = @managerId
     ORDER BY r.created DESC
-  `, { userId })
+  `, { userId, managerId })
 }
 
-module.exports = { create, updateStatus, getByInterview, getReportsByManager, getStatsByManager, getLatestByCandidate, getHistoryByUser }
+module.exports = {
+  upsertGenerating,
+  updateStatus,
+  getByInterview,
+  getReportsByManager,
+  getStatsByManager,
+  getLatestByCandidateIdentity,
+  getLatestByInternalUserForManager,
+  getHistoryByUserForManager,
+}

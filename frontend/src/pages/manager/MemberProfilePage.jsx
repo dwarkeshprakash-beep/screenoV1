@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Mail, Phone, MapPin, Briefcase, CalendarPlus, Pencil, FileText, Download, ThumbsUp, ArrowRight, Check, Building2, BadgeCheck } from 'lucide-react'
+import { ArrowLeft, Mail, Phone, MapPin, Briefcase, CalendarPlus, Pencil, FileText, Download, ThumbsUp, Check, Building2, BadgeCheck } from 'lucide-react'
 import Spinner from '../../components/shared/Spinner'
 import ErrorMessage from '../../components/shared/ErrorMessage'
 import EmptyState from '../../components/shared/EmptyState'
@@ -8,7 +8,6 @@ import * as api from '../../services/api'
 import { formatDate } from '../../utils/helpers'
 import ScheduleModal from '../../components/manager/ScheduleModal'
 import EditMemberModal from '../../components/manager/EditMemberModal'
-import Avatar from '../../components/shared/Avatar'
 
 const SKILL_COLORS = {
   '.NET': { bg: 'var(--brand-50)', fg: 'var(--brand-700)' }, 'C#': { bg: 'var(--brand-50)', fg: 'var(--brand-700)' },
@@ -23,9 +22,9 @@ function SkillTag({ label }) {
   return <span style={{ display: 'inline-flex', alignItems: 'center', padding: '2px 9px', borderRadius: 9999, fontSize: 12, fontWeight: 600, background: c.bg, color: c.fg }}>{label}</span>
 }
 
-function AssessBadge({ lastAssessed }) {
+function AssessBadge({ lastAssessed, now }) {
   if (!lastAssessed) return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 8px', borderRadius: 9999, background: 'var(--danger-50)', color: 'var(--danger-500)', fontSize: 12, fontWeight: 600 }}>Never assessed</span>
-  const daysAgo = (Date.now() - new Date(lastAssessed).getTime()) / (1000 * 60 * 60 * 24)
+  const daysAgo = (now - new Date(lastAssessed).getTime()) / (1000 * 60 * 60 * 24)
   if (daysAgo > 30) return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 8px', borderRadius: 9999, background: 'var(--warning-50)', color: 'var(--warning-500)', fontSize: 12, fontWeight: 600 }}>Overdue · {Math.round(daysAgo)} days</span>
   return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 8px', borderRadius: 9999, background: 'var(--success-50)', color: 'var(--success-500)', fontSize: 12, fontWeight: 600 }}>Up to date</span>
 }
@@ -34,7 +33,6 @@ const TABS = [
   { id: 'overview', label: 'Overview' },
   { id: 'analysis', label: 'Analysis' },
   { id: 'transcript', label: 'AI transcript' },
-  { id: 'notes', label: 'Notes' },
 ]
 
 function MemberProfilePage() {
@@ -52,11 +50,6 @@ function MemberProfilePage() {
   const [uploadError, setUploadError] = useState(null)
   const fileInputRef                = useRef(null)
 
-  const [notes, setNotes]           = useState([])
-  const [notesLoading, setNotesLoading] = useState(false)
-  const [newNote, setNewNote]       = useState('')
-  const [saving, setSaving]         = useState(false)
-
   const [transcript, setTranscript]         = useState(null)
   const [transcriptLoading, setTranscriptLoading] = useState(false)
   const [aiInterviews, setAiInterviews]      = useState([])
@@ -64,21 +57,44 @@ function MemberProfilePage() {
 
   const [reportHistory, setReportHistory]     = useState([])
   const [selectedReportId, setSelectedReportId] = useState(null)
+  const [now] = useState(() => Date.now())
 
-  useEffect(() => { load(); setTranscript(null); setAiInterviews([]); setSelectedInterviewId(null); setReportHistory([]); setSelectedReportId(null) }, [id])
+  const load = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const memberRes = await api.getMember(id)
+      const loadedMember = memberRes.data
+      const userId = loadedMember?.user_id
+      const [reportRes, historyRes] = userId
+        ? await Promise.all([
+          api.getCandidateReport(userId),
+          api.getCandidateReportHistory(userId),
+        ])
+        : [{ data: null }, { data: [] }]
 
-
-  const selectedReport = reportHistory.find(r => r.id === selectedReportId) || report
+      setMember(loadedMember)
+      setReport(reportRes.data)
+      const history = historyRes.data || []
+      setReportHistory(history)
+      if (history.length > 0) setSelectedReportId(history[0].id)
+    } catch {
+      setError('Could not load profile. Please try again.')
+    } finally {
+      setLoading(false)
+    }
+  }, [id])
 
   useEffect(() => {
-    if (tab !== 'notes') return
-    async function loadNotes() {
-      setNotesLoading(true)
-      try { const r = await api.getMemberNotes(id); setNotes(r.data || []) }
-      catch {} finally { setNotesLoading(false) }
-    }
-    loadNotes()
-  }, [tab, id])
+    void load()
+    setTranscript(null)
+    setAiInterviews([])
+    setSelectedInterviewId(null)
+    setReportHistory([])
+    setSelectedReportId(null)
+  }, [id, load])
+
+  const selectedReport = reportHistory.find(r => r.id === selectedReportId) || report
 
   useEffect(() => {
     if (tab !== 'transcript' || aiInterviews.length > 0 || transcript !== null) return
@@ -110,32 +126,6 @@ function MemberProfilePage() {
     }
     loadTranscript()
   }, [selectedInterviewId])
-
-  async function load() {
-    setLoading(true)
-    setError(null)
-    try {
-      const memberRes = await api.getMember(id)
-      const loadedMember = memberRes.data
-      const userId = loadedMember?.user_id
-      const [reportRes, historyRes] = userId
-        ? await Promise.all([
-          api.getCandidateReport(userId),
-          api.getCandidateReportHistory(userId),
-        ])
-        : [{ data: null }, { data: [] }]
-
-      setMember(loadedMember)
-      setReport(reportRes.data)
-      const history = historyRes.data || []
-      setReportHistory(history)
-      if (history.length > 0) setSelectedReportId(history[0].id)
-    } catch {
-      setError('Could not load profile. Please try again.')
-    } finally {
-      setLoading(false)
-    }
-  }
 
   async function handleResumeUpload(e) {
     const file = e.target.files[0]
@@ -233,7 +223,7 @@ function MemberProfilePage() {
                   { label: 'Last score',   value: report?.overall_score ? `${Number(report.overall_score).toFixed(1)}/10` : '—' },
                   { label: 'Assessments',  value: assessmentCount || '0' },
                   { label: 'Best score',   value: bestScore > 0 ? `${bestScore.toFixed(1)}/10` : '—' },
-                  { label: 'Days since',   value: member.last_assessed ? `${Math.round((Date.now() - new Date(member.last_assessed).getTime()) / 86400000)}d` : '—' },
+                  { label: 'Days since',   value: member.last_assessed ? `${Math.round((now - new Date(member.last_assessed).getTime()) / 86400000)}d` : '—' },
                 ].map((s, i) => (
                   <div key={i} style={{ textAlign: 'center', padding: '12px 8px', background: 'var(--slate-50)', borderRadius: 8 }}>
                     <div style={{ fontFamily: "var(--font-display,'Inter')", fontSize: 22, fontWeight: 700, color: 'var(--slate-900)', letterSpacing: '-0.015em' }}>{s.value}</div>
@@ -348,7 +338,7 @@ function MemberProfilePage() {
                     {transcript.map((qa, i) => (
                       <div key={i} style={{ paddingBottom: 16, borderBottom: i < transcript.length - 1 ? '1px solid var(--slate-100)' : '0' }}>
                         <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--brand-500)', marginBottom: 8 }}>Q{i + 1}: {qa.question}</div>
-                        <div style={{ fontSize: 14, color: 'var(--slate-700)', lineHeight: 1.6 }}>{qa.answer_text || <span style={{ color: 'var(--slate-400)', fontStyle: 'italic' }}>No answer recorded.</span>}</div>
+                        <div style={{ fontSize: 14, color: 'var(--slate-700)', lineHeight: 1.6 }}>{qa.answer || <span style={{ color: 'var(--slate-400)', fontStyle: 'italic' }}>No answer recorded.</span>}</div>
                       </div>
                     ))}
                   </div>
@@ -358,43 +348,6 @@ function MemberProfilePage() {
           )
         )}
 
-        {/* Notes tab */}
-        {tab === 'notes' && (
-          <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--slate-200)', borderRadius: 12, padding: 20, boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
-            {notesLoading ? <Spinner center /> : notes.length === 0 ? null : (
-              <div style={{ marginBottom: 16 }}>
-                {notes.map(n => (
-                  <div key={n.id} style={{ padding: '12px 0 12px 16px', borderLeft: '3px solid var(--brand-500)', background: 'var(--brand-50)', borderRadius: '0 8px 8px 0', marginBottom: 10 }}>
-                    <div style={{ fontSize: 13, color: 'var(--slate-700)', lineHeight: 1.6 }}>{n.note}</div>
-                    <span style={{ fontSize: 11, color: 'var(--slate-400)', marginTop: 4, display: 'block' }}>{formatDate(n.created)}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-            <textarea
-              value={newNote}
-              onChange={e => setNewNote(e.target.value)}
-              placeholder="Add a note for the hiring team..."
-              rows={3}
-              style={{ width: '100%', padding: 12, border: '1px solid var(--slate-300)', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', lineHeight: 1.6, outline: 'none', resize: 'vertical', boxSizing: 'border-box' }}
-              onFocus={e => { e.target.style.borderColor = 'var(--brand-500)'; e.target.style.boxShadow = '0 0 0 3px rgba(91,79,233,0.18)' }}
-              onBlur={e => { e.target.style.borderColor = 'var(--slate-300)'; e.target.style.boxShadow = 'none' }}
-            />
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
-              <button
-                disabled={saving || !newNote.trim()}
-                onClick={async () => {
-                  setSaving(true)
-                  try { await api.addMemberNote(id, newNote); setNewNote(''); const r = await api.getMemberNotes(id); setNotes(r.data || []) }
-                  catch {} finally { setSaving(false) }
-                }}
-                style={{ padding: '8px 16px', background: !newNote.trim() || saving ? 'var(--slate-200)' : 'var(--brand-500)', color: !newNote.trim() || saving ? 'var(--slate-400)' : 'var(--bg-surface)', border: 0, borderRadius: 8, fontWeight: 600, fontSize: 13, cursor: !newNote.trim() || saving ? 'not-allowed' : 'pointer' }}
-              >
-                {saving ? 'Saving...' : 'Post note'}
-              </button>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Right rail */}
@@ -432,7 +385,7 @@ function MemberProfilePage() {
         {/* Assessment status */}
         <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--slate-200)', borderRadius: 12, padding: 20, boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
           <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--brand-500)', marginBottom: 10 }}>Assessment status</div>
-          <AssessBadge lastAssessed={member.last_assessed} />
+          <AssessBadge lastAssessed={member.last_assessed} now={now} />
           <button onClick={() => setScheduleOpen(true)} style={{ width: '100%', marginTop: 12, padding: '8px 0', background: 'var(--brand-500)', color: 'var(--bg-surface)', border: 0, borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}>
             <CalendarPlus size={12} /> Schedule assessment
           </button>

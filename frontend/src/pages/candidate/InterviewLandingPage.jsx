@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Briefcase, Video, Calendar, ArrowRight } from 'lucide-react'
 import Spinner from '../../components/shared/Spinner'
@@ -12,9 +12,7 @@ function InterviewLandingPage() {
   const [loading, setLoading]     = useState(true)
   const [error, setError]         = useState(null)
 
-  useEffect(() => { validate() }, [token])
-
-  async function validate() {
+  const validate = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
@@ -38,7 +36,9 @@ function InterviewLandingPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [token])
+
+  useEffect(() => { void validate() }, [validate])
 
   if (loading) return (
     <div style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { CalendarPlus } from 'lucide-react'
 import Spinner from '../../components/shared/Spinner'
@@ -11,7 +11,6 @@ const H = 60
 
 const TYPE_STYLE = {
   ai:       { bg: 'var(--warning-50)',  border: 'var(--warning-500)', color: 'var(--warning-700)', label: 'AI screen' },
-  human:    { bg: 'var(--brand-50)',    border: 'var(--brand-500)',   color: 'var(--brand-700)',   label: 'Live interview' },
   exam:     { bg: 'var(--info-50)',     border: 'var(--info-500)',    color: 'var(--info-600)',    label: 'Coding exam' },
   ai_voice: { bg: 'var(--warning-50)',  border: 'var(--warning-500)', color: 'var(--warning-700)', label: 'AI screen' },
 }
@@ -43,7 +42,7 @@ function hourLabel(h) {
 }
 
 function getTypeStyle(type) {
-  return TYPE_STYLE[type] || TYPE_STYLE.human
+  return TYPE_STYLE[type] || TYPE_STYLE.ai_voice
 }
 
 function SchedulePage() {
@@ -54,20 +53,20 @@ function SchedulePage() {
   const [error, setError]         = useState(null)
   const [scheduleOpen, setScheduleOpen] = useState(false)
 
-  useEffect(() => { load() }, [weekStart])
-
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
       const res = await api.getCalendarEvents(weekStart.toISOString().slice(0, 10))
       setEvents(res.data || [])
-    } catch (err) {
+    } catch {
       setError('Could not load calendar.')
     } finally {
       setLoading(false)
     }
-  }
+  }, [weekStart])
+
+  useEffect(() => { void load() }, [load])
 
   function prevWeek() { setWeekStart(d => addDays(d, -7)) }
   function nextWeek() { setWeekStart(d => addDays(d, 7)) }
@@ -131,7 +130,6 @@ function SchedulePage() {
       <div style={{ display: 'flex', gap: 18, fontSize: 12, color: 'var(--slate-500)' }}>
         {[
           { t: 'AI screen', type: 'ai' },
-          { t: 'Live interview', type: 'human' },
           { t: 'Coding exam', type: 'exam' },
         ].map(l => {
           const ts = TYPE_STYLE[l.type]

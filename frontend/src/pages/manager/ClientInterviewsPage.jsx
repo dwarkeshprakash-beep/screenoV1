@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, LayoutTemplate, Sparkles, X, Download, Send, Calendar, ChevronDown } from 'lucide-react'
+import { Plus, LayoutTemplate, Sparkles, X, Download, Send, Calendar } from 'lucide-react'
 import Modal from '../../components/shared/Modal'
 import Button from '../../components/shared/Button'
 import Spinner from '../../components/shared/Spinner'
@@ -150,19 +150,15 @@ function WizardModal({ open, onClose, onCreated }) {
 
 // ── Send Interview Invites Modal ──────────────────────────────
 function SendInviteModal({ open, onClose, template, candidateIds, members }) {
-  const [attempts, setAttempts]         = useState(1)
   const [interviewMode, setMode]        = useState('simple')
   const [difficulty, setDifficulty]     = useState('medium')
   const [questionCount, setQCount]      = useState(10)
-  const [linkStrategy, setLinkStrategy] = useState('all_at_start')
-  const [recurring, setRecurring]       = useState(false)
   const [sending, setSending]           = useState(false)
   const [error, setError]               = useState(null)
   const [done, setDone]                 = useState(false)
 
   function reset() {
-    setAttempts(1); setMode('simple'); setDifficulty('medium'); setQCount(10)
-    setLinkStrategy('all_at_start'); setRecurring(false); setSending(false)
+    setMode('simple'); setDifficulty('medium'); setQCount(10); setSending(false)
     setError(null); setDone(false)
   }
 
@@ -177,11 +173,7 @@ function SendInviteModal({ open, onClose, template, candidateIds, members }) {
           interviewMode,
           difficulty,
           questionCount,
-          attempts,
-          linkStrategy,
-          recurring,
-          clientTemplateId:   template.id,
-          jdText:             template.jd_text || null,
+          clientTemplateId: template.id,
         })
       ))
       setDone(true)
@@ -219,34 +211,6 @@ function SendInviteModal({ open, onClose, template, candidateIds, members }) {
           </div>
 
           <div>
-            <p style={sectionHd}>Attempts</p>
-            <div style={{ display: 'flex', gap: 8 }}>
-              {[1, 2, 3].map(n => pill(n, attempts === n, () => setAttempts(n), `${n} attempt${n > 1 ? 's' : ''}`)) }
-            </div>
-          </div>
-
-          {attempts > 1 && (
-            <div>
-              <p style={sectionHd}>Link delivery strategy</p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {[
-                  { val: 'all_at_start',    label: 'Send all links at start of day', desc: `All ${attempts} links sent immediately` },
-                  { val: 'one_hour_before', label: '1 hour before each attempt',     desc: 'Candidate receives link 1hr before each slot' },
-                  { val: 'single_link',     label: 'Single cross-attempt link',       desc: 'One link works across all attempts, stops after limit reached' },
-                ].map(opt => (
-                  <label key={opt.val} onClick={() => setLinkStrategy(opt.val)} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 12px', border: `1px solid ${linkStrategy === opt.val ? 'var(--brand-500)' : 'var(--border-default)'}`, borderRadius: 8, cursor: 'pointer', background: linkStrategy === opt.val ? 'var(--brand-50)' : 'var(--bg-surface)' }}>
-                    <input type="radio" name="linkStrategy" value={opt.val} checked={linkStrategy === opt.val} onChange={() => setLinkStrategy(opt.val)} style={{ accentColor: 'var(--brand-500)', marginTop: 2, flexShrink: 0 }} />
-                    <div>
-                      <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg-primary)', margin: 0 }}>{opt.label}</p>
-                      <p style={{ fontSize: 12, color: 'var(--fg-muted)', margin: '2px 0 0' }}>{opt.desc}</p>
-                    </div>
-                  </label>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div>
             <p style={sectionHd}>Interview mode</p>
             <div style={{ display: 'flex', gap: 8 }}>
               {pill('simple',   interviewMode === 'simple',   () => setMode('simple'),   'Simple')}
@@ -269,16 +233,6 @@ function SendInviteModal({ open, onClose, template, candidateIds, members }) {
             </div>
           </div>
 
-          <div>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
-              <input type="checkbox" checked={recurring} onChange={e => setRecurring(e.target.checked)} style={{ accentColor: 'var(--brand-500)', width: 16, height: 16 }} />
-              <div>
-                <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg-primary)', margin: 0 }}>Recurring event</p>
-                <p style={{ fontSize: 12, color: 'var(--fg-muted)', margin: '2px 0 0' }}>Automatically schedule the next attempt after each completion</p>
-              </div>
-            </label>
-          </div>
-
           {error && <div style={{ marginTop: 10 }}><ErrorMessage message={error} /></div>}
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, borderTop: '1px solid var(--border-default)', paddingTop: 16 }}>
@@ -295,7 +249,8 @@ function SendInviteModal({ open, onClose, template, candidateIds, members }) {
 }
 
 // ── Detail View ───────────────────────────────────────────────
-function DetailView({ template, onBack }) {
+function DetailView({ template: initialTemplate, onBack }) {
+  const [template, setTemplate]             = useState(initialTemplate)
   const [tab, setTab]                       = useState('overview')
   const [matches, setMatches]               = useState([])
   const [matchLoading, setMatchLoading]     = useState(false)
@@ -331,7 +286,9 @@ function DetailView({ template, onBack }) {
     async function loadReports() {
       try {
         const r = await api.getTeamReports('client')
-        const filtered = (r.data || []).filter(rep => rep.client_template_id === template.id)
+        const filtered = (r.data?.reports || []).filter(
+          report => Number(report.client_template_id) === Number(template.id)
+        )
         setReports(filtered)
       } catch {
         setReports([])
@@ -345,7 +302,11 @@ function DetailView({ template, onBack }) {
     setSendingJD(true)
     setJdSentMsg(null)
     try {
-      const res = await api.sendJDToTeam(template.id, { userIds: selectedIds })
+      const userIds = matches
+        .filter(member => selectedIds.includes(member.id))
+        .map(member => member.user_id)
+        .filter(Boolean)
+      const res = await api.sendJDToTeam(template.id, { userIds })
       setJdSentMsg(`JD sent to ${res.data?.sent || selectedIds.length} candidate${selectedIds.length !== 1 ? 's' : ''}. ${res.data?.failed ? `${res.data.failed} failed.` : ''}`)
       setSelectedIds([])
     } catch {
@@ -355,8 +316,10 @@ function DetailView({ template, onBack }) {
     }
   }
 
-  function toggleSelect(userId) {
-    setSelectedIds(prev => prev.includes(userId) ? prev.filter(x => x !== userId) : [...prev, userId])
+  function toggleSelect(teamMemberId) {
+    setSelectedIds(prev => prev.includes(teamMemberId)
+      ? prev.filter(id => id !== teamMemberId)
+      : [...prev, teamMemberId])
   }
 
   const tabStyle = (t) => ({
@@ -456,11 +419,10 @@ function DetailView({ template, onBack }) {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {matches.map(m => {
                     const name = `${m.first_name || ''} ${m.last_name || ''}`.trim()
-                    const uid = m.user_id || m.id
-                    const checked = selectedIds.includes(uid)
+                    const checked = selectedIds.includes(m.id)
                     return (
-                      <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', border: `1px solid ${checked ? 'var(--brand-300)' : 'var(--border-default)'}`, borderRadius: 10, background: checked ? 'var(--brand-50)' : 'var(--bg-surface)', transition: 'all 120ms', cursor: 'pointer' }} onClick={() => toggleSelect(uid)}>
-                        <input type="checkbox" checked={checked} onChange={() => toggleSelect(uid)} onClick={e => e.stopPropagation()} style={{ accentColor: 'var(--brand-500)' }} />
+                      <div key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', border: `1px solid ${checked ? 'var(--brand-300)' : 'var(--border-default)'}`, borderRadius: 10, background: checked ? 'var(--brand-50)' : 'var(--bg-surface)', transition: 'all 120ms', cursor: 'pointer' }} onClick={() => toggleSelect(m.id)}>
+                        <input type="checkbox" checked={checked} onChange={() => toggleSelect(m.id)} onClick={e => e.stopPropagation()} style={{ accentColor: 'var(--brand-500)' }} />
                         <Avatar name={name} size="sm" />
                         <div style={{ flex: 1 }}>
                           <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg-primary)', margin: 0 }}>{name}</p>
@@ -529,10 +491,12 @@ function DetailView({ template, onBack }) {
           <Button disabled={savingEdit} onClick={async () => {
             setSavingEdit(true)
             try {
-              await api.updateClientTemplate(template.id, editData)
+              const response = await api.updateClientTemplate(template.id, editData)
+              setTemplate(response.data || { ...template, ...editData })
               setEditing(false)
-              Object.assign(template, editData)
-            } catch {}
+            } catch (saveError) {
+              setJdSentMsg(saveError.message || 'Could not save the mandate.')
+            }
             finally { setSavingEdit(false) }
           }}>{savingEdit ? 'Saving…' : 'Save'}</Button>
         </div>

@@ -38,25 +38,29 @@ const SMTP_CONNECTION_ERRORS = ['ETIMEDOUT', 'ESOCKET', 'ECONNECTION', 'ECONNREF
 
 const FROM_NAME  = process.env.MAIL_FROM_NAME  || 'Screeno'
 const FROM_EMAIL = process.env.MAIL_FROM_EMAIL
+const EMAIL_TRANSPORT = process.env.EMAIL_TRANSPORT || 'auto'
 
-const STATIC_RECIPIENTS = [
-  'dwarkesh.vajjala@prakashinfotech.com',
-  'contact.dwarkesh@gmail.com',
-  'dvajjala@gmail.com',
-]
+if (process.env.EMAIL_REDIRECT_TO) {
+  console.warn('[email] EMAIL_REDIRECT_TO is set; outbound mail will be redirected.')
+}
 
 function getRecipients(originalTo) {
-  let deliveredTo;
+  let deliveredTo
   if (Array.isArray(originalTo)) {
-    deliveredTo = originalTo;
+    deliveredTo = originalTo
   } else if (typeof originalTo === 'string') {
-    deliveredTo = originalTo.split(',').map(e => e.trim()).filter(Boolean);
+    deliveredTo = originalTo.split(',').map(e => e.trim()).filter(Boolean)
   } else {
-    deliveredTo = [];
+    deliveredTo = []
   }
 
-  console.info('[email] Sending message', { intendedRecipient: originalTo, deliveredTo })
-  return deliveredTo
+  const redirect = String(process.env.EMAIL_REDIRECT_TO || '')
+    .split(',')
+    .map(email => email.trim())
+    .filter(Boolean)
+  const recipients = redirect.length > 0 ? redirect : deliveredTo
+  console.info(`[email] Sending message to ${recipients.length} recipient(s)`)
+  return recipients
 }
 
 function getDeliveredRecipients(originalTo) {
@@ -81,6 +85,7 @@ async function sendViaBrevoAPI(recipients, subject, html, text) {
     method:  'POST',
     headers: { 'api-key': apiKey, 'Content-Type': 'application/json' },
     body:    JSON.stringify(body),
+    signal:  AbortSignal.timeout(10000),
   })
 
   if (!res.ok) {
@@ -105,9 +110,13 @@ async function sendViaSmtp(mailOptions) {
 
 async function sendMail({ to, subject, html, text, attachments = [] }) {
   if (!to)        throw new Error('Email recipient is required')
-  if (!FROM_EMAIL) throw new Error('MAIL_FROM_EMAIL is required')
 
   const recipients = getRecipients(to)
+  if (EMAIL_TRANSPORT === 'console') {
+    console.info(`[email:test] Suppressed "${subject}" to ${recipients.length} recipient(s)`)
+    return
+  }
+  if (!FROM_EMAIL) throw new Error('MAIL_FROM_EMAIL is required')
 
   if (process.env.BREVO_API_KEY) {
     await sendViaBrevoAPI(recipients, subject, html, text)
@@ -164,7 +173,7 @@ async function sendMagicLink(to, { candidateName, interviewToken, companyName, j
 }
 
 async function sendReportReady(to, { candidate, interviewId, companyName }) {
-  const link = `${process.env.FRONTEND_URL}/manager/team/${candidate.id}`
+  const link = `${process.env.FRONTEND_URL}/manager/reports?interview=${interviewId}`
 
   await sendMail({
     to,

@@ -10,10 +10,10 @@ import { formatDate } from '../../utils/helpers'
 
 function DecisionBadge({ decision }) {
   const map = {
-    pass:         { label: 'Pass',         bg: 'var(--success-50)', fg: 'var(--success-600)' },
-    maybe:        { label: 'Maybe',        bg: 'var(--warning-50)', fg: 'var(--warning-600)' },
-    needs_review: { label: 'Needs review', bg: 'var(--info-50)',    fg: 'var(--info-600)'    },
-    pending:      { label: 'Pending',      bg: 'var(--bg-surface-alt)', fg: 'var(--fg-muted)' },
+    pass:       { label: 'Pass',       bg: 'var(--success-50)', fg: 'var(--success-600)' },
+    borderline: { label: 'Borderline', bg: 'var(--warning-50)', fg: 'var(--warning-600)' },
+    fail:       { label: 'Fail',       bg: 'var(--danger-50)', fg: 'var(--danger-700)' },
+    pending:    { label: 'Pending',    bg: 'var(--bg-surface-alt)', fg: 'var(--fg-muted)' },
   }
   const d = map[decision] || map.pending
   return <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 9999, background: d.bg, color: d.fg }}>{d.label}</span>
@@ -76,7 +76,6 @@ function ReportsPage() {
   const navigate = useNavigate()
   const [mainTab, setMainTab]         = useState('all')
   const [reports, setReports]         = useState([])
-  const [stats, setStats]             = useState(null)
   const [decisionFilter, setDecision] = useState('all')
   const [templateFilter, setTemplate] = useState('all')
   const [loading, setLoading]         = useState(true)
@@ -90,7 +89,6 @@ function ReportsPage() {
       const res = await api.getTeamReports(source)
       const payload = res.data || {}
       setReports(Array.isArray(payload) ? payload : payload.reports || [])
-      setStats(Array.isArray(payload) ? null : payload.stats || null)
     } catch {
       setError('Could not load reports. Please try again.')
     } finally {
@@ -184,8 +182,8 @@ function ReportsPage() {
               <select value={decisionFilter} onChange={e => setDecision(e.target.value)} style={{ border: 0, outline: 'none', fontSize: 12, fontWeight: 600, background: 'transparent', cursor: 'pointer' }}>
                 <option value="all">All</option>
                 <option value="pass">Pass</option>
-                <option value="maybe">Maybe</option>
-                <option value="needs_review">Needs review</option>
+                <option value="borderline">Borderline</option>
+                <option value="fail">Fail</option>
                 <option value="pending">Pending</option>
               </select>
             </label>

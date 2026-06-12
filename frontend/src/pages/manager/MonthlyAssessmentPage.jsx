@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, Download, AlertCircle } from 'lucide-react'
+import { Plus, AlertCircle } from 'lucide-react'
 import Modal from '../../components/shared/Modal'
 import Button from '../../components/shared/Button'
 import Spinner from '../../components/shared/Spinner'
@@ -31,10 +31,17 @@ function WizardModal({ open, onClose, onDone }) {
   const [error, setError] = useState(null)
 
   useEffect(() => {
-    if (open) {
-      setStep(1); setSubject(''); setTopic(''); setDifficulty('medium'); setSubTopics(''); setJdText(''); setDurationMonths(3); setSelectedMemberIds([]); setError(null);
-      api.getTeam().then(r => setTeamList(r.data || [])).catch(() => {})
+    if (!open) return
+    setStep(1); setSubject(''); setTopic(''); setDifficulty('medium'); setSubTopics(''); setJdText(''); setDurationMonths(3); setSelectedMemberIds([]); setError(null)
+    async function loadTeam() {
+      try {
+        const response = await api.getTeam()
+        setTeamList(response.data || [])
+      } catch {
+        setTeamList([])
+      }
     }
+    void loadTeam()
   }, [open])
 
   async function handleGenerateSubtopics() {
@@ -219,8 +226,12 @@ function MonthlyAssessmentPage() {
   if (error) return <ErrorMessage message={error} />
 
   const calRows = calendarData.map(row => {
-    let months = []
-    try { months = JSON.parse(row.month_progress || '[]') } catch { months = [] }
+    let months
+    try {
+      months = JSON.parse(row.month_progress || '[]')
+    } catch {
+      months = []
+    }
     return { name: `${row.first_name || ''} ${row.last_name || ''}`.trim(), months }
   })
 

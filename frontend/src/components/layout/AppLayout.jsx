@@ -15,14 +15,11 @@ const PAGE_META = {
   '/manager/templates':        { title: 'Templates',          subtitle: 'Interview and exam templates' },
   '/manager/resume-analyzer':  { title: 'Resume Analyzer',   subtitle: 'JD-match scoring and keyword gap analysis' },
   '/manager/profile':          { title: 'My Profile',         subtitle: 'Account and notification settings' },
-  '/interviewer/dashboard':    { title: 'My Dashboard',       subtitle: 'Upcoming interviews and scorecards' },
-  '/interviewer/scorecard':    { title: 'Scorecard',          subtitle: 'Rate and submit your evaluation' },
 }
 
 function getPageMeta(pathname) {
   if (PAGE_META[pathname]) return PAGE_META[pathname]
   if (pathname.startsWith('/manager/team/')) return { title: 'Member Profile', subtitle: 'Team member details and history' }
-  if (pathname.startsWith('/interviewer/scorecard/')) return { title: 'Scorecard', subtitle: 'Rate and submit your evaluation' }
   return { title: '', subtitle: '' }
 }
 
@@ -39,7 +36,6 @@ function LogoMark({ size = 22 }) {
 // ── Role bar (dark strip at very top) ─────────────────────────
 const ROLE_LABELS = {
   manager:     'MANAGER',
-  interviewer: 'INTERVIEWER',
   candidate:   'CANDIDATE',
 }
 
@@ -97,9 +93,6 @@ function AppLayout({ role = 'manager' }) {
   const navigate = useNavigate()
   const { title, subtitle } = getPageMeta(location.pathname)
 
-  let user = {}
-  try { const s = localStorage.getItem('user'); if (s) user = JSON.parse(s) } catch {}
-
   function handleLogout() {
     api.logout().catch(() => {})
     localStorage.removeItem('accessToken')
@@ -116,7 +109,7 @@ function AppLayout({ role = 'manager' }) {
       <RoleBar role={role} onLogout={handleLogout} onLogoClick={handleLogoClick} />
 
       <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-        <Sidebar role={role} onLogout={handleLogout} />
+        <Sidebar />
 
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0 }}>
           <TopBar title={title} subtitle={subtitle} role={role} />

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Users, CheckCircle2, Clock, AlertTriangle, UserPlus, Upload, CalendarPlus, GitCompare, Mail, Search, SlidersHorizontal, X, UserCheck } from 'lucide-react'
+import { Users, CheckCircle2, Clock, AlertTriangle, UserPlus, Upload, CalendarPlus, GitCompare, Search, SlidersHorizontal, X, UserCheck } from 'lucide-react'
 import Spinner from '../../components/shared/Spinner'
 import ErrorMessage from '../../components/shared/ErrorMessage'
 import EmptyState from '../../components/shared/EmptyState'
@@ -12,13 +12,12 @@ import ScheduleModal from '../../components/manager/ScheduleModal'
 import AddCandidateModal from '../../components/manager/AddCandidateModal'
 import EditMemberModal from '../../components/manager/EditMemberModal'
 import CompareModal from '../../components/manager/CompareModal'
-import Avatar from '../../components/shared/Avatar'
 
-function AssessBadge({ lastAssessed }) {
+function AssessBadge({ lastAssessed, now }) {
   if (!lastAssessed) {
     return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 8px', borderRadius: 9999, background: 'var(--danger-50)', color: 'var(--danger-500)', fontSize: 12, fontWeight: 600 }}>Never assessed</span>
   }
-  const daysAgo = (Date.now() - new Date(lastAssessed).getTime()) / (1000 * 60 * 60 * 24)
+  const daysAgo = (now - new Date(lastAssessed).getTime()) / (1000 * 60 * 60 * 24)
   if (daysAgo > 30) {
     return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 8px', borderRadius: 9999, background: 'var(--warning-50)', color: 'var(--warning-500)', fontSize: 12, fontWeight: 600 }}>Overdue</span>
   }
@@ -129,13 +128,14 @@ function TeamPage() {
   const [filterLocation, setFilterLocation] = useState('')
   const [filterPosition, setFilterPosition] = useState('')
   const [filterAvailability, setFilterAvailability] = useState('')
+  const [now] = useState(() => Date.now())
 
   const searchFromURL = searchParams.get('search')
   useEffect(() => {
     if (!searchFromURL) return
     setSearchTerm(searchFromURL)
     setSearchParams({}, { replace: true })
-  }, [searchFromURL])
+  }, [searchFromURL, setSearchParams])
 
   useEffect(() => { loadInternal() }, [])
 
@@ -164,7 +164,7 @@ function TeamPage() {
 
   function isOverdue(m) {
     if (!m.last_assessed) return true
-    return (Date.now() - new Date(m.last_assessed).getTime()) / (1000 * 60 * 60 * 24) > 30
+    return (now - new Date(m.last_assessed).getTime()) / (1000 * 60 * 60 * 24) > 30
   }
 
   function toggleSelect(id) {
@@ -172,10 +172,6 @@ function TeamPage() {
   }
   function toggleAll() {
     setSelected(prev => prev.size === rows.length ? new Set() : new Set(rows.map(r => r.id)))
-  }
-  async function removeMember(id) {
-    if (!window.confirm('Remove this member?')) return
-    try { await api.removeMember(id); loadInternal() } catch { setError('Could not remove member.') }
   }
   function openSchedule(member) { setScheduleMember(member); setScheduleOpen(true) }
 
@@ -366,7 +362,7 @@ function TeamPage() {
                         <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--border-default)', color: m.location ? 'var(--fg-primary)' : 'var(--fg-subtle)' }}>{m.location || '—'}</td>
                         <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--border-default)', color: m.current_position ? 'var(--fg-primary)' : 'var(--fg-subtle)', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.current_position || '—'}</td>
                         <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--border-default)' }}>
-                          <AssessBadge lastAssessed={m.last_assessed} />
+                          <AssessBadge lastAssessed={m.last_assessed} now={now} />
                           {m.last_assessed && <div style={{ fontSize: 11, color: 'var(--fg-subtle)', marginTop: 3 }}>{formatDate(m.last_assessed)}</div>}
                         </td>
                         <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--border-default)' }} onClick={e => e.stopPropagation()}>
@@ -419,7 +415,7 @@ function TeamPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {externals.map((c, i) => {
+                  {externals.map(c => {
                     const name = `${c.first_name} ${c.last_name}`.trim()
                     return (
                       <tr key={c.id} style={{ transition: 'background 120ms' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface-alt)'} onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-surface)'}>

@@ -3,21 +3,9 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { Mic, MicOff, PhoneOff, Sparkles, Volume2, Ear, Loader2, Circle, Square, Check, Clock, Timer, Info, AlertTriangle, CameraOff } from 'lucide-react'
 import useInterview from '../../hooks/useInterview'
 import useProctoring from '../../hooks/useProctoring'
-
-const AV_COLORS = [
-  {bg:'#EDE9FE',fg:'#5B21B6'},{bg:'#FED7AA',fg:'#9A3412'},{bg:'#A7F3D0',fg:'var(--success-700)'},
-  {bg:'#BFDBFE',fg:'#1E40AF'},{bg:'#FBCFE8',fg:'#9D174D'},{bg:'#FDE68A',fg:'#854D0E'},
-  {bg:'#C7D2FE',fg:'#3730A3'},{bg:'#FCA5A5',fg:'#7F1D1D'},
-]
-function V2Av({ name = '', size = 32 }) {
-  const initials = name.trim().split(/\s+/).map(w => w[0]).join('').slice(0,2).toUpperCase() || '?'
-  const c = AV_COLORS[name.charCodeAt(0) % AV_COLORS.length]
-  return (
-    <div style={{ width: size, height: size, borderRadius: '50%', background: c.bg, color: c.fg, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: size * 0.38, flexShrink: 0 }}>
-      {initials}
-    </div>
-  )
-}
+import Avatar from '../../components/shared/Avatar'
+import Modal from '../../components/shared/Modal'
+import Button from '../../components/shared/Button'
 
 function clk(s) { return `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}` }
 
@@ -29,13 +17,13 @@ function AIInterviewPage() {
   const { interviewId, mode, transcriptionMode } = session
 
   const {
-    phase, currentQuestion, transcript, liveTranscript, totalQuestions, currentIndex,
-    error: interviewError, startInterview, startRecording, stopRecording, repeatQuestion, pause, resume, interviewMode,
+    phase, currentQuestion, transcript, liveTranscript, currentIndex,
+    error: interviewError, startInterview, startRecording, stopRecording, pause, resume, interviewMode,
     finishInterview, submitManualAnswer, manualRetry,
-    attemptId,
   } = useInterview(interviewId, mode, transcriptionMode)
 
   const [violation, setViolation] = useState(null)
+  const [endConfirmOpen, setEndConfirmOpen] = useState(false)
   const [muted, setMuted]         = useState(false)
   const [manualText, setManualText] = useState('')
   const [remaining, setRemaining] = useState(25 * 60)
@@ -44,10 +32,20 @@ function AIInterviewPage() {
   const cameraVideoRef = useRef(null)
   const txRef          = useRef(null)
 
-  useProctoring(interviewId, attemptId, (type) => { pause(); setViolation(type) })
+  useProctoring(interviewId, (type, decision) => {
+    window.speechSynthesis?.cancel()
+    if (decision.terminated) {
+      setViolation({ type, terminated: true })
+      return
+    }
+    if (decision.warning) {
+      pause()
+      setViolation({ type, terminated: false, message: decision.message })
+    }
+  })
 
-  useEffect(() => { if (interviewId) startInterview() }, [interviewId])
-  useEffect(() => { if (phase === 'ended') navigate(`/interview/${token}/done`) }, [phase])
+  useEffect(() => { if (interviewId) startInterview() }, [interviewId, startInterview])
+  useEffect(() => { if (phase === 'ended') navigate(`/interview/${token}/done`) }, [phase, navigate, token])
   useEffect(() => {
     let stream
     if (!navigator.mediaDevices?.getUserMedia) return
@@ -86,7 +84,7 @@ function AIInterviewPage() {
     if (phase !== 'listening' || violation || muted) return
     const t = setTimeout(() => startRecording(), 600)
     return () => clearTimeout(t)
-  }, [phase, violation, muted])
+  }, [phase, violation, muted, startRecording])
 
   useEffect(() => { if (txRef.current) txRef.current.scrollTop = txRef.current.scrollHeight }, [transcript, phase])
 
@@ -138,12 +136,25 @@ function AIInterviewPage() {
             <div style={{ width: 56, height: 56, borderRadius: 9999, background: '#FEF2F2', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: 14 }}>
               <AlertTriangle size={26} color="#EF4444" />
             </div>
-            <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 20, fontWeight: 700, color: 'var(--slate-900)', marginBottom: 8 }}>Tab switch detected</div>
+            <div style={{ fontFamily: 'Inter, sans-serif', fontSize: 20, fontWeight: 700, color: 'var(--slate-900)', marginBottom: 8 }}>
+              {violation.terminated ? 'Interview ended' : 'Integrity warning'}
+            </div>
             <p style={{ fontSize: 13, color: 'var(--slate-500)', lineHeight: 1.6, margin: '0 0 20px' }}>
-              Leaving this tab during the interview is logged and may affect your evaluation. The interview is paused until you return.
+              {violation.terminated
+                ? 'A repeated tab or fullscreen violation ended this interview and marked the result as a cheating attempt.'
+                : (violation.message || 'Another tab or fullscreen violation will end this interview.')}
             </p>
-            <button onClick={() => { setViolation(null); resume() }} style={{ width: '100%', padding: '12px 20px', background: 'var(--brand-500)', color: 'var(--bg-surface)', border: 0, borderRadius: 10, fontWeight: 600, fontSize: 14, cursor: 'pointer' }}>
-              Resume interview
+            <button
+              onClick={() => {
+                if (violation.terminated) navigate(`/interview/${token}/done`)
+                else {
+                  setViolation(null)
+                  resume()
+                }
+              }}
+              style={{ width: '100%', padding: '12px 20px', background: 'var(--brand-500)', color: 'var(--bg-surface)', border: 0, borderRadius: 10, fontWeight: 600, fontSize: 14, cursor: 'pointer' }}
+            >
+              {violation.terminated ? 'View completion status' : 'Resume interview'}
             </button>
           </div>
         </div>
@@ -237,7 +248,7 @@ function AIInterviewPage() {
             </button>
           )}
 
-          <button onClick={() => { if (window.confirm('End this interview early? It will be marked abandoned.')) finishInterview('abandoned') }} style={{ width: 52, height: 52, borderRadius: 9999, background: 'var(--bg-surface)', border: '1px solid var(--danger-100)', color: 'var(--danger-600)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+          <button onClick={() => setEndConfirmOpen(true)} style={{ width: 52, height: 52, borderRadius: 9999, background: 'var(--bg-surface)', border: '1px solid var(--danger-100)', color: 'var(--danger-600)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
             <PhoneOff size={20} />
           </button>
         </div>
@@ -285,7 +296,7 @@ function AIInterviewPage() {
                 <div style={{ width: 30, height: 30, borderRadius: 9999, background: 'var(--brand-50)', color: 'var(--brand-500)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                   <Sparkles size={14} />
                 </div>
-              ) : <V2Av name={candidateName} size={30} />}
+              ) : <Avatar name={candidateName} size={30} />}
               <div style={{ flex: 1 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
                   <span style={{ fontSize: 12, fontWeight: 600, color: (!t.who || t.who === 'ai') ? 'var(--brand-500)' : 'var(--slate-900)' }}>
@@ -300,7 +311,7 @@ function AIInterviewPage() {
           ))}
           {isRecording && (
             <div style={{ display: 'flex', gap: 12, opacity: 0.85 }}>
-              <V2Av name={candidateName} size={30} />
+              <Avatar name={candidateName} size={30} />
               <div style={{ flex: 1 }}>
                 <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--slate-900)', marginBottom: 4 }}>{candidateName} · transcribing…</div>
                 {liveTranscript ? (
@@ -329,6 +340,19 @@ function AIInterviewPage() {
         @keyframes v2recpulse { 0%,100%{box-shadow:0 6px 16px rgba(239,68,68,0.3)} 50%{box-shadow:0 6px 22px rgba(239,68,68,0.55)} }
         @keyframes v2spin { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
       `}</style>
+
+      <Modal open={endConfirmOpen} onClose={() => setEndConfirmOpen(false)} title="End interview early?" size="sm">
+        <p style={{ margin: '0 0 18px', color: 'var(--slate-600)', fontSize: 14, lineHeight: 1.6 }}>
+          Your recorded answers will be kept, but this interview will be marked as failed mid-interview.
+        </p>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+          <Button variant="secondary" onClick={() => setEndConfirmOpen(false)}>Continue interview</Button>
+          <Button onClick={async () => {
+            setEndConfirmOpen(false)
+            await finishInterview('abandoned')
+          }}>End interview</Button>
+        </div>
+      </Modal>
     </div>
   )
 }

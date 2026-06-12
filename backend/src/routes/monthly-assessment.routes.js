@@ -1,8 +1,8 @@
-// backend/src/routes/monthly-assessment.routes.js
 const express = require('express')
 const authMiddleware = require('../middleware/auth')
 const requireRole = require('../middleware/role')
-const monthlyRepo = require('../repositories/monthly-assessment.repository')
+const monthlyAssessmentRepository = require('../repositories/monthly-assessment.repository')
+const monthlyAssessmentService = require('../services/monthly-assessment.service')
 const llmService = require('../services/llm.service')
 
 const router = express.Router()
@@ -11,53 +11,23 @@ router.use(authMiddleware, requireRole('manager'))
 
 router.post('/', async (req, res) => {
   try {
-    const data = { ...req.body, manager_id: req.user.id }
-
-    if (!data.team_member_ids || !Array.isArray(data.team_member_ids) || data.team_member_ids.length === 0) {
-      return res.status(400).json({ success: false, error: 'At least one team member is required' })
-    }
-
-    const teamMemberRepository = require('../repositories/team-member.repository')
-    for (const tmid of data.team_member_ids) {
-      const tm = await teamMemberRepository.getByIdForManager(tmid, req.user.id)
-      if (!tm) return res.status(403).json({ success: false, error: 'Forbidden' })
-    }
-
-    // Normalize frontend field aliases to repo-expected names
-    if (!data.subject_name && data.subject) data.subject_name = data.subject
-    if (!data.ai_generated_jd && data.jd_text) data.ai_generated_jd = data.jd_text
-    if (typeof data.sub_topics === 'string') {
-      try { data.sub_topics = JSON.parse(data.sub_topics) } catch { data.sub_topics = [] }
-    }
-    if (typeof data.topics === 'string') {
-      try { data.topics = JSON.parse(data.topics) } catch { data.topics = [] }
-    }
-    const assessment = await monthlyRepo.create(data)
-
-    if (data.team_member_ids && Array.isArray(data.team_member_ids)) {
-      const month_progress = new Array(data.duration_months || 1).fill('pending')
-      await Promise.all(data.team_member_ids.map(tmid =>
-        monthlyRepo.createEnrollment({
-          assessment_id: assessment.id,
-          team_member_id: tmid,
-          month_progress
-        })
-      ))
-    }
-
+    const assessment = await monthlyAssessmentService.createAssessment(req.body, req.user.id)
     res.status(201).json({ success: true, data: assessment })
   } catch (err) {
     console.error('POST /monthly-assessments failed:', err)
+    if (err.message.startsWith('Forbidden')) {
+      return res.status(403).json({ success: false, error: err.message })
+    }
+    if (['At least one team member is required', 'Subject is required'].includes(err.message)) {
+      return res.status(400).json({ success: false, error: err.message })
+    }
     res.status(500).json({ success: false, error: 'Could not create assessment' })
   }
 })
 
 router.get('/', async (req, res) => {
   try {
-    const assessments = await monthlyRepo.getByManager(req.user.id)
-    for (const a of assessments) {
-      a.enrollments = await monthlyRepo.getEnrollmentsByAssessment(a.id)
-    }
+    const assessments = await monthlyAssessmentService.getAssessments(req.user.id)
     res.json({ success: true, data: assessments })
   } catch (err) {
     console.error('GET /monthly-assessments failed:', err)
@@ -65,10 +35,9 @@ router.get('/', async (req, res) => {
   }
 })
 
-// GET /api/assessments/monthly/calendar — all enrollments grouped for the year view
 router.get('/calendar', async (req, res) => {
   try {
-    const rows = await monthlyRepo.getCalendarByManager(req.user.id)
+    const rows = await monthlyAssessmentRepository.getCalendarByManager(req.user.id)
     res.json({ success: true, data: rows })
   } catch (err) {
     console.error('GET /monthly-assessments/calendar failed:', err)
@@ -79,6 +48,9 @@ router.get('/calendar', async (req, res) => {
 router.post('/generate-subtopics', async (req, res) => {
   try {
     const { subject, topic, difficulty } = req.body
+    if (!subject || !topic) {
+      return res.status(400).json({ success: false, error: 'subject and topic are required' })
+    }
     const subTopics = await llmService.generateSubtopics(subject, topic, difficulty)
     res.json({ success: true, data: subTopics })
   } catch (err) {
@@ -90,6 +62,9 @@ router.post('/generate-subtopics', async (req, res) => {
 router.post('/generate-jd', async (req, res) => {
   try {
     const { subject, subTopics, difficulty } = req.body
+    if (!subject || !Array.isArray(subTopics) || subTopics.length === 0) {
+      return res.status(400).json({ success: false, error: 'subject and subTopics are required' })
+    }
     const jd = await llmService.generateJDFromTopics(subject, subTopics, difficulty)
     res.json({ success: true, data: jd })
   } catch (err) {

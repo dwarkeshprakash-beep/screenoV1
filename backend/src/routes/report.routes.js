@@ -44,7 +44,7 @@ router.get('/interview/:id', async (req, res) => {
 router.get('/candidate/:userId', async (req, res) => {
   try {
     const userId = parseInt(req.params.userId, 10)
-    const report = await reportRepository.getLatestByCandidate(userId)
+    const report = await reportRepository.getLatestByInternalUserForManager(userId, req.user.id)
     res.json({ success: true, data: report || null })
   } catch (err) {
     console.error('GET /reports/candidate/:userId failed:', err)
@@ -56,7 +56,7 @@ router.get('/candidate/:userId', async (req, res) => {
 router.get('/candidate/:userId/history', async (req, res) => {
   try {
     const userId = parseInt(req.params.userId, 10)
-    const reports = await reportRepository.getHistoryByUser(userId)
+    const reports = await reportRepository.getHistoryByUserForManager(userId, req.user.id)
     res.json({ success: true, data: reports })
   } catch (err) {
     console.error('GET /reports/candidate/:userId/history failed:', err)

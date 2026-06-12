@@ -1,31 +1,29 @@
-const { Client } = require('pg');
+require('dotenv').config()
+const fs = require('fs')
+const path = require('path')
+const db = require('./src/db/connection')
 
-const client = new Client({
-  connectionString: 'postgresql://postgres.zhnxfghnujizjslygjfs:Dwarkesh%401234%23@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres',
-  ssl: { rejectUnauthorized: false }
-});
-
-async function run() {
-  await client.connect();
-  const res = await client.query(`
-    SELECT table_name, column_name, data_type 
-    FROM information_schema.columns 
+async function main() {
+  const rows = await db.query(`
+    SELECT table_name, column_name, data_type, is_nullable, column_default
+    FROM information_schema.columns
     WHERE table_schema = 'public'
-    ORDER BY table_name, ordinal_position;
-  `);
-  
-  const tables = {};
-  for (const row of res.rows) {
-    if (!tables[row.table_name]) tables[row.table_name] = [];
-    tables[row.table_name].push(`${row.column_name} (${row.data_type})`);
+    ORDER BY table_name, ordinal_position
+  `)
+  const tables = {}
+  for (const row of rows) {
+    if (!tables[row.table_name]) tables[row.table_name] = []
+    tables[row.table_name].push(row)
   }
-  
-  for (const [table, cols] of Object.entries(tables)) {
-    console.log(`Table: ${table}`);
-    cols.forEach(c => console.log(`  - ${c}`));
-    console.log('');
-  }
-  await client.end();
+  fs.writeFileSync(
+    path.join(__dirname, 'schema.json'),
+    JSON.stringify(tables, null, 2) + '\n'
+  )
+  console.log(`Wrote ${Object.keys(tables).length} tables to schema.json.`)
+  process.exit(0)
 }
 
-run().catch(console.error);
+main().catch((err) => {
+  console.error('Schema dump failed:', err.message)
+  process.exit(1)
+})

@@ -24,6 +24,45 @@ function signAccessToken(user) {
   )
 }
 
+function signCandidateSession(interview) {
+  return jwt.sign(
+    {
+      interviewId: interview.id,
+      internalUserId: interview.internal_user_id,
+      externalCandidateId: interview.external_candidate_id,
+      role: 'candidate',
+    },
+    process.env.JWT_SECRET,
+    { expiresIn: '4h' }
+  )
+}
+
+function candidateInterviewSummary(interview) {
+  return {
+    id: interview.id,
+    type: interview.type,
+    interviewMode: interview.interview_mode,
+    difficulty: interview.difficulty,
+    candidateName: `${interview.candidate_first} ${interview.candidate_last}`.trim(),
+    status: interview.status,
+  }
+}
+
+function publicUser(user) {
+  return {
+    id: user.id,
+    role: user.role,
+    companyId: user.company_id,
+    first_name: user.first_name,
+    last_name: user.last_name,
+    name: `${user.first_name} ${user.last_name}`,
+    email: user.email,
+    resume_url: user.resume_url || null,
+    tags: user.tags || null,
+    availability: user.availability || null,
+  }
+}
+
 async function login(email, password) {
   const user = await userRepository.getByEmail(email)
   if (!user) throw new Error('Invalid credentials')
@@ -42,13 +81,7 @@ async function login(email, password) {
   return {
     accessToken,
     refreshToken: rawRefresh,
-    user: {
-      id: user.id,
-      role: user.role,
-      companyId: user.company_id,
-      name: `${user.first_name} ${user.last_name}`,
-      email: user.email,
-    },
+    user: publicUser(user),
   }
 }
 
@@ -63,16 +96,18 @@ async function refresh(rawRefreshToken) {
   const user = await userRepository.getById(stored.user_id)
   if (!user) throw new Error('User not found')
 
+  await refreshTokenRepository.revoke(stored.id)
+  const nextRefreshToken = crypto.randomBytes(64).toString('hex')
+  await refreshTokenRepository.create(
+    user.id,
+    hashToken(nextRefreshToken),
+    new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+  )
   const accessToken = signAccessToken(user)
   return {
     accessToken,
-    user: {
-      id: user.id,
-      role: user.role,
-      companyId: user.company_id,
-      name: `${user.first_name} ${user.last_name}`,
-      email: user.email,
-    },
+    refreshToken: nextRefreshToken,
+    user: publicUser(user),
   }
 }
 
@@ -99,28 +134,36 @@ async function validateMagicLink(token) {
     throw new Error('Interview already completed')
   }
 
-  const sessionJWT = jwt.sign(
-    {
-      interviewId: interview.id,
-      internalUserId: interview.internal_user_id,
-      externalCandidateId: interview.external_candidate_id,
-      role: 'candidate',
-    },
-    process.env.JWT_SECRET,
-    { expiresIn: '4h' }
-  )
-
   return {
-    sessionToken: sessionJWT,
-    interview: {
-      id: interview.id,
-      type: interview.type,
-      interviewMode: interview.interview_mode,
-      difficulty: interview.difficulty,
-      candidateName: `${interview.candidate_first} ${interview.candidate_last}`,
-      status: interview.status,
-    },
+    sessionToken: signCandidateSession(interview),
+    interview: candidateInterviewSummary(interview),
   }
 }
 
-module.exports = { login, refresh, logout, validateMagicLink }
+async function createCandidateLaunch(interview) {
+  if (!interview) throw new Error('Interview not found')
+  if (interview.status === 'completed') throw new Error('Interview already completed')
+
+  const launchToken = crypto.randomBytes(32).toString('hex')
+  const tokenExpires = new Date(Date.now() + 4 * 60 * 60 * 1000)
+  await interviewRepository.updateTokenHash(
+    interview.id,
+    hashToken(launchToken),
+    tokenExpires
+  )
+
+  return {
+    launchToken,
+    sessionToken: signCandidateSession(interview),
+    interview: candidateInterviewSummary(interview),
+  }
+}
+
+module.exports = {
+  login,
+  refresh,
+  logout,
+  validateMagicLink,
+  createCandidateLaunch,
+  hashToken,
+}

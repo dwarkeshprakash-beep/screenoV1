@@ -1,22 +1,23 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
+import { fileURLToPath } from 'url'
 import path from 'path'
+import react from '@vitejs/plugin-react'
+import { defineConfig } from 'vite'
 
-// Allow Vite to resolve files from the project root (one level up),
-// so frontend/src can import tokens.css from the workspace root.
+const currentDir = path.dirname(fileURLToPath(import.meta.url))
+
 export default defineConfig({
   plugins: [react()],
   server: {
     fs: {
       allow: [
-        path.resolve(__dirname, '..'), // workspace root — exposes tokens.css
-        path.resolve(__dirname),       // frontend/ itself
+        path.resolve(currentDir, '..'),
+        currentDir,
       ],
     },
   },
   resolve: {
     alias: {
-      '@tokens': path.resolve(__dirname, '../tokens.css'),
+      '@tokens': path.resolve(currentDir, '../tokens.css'),
     },
   },
 })

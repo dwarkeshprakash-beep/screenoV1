@@ -39,11 +39,56 @@ async function createEnrollment(data) {
   return rows[0]
 }
 
+async function createWithEnrollments(data, teamMemberIds) {
+  return db.transaction(async (tx) => {
+    const assessments = await tx.query(
+      `INSERT INTO monthly_assessments
+        (manager_id, subject_name, difficulty, topics, sub_topics, ai_generated_jd, duration_months)
+       VALUES
+        (@managerId, @subjectName, @difficulty, @topics, @subTopics, @jd, @durationMonths)
+       RETURNING *`,
+      {
+        managerId: data.managerId,
+        subjectName: data.subjectName,
+        difficulty: data.difficulty,
+        topics: JSON.stringify(data.topics),
+        subTopics: JSON.stringify(data.subTopics),
+        jd: data.jd,
+        durationMonths: data.durationMonths,
+      }
+    )
+    const assessment = assessments[0]
+    const monthProgress = JSON.stringify(new Array(data.durationMonths).fill('pending'))
+
+    for (const teamMemberId of teamMemberIds) {
+      await tx.query(
+        `INSERT INTO monthly_assessment_enrollments
+          (assessment_id, team_member_id, month_progress)
+         VALUES
+          (@assessmentId, @teamMemberId, @monthProgress)`,
+        { assessmentId: assessment.id, teamMemberId, monthProgress }
+      )
+    }
+
+    return assessment
+  })
+}
+
 async function getByManager(managerId) {
   return db.query(
     `SELECT * FROM monthly_assessments WHERE manager_id = @managerId ORDER BY created DESC`,
     { managerId }
   )
+}
+
+async function getByIdForManager(id, managerId) {
+  const rows = await db.query(
+    `SELECT *
+     FROM monthly_assessments
+     WHERE id = @id AND manager_id = @managerId`,
+    { id, managerId }
+  )
+  return rows[0] || null
 }
 
 async function getEnrollmentsByAssessment(assessmentId) {
@@ -54,6 +99,19 @@ async function getEnrollmentsByAssessment(assessmentId) {
      JOIN users u ON u.id = tm.user_id
      WHERE e.assessment_id = @assessmentId`,
     { assessmentId }
+  )
+}
+
+async function getEnrollmentsByManager(managerId) {
+  return db.query(
+    `SELECT e.*, tm.user_id, tm.manager_id, u.first_name, u.last_name, u.email, u.availability
+     FROM monthly_assessment_enrollments e
+     JOIN monthly_assessments a ON a.id = e.assessment_id
+     JOIN team_members tm ON tm.id = e.team_member_id
+     JOIN users u ON u.id = tm.user_id
+     WHERE a.manager_id = @managerId
+     ORDER BY e.created`,
+    { managerId }
   )
 }
 
@@ -85,6 +143,7 @@ async function updateEnrollmentInterview(enrollmentId, interviewId) {
 }
 
 module.exports = {
-  create, createEnrollment, getByManager, getEnrollmentsByAssessment,
+  create, createEnrollment, createWithEnrollments, getByManager, getByIdForManager,
+  getEnrollmentsByAssessment, getEnrollmentsByManager,
   getCalendarByManager, updateEnrollmentInterview,
 }

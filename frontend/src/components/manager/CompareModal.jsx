@@ -2,34 +2,7 @@
 // Shows skills match/gap, assessment status, scores, and basic info.
 
 import Modal from '../shared/Modal'
-
-const AV_COLORS = [
-  { bg: '#EDE9FE', fg: '#5B21B6' }, { bg: '#FED7AA', fg: '#9A3412' },
-  { bg: '#A7F3D0', fg: 'var(--success-700)' }, { bg: '#BFDBFE', fg: '#1E40AF' },
-  { bg: '#FBCFE8', fg: '#9D174D' }, { bg: '#FDE68A', fg: '#854D0E' },
-  { bg: '#C7D2FE', fg: '#3730A3' }, { bg: '#FCA5A5', fg: '#7F1D1D' },
-]
-
-function avHash(s) {
-  let h = 0
-  for (let i = 0; i < (s || '').length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0
-  return Math.abs(h)
-}
-
-function Avatar({ name = '?', size = 52 }) {
-  const c = AV_COLORS[avHash(name) % AV_COLORS.length]
-  const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase()
-  return (
-    <div style={{
-      width: size, height: size, borderRadius: 9999, flexShrink: 0,
-      background: c.bg, color: c.fg,
-      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-      fontWeight: 700, fontSize: Math.round(size * 0.38), letterSpacing: '-0.01em',
-    }}>
-      {initials}
-    </div>
-  )
-}
+import Avatar from '../shared/Avatar'
 
 function assessLabel(lastAssessed) {
   if (!lastAssessed) return { label: 'Never assessed', bg: 'var(--danger-50)', fg: 'var(--danger-500)' }
@@ -62,15 +35,6 @@ function Row({ label, left, right }) {
   )
 }
 
-function ScoreBar({ value, max = 5, color = 'var(--brand-500)' }) {
-  const pct = Math.min(100, (value / max) * 100)
-  return (
-    <div style={{ height: 6, background: 'var(--slate-100)', borderRadius: 9999, overflow: 'hidden', width: '100%' }}>
-      <div style={{ height: '100%', width: `${pct}%`, background: color, borderRadius: 9999, transition: 'width 500ms cubic-bezier(0.2,0,0,1)' }} />
-    </div>
-  )
-}
-
 function CompareModal({ open, onClose, members = [] }) {
   const a = members[0]
   const b = members[1]
@@ -92,8 +56,6 @@ function CompareModal({ open, onClose, members = [] }) {
   const skillsA = parseTags(a.tags)
   const skillsB = parseTags(b.tags)
   const allSkills = [...new Set([...skillsA, ...skillsB])]
-
-  const cols = { display: 'grid', gridTemplateColumns: '1fr 100px 1fr', gap: 8 }
 
   return (
     <Modal open={open} onClose={onClose} title="Compare Members" size="lg">

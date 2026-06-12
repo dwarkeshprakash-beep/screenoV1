@@ -39,11 +39,11 @@ async function upsert(data) {
        RETURNING *`,
       {
         interview_id:    data.interviewId,
-        overall:         data.overall || null,
-        confidence:      data.confidence || null,
-        tech_knowledge:  data.techKnowledge || null,
-        communication:   data.communication || null,
-        problem_solving: data.problemSolving || null,
+        overall:         data.overall ?? null,
+        confidence:      data.confidence ?? null,
+        tech_knowledge:  data.techKnowledge ?? null,
+        communication:   data.communication ?? null,
+        problem_solving: data.problemSolving ?? null,
         decision:        data.decision,
         reason:          data.reason,
       }

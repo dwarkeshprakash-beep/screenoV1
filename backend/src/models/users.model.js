@@ -1,5 +1,5 @@
 /**
- * @typedef {Object} User
+ * @typedef {Object} Users
  * @property {number} id
  * @property {string|null} emp_number
  * @property {string} first_name
@@ -14,6 +14,7 @@
  * @property {string|null} resume_url
  * @property {Date|null} resume_updated
  * @property {string|null} tags
- * @property {Date} created
+ * @property {string|null} availability
+ * @property {Date|null} created
  */
-module.exports = {};
+module.exports = {}

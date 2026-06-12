@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Users, CheckSquare, CalendarPlus } from 'lucide-react'
 import Spinner from '../../components/shared/Spinner'
@@ -15,9 +15,7 @@ function DashboardPage() {
   const [loading, setLoading]   = useState(true)
   const [error, setError]       = useState(null)
 
-  useEffect(() => { load() }, [])
-
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
@@ -27,12 +25,14 @@ function DashboardPage() {
       ])
       setStats(statsRes.data)
       setActivity(activityRes.data || [])
-    } catch (err) {
+    } catch {
       setError('Could not load dashboard. Please try again.')
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
+
+  useEffect(() => { void load() }, [load])
 
   if (loading) return <Spinner center />
   if (error) return <ErrorMessage message={error} />
@@ -93,7 +93,7 @@ function DashboardPage() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(10rem, 1fr))', gap: '0.75rem' }}>
             {[
               ['1', 'Add team members', 'Create or import internal candidates.'],
-              ['2', 'Schedule assessments', 'Send AI, exam, or human interview invites.'],
+              ['2', 'Schedule assessments', 'Send AI voice or exam invites.'],
               ['3', 'Review reports', 'Use completed attempts and scorecards for decisions.'],
             ].map(([num, title, text]) => (
               <div key={num} style={{ border: '1px solid var(--slate-100)', borderRadius: 'var(--radius-md)', padding: '0.875rem', background: 'var(--bg-page)' }}>

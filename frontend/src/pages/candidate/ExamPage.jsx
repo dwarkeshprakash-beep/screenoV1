@@ -1,12 +1,13 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Clock, ArrowRight } from 'lucide-react'
+import { AlertTriangle, ArrowRight, Clock } from 'lucide-react'
 import CodeMirror from '@uiw/react-codemirror'
 import { javascript } from '@codemirror/lang-javascript'
 import { python } from '@codemirror/lang-python'
 import * as api from '../../services/api'
 import Spinner from '../../components/shared/Spinner'
 import ErrorMessage from '../../components/shared/ErrorMessage'
+import useProctoring from '../../hooks/useProctoring'
 
 const LANGUAGE_EXTENSIONS = {
   javascript: [javascript()],
@@ -20,6 +21,13 @@ function clk(s) {
 function ExamPage() {
   const { token } = useParams()
   const navigate  = useNavigate()
+  const session = (() => {
+    try {
+      return JSON.parse(localStorage.getItem('interviewSession') || '{}')
+    } catch {
+      return {}
+    }
+  })()
 
   // All hooks must come before any conditional returns
   const [exam, setExam]             = useState(null)
@@ -30,8 +38,18 @@ function ExamPage() {
   const [submitting, setSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState(null)
   const [timeLeft, setTimeLeft]     = useState(3600)
-  const [submitted, setSubmitted]   = useState(false)
+  const [violation, setViolation]   = useState(null)
   const [isMobile]                  = useState(() => typeof window !== 'undefined' && window.innerWidth < 768)
+
+  useProctoring(session.interviewId, (type, decision) => {
+    if (decision.terminated) {
+      setViolation({ type, terminated: true })
+      return
+    }
+    if (decision.warning) {
+      setViolation({ type, terminated: false, message: decision.message })
+    }
+  })
 
   useEffect(() => {
     if (isMobile) return
@@ -49,7 +67,7 @@ function ExamPage() {
   }, [token, isMobile])
 
   const handleSubmit = useCallback(async () => {
-    if (submitting) return
+    if (submitting || violation?.terminated) return
     setSubmitting(true)
     try {
       const answerList = Object.entries(answers).map(([qId, a]) => ({
@@ -59,13 +77,12 @@ function ExamPage() {
         code: a.code || '',
       }))
       await api.submitExam(token, answerList)
-      setSubmitted(true)
       navigate(`/interview/${token}/done`)
     } catch (err) {
       setSubmitError(err.message || 'Could not submit exam. Please try again.')
       setSubmitting(false)
     }
-  }, [submitting, answers, token, navigate])
+  }, [submitting, answers, token, navigate, violation])
 
   useEffect(() => {
     if (!exam) return
@@ -99,7 +116,32 @@ function ExamPage() {
   const answeredCount = Object.keys(answers).length
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', height: 'calc(100vh - 56px)', background: 'var(--slate-50)' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', height: 'calc(100vh - 56px)', background: 'var(--slate-50)', position: 'relative' }}>
+      {violation && (
+        <div style={{ position: 'absolute', inset: 0, background: 'rgba(15,23,42,0.72)', zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div style={{ width: '100%', maxWidth: 420, background: 'var(--bg-surface)', borderRadius: 16, padding: 28, textAlign: 'center' }}>
+            <AlertTriangle size={30} color="var(--danger-600)" />
+            <h2 style={{ margin: '12px 0 8px', fontSize: 20 }}>
+              {violation.terminated ? 'Exam ended' : 'Integrity warning'}
+            </h2>
+            <p style={{ margin: '0 0 18px', color: 'var(--slate-500)', fontSize: 13, lineHeight: 1.6 }}>
+              {violation.terminated
+                ? 'A repeated tab or fullscreen violation ended the exam and marked the result as a cheating attempt.'
+                : (violation.message || 'Another tab or fullscreen violation will end this exam.')}
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                if (violation.terminated) navigate(`/interview/${token}/done`)
+                else setViolation(null)
+              }}
+              style={{ width: '100%', padding: 11, border: 0, borderRadius: 9, background: 'var(--brand-500)', color: 'white', fontWeight: 600, cursor: 'pointer' }}
+            >
+              {violation.terminated ? 'View completion status' : 'Return to exam'}
+            </button>
+          </div>
+        </div>
+      )}
       {/* Left palette */}
       <div style={{ borderRight: '1px solid var(--slate-200)', background: 'var(--bg-surface)', padding: 18, display: 'flex', flexDirection: 'column', gap: 16, overflowY: 'auto' }}>
         {/* Timer */}

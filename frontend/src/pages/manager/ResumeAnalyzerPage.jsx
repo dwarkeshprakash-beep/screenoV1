@@ -134,7 +134,7 @@ function libraryAnalyze(jd, resume) {
   const yRes = (resume.match(/(\d+)\s*\+?\s*(?:years?|yrs?)/i) || [])[1]
   const searchChecks = [
     { label: 'Contact email present',       ok: /[^\s@]+@[^\s@]+\.[^\s@]+/.test(resume) },
-    { label: 'Phone number present',        ok: /(\+?\d[\d\s\-]{7,})/.test(resume) },
+    { label: 'Phone number present',        ok: /(\+?\d[\d\s-]{7,})/.test(resume) },
     { label: 'Skills section detected',     ok: /skills?/i.test(resume) },
     { label: 'Experience section detected', ok: /experien/i.test(resume) },
   ]
@@ -199,7 +199,7 @@ function ResumeAnalyzerPage() {
         if (!json.success) throw new Error(json.error || 'AI analysis failed.')
         setRes({ ...json.data, mode: 'ai' })
         setPhase('results')
-      } catch (err) {
+      } catch {
         // Fall back to library mode if AI fails
         setRes({ ...libraryAnalyze(jd, resume), aiNote: 'AI mode unavailable — showing library results.' })
         setPhase('results')
@@ -377,7 +377,6 @@ function ResumeAnalyzerPage() {
       {/* ── Results phase ─────────────────────────────────────── */}
       {phase === 'results' && res && (() => {
         const v = verdict(res.score)
-        const C = 2 * Math.PI * 34
         const VIcon = v.icon
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>

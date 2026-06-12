@@ -1,5 +1,5 @@
 /**
- * @typedef {Object} EmailDelivery
+ * @typedef {Object} EmailDeliveries
  * @property {number} id
  * @property {string} kind
  * @property {number|null} interview_id
@@ -7,6 +7,6 @@
  * @property {string} delivered_to
  * @property {string} status
  * @property {string|null} error
- * @property {Date} created
+ * @property {Date|null} created
  */
-module.exports = {};
+module.exports = {}

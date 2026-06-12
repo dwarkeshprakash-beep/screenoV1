@@ -12,7 +12,8 @@ const COOKIE_NAME = 'refreshToken'
 const COOKIE_OPTIONS = {
   httpOnly: true,
   secure: process.env.NODE_ENV === 'production',
-  sameSite: 'lax',
+  sameSite: 'strict',
+  path: '/api/auth',
   maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days in ms
 }
 
@@ -46,11 +47,12 @@ router.post('/login', async (req, res) => {
 router.post('/refresh', async (req, res) => {
   try {
     const rawRefresh = req.cookies[COOKIE_NAME]
-    const { accessToken, user } = await authService.refresh(rawRefresh)
+    const { accessToken, refreshToken, user } = await authService.refresh(rawRefresh)
+    res.cookie(COOKIE_NAME, refreshToken, COOKIE_OPTIONS)
     res.json({ success: true, data: { accessToken, user } })
   } catch (err) {
     console.error('POST /auth/refresh failed:', err)
-    res.clearCookie(COOKIE_NAME)
+    res.clearCookie(COOKIE_NAME, COOKIE_OPTIONS)
     res.status(401).json({ success: false, error: 'Session expired. Please log in again.' })
   }
 })
@@ -60,11 +62,11 @@ router.post('/logout', authMiddleware, async (req, res) => {
   try {
     const rawRefresh = req.cookies[COOKIE_NAME]
     await authService.logout(rawRefresh)
-    res.clearCookie(COOKIE_NAME)
+    res.clearCookie(COOKIE_NAME, COOKIE_OPTIONS)
     res.json({ success: true, data: null })
   } catch (err) {
     console.error('POST /auth/logout failed:', err)
-    res.clearCookie(COOKIE_NAME)
+    res.clearCookie(COOKIE_NAME, COOKIE_OPTIONS)
     res.json({ success: true, data: null }) // logout always succeeds from user perspective
   }
 })

@@ -1,6 +1,8 @@
 // backend/src/services/transcription.service.js
 // Audio transcription — Groq Whisper API (external) or local stub.
 
+const fetchWithTimeout = require('../utils/fetch-with-timeout')
+
 /**
  * Transcribe audio via Groq Whisper API.
  * Audio buffer is processed here and never stored to disk.
@@ -18,13 +20,13 @@ async function transcribeGroq(audioBuffer, mimeType = 'audio/webm') {
   formData.append('language', 'en')
   formData.append('response_format', 'text')
 
-  const response = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
+  const response = await fetchWithTimeout('https://api.groq.com/openai/v1/audio/transcriptions', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
     },
     body: formData,
-  })
+  }, 60000)
 
   if (!response.ok) {
     const err = await response.text()

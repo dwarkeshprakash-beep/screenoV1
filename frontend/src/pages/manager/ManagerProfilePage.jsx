@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { ArrowLeft, KeyRound } from 'lucide-react'
 import Spinner from '../../components/shared/Spinner'
 import ErrorMessage from '../../components/shared/ErrorMessage'
@@ -20,7 +20,6 @@ function Toggle({ on, onClick }) {
 }
 
 function ManagerProfilePage() {
-  const [profile, setProfile]   = useState(null)
   const [loading, setLoading]   = useState(true)
   const [error, setError]       = useState(null)
   const [tab, setTab]           = useState('profile')
@@ -40,7 +39,9 @@ function ManagerProfilePage() {
     try {
       const saved = localStorage.getItem('managerNotifs')
       if (saved) return JSON.parse(saved)
-    } catch {}
+    } catch {
+      localStorage.removeItem('managerNotifs')
+    }
     return { notifyEmail: true, notifyInApp: true, notifyResults: false, notifyReminders: true, twoFactor: false }
   })
 
@@ -48,14 +49,11 @@ function ManagerProfilePage() {
     localStorage.setItem('managerNotifs', JSON.stringify(notifs))
   }, [notifs])
 
-  useEffect(() => { loadProfile() }, [])
-
-  async function loadProfile() {
+  const loadProfile = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
       const res = await api.getManagerProfile()
-      setProfile(res.data)
       const d = res.data
       setForm({
         name: `${d.first_name || ''} ${d.last_name || ''}`.trim(),
@@ -67,12 +65,14 @@ function ManagerProfilePage() {
         loc: d.location || d.loc || '',
         timezone: d.timezone || '',
       })
-    } catch (err) {
+    } catch {
       setError('Could not load profile. Please try again.')
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
+
+  useEffect(() => { void loadProfile() }, [loadProfile])
 
   async function handleSave(e) {
     e.preventDefault()
@@ -83,8 +83,7 @@ function ManagerProfilePage() {
       const parts = form.name.trim().split(/\s+/)
       const firstName = parts[0] || ''
       const lastName = parts.slice(1).join(' ')
-      const res = await api.updateManagerProfile({ firstName, lastName })
-      setProfile(res.data)
+      await api.updateManagerProfile({ firstName, lastName })
       setSaved(true)
     } catch (err) {
       setNameError(err.message)

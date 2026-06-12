@@ -1,40 +1,40 @@
-// backend/src/middleware/upload.js
-// Multer config for file uploads (resumes, reports).
-// Files are held in memory and forwarded to Supabase Storage — never written to disk.
-
 const multer = require('multer')
 
-// Store in memory — we upload to Supabase Storage and discard immediately
-const storage = multer.memoryStorage()
+const DOCUMENT_TYPES = new Set([
+  'application/pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/msword',
+  'text/plain',
+])
 
-const upload = multer({
-  storage,
-  limits: {
-    fileSize: 5 * 1024 * 1024, // 5 MB max
-  },
-  fileFilter(req, file, cb) {
-    const allowed = [
-      'application/pdf',
-      'image/jpeg',
-      'image/png',
-      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'application/msword',
-      'text/plain',
-      // Audio types for interview answer recordings
-      'audio/webm',
-      'audio/ogg',
-      'audio/mp4',
-      'audio/wav',
-      'audio/mpeg',
-      'audio/x-m4a',
-      'video/webm',
-    ]
-    if (allowed.includes(file.mimetype) || file.mimetype.startsWith('audio/') || file.mimetype.startsWith('video/')) {
-      cb(null, true)
-    } else {
-      cb(new Error('File type not allowed'))
-    }
-  },
-})
+const AUDIO_TYPES = new Set([
+  'audio/webm',
+  'audio/ogg',
+  'audio/mp4',
+  'audio/wav',
+  'audio/mpeg',
+  'audio/x-m4a',
+  'video/webm',
+])
 
-module.exports = upload
+function createUpload(allowedTypes, label) {
+  return multer({
+    storage: multer.memoryStorage(),
+    limits: {
+      fileSize: 5 * 1024 * 1024,
+      files: 1,
+    },
+    fileFilter(req, file, callback) {
+      if (allowedTypes.has(file.mimetype)) {
+        callback(null, true)
+        return
+      }
+      callback(new Error(`${label} file type not allowed`))
+    },
+  })
+}
+
+module.exports = {
+  documentUpload: createUpload(DOCUMENT_TYPES, 'Document'),
+  audioUpload: createUpload(AUDIO_TYPES, 'Audio'),
+}

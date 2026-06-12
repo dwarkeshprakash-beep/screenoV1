@@ -15,7 +15,6 @@ const interviewRoutes = require('./src/routes/interview.routes')
 const reportRoutes = require('./src/routes/report.routes')
 const scheduleRoutes = require('./src/routes/schedule.routes')
 const candidateRoutes = require('./src/routes/candidate.routes')
-const interviewerRoutes = require('./src/routes/interviewer.routes')
 const examRoutes = require('./src/routes/exam.routes')
 const uploadRoutes = require('./src/routes/upload.routes')
 const profileRoutes = require('./src/routes/profile.routes')
@@ -31,13 +30,6 @@ const PORT = process.env.PORT || 4000
 // Background work (report generation, email delivery) fires promise chains that
 // the request/response cycle never awaits, so a slipped-through rejection here
 // must not take down interviews that are already in progress.
-process.on('unhandledRejection', (reason) => {
-  console.error('[server] Unhandled promise rejection:', reason)
-})
-process.on('uncaughtException', (err) => {
-  console.error('[server] Uncaught exception:', err)
-})
-
 // ── MIDDLEWARE ────────────────────────────────────────────────
 app.use(cors({
   origin: (origin, cb) => {
@@ -75,7 +67,6 @@ app.use('/api/interviews', interviewRoutes)
 app.use('/api/reports', reportRoutes)
 app.use('/api/schedule', scheduleRoutes)
 app.use('/api/candidate', candidateRoutes)
-app.use('/api/interviewer', interviewerRoutes)
 app.use('/api/templates/client', clientTemplateRoutes)
 app.use('/api/exam', examRoutes)
 app.use('/api/upload', uploadRoutes)
@@ -99,6 +90,9 @@ app.use((req, res) => {
 
 // Global error handler — catches anything thrown without a try/catch
 app.use((err, req, res, next) => {
+  if (err.name === 'MulterError' || /file type not allowed/i.test(err.message)) {
+    return res.status(400).json({ success: false, error: err.message })
+  }
   console.error('[server] Unhandled error:', err)
   res.status(500).json({ success: false, error: 'Something went wrong' })
 })
@@ -109,13 +103,27 @@ const server = app.listen(PORT, () => {
   reportJobService.startReportJobWorker()
 })
 
-async function shutdown(signal) {
+let shuttingDown = false
+async function shutdown(signal, exitCode = 0) {
+  if (shuttingDown) return
+  shuttingDown = true
   console.log(`[server] ${signal} received — graceful shutdown`)
-  await reportJobService.stopReportJobWorker()
-  server.close(() => {
-    process.exit(0)
-  })
+  const forceExit = setTimeout(() => process.exit(exitCode || 1), 10000)
+  forceExit.unref()
+  try {
+    await reportJobService.stopReportJobWorker()
+  } finally {
+    server.close(() => process.exit(exitCode))
+  }
 }
 
 process.on('SIGTERM', () => shutdown('SIGTERM'))
 process.on('SIGINT', () => shutdown('SIGINT'))
+process.on('unhandledRejection', (reason) => {
+  console.error('[server] Unhandled promise rejection:', reason)
+  void shutdown('unhandledRejection', 1)
+})
+process.on('uncaughtException', (err) => {
+  console.error('[server] Uncaught exception:', err)
+  void shutdown('uncaughtException', 1)
+})

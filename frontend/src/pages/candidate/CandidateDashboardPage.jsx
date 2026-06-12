@@ -1,11 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Calendar, CheckCircle2, TrendingUp, Repeat2, Info, UploadCloud } from 'lucide-react'
 import Spinner from '../../components/shared/Spinner'
 import * as api from '../../services/api'
 import { formatDate } from '../../utils/helpers'
-
-import Avatar from '../../components/shared/Avatar'
 
 const PREP_TIPS = [
   { phase: 'Before Interview', items: ['Run device check', 'Test microphone in a quiet room', 'Review your resume and key projects', 'Research the company and role'] },
@@ -18,9 +16,15 @@ function CandidateDashboardPage() {
   const [interviews, setInterviews] = useState([])
   const [loading, setLoading]       = useState(true)
   const [error, setError]           = useState(null)
+  const [launchingId, setLaunchingId] = useState(null)
 
-  let user = {}
-  try { user = JSON.parse(localStorage.getItem('user') || '{}') } catch {}
+  const user = (() => {
+    try {
+      return JSON.parse(localStorage.getItem('user') || '{}')
+    } catch {
+      return {}
+    }
+  })()
 
   const [resumeUploading, setResumeUploading] = useState(false)
   const [uploadError, setUploadError]         = useState(null)
@@ -35,7 +39,7 @@ function CandidateDashboardPage() {
     setUploadError(null)
     setUploadSuccess(null)
     try {
-      const res = await api.uploadOwnResume(file)
+      await api.uploadOwnResume(file)
       setUploadSuccess('Tags are being extracted — check back shortly.')
       // The background job extracts tags; they won't appear immediately.
     } catch (err) {
@@ -48,21 +52,64 @@ function CandidateDashboardPage() {
 
   async function handleAvailabilityChange(s) {
     setAvailability(s)
-    try { await api.updateCandidateProfile({ availability: s }) } catch {}
+    try {
+      await api.updateCandidateProfile({ availability: s })
+    } catch {
+      setError('Could not update availability.')
+    }
   }
 
-  useEffect(() => { load() }, [])
-
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const res = await api.getCandidateInterviews()
-      setInterviews(res.data || [])
+      const [interviewResponse, profileResponse] = await Promise.all([
+        api.getCandidateInterviews(),
+        api.getProfile(),
+      ])
+      setInterviews(interviewResponse.data || [])
+      const profile = profileResponse.data || {}
+      setAvailability(profile.availability || 'bench')
+      try {
+        setResumeTags(JSON.parse(profile.tags || '[]'))
+      } catch {
+        setResumeTags([])
+      }
+      let storedUser = {}
+      try {
+        storedUser = JSON.parse(localStorage.getItem('user') || '{}')
+      } catch {
+        storedUser = {}
+      }
+      localStorage.setItem('user', JSON.stringify({ ...storedUser, ...profile }))
     } catch {
       setError('Could not load your interviews.')
     } finally {
       setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { void load() }, [load])
+
+  async function launchInterview(interview, destination = 'landing') {
+    setLaunchingId(interview.id)
+    setError(null)
+    try {
+      const response = await api.launchCandidateInterview(interview.id)
+      const launch = response.data
+      localStorage.setItem('accessToken', launch.sessionToken)
+      localStorage.setItem('interviewSession', JSON.stringify({
+        interviewId: launch.interview.id,
+        token: launch.launchToken,
+        type: launch.interview.type,
+        mode: launch.interview.interviewMode,
+        candidateName: launch.interview.candidateName,
+      }))
+      navigate(`/interview/${launch.launchToken}${destination === 'device' ? '/device-check' : ''}`)
+    } catch (launchError) {
+      setError(launchError.message || 'Could not launch this interview.')
+    } finally {
+      setLaunchingId(null)
     }
   }
 
@@ -134,11 +181,11 @@ function CandidateDashboardPage() {
                 {formatDate(u.scheduled_at || u.created)}
               </div>
               <div style={{ display: 'flex', gap: 8 }}>
-                <button onClick={() => navigate(`/interview/${u.token || u.magic_token}/device-check`)} style={{ flex: 1, padding: '8px 14px', background: 'var(--bg-surface)', border: '1px solid var(--slate-200)', borderRadius: 7, fontSize: 12, fontWeight: 600, color: 'var(--slate-700)', cursor: 'pointer' }}>
+                <button disabled={launchingId === u.id} onClick={() => launchInterview(u, 'device')} style={{ flex: 1, padding: '8px 14px', background: 'var(--bg-surface)', border: '1px solid var(--slate-200)', borderRadius: 7, fontSize: 12, fontWeight: 600, color: 'var(--slate-700)', cursor: 'pointer' }}>
                   Device Check
                 </button>
-                <button onClick={() => navigate(`/interview/${u.token || u.magic_token}`)} style={{ flex: 2, padding: '8px 14px', background: 'var(--slate-900)', border: 0, borderRadius: 7, fontSize: 12, fontWeight: 600, color: 'var(--bg-surface)', cursor: 'pointer' }}>
-                  Start Interview →
+                <button disabled={launchingId === u.id} onClick={() => launchInterview(u)} style={{ flex: 2, padding: '8px 14px', background: 'var(--slate-900)', border: 0, borderRadius: 7, fontSize: 12, fontWeight: 600, color: 'var(--bg-surface)', cursor: 'pointer' }}>
+                  {launchingId === u.id ? 'Preparing...' : 'Start Interview'}
                 </button>
               </div>
             </div>

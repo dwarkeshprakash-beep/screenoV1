@@ -24,6 +24,17 @@ async function getById(id) {
   return rows[0] || null
 }
 
+async function getByIdForCompany(id, companyId) {
+  const rows = await db.query(
+    `SELECT *
+     FROM external_candidates
+     WHERE id = @id
+       AND company_id = @companyId`,
+    { id, companyId }
+  )
+  return rows[0] || null
+}
+
 async function getByCompany(companyId) {
   return db.query(
     `SELECT ec.*,
@@ -38,4 +49,4 @@ async function getByCompany(companyId) {
   )
 }
 
-module.exports = { create, getById, getByCompany }
+module.exports = { create, getById, getByIdForCompany, getByCompany }

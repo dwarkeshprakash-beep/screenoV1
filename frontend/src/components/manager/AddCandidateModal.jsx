@@ -7,30 +7,13 @@ import { useState, useEffect, useRef } from 'react'
 import Modal from '../shared/Modal'
 import Button from '../shared/Button'
 import Spinner from '../shared/Spinner'
+import Avatar from '../shared/Avatar'
 import * as api from '../../services/api'
 
 const TAB_FIND   = 'find'
 const TAB_MANUAL = 'manual'
 
 // ── tiny avatar ────────────────────────────────────────────────
-const AV_COLORS = [
-  { bg: '#EDE9FE', fg: '#5B21B6' }, { bg: '#FED7AA', fg: '#9A3412' },
-  { bg: '#A7F3D0', fg: 'var(--success-700)' }, { bg: '#BFDBFE', fg: '#1E40AF' },
-  { bg: '#FBCFE8', fg: '#9D174D' }, { bg: '#FDE68A', fg: '#854D0E' },
-]
-function avHash(s) {
-  let h = 0; for (let i = 0; i < (s || '').length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0; return Math.abs(h)
-}
-function TinyAv({ name = '?' }) {
-  const c = AV_COLORS[avHash(name) % AV_COLORS.length]
-  const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase()
-  return (
-    <div style={{ width: 32, height: 32, borderRadius: 9999, flexShrink: 0, background: c.bg, color: c.fg, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 12 }}>
-      {initials}
-    </div>
-  )
-}
-
 function AddCandidateModal({ open, onClose, onDone }) {
   const [tab, setTab]           = useState(TAB_FIND)
   const [loading, setLoading]   = useState(false)
@@ -48,16 +31,6 @@ function AddCandidateModal({ open, onClose, onDone }) {
   const [form, setForm] = useState({ firstName: '', lastName: '', email: '', phone: '', employeeId: '', department: '', position: '', source: 'LinkedIn', type: 'internal' })
   const setF = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
-  useEffect(() => {
-    if (!open) {
-      setTab(TAB_FIND); setError(null); setSuccess(null)
-      setSearch(''); setSelected(new Set())
-      setForm({ firstName: '', lastName: '', email: '', phone: '', employeeId: '', department: '', position: '', source: 'LinkedIn', type: 'internal' })
-      return
-    }
-    loadUsers()
-  }, [open])
-
   async function loadUsers() {
     setUsersLoading(true)
     try {
@@ -69,6 +42,16 @@ function AddCandidateModal({ open, onClose, onDone }) {
       setUsersLoading(false)
     }
   }
+
+  useEffect(() => {
+    if (!open) {
+      setTab(TAB_FIND); setError(null); setSuccess(null)
+      setSearch(''); setSelected(new Set())
+      setForm({ firstName: '', lastName: '', email: '', phone: '', employeeId: '', department: '', position: '', source: 'LinkedIn', type: 'internal' })
+      return
+    }
+    loadUsers()
+  }, [open])
 
   const filtered = search.trim()
     ? allUsers.filter(u => {
@@ -243,7 +226,7 @@ function AddCandidateModal({ open, onClose, onDone }) {
                       onClick={e => e.stopPropagation()}
                       style={{ accentColor: 'var(--brand-500)', cursor: 'pointer', flexShrink: 0 }}
                     />
-                    <TinyAv name={name} />
+                    <Avatar name={name} size={32} />
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--slate-900)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</div>
                       <div style={{ fontSize: 11, color: 'var(--slate-500)' }}>{u.email}</div>

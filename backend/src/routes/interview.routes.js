@@ -2,10 +2,11 @@
 const express = require('express')
 const authMiddleware = require('../middleware/auth')
 const requireRole = require('../middleware/role')
-const upload = require('../middleware/upload')
+const { audioUpload } = require('../middleware/upload')
 const interviewService = require('../services/interview.service')
 const transcriptRepository = require('../repositories/transcript.repository')
 const interviewRepository = require('../repositories/interview.repository')
+const candidateIdentityService = require('../services/candidate-identity.service')
 
 const router = express.Router()
 
@@ -14,10 +15,8 @@ router.use(authMiddleware)
 router.post('/:id/start', requireRole('candidate'), async (req, res) => {
   try {
     const interviewId = parseInt(req.params.id, 10)
-    // From session JWT payload
-    const candidateId = req.user.internalUserId || req.user.externalCandidateId
-
-    const result = await interviewService.startInterview(interviewId, candidateId)
+    const identity = candidateIdentityService.fromUser(req.user)
+    const result = await interviewService.startInterview(interviewId, identity)
     res.json({ success: true, data: result })
   } catch (err) {
     console.error('POST /interviews/:id/start failed:', err)
@@ -28,21 +27,33 @@ router.post('/:id/start', requireRole('candidate'), async (req, res) => {
   }
 })
 
-router.post('/:id/answer', requireRole('candidate'), upload.single('audio'), async (req, res) => {
+router.post('/:id/answer', requireRole('candidate'), audioUpload.single('audio'), async (req, res) => {
   try {
     const interviewId = parseInt(req.params.id, 10)
-    const { questionText, mode, transcriptionMode, developmentFallback, answerText, clientTranscript } = req.body
+    const {
+      questionId,
+      questionText,
+      mode,
+      transcriptionMode,
+      developmentFallback,
+      answerText,
+      clientTranscript,
+    } = req.body
 
     if (!req.file && !answerText?.trim()) {
       return res.status(400).json({ success: false, error: 'audio or answerText is required' })
     }
 
-    const candidateId = req.user.internalUserId || req.user.externalCandidateId
+    if (!questionId && !questionText?.trim()) {
+      return res.status(400).json({ success: false, error: 'questionId is required' })
+    }
+    const identity = candidateIdentityService.fromUser(req.user)
 
     const result = await interviewService.saveAnswer({
       interviewId,
-      candidateId,
-      questionText: questionText || 'Previous Question',
+      identity,
+      questionId,
+      questionText,
       audioBuffer: req.file?.buffer,
       mimeType: req.file?.mimetype,
       mode: mode || 'simple',
@@ -58,6 +69,9 @@ router.post('/:id/answer', requireRole('candidate'), upload.single('audio'), asy
     if (['Unauthorized', 'Interview already completed'].includes(err.message)) {
       return res.status(403).json({ success: false, error: err.message })
     }
+    if (['Invalid question', 'Question already answered'].includes(err.message)) {
+      return res.status(409).json({ success: false, error: err.message })
+    }
     if (err.message === 'Transcription failed') {
       return res.status(422).json({ success: false, error: 'Transcription failed. Retry the recording or enter your answer as text.' })
     }
@@ -72,18 +86,18 @@ router.post('/:id/proctoring', requireRole('candidate'), async (req, res) => {
 
     if (!type) return res.status(400).json({ success: false, error: 'type is required' })
 
-    const candidateId = req.user.internalUserId || req.user.externalCandidateId
+    const identity = candidateIdentityService.fromUser(req.user)
 
-    await interviewService.logProctoringEvent({
+    const result = await interviewService.logProctoringEvent({
       interviewId,
-      candidateId,
+      identity,
       type,
       severity,
       occurred,
       details,
     })
 
-    res.json({ success: true, data: null })
+    res.json({ success: true, data: result })
   } catch (err) {
     console.error('POST /interviews/:id/proctoring failed:', err)
     res.status(500).json({ success: false, error: 'Could not log proctoring event' })
@@ -94,7 +108,7 @@ router.get('/:id/transcript', requireRole('manager'), async (req, res) => {
   try {
     const interviewId = parseInt(req.params.id, 10)
     const interview = await interviewRepository.getById(interviewId)
-    if (!interview || interview.type !== 'ai_voice') {
+    if (!interview || interview.manager_id !== req.user.id || interview.type !== 'ai_voice') {
       return res.status(404).json({ success: false, error: 'Interview not found' })
     }
     const qa = await transcriptRepository.getByInterview(interviewId)
@@ -110,16 +124,19 @@ router.post('/:id/complete', requireRole('candidate'), async (req, res) => {
     const interviewId = parseInt(req.params.id, 10)
     const { status } = req.body
 
-    const candidateId = req.user.internalUserId || req.user.externalCandidateId
+    const identity = candidateIdentityService.fromUser(req.user)
 
     await interviewService.completeInterview(
       interviewId,
-      candidateId,
+      identity,
       status
     )
     res.json({ success: true, data: null })
   } catch (err) {
     console.error('POST /interviews/:id/complete failed:', err)
+    if (err.message === 'Unauthorized') {
+      return res.status(403).json({ success: false, error: err.message })
+    }
     res.status(500).json({ success: false, error: 'Could not complete interview' })
   }
 })

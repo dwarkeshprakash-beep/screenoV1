@@ -1,8 +1,8 @@
 /**
- * @typedef {Object} Company
+ * @typedef {Object} Companies
  * @property {number} id
  * @property {string} name
  * @property {string|null} logo_url
- * @property {Date} created
+ * @property {Date|null} created
  */
-module.exports = {};
+module.exports = {}

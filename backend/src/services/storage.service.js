@@ -17,11 +17,19 @@ const BUCKET = 'files'
  * @param {number|string} candidateId - candidate the resume belongs to
  * @returns {Promise<{ url: string, publicId: string }>}
  */
-async function uploadResume(buffer, candidateId) {
-  const path = `resumes/resume_candidate_${candidateId}.pdf`
+async function uploadResume(buffer, candidateId, file = {}) {
+  const extensionByMime = {
+    'application/pdf': 'pdf',
+    'application/msword': 'doc',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+    'text/plain': 'txt',
+  }
+  const extension = extensionByMime[file.mimetype] || 'pdf'
+  const contentType = file.mimetype || 'application/pdf'
+  const path = `resumes/resume_candidate_${candidateId}.${extension}`
 
   const { error } = await supabase.storage.from(BUCKET).upload(path, buffer, {
-    contentType: 'application/pdf',
+    contentType,
     upsert: true,
   })
   if (error) throw error

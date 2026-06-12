@@ -44,6 +44,17 @@ async function getByIdForManager(id, managerId) {
   return rows[0] || null
 }
 
+async function getByIdsForManager(ids, managerId) {
+  if (!Array.isArray(ids) || ids.length === 0) return []
+  return db.query(
+    `SELECT ${SELECT_COLS}
+     FROM team_members tm ${JOIN_PROFILE}
+     WHERE tm.manager_id = @managerId
+       AND tm.id = ANY(@ids)`,
+    { ids, managerId }
+  )
+}
+
 async function create(data) {
   const rows = await db.query(
     `INSERT INTO team_members (manager_id, user_id)
@@ -72,4 +83,4 @@ async function removeMember(id, managerId) {
   )
 }
 
-module.exports = { getByManager, getByIdForManager, create, removeMember }
+module.exports = { getByManager, getByIdForManager, getByIdsForManager, create, removeMember }

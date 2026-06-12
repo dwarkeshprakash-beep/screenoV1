@@ -45,4 +45,7 @@ ss-*.png
 screenshot-*.png
 vite-log.txt
 vite-err.txt
+backend-err.txt
+backend-out.txt
+frontend/lint-active.txt
 

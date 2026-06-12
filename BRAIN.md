@@ -1,148 +1,136 @@
-# Screeno — Second Brain
+# Screeno V2 Second Brain
+
 Last updated: 2026-06-12
 
-> Context for AI tools and developers. Tech stack + file maps are in the CLAUDE.md files
-> (root, frontend/, backend/). This file covers: what the app does, who can do what,
-> non-obvious relationships, critical flows, and current gaps.
+## What Screeno Is
 
----
+Screeno is a desktop-first AI assessment platform. Managers maintain internal and external candidate rosters, schedule AI voice interviews or AI exams, and review generated reports. Candidates can use a password dashboard or a single-use magic link.
 
-## What Is Screeno
+V2 intentionally supports only manager and candidate roles. Human interviews, interviewer accounts, LiveKit video rooms, and notes are paused and removed from runtime.
 
-Internal AI interview platform for one company. Managers pre-screen team members before
-client interviews. Three interview types run from a browser: AI voice interview, coding exam,
-live human video call. No installs, no mobile (desktop only), no multi-tenant, no SSO.
+## Roles
 
-Core flow: Manager schedules → candidate gets magic link email → takes interview →
-AI generates report → manager reads and decides.
+### Manager
 
----
+- Password login using JWT access tokens and a rotated refresh-token cookie.
+- Manage internal team members and company-owned external candidates.
+- Store internal resume URL, resume update time, tags, availability, employee ID, department, position, and location.
+- Schedule AI voice interviews or AI exams.
+- Create client mandates and monthly assessments.
+- View calendar events, reports, transcripts, scorecards, and candidate history.
+- Update profile and password.
 
-## Roles and What They Can Do
+### Candidate
 
-### Manager (JWT role='manager')
-- Roster: view team members with assessment status and availability (bench / client_side)
-- Schedule AI voice, coding exam, or human interview for any team member
-- Calendar: all scheduled and completed interviews
-- Member profile: resume, all past interview sessions, AI report history, transcripts, notes
-- Reports page: all completed reports with scorecard decisions and scores
-- CSV import: upsert team members into users table (match by email then emp_number)
-- Resume analyzer: LLM match against a JD
-- Templates: UI stub exists, backend not built — "Coming Soon" overlay is intentional
+- Password dashboard for assigned work, resume, tags, and availability.
+- Single-use magic-link launch for a specific interview.
+- Device checks, consent, AI voice interview, or AI exam.
+- The first tab switch warns; the second completes the interview as a cheating attempt.
+- Candidate completion UI does not expose manager-only scores or hiring decisions.
 
-### Candidate (no account — magic link only)
-- Receives one-time link in email (no login, no password needed for interview flow)
-- Flow: device check → consent → AI interview or exam or human video → done page
-- AI voice: hears questions via browser TTS, records answers via MediaRecorder
-- Exam: MCQ + open-ended + LeetCode-style coding (CodeMirror editor, Piston judge)
-- Done page shows improvement tips only — never sees scores or pass/fail result
-- Also has a logged-in dashboard (password login, rare flow for internal candidates)
+## Identity Relationships
 
-### Interviewer (JWT role='interviewer')
-- Dashboard: assigned interviews for today and upcoming
-- Pre-call: view candidate profile, resume, and past notes
-- Live room: LiveKit video call, notes panel, AI question guide, rejoin flow on disconnect
-- Post-call: fill scorecard (AI pre-fills from transcript, human reviews and submits)
+### Internal Candidate
 
----
+An internal candidate is a `users` row. A `team_members` row links that user to a manager. The same organization user may belong to more than one manager's team.
 
-## Non-Obvious Data Relationships
+- Manager navigation uses `team_members.id`.
+- Interview identity uses `interviews.candidate_id`, which points to `users.id`.
+- Resume and tags belong to `users`.
 
-### team_members vs candidates — different ID namespaces
-`team_members` = roster. Created when manager adds a person. Owns profile/resume/availability.
-`candidates` = interview identity. Created lazily on first scheduling. Owns interview history.
-They link via `user_id`. One person can have both a `team_members.id` AND a `candidates.id`
-— these are **different numbers and are not interchangeable**.
+### External Candidate
 
-Rule: all manager navigation uses `team_members.id`.
-Route `/manager/team/:id` expects `team_members.id` — passing `candidates.id` causes "Could not load profile".
-This bit us on 2026-06-09; now fixed in ReportsPage and SchedulePage.
+An external candidate is an `external_candidates` row owned by a company and does not require a login account.
 
-### Report scores
-Scores come from the backend as 1–10 integers. Frontend displays them as-is — never divide,
-normalize, or convert to percentages. Score fields live on `scorecards`, not `reports`.
-Any query displaying scores needs `LEFT JOIN scorecards sc ON sc.interview_id = r.interview_id`.
+- Interview identity uses `interviews.external_candidate_id`.
+- External resume and tags remain on `external_candidates`.
+- An interview must reference one internal or one external candidate, never both.
 
----
+`candidate-identity.service.js` centralizes this distinction so repositories and services do not guess which ID namespace they received.
 
-## Critical Cross-Cutting Flows
+## Active Schema
 
-### Auth — two completely separate paths
-- Manager/Interviewer: `Authorization: Bearer <jwt>` → `auth.middleware.js` → `req.user`
-- Candidate: `?token=xxx` query param → `magicLink.middleware.js` → `req.candidate` (not `req.user`)
-Candidate routes never use auth.middleware. Mixing them breaks the flow entirely.
+The V2 schema contains 15 tables:
 
-### AI Interview Loop
-```
-loading → ai_speaking → listening → recording → processing → ai_speaking (next question)
-                                                            ↘ ended / error / paused
-```
-Managed by `hooks/useInterview.js`. AI speaks via `window.speechSynthesis`. Audio goes:
-`MediaRecorder → backend → Groq Whisper → text saved to answers table → audio discarded`.
-Adaptive mode: LLM generates the next question from all previous answers (Groq → Gemini fallback).
+- `companies`
+- `users`
+- `departments`
+- `team_members`
+- `external_candidates`
+- `interviews`
+- `transcripts`
+- `scorecards`
+- `reports`
+- `report_jobs`
+- `email_deliveries`
+- `refresh_tokens`
+- `client_templates`
+- `monthly_assessments`
+- `monthly_assessment_enrollments`
+
+`backend/migrations/004_v2_schema_cleanup.sql` is the cleanup migration. `backend/src/db/schema.js`, `backend/schema.json`, and generated model references must agree with it.
+
+## Critical Flows
+
+### Authentication
+
+- Manager/candidate dashboard: bearer access token plus HttpOnly refresh cookie.
+- Candidate interview: magic link is hashed at rest, time-bounded, scoped to one interview, and consumed once.
+- Frontend API calls go through `frontend/src/services/api.js`, which performs one refresh and retry on access-token expiry.
+
+### Scheduling
+
+1. Manager selects AI voice or AI exam.
+2. Manager selects internal team-member IDs or external candidate IDs.
+3. Backend verifies manager/company ownership.
+4. One interview is created per selected candidate.
+5. Email delivery is recorded.
+6. Candidate launches with the scoped token.
+
+### AI Voice Interview
+
+1. Candidate completes device and consent checks.
+2. Questions are generated and stored as transcript rows.
+3. Each answer is transcribed and persisted.
+4. Adaptive mode may request a bounded follow-up.
+5. Completion queues report generation.
+
+### AI Exam
+
+1. Questions are generated and normalized.
+2. Public responses remove MCQ answer keys, reference solutions, and hidden expected outputs.
+3. Coding reference solutions are validated with Piston before use.
+4. Submitted answers are stored in transcript rows.
+5. Completion queues report generation.
 
 ### Report Pipeline
-1. Interview completes → `report_jobs` row inserted (status: pending)
-2. `reportJobService` worker polls → calls `llm.service.js generateReport`
-3. Results saved to `reports` + `scorecards` → status: ready → email sent
-4. Email currently routes to STATIC_RECIPIENTS (3 internal addresses) — intentional test-phase setting
-5. Manager sees results via `GET /api/reports` — query needs scorecard LEFT JOIN for decision/scores
 
----
+1. Interview completion creates a `report_jobs` row.
+2. The worker claims pending work and calls the LLM.
+3. Evaluation fields are normalized and stored in `scorecards`.
+4. Narrative output is stored in `reports`.
+5. Delivery status is recorded in `email_deliveries`.
+6. Graceful shutdown returns in-progress jobs to a retryable state.
 
-## Feature Impact Map
+External HTTP integrations use explicit timeouts. Groq is primary for LLM work, with Gemini fallback where supported.
 
-When a feature request comes in, these are all the places that change:
+## Deliberate V2 Decisions
 
-| Change | Layers affected |
-|---|---|
-| New DB column | migration SQL + repository query + service (if logic changes) |
-| New API endpoint | repository → service → route → `api.js` named export → page component |
-| New manager page | `pages/manager/` + `App.jsx` route + `Sidebar.jsx` nav link + `api.js` |
-| New candidate step | `pages/candidate/` + `App.jsx` under magic-link guard (not RequireAuth) |
-| Report content/scoring change | `llm.service.js` prompt + `reports` table + `report.repository.js` + `MemberProfilePage` |
-| Scorecard field change | `scorecards` table + migration + `interviewer.routes.js` + `ScorecardPage.jsx` + **both** `getReportsByManager` and `getHistoryByUser` in `report.repository.js` |
-| Schedule flow change | `ScheduleModal.jsx` + `schedule.service.js` + `schedule.routes.js` + `scheduleRecord.repository.js` |
-| Exam question format | `llm.service.js generateExamQuestions` + `questions` table + `ExamPage.jsx` |
-| Auth/token change | `auth.service.js` + `auth.middleware.js` + `api.js` refresh logic + `useAuth.js` |
-| Email content change | `email.service.js` — all templates are inline functions in this one file |
+- Keep `refresh_tokens`: rotation, revocation, and logout require server-side state.
+- Keep `report_jobs`: reports are asynchronous and must survive the request lifecycle.
+- Keep email delivery `kind`: one interview can produce multiple operational messages.
+- Remove old attempts: V2 currently allows one interview lifecycle per scheduled record.
+- Remove notes and proctoring-event tables: no active product workflow consumes them.
+- Store tab-switch enforcement in interview result/scorecard rather than a separate event table.
+- Do not store schedule timezone/window fields until a real scheduling-window workflow exists.
 
----
+## Verification
 
-## Current Gaps (user-visible issues right now)
+The canonical acceptance record is `docs/AUDIT-AND-TESTING.md`. The database-backed regression suite is `backend/test/api-regression.js`.
 
-**Fixed this session (2026-06-12):**
-- ✅ `ReportsPage` + `MemberProfilePage` scores — `sc.overall_score` → `sc.overall AS overall_score` in report.repository.js
-- ✅ Schedule creation — `voiceMode` → `interviewMode` in ScheduleModal payload
-- ✅ Monthly assessment creation — field normalization added to route (subject→subject_name, jd_text→ai_generated_jd)
-- ✅ `ClientInterviewsPage` — now wired to real API, no more MOCK_TEMPLATES
-- ✅ `getCalendarEvents` — was passing `companyId` instead of `managerId` to service
-- ✅ `send-jd` cross-company email — ownership check via team membership added
-- ✅ `profile.routes.js` raw SQL — moved to `userRepository.getByIdWithPassword`
+## Current Non-Blocking Gaps
 
-**Still open:**
-- `shared/Avatar.jsx` has 5 remaining local copies across TeamPage, MemberProfilePage, ManagerProfilePage, InterviewerDashboard, CandidateDashboardPage
-- `MonthlyAssessmentPage.jsx` step 4: no guard against zero-selected-candidates submission
-- `ScheduleModal.jsx` step 3/4: candidate validation fires too late (Step 4 not Step 3)
-- `ScheduleModal.jsx` useEffect uses `.then().catch()` — should be `async/await`
-- `team_member_ids` in monthly assessment enrollment not ownership-checked against manager
-- `getEmailDeliveries` + `resendMagicLink` in schedule.service.js: `companyId` param unused (interview ownership not verified)
-- No SIGTERM handler — report job worker hard-killed on restart, jobs stay stuck in `started` state
-- `/health` endpoint has no DB liveness check
-
-Full prioritized issue list: `docs/open-issues.md`
-
----
-
-## Intentional Deferrals
-
-| Item | Why deferred |
-|---|---|
-| Magic-link tokens SHA256-hashed | Implemented — `getByToken()` rehashes raw token for lookup; column is `token` not `token_hash` |
-| Email to STATIC_RECIPIENTS | Test phase — rewire before production |
-| Templates page stub | Phase 2 |
-| Device check permissive | Will tighten before production |
-| Consent copy unchanged | Pending legal review (C-07) |
-| Bundle splitting | Future — route-level lazy loading + remove prototype files |
-| HR role, Super Admin, mobile, dark mode, ATS | Phase 2 |
-| Piston judge has no SLA | Submissions stored as "not_evaluated" if down, graded narratively |
+- Frontend production output has one large JavaScript chunk; route-level lazy loading is recommended before significant UI growth.
+- Camera, microphone, speaker, and speech-recognition behavior still needs real-device coverage across supported browsers.
+- Consent copy requires product/legal approval before public launch.
+- Production deployment requires valid SMTP, AI, storage, database, and JWT secrets.

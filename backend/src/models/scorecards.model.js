@@ -1,5 +1,5 @@
 /**
- * @typedef {Object} Scorecard
+ * @typedef {Object} Scorecards
  * @property {number} id
  * @property {number} interview_id
  * @property {number|null} overall
@@ -9,6 +9,6 @@
  * @property {number|null} problem_solving
  * @property {string} decision
  * @property {string} reason
- * @property {Date} created
+ * @property {Date|null} created
  */
-module.exports = {};
+module.exports = {}

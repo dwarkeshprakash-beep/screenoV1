@@ -21,16 +21,6 @@ router.get('/slots/:token', async (req, res) => {
 
 router.use(authMiddleware, requireRole('manager'))
 
-router.get('/interviewers', async (req, res) => {
-  try {
-    const interviewers = await scheduleService.getInterviewers(req.user.companyId)
-    res.json({ success: true, data: interviewers })
-  } catch (err) {
-    console.error('GET /schedule/interviewers failed:', err)
-    res.status(500).json({ success: false, error: 'Could not load interviewers' })
-  }
-})
-
 router.get('/org-users', async (req, res) => {
   try {
     const users = await scheduleService.getOrgUsers(req.user.companyId)
@@ -43,22 +33,25 @@ router.get('/org-users', async (req, res) => {
 
 router.get('/email-deliveries/:interviewId', async (req, res) => {
   try {
-    const deliveries = await scheduleService.getEmailDeliveries(parseInt(req.params.interviewId, 10), req.user.companyId)
+    const deliveries = await scheduleService.getEmailDeliveries(parseInt(req.params.interviewId, 10), req.user.id)
     res.json({ success: true, data: deliveries })
   } catch (err) {
     console.error('GET /schedule/email-deliveries/:interviewId failed:', err)
     if (err.message === 'Interview not found') return res.status(404).json({ success: false, error: err.message })
+    if (err.message === 'Forbidden') return res.status(403).json({ success: false, error: err.message })
     res.status(500).json({ success: false, error: 'Could not load email delivery status' })
   }
 })
 
 router.post('/email-deliveries/:interviewId/resend', async (req, res) => {
   try {
-    const result = await scheduleService.resendMagicLink(parseInt(req.params.interviewId, 10), req.user.companyId)
+    const result = await scheduleService.resendMagicLink(parseInt(req.params.interviewId, 10), req.user.id)
     res.json({ success: result.status === 'sent', data: result, error: result.status === 'failed' ? result.message : undefined })
   } catch (err) {
     console.error('POST /schedule/email-deliveries/:interviewId/resend failed:', err)
     if (['Interview not found', 'Candidate not found'].includes(err.message)) return res.status(404).json({ success: false, error: err.message })
+    if (err.message === 'Interview already completed') return res.status(409).json({ success: false, error: err.message })
+    if (err.message === 'Forbidden') return res.status(403).json({ success: false, error: err.message })
     res.status(500).json({ success: false, error: 'Could not resend invite. Please contact administration.' })
   }
 })
@@ -82,13 +75,14 @@ router.post('/', async (req, res) => {
       return res.status(404).json({ success: false, error: err.message })
     }
     if ([
-      'interviewerId is required',
-      'scheduledStart is required',
-      'Interviewer not found',
-      'Invalid appointment time',
-      'Interviewer is not available at that time',
+      'Invalid interview type',
+      'Invalid interview mode',
+      'Choose either a client template or a monthly assessment',
     ].includes(err.message)) {
       return res.status(400).json({ success: false, error: err.message })
+    }
+    if (['Client template not found', 'Monthly assessment not found'].includes(err.message)) {
+      return res.status(404).json({ success: false, error: err.message })
     }
     res.status(500).json({ success: false, error: 'Could not create schedule' })
   }

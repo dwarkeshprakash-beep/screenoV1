@@ -2,6 +2,26 @@
 const db = require('../db/connection')
 
 async function create(interviewId) {
+  const existing = await db.query(
+    `SELECT * FROM report_jobs WHERE interview_id = @interview_id ORDER BY id DESC LIMIT 1`,
+    { interview_id: interviewId }
+  )
+  if (existing[0]) {
+    if (existing[0].status !== 'completed') {
+      const rows = await db.query(
+        `UPDATE report_jobs SET
+           status = 'pending',
+           available_at = NOW(),
+           last_error = NULL
+         WHERE id = @id
+         RETURNING *`,
+        { id: existing[0].id }
+      )
+      return rows[0]
+    }
+    return existing[0]
+  }
+
   const rows = await db.query(
     `INSERT INTO report_jobs (interview_id, status)
      VALUES (@interview_id, 'pending')
@@ -27,7 +47,11 @@ async function markCompleted(id) {
 
 async function markFailed(id, errorMessage) {
   await db.query(
-    `UPDATE report_jobs SET status = 'failed', last_error = @error WHERE id = @id`,
+    `UPDATE report_jobs SET
+       status = 'failed',
+       last_error = @error,
+       available_at = NOW() + INTERVAL '30 seconds'
+     WHERE id = @id`,
     { id, error: errorMessage }
   )
 }

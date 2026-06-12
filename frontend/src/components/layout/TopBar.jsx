@@ -173,7 +173,7 @@ function TopBar({ title = '', subtitle = '', action = null, role = 'manager' }) 
               items={notifItems}
               loading={notifLoading}
               onClose={() => setNotifOpen(false)}
-              onViewAll={() => { setNotifOpen(false); navigate(isManager ? '/manager/reports' : '/interviewer/scorecard') }}
+              onViewAll={() => { setNotifOpen(false); navigate('/manager/reports') }}
             />
           )}
         </div>

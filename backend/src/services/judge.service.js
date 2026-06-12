@@ -3,6 +3,7 @@
 // No API key required — see https://github.com/engineer-man/piston
 
 const PISTON_URL = 'https://emkc.org/api/v2/piston/execute'
+const fetchWithTimeout = require('../utils/fetch-with-timeout')
 
 const LANGUAGE_VERSIONS = {
   javascript: '18.15.0',
@@ -23,7 +24,7 @@ const LANGUAGE_FILENAMES = {
  */
 async function runCode(language, code, stdin = '') {
   const lang = LANGUAGE_VERSIONS[language] ? language : 'javascript'
-  const res = await fetch(PISTON_URL, {
+  const res = await fetchWithTimeout(PISTON_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -32,7 +33,7 @@ async function runCode(language, code, stdin = '') {
       files: [{ name: LANGUAGE_FILENAMES[lang], content: code }],
       stdin: stdin || '',
     }),
-  })
+  }, 15000)
 
   if (!res.ok) throw new Error(`Judge request failed (${res.status})`)
   const data = await res.json()

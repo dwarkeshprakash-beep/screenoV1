@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from 'react-router-dom'
-import { LayoutDashboard, Users, LayoutTemplate, ScanSearch, Calendar, BarChart3, Settings, BookOpen, Video, CheckSquare } from 'lucide-react'
+import { LayoutDashboard, Users, ScanSearch, Calendar, BarChart3, Settings, CheckSquare } from 'lucide-react'
 
 const MANAGER_NAV = [
   {
@@ -31,33 +31,26 @@ const MANAGER_NAV = [
   },
 ]
 
-const IV_NAV = [
-  {
-    section: 'INTERVIEWS',
-    items: [
-      { to: '/interviewer/dashboard',   icon: LayoutDashboard, label: 'My Dashboard' },
-      { to: '/interviewer/dashboard',   icon: BookOpen,        label: 'Interview Prep' },
-      { to: '/interviewer/dashboard',   icon: Video,           label: 'Live Room' },
-      { to: '/interviewer/scorecard',   icon: CheckSquare,     label: 'Scorecard' },
-    ],
-  },
-]
-
 function getInitials(name) {
   if (!name) return '?'
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase()
 }
 
-function Sidebar({ role = 'manager', onLogout }) {
+function Sidebar() {
   const navigate  = useNavigate()
   const location  = useLocation()
-  const nav = role === 'manager' ? MANAGER_NAV : IV_NAV
+  const nav = MANAGER_NAV
 
   let user = {}
-  try { const s = localStorage.getItem('user'); if (s) user = JSON.parse(s) } catch {}
+  try {
+    const stored = localStorage.getItem('user')
+    if (stored) user = JSON.parse(stored)
+  } catch {
+    user = {}
+  }
 
   const userName = [user.first_name, user.last_name].filter(Boolean).join(' ') || user.name || user.email || 'User'
-  const userRole = role === 'manager' ? 'Manager' : 'Interviewer'
+  const userRole = 'Manager'
 
   return (
     <aside style={{
@@ -121,8 +114,7 @@ function Sidebar({ role = 'manager', onLogout }) {
       {/* User footer */}
       <div
         onClick={() => {
-          if (role === 'manager') navigate('/manager/profile')
-          else if (role === 'interviewer') navigate('/interviewer/profile')
+          navigate('/manager/profile')
         }}
         style={{
           padding: '0.75rem 0.875rem', borderTop: '1px solid var(--border-sidebar)',
