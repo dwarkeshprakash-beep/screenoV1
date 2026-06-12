@@ -24,6 +24,7 @@ Every markdown file in this project. One place to find anything.
 | See the full folder tree | `docs/folder-structure.md` |
 | Understand product requirements | `docs/PRD.md` |
 | See all open bugs and issues with exact fixes | `docs/open-issues.md` |
+| Full audit: bug status, workflow tests, test runner | `docs/AUDIT-AND-TESTING.md` |
 | Understand tech choices | `docs/tech-stack.md` |
 | Run smoke tests | `docs/testing.md` |
 | Sync and update all docs | `/sync-docs` command |
@@ -86,6 +87,7 @@ token-saving.md         Model selection and prompt patterns
 ```
 INDEX.md                THIS FILE
 open-issues.md          All open bugs + 100%-mock pages — prioritized, with exact code fixes
+AUDIT-AND-TESTING.md    Full audit: bug status (✅/⚠️/❌), gated test runner, workflow map, test credentials
 PRD.md                  Product requirements — what and why
 frontend-guide.md       How the built frontend works — patterns, hooks, how to add pages
 backend-guide.md        How the built backend works — MVC layers, how to add endpoints

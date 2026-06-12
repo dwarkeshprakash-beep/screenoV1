@@ -23,12 +23,19 @@ async function processReportJobs() {
   }
 }
 
+let intervalId = null
+
 function startReportJobWorker() {
   const intervalMs = parseInt(process.env.REPORT_JOB_INTERVAL_MS || '15000', 10)
-  setInterval(() => {
+  intervalId = setInterval(() => {
     processReportJobs().catch(err => console.error('processReportJobs failed:', err))
   }, intervalMs)
   processReportJobs().catch(err => console.error('processReportJobs failed:', err))
 }
 
-module.exports = { processReportJobs, startReportJobWorker }
+async function stopReportJobWorker() {
+  if (intervalId) clearInterval(intervalId)
+  await reportJobRepository.resetProcessingJobs()
+}
+
+module.exports = { processReportJobs, startReportJobWorker, stopReportJobWorker }

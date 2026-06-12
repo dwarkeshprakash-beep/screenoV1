@@ -36,7 +36,17 @@ function ManagerProfilePage() {
   const [pwSuccess, setPwSuccess]               = useState(false)
   const [pwError, setPwError]                   = useState(null)
 
-  const [notifs, setNotifs] = useState({ notifyEmail: true, notifyInApp: true, notifyResults: false, notifyReminders: true, twoFactor: false })
+  const [notifs, setNotifs] = useState(() => {
+    try {
+      const saved = localStorage.getItem('managerNotifs')
+      if (saved) return JSON.parse(saved)
+    } catch {}
+    return { notifyEmail: true, notifyInApp: true, notifyResults: false, notifyReminders: true, twoFactor: false }
+  })
+
+  useEffect(() => {
+    localStorage.setItem('managerNotifs', JSON.stringify(notifs))
+  }, [notifs])
 
   useEffect(() => { loadProfile() }, [])
 

@@ -108,7 +108,7 @@ const SCHEMA = {
     columns: [
       'id', 'candidate_id', 'external_id', 'scheduled_by',
       'type', 'interview_mode', 'difficulty', 'question_count',
-      'report_emails', 'status', 'result', 'token', 'token_expires', 'created',
+      'report_emails', 'status', 'result', 'token_hash', 'token_expires', 'created',
     ],
     // candidate_id → candidates.id      (nullable)
     // external_id  → external_candidates.id  (nullable)

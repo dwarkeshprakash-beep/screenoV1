@@ -242,7 +242,7 @@ export const getLiveKitToken = (roomName, participantName) =>
 export const uploadResume = (teamMemberId, file) => {
   const formData = new FormData()
   formData.append('resume', file)
-  formData.append('teamMemberId', String(teamMemberId))
+  if (teamMemberId) formData.append('teamMemberId', String(teamMemberId))
   return authFetch('/api/upload/resume', {
     method: 'POST',
     body: formData,

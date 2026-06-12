@@ -32,8 +32,9 @@ function AddExternalModal({ open, onClose, onDone }) {
   const [email, setEmail]         = useState('')
   const [saving, setSaving]       = useState(false)
   const [error, setError]         = useState(null)
+  const [resumeFile, setResumeFile] = useState(null)
 
-  function reset() { setFirstName(''); setLastName(''); setEmail(''); setError(null) }
+  function reset() { setFirstName(''); setLastName(''); setEmail(''); setResumeFile(null); setError(null) }
   function handleClose() { reset(); onClose() }
 
   async function handleSubmit(e) {
@@ -42,7 +43,12 @@ function AddExternalModal({ open, onClose, onDone }) {
     if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { setError('Valid email is required'); return }
     setSaving(true); setError(null)
     try {
-      await api.addExternalCandidate({ firstName: firstName.trim(), lastName: lastName.trim(), email: email.trim() })
+      let resumeUrl = null
+      if (resumeFile) {
+        const res = await api.uploadResume(null, resumeFile)
+        resumeUrl = res.data?.resumeUrl
+      }
+      await api.addExternalCandidate({ firstName: firstName.trim(), lastName: lastName.trim(), email: email.trim(), resumeUrl })
       reset(); onDone(); onClose()
     } catch (err) {
       setError(err.message || 'Could not add external candidate')
@@ -73,6 +79,10 @@ function AddExternalModal({ open, onClose, onDone }) {
           <div>
             <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--fg-body)', marginBottom: 4 }}>Email *</label>
             <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="rahul@external.com" style={inp} />
+          </div>
+          <div>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--fg-body)', marginBottom: 4 }}>Resume (optional)</label>
+            <input type="file" onChange={e => setResumeFile(e.target.files?.[0] || null)} accept=".pdf,.doc,.docx" style={inp} />
           </div>
           {error && <p style={{ fontSize: 12, color: 'var(--danger-700)', margin: 0 }}>{error}</p>}
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 4 }}>
@@ -118,6 +128,7 @@ function TeamPage() {
   const [showFilters, setShowFilters]   = useState(false)
   const [filterLocation, setFilterLocation] = useState('')
   const [filterPosition, setFilterPosition] = useState('')
+  const [filterAvailability, setFilterAvailability] = useState('')
 
   const searchFromURL = searchParams.get('search')
   useEffect(() => {
@@ -193,12 +204,13 @@ function TeamPage() {
     }
     if (filterLocation && m.location !== filterLocation) return false
     if (filterPosition && m.current_position !== filterPosition) return false
+    if (filterAvailability && m.availability !== filterAvailability) return false
     return true
   })
   const rows = filtered
   const overdueCount = members.filter(m => isOverdue(m)).length
   const allSel = rows.length > 0 && selected.size === rows.length
-  const hasActiveFilter = filterLocation || filterPosition
+  const hasActiveFilter = filterLocation || filterPosition || filterAvailability
 
   const cardStyle    = { background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderRadius: 12, padding: 20, boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }
   const thStyle      = { textAlign: 'left', padding: '12px 16px', fontSize: 11, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--fg-subtle)', borderBottom: '1px solid var(--border-default)' }
@@ -285,6 +297,7 @@ function TeamPage() {
                 {[
                   { label: 'Location', val: filterLocation, set: setFilterLocation, options: locationOptions.map(l => ({ v: l, l })) },
                   { label: 'Position', val: filterPosition, set: setFilterPosition, options: positionOptions.map(p => ({ v: p, l: p })) },
+                  { label: 'Availability', val: filterAvailability, set: setFilterAvailability, options: [{v: 'bench', l: 'Bench'}, {v: 'client_side', l: 'Client side'}] },
                 ].map(f => (
                   <div key={f.label} style={{ flex: 1, minWidth: 160 }}>
                     <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--fg-body)', marginBottom: 5 }}>{f.label}</div>
@@ -294,7 +307,7 @@ function TeamPage() {
                     </select>
                   </div>
                 ))}
-                {hasActiveFilter && <button type="button" onClick={() => { setFilterLocation(''); setFilterPosition('') }} style={{ ...btnSecondary, alignSelf: 'flex-end' }}><X size={12} /> Clear</button>}
+                {hasActiveFilter && <button type="button" onClick={() => { setFilterLocation(''); setFilterPosition(''); setFilterAvailability('') }} style={{ ...btnSecondary, alignSelf: 'flex-end' }}><X size={12} /> Clear</button>}
               </div>
             )}
           </div>
@@ -331,7 +344,6 @@ function TeamPage() {
                         </td>
                         <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--border-default)' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                            <Avatar name={name} size={36} />
                             <div>
                               <div style={{ fontWeight: 600, color: 'var(--fg-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
                                 {name}
@@ -413,7 +425,6 @@ function TeamPage() {
                       <tr key={c.id} style={{ transition: 'background 120ms' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface-alt)'} onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-surface)'}>
                         <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--border-default)' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                            <Avatar name={name} size={36} />
                             <div>
                               <div style={{ fontWeight: 600, color: 'var(--fg-primary)' }}>{name}</div>
                               <div style={{ fontSize: 11, background: 'var(--warning-50)', color: 'var(--warning-600)', padding: '1px 6px', borderRadius: 4, fontWeight: 600, display: 'inline-block', marginTop: 3 }}>External</div>

@@ -173,7 +173,6 @@ function MemberProfilePage() {
         {/* Hero card */}
         <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--slate-200)', borderRadius: 12, padding: 20, boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', gap: 18 }}>
-            <Avatar name={fullName} size={64} ring="var(--brand-100)" />
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4, flexWrap: 'wrap' }}>
                 <h1 style={{ fontFamily: "var(--font-display,'Inter')", fontSize: 22, fontWeight: 700, color: 'var(--slate-900)', margin: 0, letterSpacing: '-0.02em' }}>{fullName}</h1>

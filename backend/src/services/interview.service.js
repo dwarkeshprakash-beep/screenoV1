@@ -6,6 +6,7 @@ const userRepository = require('../repositories/user.repository')
 const emailDeliveryRepository = require('../repositories/email-delivery.repository')
 const reportRepository = require('../repositories/report.repository')
 const reportJobRepository = require('../repositories/report-job.repository')
+const scorecardRepository = require('../repositories/scorecard.repository')
 const llmService = require('./llm.service')
 const transcriptionService = require('./transcription.service')
 const emailService = require('./email.service')
@@ -177,6 +178,17 @@ ${qaText}`
     reportData.strengths,
     null
   )
+
+  await scorecardRepository.upsert({
+    interviewId,
+    overall: reportData.overall_score,
+    confidence: reportData.confidence,
+    techKnowledge: reportData.tech_knowledge,
+    communication: reportData.communication,
+    problemSolving: 5,
+    decision: reportData.overall_score >= 7 ? 'pass' : (reportData.overall_score >= 5 ? 'borderline' : 'fail'),
+    reason: reportData.summary
+  })
 
   // Notify manager
   const managerEmail = interview.manager_email

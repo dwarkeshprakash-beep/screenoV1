@@ -118,17 +118,24 @@ function AddCandidateModal({ open, onClose, onDone }) {
 
     setLoading(true); setError(null)
     try {
-      await api.addMember({
-        firstName: form.firstName.trim(),
-        lastName:  form.lastName.trim(),
-        email:     form.email.trim(),
-        phone:     form.phone.trim(),
-        employeeId: form.employeeId.trim(),
-        department: form.department.trim(),
-        position:  form.position.trim(),
-        source:    form.type === 'external' ? form.source : null,
-        type:      form.type,
-      })
+      if (form.type === 'external') {
+        await api.addExternalCandidate({
+          firstName: form.firstName.trim(),
+          lastName:  form.lastName.trim(),
+          email:     form.email.trim()
+        })
+      } else {
+        await api.addMember({
+          firstName: form.firstName.trim(),
+          lastName:  form.lastName.trim(),
+          email:     form.email.trim(),
+          phone:     form.phone.trim(),
+          employeeId: form.employeeId.trim(),
+          department: form.department.trim(),
+          position:  form.position.trim(),
+          type:      form.type,
+        })
+      }
       setSuccess(`${form.firstName} added to your team.`)
       setTimeout(() => { onDone && onDone(); onClose() }, 1000)
     } catch (err) {
@@ -165,8 +172,9 @@ function AddCandidateModal({ open, onClose, onDone }) {
   )
 
   return (
-    <Modal open={open} onClose={onClose} title="Add Team Member" size="md">
-      {/* Tabs */}
+    <div style={{ position: 'relative', zIndex: 1050 }}>
+      <Modal open={open} onClose={onClose} title="Add Team Member" size="md">
+        {/* Tabs */}
       <div style={{ display: 'flex', borderBottom: '1px solid var(--slate-200)', marginBottom: 20 }}>
         {tabBtn(TAB_FIND,   'Find in organisation')}
         {tabBtn(TAB_MANUAL, 'Add manually')}
@@ -414,7 +422,8 @@ function AddCandidateModal({ open, onClose, onDone }) {
           </div>
         </form>
       )}
-    </Modal>
+      </Modal>
+    </div>
   )
 }
 

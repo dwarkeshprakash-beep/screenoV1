@@ -67,45 +67,47 @@ function EditMemberModal({ open, member, onClose, onDone }) {
   const lbl = text => <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--slate-700)', marginBottom: 5 }}>{text}</label>
 
   return (
-    <Modal open={open} onClose={onClose} title="Edit Member" size="sm">
-      <form onSubmit={handleSave}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <div>{lbl('First name')}<input style={inputStyle} onFocus={onFocus} onBlur={onBlur} value={form.firstName} onChange={e => set('firstName', e.target.value)} /></div>
-            <div>{lbl('Last name')}<input style={inputStyle} onFocus={onFocus} onBlur={onBlur} value={form.lastName} onChange={e => set('lastName', e.target.value)} /></div>
-          </div>
-          <div>{lbl('Email')}<input type="email" style={inputStyle} onFocus={onFocus} onBlur={onBlur} value={form.email} onChange={e => set('email', e.target.value)} /></div>
+    <div style={{ position: 'relative', zIndex: 1050 }}>
+      <Modal open={open} onClose={onClose} title="Edit Member" size="sm">
+        <form onSubmit={handleSave}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div>{lbl('First name')}<input style={inputStyle} onFocus={onFocus} onBlur={onBlur} value={form.firstName} onChange={e => set('firstName', e.target.value)} /></div>
+              <div>{lbl('Last name')}<input style={inputStyle} onFocus={onFocus} onBlur={onBlur} value={form.lastName} onChange={e => set('lastName', e.target.value)} /></div>
+            </div>
+            <div>{lbl('Email')}<input type="email" style={inputStyle} onFocus={onFocus} onBlur={onBlur} value={form.email} onChange={e => set('email', e.target.value)} /></div>
 
-          <div style={{ borderTop: '1px solid var(--slate-100)', paddingTop: 14 }}>
-            <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--slate-400)', marginBottom: 12, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Profile details</div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                <div>{lbl('Employee ID')}<input style={inputStyle} onFocus={onFocus} onBlur={onBlur} value={form.employeeId} onChange={e => set('employeeId', e.target.value)} placeholder="e.g. EMP-001" /></div>
-                <div>{lbl('Location')}<input style={inputStyle} onFocus={onFocus} onBlur={onBlur} value={form.location} onChange={e => set('location', e.target.value)} placeholder="e.g. Mumbai" /></div>
+            <div style={{ borderTop: '1px solid var(--slate-100)', paddingTop: 14 }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--slate-400)', marginBottom: 12, letterSpacing: '0.06em', textTransform: 'uppercase' }}>Profile details</div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                  <div>{lbl('Employee ID')}<input style={inputStyle} onFocus={onFocus} onBlur={onBlur} value={form.employeeId} onChange={e => set('employeeId', e.target.value)} placeholder="e.g. EMP-001" /></div>
+                  <div>{lbl('Location')}<input style={inputStyle} onFocus={onFocus} onBlur={onBlur} value={form.location} onChange={e => set('location', e.target.value)} placeholder="e.g. Mumbai" /></div>
+                </div>
+                <div>{lbl('Job title / Position')}<input style={inputStyle} onFocus={onFocus} onBlur={onBlur} value={form.position} onChange={e => set('position', e.target.value)} placeholder="e.g. Senior Engineer" /></div>
               </div>
-              <div>{lbl('Job title / Position')}<input style={inputStyle} onFocus={onFocus} onBlur={onBlur} value={form.position} onChange={e => set('position', e.target.value)} placeholder="e.g. Senior Engineer" /></div>
+            </div>
+
+            {error && <p style={{ fontSize: 13, color: 'var(--danger-500)', margin: 0 }}>{error}</p>}
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
+              <button
+                type="button"
+                onClick={handleRemove}
+                disabled={removing}
+                style={{ background: 'none', border: '1px solid var(--danger-500)', color: 'var(--danger-500)', padding: '8px 14px', borderRadius: 8, fontSize: 13, cursor: removing ? 'not-allowed' : 'pointer' }}
+              >
+                {removing ? 'Removing…' : 'Remove from team'}
+              </button>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <Button variant="secondary" onClick={onClose} type="button">Cancel</Button>
+                <Button type="submit" loading={loading}>Save Changes</Button>
+              </div>
             </div>
           </div>
-
-          {error && <p style={{ fontSize: 13, color: 'var(--danger-500)', margin: 0 }}>{error}</p>}
-
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8 }}>
-            <button
-              type="button"
-              onClick={handleRemove}
-              disabled={removing}
-              style={{ background: 'none', border: '1px solid var(--danger-500)', color: 'var(--danger-500)', padding: '8px 14px', borderRadius: 8, fontSize: 13, cursor: removing ? 'not-allowed' : 'pointer' }}
-            >
-              {removing ? 'Removing…' : 'Remove from team'}
-            </button>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <Button variant="secondary" onClick={onClose} type="button">Cancel</Button>
-              <Button type="submit" loading={loading}>Save Changes</Button>
-            </div>
-          </div>
-        </div>
-      </form>
-    </Modal>
+        </form>
+      </Modal>
+    </div>
   )
 }
 

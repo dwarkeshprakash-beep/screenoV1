@@ -32,6 +32,7 @@ async function createSchedule(data, managerId, companyId) {
   }
 
   const token = crypto.randomBytes(32).toString('hex')
+  const tokenHash = crypto.createHash('sha256').update(token).digest('hex')
   const windowDays = data.windowDays || 7
   const tokenExpires = new Date(Date.now() + windowDays * 24 * 60 * 60 * 1000)
 
@@ -43,7 +44,7 @@ async function createSchedule(data, managerId, companyId) {
     interviewMode: data.interviewMode,
     difficulty: data.difficulty || 'medium',
     questionCount: data.questionCount || 10,
-    token,
+    tokenHash,
     tokenExpires,
     clientTemplateId:    data.clientTemplateId    || null,
     monthlyAssessmentId: data.monthlyAssessmentId || null,
@@ -113,27 +114,36 @@ async function getOrgUsers(companyId) {
 async function getEmailDeliveries(interviewId, companyId) {
   const interview = await interviewRepository.getById(interviewId)
   if (!interview) throw new Error('Interview not found')
+  if (interview.company_id !== companyId) throw new Error('Forbidden')
   return emailDeliveryRepository.getByInterview(interviewId)
 }
 
 async function resendMagicLink(interviewId, companyId) {
   const interview = await interviewRepository.getById(interviewId)
   if (!interview) throw new Error('Interview not found')
+  if (interview.company_id !== companyId) throw new Error('Forbidden')
 
   const candidateEmail = interview.candidate_email
   const candidateName  = `${interview.candidate_first || ''} ${interview.candidate_last || ''}`.trim()
 
   if (!candidateEmail) throw new Error('Candidate not found')
 
+  const newToken = crypto.randomBytes(32).toString('hex')
+  const newTokenHash = crypto.createHash('sha256').update(newToken).digest('hex')
+  const windowDays = 7
+  const tokenExpires = new Date(Date.now() + windowDays * 24 * 60 * 60 * 1000)
+
+  await interviewRepository.updateTokenHash(interviewId, newTokenHash, tokenExpires)
+
   let inviteSent = false
   let inviteFailure = null
   try {
     await emailService.sendMagicLink(candidateEmail, {
       candidateName,
-      interviewToken: interview.token,
+      interviewToken: newToken,
       companyName: '',
       jobTitle: 'Assessment',
-      windowDays: 7,
+      windowDays,
     })
     inviteSent = true
   } catch (err) {

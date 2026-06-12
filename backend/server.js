@@ -22,6 +22,7 @@ const profileRoutes = require('./src/routes/profile.routes')
 const clientTemplateRoutes = require('./src/routes/client-template.routes')
 const monthlyAssessmentRoutes = require('./src/routes/monthly-assessment.routes')
 const reportJobService = require('./src/services/report-job.service')
+const db = require('./src/db/connection')
 
 const app = express()
 const PORT = process.env.PORT || 4000
@@ -82,8 +83,13 @@ app.use('/api/profile', profileRoutes)
 app.use('/api/assessments/monthly', monthlyAssessmentRoutes)
 
 // Health check — used by uptime monitors and deploy checks
-app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() })
+app.get('/health', async (req, res) => {
+  try {
+    await db.query('SELECT 1')
+    res.json({ status: 'ok', timestamp: new Date().toISOString() })
+  } catch (err) {
+    res.status(503).json({ status: 'error', error: 'DB unreachable', timestamp: new Date().toISOString() })
+  }
 })
 
 // 404 fallback — route not found
@@ -98,7 +104,18 @@ app.use((err, req, res, next) => {
 })
 
 // ── START ─────────────────────────────────────────────────────
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`[server] Running on http://localhost:${PORT}`)
   reportJobService.startReportJobWorker()
 })
+
+async function shutdown(signal) {
+  console.log(`[server] ${signal} received — graceful shutdown`)
+  await reportJobService.stopReportJobWorker()
+  server.close(() => {
+    process.exit(0)
+  })
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'))
+process.on('SIGINT', () => shutdown('SIGINT'))

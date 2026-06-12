@@ -29,7 +29,7 @@ async function create(data) {
       interview_mode:         data.interviewMode        || 'simple',
       difficulty:             data.difficulty           || 'medium',
       question_count:         data.questionCount        || 10,
-      token:                  data.token,
+      token:                  data.tokenHash,
       token_expires:          data.tokenExpires,
       client_template_id:     data.clientTemplateId     || null,
       monthly_assessment_id:  data.monthlyAssessmentId  || null,
@@ -42,7 +42,7 @@ async function create(data) {
 
 async function getById(id) {
   const rows = await db.query(
-    `SELECT i.*, ${CANDIDATE_COLS}, mu.email AS manager_email
+    `SELECT i.*, ${CANDIDATE_COLS}, mu.email AS manager_email, mu.company_id AS company_id
      FROM interviews i
      ${CANDIDATE_JOIN}
      LEFT JOIN users mu ON mu.id = i.manager_id
@@ -52,13 +52,15 @@ async function getById(id) {
   return rows[0] || null
 }
 
-async function getByToken(token) {
+async function getByToken(rawToken) {
+  const crypto = require('crypto')
+  const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex')
   const rows = await db.query(
     `SELECT i.*, ${CANDIDATE_COLS}
      FROM interviews i
      ${CANDIDATE_JOIN}
-     WHERE i.token = @token`,
-    { token }
+     WHERE i.token = @tokenHash`,
+    { tokenHash }
   )
   return rows[0] || null
 }
@@ -78,9 +80,10 @@ async function getByManager(managerId) {
 
 async function getByInternalUser(userId) {
   return db.query(
-    `SELECT i.*, ${CANDIDATE_COLS}
+    `SELECT i.*, ${CANDIDATE_COLS}, sc.overall AS overall_score
      FROM interviews i
      ${CANDIDATE_JOIN}
+     LEFT JOIN scorecards sc ON sc.interview_id = i.id
      WHERE i.internal_user_id = @userId
      ORDER BY i.created DESC`,
     { userId }
@@ -105,9 +108,10 @@ async function getByCompany(companyId) {
 // Candidate's own interviews (by internal_user_id or external_candidate_id)
 async function getByCandidate(candidateId) {
   return db.query(
-    `SELECT i.*, ${CANDIDATE_COLS}
+    `SELECT i.*, ${CANDIDATE_COLS}, sc.overall AS overall_score
      FROM interviews i
      ${CANDIDATE_JOIN}
+     LEFT JOIN scorecards sc ON sc.interview_id = i.id
      WHERE i.internal_user_id = @candidateId
         OR i.external_candidate_id = @candidateId
      ORDER BY i.created DESC`,
@@ -166,8 +170,15 @@ async function markCompleted(id, result = 'completed') {
   )
 }
 
+async function updateTokenHash(id, tokenHash, tokenExpires) {
+  await db.query(
+    `UPDATE interviews SET token = @tokenHash, token_expires = @tokenExpires WHERE id = @id`,
+    { id, tokenHash, tokenExpires }
+  )
+}
+
 module.exports = {
   create, getById, getByToken, getByManager, getByInternalUser, getByInternalUserId,
   getByCompany, getByCandidate, getByIdForCandidate, getAssignedHuman,
-  updateStatus, markStarted, markCompleted
+  updateStatus, markStarted, markCompleted, updateTokenHash
 }

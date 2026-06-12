@@ -261,10 +261,23 @@ function ScheduleModal({ open, onClose, member, selectedIds = [], template, onDo
       setMaxAttempts(template.attempts || 1)
       setFocusAreas(template.description || '')
     }
-    // Load team
-    api.getTeam().then(r => setTeamList(r.data || [])).catch(() => setTeamList([]))
-    api.getInterviewers().then(r => setInterviewers(r.data || [])).catch(() => setInterviewers([]))
-    api.getOrgUsers().then(r => setOrgUsers(r.data || [])).catch(() => setOrgUsers([]))
+    async function loadData() {
+      try {
+        const [teamRes, interviewersRes, orgUsersRes] = await Promise.all([
+          api.getTeam(),
+          api.getInterviewers(),
+          api.getOrgUsers(),
+        ])
+        setTeamList(teamRes.data || [])
+        setInterviewers(interviewersRes.data || [])
+        setOrgUsers(orgUsersRes.data || [])
+      } catch {
+        setTeamList([])
+        setInterviewers([])
+        setOrgUsers([])
+      }
+    }
+    loadData()
     // Get manager email
     try {
       const u = JSON.parse(localStorage.getItem('user') || '{}')
@@ -307,8 +320,8 @@ function ScheduleModal({ open, onClose, member, selectedIds = [], template, onDo
   async function handleSubmit() {
     setLoading(true); setError(null)
 
-    const ids = candidates.length > 0 ? candidates.map(c => c.id) : selectedIds
-    if (!ids.length) {
+    const targets = candidates.length > 0 ? candidates.map(c => ({ id: c.id, external: c.external })) : selectedIds.map(id => ({ id, external: false }))
+    if (!targets.length) {
       setError('Please add at least one candidate.')
       setLoading(false)
       return
@@ -323,10 +336,9 @@ function ScheduleModal({ open, onClose, member, selectedIds = [], template, onDo
 
     try {
       const batchKey = window.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(16).slice(2)}`
-      await Promise.all(ids.map(teamMemberId =>
-        api.createSchedule({
-          idempotencyKey: `${batchKey}:${teamMemberId}:${primaryStage}`,
-          teamMemberId,
+      await Promise.all(targets.map(t => {
+        const payload = {
+          idempotencyKey: `${batchKey}:${t.id}:${primaryStage}`,
           type: primaryStage,
           mode,
           stages: stages.map(s => s.id),
@@ -340,8 +352,14 @@ function ScheduleModal({ open, onClose, member, selectedIds = [], template, onDo
           reportEmails: reportEmails.join(','),
           interviewerId: primaryStage === 'human' ? interviewerId : undefined,
           scheduledStart: primaryStage === 'human' ? scheduledStart : undefined,
-        })
-      ))
+        }
+        if (t.external) {
+          payload.candidateId = t.id
+        } else {
+          payload.teamMemberId = t.id
+        }
+        return api.createSchedule(payload)
+      }))
       if (onDone) onDone()
       onClose()
     } catch (err) {

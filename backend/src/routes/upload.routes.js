@@ -37,25 +37,31 @@ router.post('/resume', upload.single('resume'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ success: false, error: 'No file provided' })
 
-    const teamMemberId = parseInt(req.body.teamMemberId, 10)
-    if (!teamMemberId) return res.status(400).json({ success: false, error: 'teamMemberId is required' })
+    const teamMemberId = req.body.teamMemberId ? parseInt(req.body.teamMemberId, 10) : null
+    let url
 
-    const member = await teamMemberRepository.getByIdForManager(teamMemberId, req.user.id)
-    if (!member) return res.status(404).json({ success: false, error: 'Team member not found' })
+    if (teamMemberId) {
+      const member = await teamMemberRepository.getByIdForManager(teamMemberId, req.user.id)
+      if (!member) return res.status(404).json({ success: false, error: 'Team member not found' })
 
-    const { url } = await storageService.uploadResume(req.file.buffer, `user_${member.user_id}`)
-    await userRepository.updateProfile(member.user_id, { resumeUrl: url })
+      const result = await storageService.uploadResume(req.file.buffer, `user_${member.user_id}`)
+      url = result.url
+      await userRepository.updateProfile(member.user_id, { resumeUrl: url })
 
-    // Extract text then auto-tag — fire and forget so upload returns immediately
-    extractTextFromBuffer(req.file.buffer, req.file.mimetype, req.file.originalname)
-      .then(async (text) => {
-        if (!text || text.length < 50) return
-        const tags = await llmService.extractTagsFromText(text)
-        if (tags && tags.length > 0) {
-          await userRepository.updateProfile(member.user_id, { tags })
-        }
-      })
-      .catch(err => console.error('auto-tag extraction failed:', err.message))
+      // Extract text then auto-tag — fire and forget so upload returns immediately
+      extractTextFromBuffer(req.file.buffer, req.file.mimetype, req.file.originalname)
+        .then(async (text) => {
+          if (!text || text.length < 50) return
+          const tags = await llmService.extractTagsFromText(text)
+          if (tags && tags.length > 0) {
+            await userRepository.updateProfile(member.user_id, { tags })
+          }
+        })
+        .catch(err => console.error('auto-tag extraction failed:', err.message))
+    } else {
+      const result = await storageService.uploadResume(req.file.buffer, `ext_${Date.now()}`)
+      url = result.url
+    }
 
     res.json({ success: true, data: { resumeUrl: url } })
   } catch (err) {

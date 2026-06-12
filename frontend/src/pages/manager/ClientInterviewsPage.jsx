@@ -279,7 +279,7 @@ function SendInviteModal({ open, onClose, template, candidateIds, members }) {
             </label>
           </div>
 
-          {error && <p style={{ fontSize: 12, color: 'var(--danger-700)', margin: 0 }}>{error}</p>}
+          {error && <div style={{ marginTop: 10 }}><ErrorMessage message={error} /></div>}
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, borderTop: '1px solid var(--border-default)', paddingTop: 16 }}>
             <Button variant="secondary" onClick={() => { reset(); onClose() }}>Cancel</Button>
@@ -306,16 +306,38 @@ function DetailView({ template, onBack }) {
   const [editing, setEditing]               = useState(false)
   const [editData, setEditData]             = useState({})
   const [savingEdit, setSavingEdit]         = useState(false)
+  const [reports, setReports]               = useState([])
 
   const tags = (() => { try { return typeof template.tags === 'string' ? JSON.parse(template.tags) : (template.tags || []) } catch { return [] } })()
 
   useEffect(() => {
     if (tab !== 'candidates') return
     setMatchLoading(true)
-    api.getTemplateMatches(template.id)
-      .then(r => setMatches(r.data || []))
-      .catch(() => setMatches([]))
-      .finally(() => setMatchLoading(false))
+    async function loadMatches() {
+      try {
+        const r = await api.getTemplateMatches(template.id)
+        setMatches(r.data || [])
+      } catch {
+        setMatches([])
+      } finally {
+        setMatchLoading(false)
+      }
+    }
+    loadMatches()
+  }, [tab, template.id])
+
+  useEffect(() => {
+    if (tab !== 'reports') return
+    async function loadReports() {
+      try {
+        const r = await api.getTeamReports('client')
+        const filtered = (r.data || []).filter(rep => rep.client_template_id === template.id)
+        setReports(filtered)
+      } catch {
+        setReports([])
+      }
+    }
+    loadReports()
   }, [tab, template.id])
 
   async function handleSendJD() {
@@ -462,7 +484,20 @@ function DetailView({ template, onBack }) {
 
         {tab === 'reports' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            <EmptyState message="Interview reports for this client mandate will appear here once interviews are completed." />
+            {reports.length === 0 ? (
+              <EmptyState message="Interview reports for this client mandate will appear here once interviews are completed." />
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {reports.map(r => (
+                  <div key={r.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', border: '1px solid var(--border-default)', borderRadius: 10, background: 'var(--bg-surface)' }}>
+                    <div>
+                      <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: 'var(--fg-primary)' }}>{r.candidate_first} {r.candidate_last}</p>
+                      <p style={{ margin: '4px 0 0', fontSize: 12, color: 'var(--fg-muted)' }}>Score: <span style={{ fontWeight: 600, color: 'var(--brand-500)' }}>{r.overall_score}</span> · Decision: <span style={{ fontWeight: 600, color: r.decision === 'pass' ? 'var(--success-600)' : 'var(--warning-600)' }}>{r.decision}</span></p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
               <Button variant="secondary"><Download size={13} style={{ marginRight: 6 }} /> Export</Button>
             </div>

@@ -40,4 +40,8 @@ async function getPendingJobs() {
   )
 }
 
-module.exports = { create, markStarted, markCompleted, markFailed, getPendingJobs }
+async function resetProcessingJobs() {
+  await db.query(`UPDATE report_jobs SET status = 'pending' WHERE status = 'processing'`)
+}
+
+module.exports = { create, markStarted, markCompleted, markFailed, getPendingJobs, resetProcessingJobs }

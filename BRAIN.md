@@ -138,7 +138,7 @@ Full prioritized issue list: `docs/open-issues.md`
 
 | Item | Why deferred |
 |---|---|
-| Magic-link tokens stored raw | Hash before external/real-candidate use |
+| Magic-link tokens SHA256-hashed | Implemented — `getByToken()` rehashes raw token for lookup; column is `token` not `token_hash` |
 | Email to STATIC_RECIPIENTS | Test phase — rewire before production |
 | Templates page stub | Phase 2 |
 | Device check permissive | Will tighten before production |

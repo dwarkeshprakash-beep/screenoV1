@@ -24,6 +24,7 @@ function CandidateDashboardPage() {
 
   const [resumeUploading, setResumeUploading] = useState(false)
   const [uploadError, setUploadError]         = useState(null)
+  const [uploadSuccess, setUploadSuccess]     = useState(null)
   const [resumeTags, setResumeTags] = useState([])
   const [availability, setAvailability] = useState(user.availability || 'bench')
 
@@ -32,10 +33,11 @@ function CandidateDashboardPage() {
     if (!file) return
     setResumeUploading(true)
     setUploadError(null)
+    setUploadSuccess(null)
     try {
       const res = await api.uploadOwnResume(file)
+      setUploadSuccess('Tags are being extracted — check back shortly.')
       // The background job extracts tags; they won't appear immediately.
-      // We could poll or just let the user see them on next login.
     } catch (err) {
       setUploadError(err.message)
     } finally {
@@ -186,6 +188,7 @@ function CandidateDashboardPage() {
                 <span style={{ fontSize: 12, color: 'var(--slate-600)', fontWeight: 500 }}>{resumeUploading ? 'Uploading...' : 'Upload new resume (PDF)'}</span>
                 <input type="file" accept=".pdf" style={{ display: 'none' }} onChange={handleResumeUpload} disabled={resumeUploading} />
               </label>
+              {uploadSuccess && <div style={{ fontSize: 12, color: 'var(--success-700)', marginTop: 8 }}>{uploadSuccess}</div>}
               {uploadError && <div style={{ fontSize: 12, color: 'var(--danger-700)', marginTop: 8 }}>{uploadError}</div>}
               {resumeTags.length > 0 && (
                 <div style={{ marginTop: 12 }}>

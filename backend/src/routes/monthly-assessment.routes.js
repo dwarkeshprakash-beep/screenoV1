@@ -12,6 +12,17 @@ router.use(authMiddleware, requireRole('manager'))
 router.post('/', async (req, res) => {
   try {
     const data = { ...req.body, manager_id: req.user.id }
+
+    if (!data.team_member_ids || !Array.isArray(data.team_member_ids) || data.team_member_ids.length === 0) {
+      return res.status(400).json({ success: false, error: 'At least one team member is required' })
+    }
+
+    const teamMemberRepository = require('../repositories/team-member.repository')
+    for (const tmid of data.team_member_ids) {
+      const tm = await teamMemberRepository.getByIdForManager(tmid, req.user.id)
+      if (!tm) return res.status(403).json({ success: false, error: 'Forbidden' })
+    }
+
     // Normalize frontend field aliases to repo-expected names
     if (!data.subject_name && data.subject) data.subject_name = data.subject
     if (!data.ai_generated_jd && data.jd_text) data.ai_generated_jd = data.jd_text
