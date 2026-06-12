@@ -116,6 +116,10 @@ async function main() {
   await run('interviews.scheduled_start column',    `ALTER TABLE interviews ADD COLUMN IF NOT EXISTS scheduled_start TIMESTAMPTZ`)
   await run('interviews.scheduled_end column',      `ALTER TABLE interviews ADD COLUMN IF NOT EXISTS scheduled_end TIMESTAMPTZ`)
   await run('interviews.timezone column',           `ALTER TABLE interviews ADD COLUMN IF NOT EXISTS timezone VARCHAR(100)`)
+  await run('interviews.started_at column',         `ALTER TABLE interviews ADD COLUMN IF NOT EXISTS started_at TIMESTAMPTZ`)
+  await run('interviews.ended_at column',           `ALTER TABLE interviews ADD COLUMN IF NOT EXISTS ended_at TIMESTAMPTZ`)
+  await run('interviews.internal_user_id column',   `ALTER TABLE interviews ADD COLUMN IF NOT EXISTS internal_user_id INT`)
+  await run('interviews.external_candidate_id col', `ALTER TABLE interviews ADD COLUMN IF NOT EXISTS external_candidate_id INT`)
 
   await run('scorecards table', `
     CREATE TABLE IF NOT EXISTS scorecards (
@@ -221,6 +225,20 @@ async function main() {
       AND i.manager_id IS NOT NULL
     ON CONFLICT DO NOTHING
   `)
+  await run('team_members.deleted column', `ALTER TABLE team_members ADD COLUMN IF NOT EXISTS deleted TIMESTAMPTZ`)
+  await run('team_members unique manager+user constraint', `
+    DO $$
+    BEGIN
+      IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints
+        WHERE table_name = 'team_members' AND constraint_type = 'UNIQUE'
+          AND constraint_name = 'team_members_manager_id_user_id_key'
+      ) THEN
+        ALTER TABLE team_members ADD CONSTRAINT team_members_manager_id_user_id_key UNIQUE (manager_id, user_id);
+      END IF;
+    END
+    $$
+  `)
   await run('candidate_notes.team_member_id column', `ALTER TABLE candidate_notes ADD COLUMN IF NOT EXISTS team_member_id INT`)
   await run('candidate_notes.candidate_id nullable', `ALTER TABLE candidate_notes ALTER COLUMN candidate_id DROP NOT NULL`)
 
@@ -231,6 +249,79 @@ async function main() {
   await run('questions.language column', `ALTER TABLE questions ADD COLUMN IF NOT EXISTS language VARCHAR(20)`)
   await run('questions.starter_code column', `ALTER TABLE questions ADD COLUMN IF NOT EXISTS starter_code TEXT`)
   await run('questions.test_cases column', `ALTER TABLE questions ADD COLUMN IF NOT EXISTS test_cases TEXT`)
+
+  // ─── 8b. MIGRATION 002 — client/monthly/external tables ─────
+  console.log('\n[8b] Applying migration 002 tables...')
+
+  await run('external_candidates table', `
+    CREATE TABLE IF NOT EXISTS external_candidates (
+      id         SERIAL PRIMARY KEY,
+      company_id INT NOT NULL,
+      first_name VARCHAR(100) NOT NULL,
+      last_name  VARCHAR(100) NOT NULL,
+      email      VARCHAR(255) NOT NULL,
+      resume_url VARCHAR(500),
+      created    TIMESTAMPTZ DEFAULT NOW()
+    )
+  `)
+
+  await run('client_templates table', `
+    CREATE TABLE IF NOT EXISTS client_templates (
+      id               SERIAL PRIMARY KEY,
+      manager_id       INT NOT NULL,
+      client_name      VARCHAR(255) NOT NULL,
+      client_email     VARCHAR(255),
+      headcount        INT DEFAULT 1,
+      requirements     TEXT,
+      jd_text          TEXT,
+      custom_info      TEXT,
+      tags             TEXT,
+      resume_deadline  TIMESTAMPTZ,
+      created          TIMESTAMPTZ DEFAULT NOW()
+    )
+  `)
+
+  await run('monthly_assessments table', `
+    CREATE TABLE IF NOT EXISTS monthly_assessments (
+      id               SERIAL PRIMARY KEY,
+      manager_id       INT NOT NULL,
+      subject_name     VARCHAR(255) NOT NULL,
+      difficulty       VARCHAR(20) DEFAULT 'medium',
+      topics           TEXT,
+      sub_topics       TEXT,
+      ai_generated_jd  TEXT,
+      duration_months  INT DEFAULT 1,
+      status           VARCHAR(20) DEFAULT 'active',
+      created          TIMESTAMPTZ DEFAULT NOW()
+    )
+  `)
+
+  await run('monthly_assessment_enrollments table', `
+    CREATE TABLE IF NOT EXISTS monthly_assessment_enrollments (
+      id             SERIAL PRIMARY KEY,
+      assessment_id  INT NOT NULL,
+      team_member_id INT NOT NULL,
+      interview_id   INT,
+      start_date     TIMESTAMPTZ,
+      end_date       TIMESTAMPTZ,
+      month_progress TEXT,
+      status         VARCHAR(20) DEFAULT 'pending',
+      created        TIMESTAMPTZ DEFAULT NOW()
+    )
+  `)
+
+  // ─── 8c. MIGRATION 003 — new columns ─────────────────────────
+  console.log('\n[8c] Applying migration 003 columns...')
+
+  await run('users.availability column', `ALTER TABLE users ADD COLUMN IF NOT EXISTS availability VARCHAR(20) DEFAULT 'bench'`)
+  await run('team_members.tags column', `ALTER TABLE team_members ADD COLUMN IF NOT EXISTS tags TEXT`)
+  await run('team_members.availability column', `ALTER TABLE team_members ADD COLUMN IF NOT EXISTS availability VARCHAR(20) DEFAULT 'bench'`)
+  await run('interviews.client_template_id column', `ALTER TABLE interviews ADD COLUMN IF NOT EXISTS client_template_id INT`)
+  await run('interviews.monthly_assessment_id column', `ALTER TABLE interviews ADD COLUMN IF NOT EXISTS monthly_assessment_id INT`)
+  await run('reports.scorecard_id column', `ALTER TABLE reports ADD COLUMN IF NOT EXISTS scorecard_id INT`)
+  await run('reports.status column', `ALTER TABLE reports ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'generating'`)
+  await run('reports.summary column', `ALTER TABLE reports ADD COLUMN IF NOT EXISTS summary TEXT`)
+  await run('reports.strengths column', `ALTER TABLE reports ADD COLUMN IF NOT EXISTS strengths TEXT`)
 
   // ─── 9. SEED TEST COMPANY ────────────────────────────────────
   console.log('\n[9] Seeding test company...')
@@ -265,26 +356,20 @@ async function main() {
 
   // ─── 12. CLEAN UP WRONGLY MIGRATED CANDIDATES ───────────────
   console.log('\n[12] Removing any auto-migrated candidates (employees added in error)...')
-
-  // Employees in the users table are NOT auto-migrated to candidates.
-  // A manager adds team members manually or imports via CSV in the UI.
-  // This step removes any auto-migrated candidates from a previous run of this script.
-  const deleted12 = await db.query(
-    `DELETE FROM candidates WHERE source = 'csv_import' AND manager_id IS NULL RETURNING id`,
-    {}
-  )
-  console.log(`  ✓ Removed ${deleted12.length} auto-migrated candidates`)
+  await run('remove auto-migrated candidates', `
+    DELETE FROM candidates WHERE source = 'csv_import' AND manager_id IS NULL
+  `)
 
   // ─── 13. VERIFY ──────────────────────────────────────────────
   console.log('\n[13] Verification...')
 
   const userCount = await db.query(`SELECT COUNT(*) AS n FROM users`, {})
-  const candCount = await db.query(`SELECT COUNT(*) AS n FROM candidates WHERE deleted IS NULL`, {})
+  const memberCount = await db.query(`SELECT COUNT(*) AS n FROM team_members WHERE deleted IS NULL`, {})
   const mgr = await db.query(`SELECT id, email, role, company_id FROM users WHERE email = @email`, { email: testEmail })
   const comp = await db.query(`SELECT id, name FROM companies WHERE id = 1`, {})
 
   console.log(`  Users: ${userCount[0].n}`)
-  console.log(`  Candidates (active): ${candCount[0].n}`)
+  console.log(`  Team members (active): ${memberCount[0].n}`)
   console.log(`  Company: ${JSON.stringify(comp[0])}`)
   console.log(`  Manager: ${JSON.stringify(mgr[0])}`)
   console.log('\n=== Setup complete ===')

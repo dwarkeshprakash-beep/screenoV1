@@ -55,14 +55,14 @@ const ModalIn = ({ children, style }) => (
 /* Brand chip — small label used inline */
 const Chip = ({ children, tone = "neutral", icon }) => {
   const tones = {
-    neutral:  { bg: "#F1F5F9", fg: "#475569" },
-    brand:    { bg: "#EFEDFD", fg: "#3A31A3" },
-    info:     { bg: "#EFF6FF", fg: "#1D4ED8" },
-    success:  { bg: "#ECFDF5", fg: "#047857" },
-    warning:  { bg: "#FFFBEB", fg: "#B45309" },
-    danger:   { bg: "#FFEDE6", fg: "#B53618" },
+    neutral:  { bg: "var(--slate-100)", fg: "#475569" },
+    brand:    { bg: "var(--brand-50)", fg: "var(--brand-700)" },
+    info:     { bg: "var(--info-50)", fg: "var(--info-600)" },
+    success:  { bg: "var(--success-50)", fg: "var(--success-600)" },
+    warning:  { bg: "var(--warning-50)", fg: "var(--warning-600)" },
+    danger:   { bg: "var(--danger-50)", fg: "var(--danger-700)" },
     purple:   { bg: "#EDE9FE", fg: "#5B21B6" },
-    amber:    { bg: "#FEF3C7", fg: "#92400E" },
+    amber:    { bg: "var(--warning-100)", fg: "var(--warning-700)" },
     cyan:     { bg: "#CFFAFE", fg: "#155E75" },
   };
   const t = tones[tone] || tones.neutral;
@@ -80,7 +80,7 @@ const Chip = ({ children, tone = "neutral", icon }) => {
 };
 
 /* Score dots — a horizontal row of N filled-or-empty dots */
-const ScoreDots = ({ value, max = 5, size = 20, gap = 6, color = "#5B4FE9", emptyColor = "#E2E8F0", interactive = false, onChange, labels }) => {
+const ScoreDots = ({ value, max = 5, size = 20, gap = 6, color = "var(--brand-500)", emptyColor = "var(--slate-200)", interactive = false, onChange, labels }) => {
   const [hover, setHover] = React.useState(null);
   const labelFor = hover != null ? hover : value;
   return (
@@ -109,7 +109,7 @@ const ScoreDots = ({ value, max = 5, size = 20, gap = 6, color = "#5B4FE9", empt
         })}
       </div>
       {labels && (
-        <div style={{ fontSize: 11, color: "#6B7280", fontWeight: 500, height: 14 }}>
+        <div style={{ fontSize: 11, color: "var(--slate-500)", fontWeight: 500, height: 14 }}>
           {labelFor ? labels[labelFor - 1] : "\u00A0"}
         </div>
       )}
@@ -118,10 +118,10 @@ const ScoreDots = ({ value, max = 5, size = 20, gap = 6, color = "#5B4FE9", empt
 };
 
 /* Bar score (used in radar-like layouts) */
-const ScoreBar = ({ label, value, max = 5, color = "#5B4FE9" }) => (
+const ScoreBar = ({ label, value, max = 5, color = "var(--brand-500)" }) => (
   <div style={{ display: "grid", gridTemplateColumns: "160px 1fr 32px", alignItems: "center", gap: 12 }}>
-    <span style={{ fontSize: 13, color: "#374151", fontWeight: 500 }}>{label}</span>
-    <span style={{ height: 8, background: "#F1F5F9", borderRadius: 9999, overflow: "hidden" }}>
+    <span style={{ fontSize: 13, color: "var(--slate-700)", fontWeight: 500 }}>{label}</span>
+    <span style={{ height: 8, background: "var(--slate-100)", borderRadius: 9999, overflow: "hidden" }}>
       <span style={{
         display: "block", height: "100%",
         width: `${(value / max) * 100}%`,
@@ -129,7 +129,7 @@ const ScoreBar = ({ label, value, max = 5, color = "#5B4FE9" }) => (
         transition: "width 400ms cubic-bezier(0.2, 0, 0, 1)",
       }} />
     </span>
-    <span style={{ fontFamily: "var(--font-mono)", fontWeight: 600, color: "#0F172A", fontSize: 12, fontVariantNumeric: "tabular-nums", textAlign: "right" }}>{value}/{max}</span>
+    <span style={{ fontFamily: "var(--font-mono)", fontWeight: 600, color: "var(--slate-900)", fontSize: 12, fontVariantNumeric: "tabular-nums", textAlign: "right" }}>{value}/{max}</span>
   </div>
 );
 
@@ -153,7 +153,7 @@ const Modal = ({ open, onClose, children, width = 560 }) => {
       }}
     >
       <ModalIn style={{
-        background: "#FFF", borderRadius: 16, width: "100%", maxWidth: width,
+        background: "var(--bg-surface)", borderRadius: 16, width: "100%", maxWidth: width,
         boxShadow: "0 24px 48px rgba(15,23,42,0.24)",
         overflow: "hidden", maxHeight: "90vh", display: "flex", flexDirection: "column",
       }}>
@@ -167,7 +167,7 @@ const Modal = ({ open, onClose, children, width = 560 }) => {
 };
 
 /* Stat sparkline (tiny inline SVG line for trend) */
-const Sparkline = ({ values, color = "#5B4FE9", width = 80, height = 26 }) => {
+const Sparkline = ({ values, color = "var(--brand-500)", width = 80, height = 26 }) => {
   if (!values?.length) return null;
   const min = Math.min(...values), max = Math.max(...values);
   const rng = max - min || 1;
@@ -185,7 +185,7 @@ const Sparkline = ({ values, color = "#5B4FE9", width = 80, height = 26 }) => {
 };
 
 /* Donut (very small inline progress donut for the dashboard pass-rate stat) */
-const Donut = ({ value, size = 56, stroke = 6, color = "#5B4FE9", track = "#F1F5F9", showLabel = true }) => {
+const Donut = ({ value, size = 56, stroke = 6, color = "var(--brand-500)", track = "var(--slate-100)", showLabel = true }) => {
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
   const dash = c * (value / 100);
@@ -197,7 +197,7 @@ const Donut = ({ value, size = 56, stroke = 6, color = "#5B4FE9", track = "#F1F5
                 strokeDasharray={`${dash} ${c}`} strokeLinecap="round" />
       </svg>
       {showLabel && (
-        <span style={{ position: "absolute", fontFamily: "var(--font-mono)", fontSize: 11, fontWeight: 700, color: "#0F172A", fontVariantNumeric: "tabular-nums" }}>
+        <span style={{ position: "absolute", fontFamily: "var(--font-mono)", fontSize: 11, fontWeight: 700, color: "var(--slate-900)", fontVariantNumeric: "tabular-nums" }}>
           {value}%
         </span>
       )}
@@ -207,8 +207,8 @@ const Donut = ({ value, size = 56, stroke = 6, color = "#5B4FE9", track = "#F1F5
 
 /* Initials avatar — copy of shared.jsx helpers (kept local to v2 to make this file self-contained when needed) */
 const INITIALS_COLORS_V2 = [
-  { bg: "#DEDAFB", fg: "#3A31A3" }, { bg: "#FED7AA", fg: "#9A3412" },
-  { bg: "#A7F3D0", fg: "#065F46" }, { bg: "#BFDBFE", fg: "#1E40AF" },
+  { bg: "var(--brand-100)", fg: "var(--brand-700)" }, { bg: "#FED7AA", fg: "#9A3412" },
+  { bg: "#A7F3D0", fg: "var(--success-700)" }, { bg: "#BFDBFE", fg: "#1E40AF" },
   { bg: "#FBCFE8", fg: "#9D174D" }, { bg: "#FDE68A", fg: "#854D0E" },
   { bg: "#C7D2FE", fg: "#3730A3" }, { bg: "#FCA5A5", fg: "#7F1D1D" },
 ];
@@ -223,7 +223,7 @@ const AvatarV2 = ({ name = "?", size = 36, ring }) => {
       display: "inline-flex", alignItems: "center", justifyContent: "center",
       fontWeight: 600, fontSize: Math.round(size * 0.38),
       flexShrink: 0,
-      boxShadow: ring ? `0 0 0 2px #FFF, 0 0 0 4px ${ring}` : undefined,
+      boxShadow: ring ? `0 0 0 2px var(--bg-surface), 0 0 0 4px ${ring}` : undefined,
     }}>
       {initialsV2(name)}
     </div>

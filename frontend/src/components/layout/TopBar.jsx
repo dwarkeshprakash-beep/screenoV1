@@ -7,10 +7,10 @@ import { formatDate } from '../../utils/helpers'
 // ── Notification helpers ──────────────────────────────────────
 function notifMeta(what = '') {
   const w = what.toLowerCase()
-  if (w.includes('schedul')) return { Icon: CalendarPlus, bg: '#EFEDFD', color: '#5B4FE9' }
-  if (w.includes('complet') || w.includes('done') || w.includes('finish')) return { Icon: CheckCircle2, bg: '#ECFDF5', color: '#059669' }
-  if (w.includes('report') || w.includes('generat')) return { Icon: FileText, bg: '#EFF6FF', color: '#2563EB' }
-  return { Icon: Clock, bg: '#F1F5F9', color: '#94A3B8' }
+  if (w.includes('schedul')) return { Icon: CalendarPlus, bg: 'var(--brand-50)', color: 'var(--brand-500)' }
+  if (w.includes('complet') || w.includes('done') || w.includes('finish')) return { Icon: CheckCircle2, bg: 'var(--success-50)', color: 'var(--success-500)' }
+  if (w.includes('report') || w.includes('generat')) return { Icon: FileText, bg: 'var(--info-50)', color: 'var(--info-500)' }
+  return { Icon: Clock, bg: 'var(--slate-100)', color: 'var(--slate-400)' }
 }
 
 // ── Notification dropdown ─────────────────────────────────────
@@ -31,13 +31,13 @@ function NotifDropdown({ items, loading, onClose, onViewAll }) {
 
       <div style={{ maxHeight: 380, overflowY: 'auto' }}>
         {loading && (
-          <div style={{ padding: '28px 16px', textAlign: 'center', color: '#94A3B8', fontSize: 13 }}>Loading…</div>
+          <div style={{ padding: '28px 16px', textAlign: 'center', color: 'var(--slate-400)', fontSize: 13 }}>Loading…</div>
         )}
         {!loading && items.length === 0 && (
           <div style={{ padding: '28px 16px', textAlign: 'center' }}>
             <div style={{ fontSize: 32, marginBottom: 8 }}>🔔</div>
-            <div style={{ fontSize: 13, color: '#6B7280', fontWeight: 500 }}>No recent activity</div>
-            <div style={{ fontSize: 12, color: '#94A3B8', marginTop: 4 }}>Activity will appear here as your team completes interviews.</div>
+            <div style={{ fontSize: 13, color: 'var(--slate-500)', fontWeight: 500 }}>No recent activity</div>
+            <div style={{ fontSize: 12, color: 'var(--slate-400)', marginTop: 4 }}>Activity will appear here as your team completes interviews.</div>
           </div>
         )}
         {!loading && items.slice(0, 15).map((item, i) => {
@@ -46,28 +46,28 @@ function NotifDropdown({ items, loading, onClose, onViewAll }) {
           return (
             <div
               key={i}
-              style={{ display: 'flex', gap: 12, padding: '11px 16px', borderBottom: '1px solid #F8FAFC', transition: 'background 100ms', cursor: 'default', background: '#FFF' }}
-              onMouseEnter={e => e.currentTarget.style.background = '#F8FAFC'}
-              onMouseLeave={e => e.currentTarget.style.background = '#FFF'}
+              style={{ display: 'flex', gap: 12, padding: '11px 16px', borderBottom: '1px solid var(--slate-50)', transition: 'background 100ms', cursor: 'default', background: 'var(--bg-surface)' }}
+              onMouseEnter={e => e.currentTarget.style.background = 'var(--slate-50)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-surface)'}
             >
               <div style={{ width: 32, height: 32, borderRadius: 8, background: meta.bg, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                 <Icon size={14} color={meta.color} />
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: '#0F172A', lineHeight: 1.35 }}>{item.what}</div>
-                {item.sub && <div style={{ fontSize: 12, color: '#5B4FE9', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.sub}</div>}
-                <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>{item.when ? formatDate(item.when) : ''}</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--slate-900)', lineHeight: 1.35 }}>{item.what}</div>
+                {item.sub && <div style={{ fontSize: 12, color: 'var(--brand-500)', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.sub}</div>}
+                <div style={{ fontSize: 11, color: 'var(--slate-400)', marginTop: 2 }}>{item.when ? formatDate(item.when) : ''}</div>
               </div>
             </div>
           )
         })}
       </div>
 
-      <div style={{ padding: '10px 16px', borderTop: '1px solid #F1F5F9', textAlign: 'center' }}>
+      <div style={{ padding: '10px 16px', borderTop: '1px solid var(--slate-100)', textAlign: 'center' }}>
         <button
           type="button"
           onClick={onViewAll}
-          style={{ fontSize: 12, fontWeight: 600, color: '#5B4FE9', background: 'transparent', border: 0, cursor: 'pointer', fontFamily: 'inherit' }}
+          style={{ fontSize: 12, fontWeight: 600, color: 'var(--brand-500)', background: 'transparent', border: 0, cursor: 'pointer', fontFamily: 'inherit' }}
         >
           View all reports →
         </button>

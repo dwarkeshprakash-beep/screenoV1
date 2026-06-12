@@ -97,7 +97,7 @@ router.post('/', async (req, res) => {
 // GET /api/schedule/calendar?week=YYYY-MM-DD
 router.get('/calendar', async (req, res) => {
   try {
-    const events = await scheduleService.getCalendarEvents(req.user.companyId, req.query.week)
+    const events = await scheduleService.getCalendarEvents(req.user.id, req.query.week)
     res.json({ success: true, data: events })
   } catch (err) {
     console.error('GET /schedule/calendar failed:', err)

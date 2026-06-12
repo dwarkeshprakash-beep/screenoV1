@@ -45,6 +45,10 @@ async function createSchedule(data, managerId, companyId) {
     questionCount: data.questionCount || 10,
     token,
     tokenExpires,
+    clientTemplateId:    data.clientTemplateId    || null,
+    monthlyAssessmentId: data.monthlyAssessmentId || null,
+    jdText:              data.jdText              || null,
+    interviewerId:       data.interviewerId       || null,
   })
 
   finishScheduleSetup({ interview, candidateEmail, candidateName, data, token, windowDays }).catch(err =>
@@ -86,7 +90,7 @@ async function finishScheduleSetup({ interview, candidateEmail, candidateName, d
   }
 }
 
-async function getCalendarEvents(managerId) {
+async function getCalendarEvents(managerId, week) {
   const interviews = await interviewRepository.getByManager(managerId)
   return interviews.map(i => ({
     id: i.id,

@@ -6,8 +6,8 @@
  * @param {'sm'|'md'|'lg'} size
  */
 function Avatar({ src, name = '', size = 'md' }) {
-  const sizes = { sm: 28, md: 36, lg: 48 }
-  const px = sizes[size] || 36
+  const presets = { sm: 28, md: 36, lg: 48 }
+  const px = typeof size === 'number' ? size : (presets[size] || 36)
 
   const initials = name
     .split(' ')
@@ -43,7 +43,7 @@ function Avatar({ src, name = '', size = 'md' }) {
         height: px,
         borderRadius: '50%',
         background: `hsl(${hue}, 55%, 50%)`,
-        color: '#fff',
+        color: 'var(--bg-surface)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',

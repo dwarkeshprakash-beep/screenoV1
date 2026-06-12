@@ -21,8 +21,8 @@ function Spinner({ size = 24, label = 'Loading…', center = false }) {
         xmlns="http://www.w3.org/2000/svg"
         style={{ animation: 'spin 0.8s linear infinite' }}
       >
-        <circle cx="12" cy="12" r="10" stroke="var(--slate-200, #E2E8F0)" strokeWidth="3" />
-        <path d="M12 2a10 10 0 0 1 10 10" stroke="var(--brand-500, #5B4FE9)" strokeWidth="3" strokeLinecap="round" />
+        <circle cx="12" cy="12" r="10" stroke="var(--slate-200, var(--slate-200))" strokeWidth="3" />
+        <path d="M12 2a10 10 0 0 1 10 10" stroke="var(--brand-500, var(--brand-500))" strokeWidth="3" strokeLinecap="round" />
       </svg>
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>

@@ -18,7 +18,7 @@ const APP_NAV = [
 ];
 
 /* Brand mark — "screeno" wordmark with a purple-dot accent on the "o" */
-const ScreenoLogo = ({ color = "#FFFFFF", dotColor = "#7B69ED", size = 20 }) => (
+const ScreenoLogo = ({ color = "var(--bg-surface)", dotColor = "var(--brand-400)", size = 20 }) => (
   <div style={{ display: "inline-flex", alignItems: "baseline", gap: 0, letterSpacing: "-0.025em" }}>
     <span style={{ fontFamily: "var(--font-display)", fontSize: size, fontWeight: 600, color, lineHeight: 1 }}>screen</span>
     <span style={{ position: "relative", display: "inline-flex", alignItems: "baseline" }}>
@@ -39,13 +39,13 @@ const Tooltip = ({ label, children, side = "right" }) => {
       {shown && (
         <span style={{
           position: "absolute", left: "calc(100% + 12px)", top: "50%", transform: "translateY(-50%)",
-          background: "#0F172A", color: "#FFF", fontSize: 12, fontWeight: 500,
+          background: "var(--slate-900)", color: "var(--bg-surface)", fontSize: 12, fontWeight: 500,
           padding: "6px 10px", borderRadius: 6, whiteSpace: "nowrap",
           boxShadow: "0 6px 16px rgba(15,23,42,0.18)", zIndex: 50,
           animation: "fadein 120ms cubic-bezier(0.2,0,0,1)",
         }}>
           {label}
-          <span style={{ position: "absolute", left: -4, top: "50%", transform: "translateY(-50%) rotate(45deg)", width: 8, height: 8, background: "#0F172A" }} />
+          <span style={{ position: "absolute", left: -4, top: "50%", transform: "translateY(-50%) rotate(45deg)", width: 8, height: 8, background: "var(--slate-900)" }} />
         </span>
       )}
     </span>
@@ -59,8 +59,8 @@ const AppSidebar = ({ active, onNav, collapsed, onToggle, user = { name: "Alex M
     <aside
       style={{
         width: W,
-        background: "#0F172A",
-        color: "#FFF",
+        background: "var(--slate-900)",
+        color: "var(--bg-surface)",
         display: "flex", flexDirection: "column",
         position: "sticky", top: 0, height: "100vh",
         transition: "width 220ms cubic-bezier(0.2, 0, 0, 1)",
@@ -72,9 +72,9 @@ const AppSidebar = ({ active, onNav, collapsed, onToggle, user = { name: "Alex M
       {/* Brand */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: collapsed ? "center" : "space-between", padding: collapsed ? "18px 0" : "18px 16px", borderBottom: "1px solid #1E293B", height: 64, flexShrink: 0 }}>
         {collapsed ? (
-          <div style={{ width: 30, height: 30, borderRadius: 8, background: "linear-gradient(135deg, #5B4FE9, #4A3FCE)", display: "inline-flex", alignItems: "center", justifyContent: "center", position: "relative", boxShadow: "0 4px 12px rgba(91,79,233,0.3)" }}>
-            <div style={{ width: 12, height: 2.5, background: "#FFF", borderRadius: 2 }} />
-            <div style={{ position: "absolute", right: 4, top: 4, width: 6, height: 6, borderRadius: 9999, background: "#7B69ED", boxShadow: "0 0 0 2px #0F172A" }} />
+          <div style={{ width: 30, height: 30, borderRadius: 8, background: "linear-gradient(135deg, var(--brand-500), var(--brand-600))", display: "inline-flex", alignItems: "center", justifyContent: "center", position: "relative", boxShadow: "0 4px 12px rgba(91,79,233,0.3)" }}>
+            <div style={{ width: 12, height: 2.5, background: "var(--bg-surface)", borderRadius: 2 }} />
+            <div style={{ position: "absolute", right: 4, top: 4, width: 6, height: 6, borderRadius: 9999, background: "var(--brand-400)", boxShadow: "0 0 0 2px var(--slate-900)" }} />
           </div>
         ) : (
           <ScreenoLogo />
@@ -83,9 +83,9 @@ const AppSidebar = ({ active, onNav, collapsed, onToggle, user = { name: "Alex M
           <button
             onClick={onToggle}
             title="Collapse sidebar"
-            style={{ background: "transparent", border: 0, color: "#94A3B8", padding: 6, borderRadius: 6, display: "inline-flex", cursor: "pointer", transition: "all 120ms" }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.08)"; e.currentTarget.style.color = "#FFF"; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#94A3B8"; }}
+            style={{ background: "transparent", border: 0, color: "var(--slate-400)", padding: 6, borderRadius: 6, display: "inline-flex", cursor: "pointer", transition: "all 120ms" }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.08)"; e.currentTarget.style.color = "var(--bg-surface)"; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--slate-400)"; }}
           >
             <window.Icon name="panel-left-close" size={16} />
           </button>
@@ -112,15 +112,15 @@ const AppSidebar = ({ active, onNav, collapsed, onToggle, user = { name: "Alex M
                     justifyContent: collapsed ? "center" : "flex-start",
                     borderRadius: 6,
                     fontSize: 13, fontWeight: 500,
-                    color: isActive ? "#FFF" : "#94A3B8",
-                    background: isActive ? "#5B4FE9" : "transparent",
+                    color: isActive ? "var(--bg-surface)" : "var(--slate-400)",
+                    background: isActive ? "var(--brand-500)" : "transparent",
                     cursor: "pointer",
                     transition: "all 120ms cubic-bezier(0.2, 0, 0, 1)",
                     width: collapsed ? 48 : "100%",
                     boxShadow: isActive ? "0 4px 14px rgba(91,79,233,0.35)" : "none",
                   }}
-                  onMouseEnter={(e) => { if (!isActive) { e.currentTarget.style.background = "rgba(255,255,255,0.08)"; e.currentTarget.style.color = "#FFF"; } }}
-                  onMouseLeave={(e) => { if (!isActive) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#94A3B8"; } }}
+                  onMouseEnter={(e) => { if (!isActive) { e.currentTarget.style.background = "rgba(255,255,255,0.08)"; e.currentTarget.style.color = "var(--bg-surface)"; } }}
+                  onMouseLeave={(e) => { if (!isActive) { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "var(--slate-400)"; } }}
                 >
                   <window.Icon name={it.icon} size={16} />
                   {!collapsed && (
@@ -129,7 +129,7 @@ const AppSidebar = ({ active, onNav, collapsed, onToggle, user = { name: "Alex M
                       {it.badge && (
                         <span style={{
                           background: isActive ? "rgba(255,255,255,0.18)" : "#1E293B",
-                          color: isActive ? "#FFF" : "#CBD5E1",
+                          color: isActive ? "var(--bg-surface)" : "var(--slate-300)",
                           fontSize: 11, fontWeight: 600,
                           padding: "1px 7px", borderRadius: 9999,
                           fontFamily: "var(--font-mono)", fontVariantNumeric: "tabular-nums",
@@ -159,23 +159,23 @@ const AppSidebar = ({ active, onNav, collapsed, onToggle, user = { name: "Alex M
       }}>
         {collapsed ? (
           <Tooltip label={`${user.name} · ${user.role}`}>
-            <div style={{ width: 36, height: 36, borderRadius: 9999, background: "#5B4FE9", color: "#FFF", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>
+            <div style={{ width: 36, height: 36, borderRadius: 9999, background: "var(--brand-500)", color: "var(--bg-surface)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>
               {user.initials}
             </div>
           </Tooltip>
         ) : (
           <>
-            <div style={{ width: 36, height: 36, borderRadius: 9999, background: "#5B4FE9", color: "#FFF", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 600, fontSize: 13, flexShrink: 0 }}>
+            <div style={{ width: 36, height: 36, borderRadius: 9999, background: "var(--brand-500)", color: "var(--bg-surface)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 600, fontSize: 13, flexShrink: 0 }}>
               {user.initials}
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 13, fontWeight: 600, color: "#FFF", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user.name}</div>
-              <div style={{ display: "inline-flex", marginTop: 2, padding: "1px 7px", borderRadius: 9999, background: "rgba(91,79,233,0.22)", color: "#BDB4F6", fontSize: 10, fontWeight: 600, letterSpacing: "0.05em", textTransform: "uppercase" }}>{user.role}</div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: "var(--bg-surface)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{user.name}</div>
+              <div style={{ display: "inline-flex", marginTop: 2, padding: "1px 7px", borderRadius: 9999, background: "rgba(91,79,233,0.22)", color: "var(--brand-200)", fontSize: 10, fontWeight: 600, letterSpacing: "0.05em", textTransform: "uppercase" }}>{user.role}</div>
             </div>
             <button
               title="Log out"
               style={{ background: "transparent", border: 0, color: "#64748B", padding: 6, borderRadius: 6, cursor: "pointer", transition: "all 120ms", display: "inline-flex" }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.08)"; e.currentTarget.style.color = "#FFF"; }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = "rgba(255,255,255,0.08)"; e.currentTarget.style.color = "var(--bg-surface)"; }}
               onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; e.currentTarget.style.color = "#64748B"; }}
             >
               <window.Icon name="log-out" size={15} />
@@ -192,14 +192,14 @@ const AppSidebar = ({ active, onNav, collapsed, onToggle, user = { name: "Alex M
           style={{
             position: "absolute", left: 48, top: 22,
             width: 22, height: 22, borderRadius: 9999,
-            background: "#FFF", border: "1px solid #E2E8F0",
+            background: "var(--bg-surface)", border: "1px solid var(--slate-200)",
             color: "#475569", cursor: "pointer",
             display: "inline-flex", alignItems: "center", justifyContent: "center",
             boxShadow: "0 2px 6px rgba(15,23,42,0.12)",
             zIndex: 20, transition: "all 120ms",
           }}
-          onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#5B4FE9"; e.currentTarget.style.color = "#5B4FE9"; }}
-          onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#E2E8F0"; e.currentTarget.style.color = "#475569"; }}
+          onMouseEnter={(e) => { e.currentTarget.style.borderColor = "var(--brand-500)"; e.currentTarget.style.color = "var(--brand-500)"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.borderColor = "var(--slate-200)"; e.currentTarget.style.color = "#475569"; }}
         >
           <window.Icon name="chevron-right" size={12} />
         </button>
@@ -213,13 +213,13 @@ const AppTopBar = ({ title }) => {
   const [search, setSearch] = React.useState(false);
   return (
     <header style={{
-      height: 64, background: "#FFF", borderBottom: "1px solid #E2E8F0",
+      height: 64, background: "var(--bg-surface)", borderBottom: "1px solid var(--slate-200)",
       display: "flex", alignItems: "center", justifyContent: "space-between",
       padding: "0 28px", position: "sticky", top: 0, zIndex: 10,
     }}>
       <h1 style={{
         fontFamily: "var(--font-display)", fontSize: 20, fontWeight: 700,
-        color: "#0F172A", letterSpacing: "-0.02em", margin: 0,
+        color: "var(--slate-900)", letterSpacing: "-0.02em", margin: 0,
       }}>{title}</h1>
 
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -229,10 +229,10 @@ const AppTopBar = ({ title }) => {
           title="Search · ⌘K"
           style={{
             display: "inline-flex", alignItems: "center", gap: 8,
-            background: search ? "#FFF" : "#F1F5F9",
-            border: search ? "1px solid #5B4FE9" : "1px solid transparent",
+            background: search ? "var(--bg-surface)" : "var(--slate-100)",
+            border: search ? "1px solid var(--brand-500)" : "1px solid transparent",
             borderRadius: 8, padding: "8px 12px",
-            color: "#6B7280", fontSize: 13, fontWeight: 500,
+            color: "var(--slate-500)", fontSize: 13, fontWeight: 500,
             cursor: "pointer", transition: "all 120ms",
             width: search ? 320 : 200,
             boxShadow: search ? "0 0 0 3px rgba(91,79,233,0.18)" : "none",
@@ -240,7 +240,7 @@ const AppTopBar = ({ title }) => {
         >
           <window.Icon name="search" size={14} />
           <span style={{ flex: 1, textAlign: "left" }}>Search anything…</span>
-          <kbd style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "#94A3B8", border: "1px solid #E2E8F0", borderRadius: 4, padding: "1px 5px", background: "#FFF" }}>⌘K</kbd>
+          <kbd style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--slate-400)", border: "1px solid var(--slate-200)", borderRadius: 4, padding: "1px 5px", background: "var(--bg-surface)" }}>⌘K</kbd>
         </button>
 
         {/* Notifications */}
@@ -248,23 +248,23 @@ const AppTopBar = ({ title }) => {
           title="Notifications"
           style={{
             position: "relative",
-            background: "#F1F5F9", border: 0, padding: 9, borderRadius: 8,
-            color: "#374151", cursor: "pointer", transition: "all 120ms",
+            background: "var(--slate-100)", border: 0, padding: 9, borderRadius: 8,
+            color: "var(--slate-700)", cursor: "pointer", transition: "all 120ms",
             display: "inline-flex",
           }}
-          onMouseEnter={(e) => { e.currentTarget.style.background = "#E2E8F0"; }}
-          onMouseLeave={(e) => { e.currentTarget.style.background = "#F1F5F9"; }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = "var(--slate-200)"; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = "var(--slate-100)"; }}
         >
           <window.Icon name="bell" size={16} />
           <span style={{
             position: "absolute", top: 6, right: 6,
             width: 8, height: 8, borderRadius: 9999,
-            background: "#FF5C35", boxShadow: "0 0 0 2px #FFF",
+            background: "var(--danger-500)", boxShadow: "0 0 0 2px var(--bg-surface)",
           }} />
         </button>
 
         {/* Divider */}
-        <div style={{ width: 1, height: 24, background: "#E2E8F0", margin: "0 4px" }} />
+        <div style={{ width: 1, height: 24, background: "var(--slate-200)", margin: "0 4px" }} />
 
         {/* User avatar */}
         <button
@@ -274,11 +274,11 @@ const AppTopBar = ({ title }) => {
             background: "transparent", border: 0, padding: "4px 6px 4px 4px",
             borderRadius: 9999, cursor: "pointer", transition: "all 120ms",
           }}
-          onMouseEnter={(e) => { e.currentTarget.style.background = "#F1F5F9"; }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = "var(--slate-100)"; }}
           onMouseLeave={(e) => { e.currentTarget.style.background = "transparent"; }}
         >
-          <div style={{ width: 32, height: 32, borderRadius: 9999, background: "#5B4FE9", color: "#FFF", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 600, fontSize: 12 }}>AM</div>
-          <window.Icon name="chevron-down" size={14} color="#6B7280" />
+          <div style={{ width: 32, height: 32, borderRadius: 9999, background: "var(--brand-500)", color: "var(--bg-surface)", display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 600, fontSize: 12 }}>AM</div>
+          <window.Icon name="chevron-down" size={14} color="var(--slate-500)" />
         </button>
       </div>
     </header>
@@ -298,11 +298,11 @@ const AppLayout = ({ children, activeNav = "dashboard", onNav, title = "Dashboar
   const computedTitle = current?.label || title;
 
   return (
-    <div style={{ display: "flex", minHeight: "calc(100vh - 52px)", background: "#F8FAFC" }}>
+    <div style={{ display: "flex", minHeight: "calc(100vh - 52px)", background: "var(--slate-50)" }}>
       <AppSidebar active={active} onNav={handleNav} collapsed={collapsed} onToggle={() => setCollapsed(c => !c)} />
       <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, transition: "all 220ms cubic-bezier(0.2, 0, 0, 1)" }}>
         <AppTopBar title={computedTitle} />
-        <main style={{ flex: 1, overflowY: "auto", padding: "24px 32px", background: "#F8FAFC" }}>
+        <main style={{ flex: 1, overflowY: "auto", padding: "24px 32px", background: "var(--slate-50)" }}>
           <div key={active} style={{ animation: "fadeUp 320ms cubic-bezier(0.2, 0, 0, 1)" }}>
             {typeof children === "function" ? children({ active }) : children}
           </div>

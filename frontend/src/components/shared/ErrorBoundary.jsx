@@ -40,7 +40,7 @@ class ErrorBoundary extends Component {
             textAlign: 'center',
           }}
         >
-          <h2 style={{ fontSize: 18, fontWeight: 700, color: 'var(--fg-heading, #0F172A)' }}>Something went wrong</h2>
+          <h2 style={{ fontSize: 18, fontWeight: 700, color: 'var(--fg-heading, var(--slate-900))' }}>Something went wrong</h2>
           <p style={{ fontSize: 14, color: 'var(--fg-muted, #64748B)', maxWidth: 420 }}>
             This page ran into an unexpected error. Reloading usually fixes it — your data is safe.
           </p>
@@ -52,8 +52,8 @@ class ErrorBoundary extends Component {
               fontWeight: 600,
               border: 'none',
               borderRadius: 8,
-              background: 'var(--brand-500, #5B4FE9)',
-              color: '#FFF',
+              background: 'var(--brand-500, var(--brand-500))',
+              color: 'var(--bg-surface)',
               cursor: 'pointer',
             }}
           >

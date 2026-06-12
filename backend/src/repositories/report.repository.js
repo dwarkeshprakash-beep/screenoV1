@@ -36,12 +36,15 @@ async function getReportsByManager(managerId) {
            COALESCE(iu.last_name,  ec.last_name)  AS candidate_last,
            i.type AS interview_type,
            i.created AS interview_date,
-           tm.id AS team_member_id
+           tm.id AS team_member_id,
+           sc.decision,
+           sc.overall AS overall_score
     FROM reports r
     JOIN interviews i ON i.id = r.interview_id
     LEFT JOIN users iu ON iu.id = i.internal_user_id
     LEFT JOIN external_candidates ec ON ec.id = i.external_candidate_id
     LEFT JOIN team_members tm ON tm.user_id = i.internal_user_id AND tm.manager_id = i.manager_id
+    LEFT JOIN scorecards sc ON sc.interview_id = r.interview_id
     WHERE i.manager_id = @managerId
     ORDER BY r.created DESC
   `, { managerId })
@@ -74,9 +77,12 @@ async function getLatestByCandidate(candidateId) {
 // All reports for a user (newest first) — for MemberProfilePage history tab
 async function getHistoryByUser(userId) {
   return db.query(`
-    SELECT r.*, i.type AS interview_type, i.created AS interview_date
+    SELECT r.*, i.type AS interview_type, i.created AS interview_date,
+           sc.overall AS overall_score, sc.confidence, sc.tech_knowledge, sc.communication,
+           sc.problem_solving, sc.decision
     FROM reports r
     JOIN interviews i ON i.id = r.interview_id
+    LEFT JOIN scorecards sc ON sc.interview_id = r.interview_id
     WHERE i.internal_user_id = @userId
     ORDER BY r.created DESC
   `, { userId })

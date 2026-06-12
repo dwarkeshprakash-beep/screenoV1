@@ -23,29 +23,29 @@ const JobsScreen = ({ tweaks }) => {
               <div>
                 <window.Pill tone="success" icon="circle">{j.stage}</window.Pill>
                 <h3 className="display" style={{ fontSize: 17, margin: "10px 0 4px", letterSpacing: "-0.01em" }}>{j.title}</h3>
-                <div style={{ fontSize: 12, color: "#6B7280", display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{ fontSize: 12, color: "var(--slate-500)", display: "flex", alignItems: "center", gap: 12 }}>
                   <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><window.Icon name="building-2" size={12} /> {j.team}</span>
                   <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}><window.Icon name="map-pin" size={12} /> {j.loc}</span>
                 </div>
               </div>
               <button className="btn btn-ghost btn-icon"><window.Icon name="more-horizontal" size={16} /></button>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, padding: "14px 0", borderTop: "1px solid #F1F5F9" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, padding: "14px 0", borderTop: "1px solid var(--slate-100)" }}>
               <div>
-                <div style={{ fontSize: 11, color: "#6B7280", letterSpacing: "0.05em", textTransform: "uppercase" }}>Open</div>
-                <div style={{ fontFamily: "var(--font-display)", fontSize: 20, fontWeight: 700, color: "#0F172A" }}>{j.open}</div>
+                <div style={{ fontSize: 11, color: "var(--slate-500)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Open</div>
+                <div style={{ fontFamily: "var(--font-display)", fontSize: 20, fontWeight: 700, color: "var(--slate-900)" }}>{j.open}</div>
               </div>
               <div>
-                <div style={{ fontSize: 11, color: "#6B7280", letterSpacing: "0.05em", textTransform: "uppercase" }}>Pipeline</div>
-                <div style={{ fontFamily: "var(--font-display)", fontSize: 20, fontWeight: 700, color: "#0F172A" }}>{j.pipeline}</div>
+                <div style={{ fontSize: 11, color: "var(--slate-500)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Pipeline</div>
+                <div style={{ fontFamily: "var(--font-display)", fontSize: 20, fontWeight: 700, color: "var(--slate-900)" }}>{j.pipeline}</div>
               </div>
               <div>
-                <div style={{ fontSize: 11, color: "#6B7280", letterSpacing: "0.05em", textTransform: "uppercase" }}>Applied</div>
-                <div style={{ fontFamily: "var(--font-display)", fontSize: 20, fontWeight: 700, color: "#0F172A" }}>{j.applied}</div>
+                <div style={{ fontSize: 11, color: "var(--slate-500)", letterSpacing: "0.05em", textTransform: "uppercase" }}>Applied</div>
+                <div style={{ fontFamily: "var(--font-display)", fontSize: 20, fontWeight: 700, color: "var(--slate-900)" }}>{j.applied}</div>
               </div>
             </div>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 12, borderTop: "1px solid #F1F5F9" }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "#6B7280" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", paddingTop: 12, borderTop: "1px solid var(--slate-100)" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--slate-500)" }}>
                 <window.Avatar name={j.owner} size={22} fontSize={10} />
                 {j.owner}
               </div>

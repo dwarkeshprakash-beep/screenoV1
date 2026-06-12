@@ -101,9 +101,9 @@ SKILLS
 // ── Helpers ────────────────────────────────────────────────────
 function chip(label, tone) {
   const styles = {
-    ok:      { background: '#ECFDF5', color: '#047857' },
-    miss:    { background: '#FEF2F2', color: '#B53618' },
-    neutral: { background: '#F1F5F9', color: '#475569' },
+    ok:      { background: 'var(--success-50)', color: 'var(--success-600)' },
+    miss:    { background: 'var(--danger-50)', color: 'var(--danger-700)' },
+    neutral: { background: 'var(--slate-100)', color: 'var(--slate-600)' },
   }
   const s = styles[tone] || styles.neutral
   return (
@@ -114,10 +114,10 @@ function chip(label, tone) {
 }
 
 function verdict(score) {
-  if (score >= 85) return { label: 'Strong match', c: '#047857', bg: '#ECFDF5', bd: '#A7F3D0', icon: CheckCircle2, note: 'Highly aligned — most ATS filters will pass this resume.' }
-  if (score >= 65) return { label: 'Good match', c: '#047857', bg: '#ECFDF5', bd: '#A7F3D0', icon: ThumbsUp, note: 'In good shape. Close remaining gaps for competitive roles.' }
-  if (score >= 50) return { label: 'Borderline', c: '#B45309', bg: '#FFFBEB', bd: '#FEF3C7', icon: AlertTriangle, note: 'May pass a small pool but likely filtered at high volume.' }
-  return { label: 'Major mismatch', c: '#B53618', bg: '#FEF2F2', bd: '#FECACA', icon: XCircle, note: 'Significant skills gap — address required skills first.' }
+  if (score >= 85) return { label: 'Strong match', c: 'var(--success-600)', bg: 'var(--success-50)', bd: 'var(--success-100)', icon: CheckCircle2, note: 'Highly aligned — most ATS filters will pass this resume.' }
+  if (score >= 65) return { label: 'Good match', c: 'var(--success-600)', bg: 'var(--success-50)', bd: 'var(--success-100)', icon: ThumbsUp, note: 'In good shape. Close remaining gaps for competitive roles.' }
+  if (score >= 50) return { label: 'Borderline', c: 'var(--warning-600)', bg: 'var(--warning-50)', bd: 'var(--warning-100)', icon: AlertTriangle, note: 'May pass a small pool but likely filtered at high volume.' }
+  return { label: 'Major mismatch', c: 'var(--danger-700)', bg: 'var(--danger-50)', bd: 'var(--danger-200)', icon: XCircle, note: 'Significant skills gap — address required skills first.' }
 }
 
 function libraryAnalyze(jd, resume) {
@@ -155,16 +155,7 @@ async function extractText(file) {
   // PDF and DOCX require server-side extraction — send to backend
   if (file.type === 'application/pdf' || file.name.endsWith('.pdf') ||
       file.type.includes('wordprocessing') || file.name.endsWith('.docx') || file.name.endsWith('.doc')) {
-    const fd = new FormData()
-    fd.append('file', file)
-    const token = localStorage.getItem('accessToken') || ''
-    const res = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/upload/extract-text`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
-      body: fd,
-    })
-    if (!res.ok) throw new Error('Could not extract text from file.')
-    const json = await res.json()
+    const json = await api.extractTextFromFile(file)
     return json.data?.text || ''
   }
   return ''
@@ -204,16 +195,7 @@ function ResumeAnalyzerPage() {
     if (aiMode) {
       // AI mode — call backend
       try {
-        const r = await fetch(`${import.meta.env.VITE_API_URL || ''}/api/upload/analyze-resume`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${localStorage.getItem('accessToken') || ''}`,
-          },
-          body: JSON.stringify({ jd, resume }),
-        })
-        if (!r.ok) throw new Error('AI analysis failed.')
-        const json = await r.json()
+        const json = await api.analyzeResumeMatch(jd, resume)
         if (!json.success) throw new Error(json.error || 'AI analysis failed.')
         setRes({ ...json.data, mode: 'ai' })
         setPhase('results')
@@ -254,7 +236,7 @@ function ResumeAnalyzerPage() {
     flex: 1, width: '100%', height: 0, minHeight: 220,
     padding: '14px 16px', border: 'none', outline: 'none',
     resize: 'none', fontSize: 13, fontFamily: 'inherit',
-    lineHeight: 1.65, color: '#0F172A', background: 'transparent',
+    lineHeight: 1.65, color: 'var(--slate-900)', background: 'transparent',
     overflowY: 'auto', boxSizing: 'border-box',
   }
 
@@ -265,11 +247,11 @@ function ResumeAnalyzerPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14, flex: 1, minHeight: 0 }}>
-      <style>{`@keyframes spin { from{transform:rotate(0)} to{transform:rotate(360deg)} } .ta-panel:focus-within { border-color: #5B4FE9 !important; box-shadow: 0 0 0 3px rgba(91,79,233,0.12) !important; }`}</style>
+      <style>{`@keyframes spin { from{transform:rotate(0)} to{transform:rotate(360deg)} } .ta-panel:focus-within { border-color: var(--brand-500) !important; box-shadow: 0 0 0 3px rgba(91,79,233,0.12) !important; }`}</style>
 
       {/* ── Top bar: mode toggle + AI notice ──────────────────── */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-        <div style={{ display: 'inline-flex', background: '#F1F5F9', borderRadius: 10, padding: 4, border: '1px solid #E2E8F0' }}>
+        <div style={{ display: 'inline-flex', background: 'var(--slate-100)', borderRadius: 10, padding: 4, border: '1px solid var(--slate-200)' }}>
           {[
             { id: false, Icon: BookOpen, label: 'Library',   sub: 'Fast · Local' },
             { id: true,  Icon: Sparkles, label: 'AI (Deep)', sub: 'Semantic · LLM' },
@@ -280,8 +262,8 @@ function ResumeAnalyzerPage() {
               style={{
                 display: 'inline-flex', alignItems: 'center', gap: 8,
                 padding: '10px 20px', borderRadius: 7, border: 'none', fontFamily: 'inherit',
-                background: aiMode === m.id ? '#5B4FE9' : 'transparent',
-                color: aiMode === m.id ? '#FFF' : '#6B7280',
+                background: aiMode === m.id ? 'var(--brand-500)' : 'transparent',
+                color: aiMode === m.id ? 'var(--bg-surface)' : 'var(--slate-500)',
                 fontWeight: 600, fontSize: 14, cursor: 'pointer',
                 boxShadow: aiMode === m.id ? '0 2px 10px rgba(91,79,233,0.32)' : 'none',
                 transition: 'all 150ms',
@@ -309,28 +291,28 @@ function ResumeAnalyzerPage() {
                 className="ta-panel"
                 style={{
                   display: 'flex', flexDirection: 'column',
-                  background: '#FFF', border: '1.5px solid #E2E8F0', borderRadius: 12,
+                  background: 'var(--bg-surface)', border: '1.5px solid var(--slate-200)', borderRadius: 12,
                   overflow: 'hidden', boxShadow: '0 1px 4px rgba(15,23,42,0.05)',
                   transition: 'border-color 150ms, box-shadow 150ms',
                 }}
               >
                 {/* Panel header */}
-                <div style={{ padding: '12px 16px', borderBottom: '1px solid #F1F5F9', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: '#0F172A', letterSpacing: '-0.01em' }}>{c.title}</span>
+                <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--slate-100)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--slate-900)', letterSpacing: '-0.01em' }}>{c.title}</span>
                   <div style={{ display: 'flex', gap: 6 }}>
                     <button
                       onClick={() => c.ref.current?.click()}
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600, color: '#5B4FE9', background: '#EFEDFD', border: 'none', borderRadius: 6, padding: '5px 10px', cursor: 'pointer', transition: 'background 120ms' }}
-                      onMouseEnter={e => e.currentTarget.style.background = '#E0DBFB'}
-                      onMouseLeave={e => e.currentTarget.style.background = '#EFEDFD'}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600, color: 'var(--brand-500)', background: 'var(--brand-50)', border: 'none', borderRadius: 6, padding: '5px 10px', cursor: 'pointer', transition: 'background 120ms' }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'var(--brand-100)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'var(--brand-50)'}
                     >
                       <Upload size={12} /> Upload
                     </button>
                     <button
                       onClick={() => { c.setText(c.sample); c.setFile(null) }}
-                      style={{ fontSize: 12, color: '#6B7280', fontWeight: 500, background: '#F1F5F9', border: 0, borderRadius: 6, padding: '5px 10px', cursor: 'pointer', transition: 'all 120ms' }}
-                      onMouseEnter={e => { e.currentTarget.style.background = '#E2E8F0'; e.currentTarget.style.color = '#374151' }}
-                      onMouseLeave={e => { e.currentTarget.style.background = '#F1F5F9'; e.currentTarget.style.color = '#6B7280' }}
+                      style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 500, background: 'var(--slate-100)', border: 0, borderRadius: 6, padding: '5px 10px', cursor: 'pointer', transition: 'all 120ms' }}
+                      onMouseEnter={e => { e.currentTarget.style.background = 'var(--slate-200)'; e.currentTarget.style.color = 'var(--slate-700)' }}
+                      onMouseLeave={e => { e.currentTarget.style.background = 'var(--slate-100)'; e.currentTarget.style.color = 'var(--slate-500)' }}
                     >
                       Sample
                     </button>
@@ -340,10 +322,10 @@ function ResumeAnalyzerPage() {
 
                 {/* File indicator */}
                 {c.file && (
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px', background: '#ECFDF5', borderBottom: '1px solid #A7F3D0', fontSize: 12, flexShrink: 0 }}>
-                    <FileText size={14} color="#059669" />
-                    <span style={{ color: '#047857', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 }}>{c.file.name}</span>
-                    <button onClick={() => { c.setFile(null); c.setText('') }} style={{ background: 'transparent', border: 0, color: '#6B7280', cursor: 'pointer', padding: 2, display: 'inline-flex', fontSize: 16, lineHeight: 1 }}>×</button>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 16px', background: 'var(--success-50)', borderBottom: '1px solid var(--success-100)', fontSize: 12, flexShrink: 0 }}>
+                    <FileText size={14} color="var(--success-500)" />
+                    <span style={{ color: 'var(--success-600)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 }}>{c.file.name}</span>
+                    <button onClick={() => { c.setFile(null); c.setText('') }} style={{ background: 'transparent', border: 0, color: 'var(--slate-500)', cursor: 'pointer', padding: 2, display: 'inline-flex', fontSize: 16, lineHeight: 1 }}>×</button>
                   </div>
                 )}
 
@@ -352,7 +334,7 @@ function ResumeAnalyzerPage() {
                   value={c.text}
                   onChange={e => c.setText(e.target.value)}
                   placeholder={c.ph}
-                  style={{ ...taStyle, color: c.file ? '#94A3B8' : '#0F172A' }}
+                  style={{ ...taStyle, color: c.file ? 'var(--slate-400)' : 'var(--slate-900)' }}
                   disabled={!!c.file}
                 />
               </div>
@@ -360,7 +342,7 @@ function ResumeAnalyzerPage() {
           </div>
 
           {extractError && (
-            <div style={{ padding: '10px 14px', background: '#FEF2F2', border: '1px solid #FECACA', borderRadius: 8, fontSize: 13, color: '#B53618' }}>
+            <div style={{ padding: '10px 14px', background: 'var(--danger-50)', border: '1px solid var(--danger-200)', borderRadius: 8, fontSize: 13, color: 'var(--danger-700)' }}>
               {extractError}
             </div>
           )}
@@ -373,8 +355,8 @@ function ResumeAnalyzerPage() {
               style={{
                 display: 'inline-flex', alignItems: 'center', gap: 9,
                 padding: '12px 32px', borderRadius: 10, fontFamily: 'inherit',
-                background: !canAnalyze ? '#E2E8F0' : '#5B4FE9',
-                color: !canAnalyze ? '#94A3B8' : '#FFF',
+                background: !canAnalyze ? 'var(--slate-200)' : 'var(--brand-500)',
+                color: !canAnalyze ? 'var(--slate-400)' : 'var(--bg-surface)',
                 border: 0, fontWeight: 700, fontSize: 14,
                 cursor: !canAnalyze || phase === 'analyzing' ? 'not-allowed' : 'pointer',
                 boxShadow: canAnalyze && phase !== 'analyzing' ? '0 4px 16px rgba(91,79,233,0.35)' : 'none',
@@ -386,7 +368,7 @@ function ResumeAnalyzerPage() {
                 : <>{aiMode ? <Sparkles size={16} /> : <Zap size={16} />} Analyze match</>}
             </button>
             {!canAnalyze && (
-              <span style={{ fontSize: 12, color: '#94A3B8' }}>Paste or upload both a JD and a resume to continue.</span>
+              <span style={{ fontSize: 12, color: 'var(--slate-400)' }}>Paste or upload both a JD and a resume to continue.</span>
             )}
           </div>
         </>
@@ -400,35 +382,35 @@ function ResumeAnalyzerPage() {
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             {res.aiNote && (
-              <div style={{ padding: '9px 14px', background: '#FFFBEB', border: '1px solid #FEF3C7', borderRadius: 8, fontSize: 12, color: '#B45309', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <div style={{ padding: '9px 14px', background: 'var(--warning-50)', border: '1px solid var(--warning-100)', borderRadius: 8, fontSize: 12, color: 'var(--warning-600)', display: 'flex', alignItems: 'center', gap: 8 }}>
                 <AlertTriangle size={13} /> {res.aiNote}
               </div>
             )}
 
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <button onClick={reset} style={{ fontSize: 13, color: '#5B4FE9', fontWeight: 600, background: 'transparent', border: 0, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <button onClick={reset} style={{ fontSize: 13, color: 'var(--brand-500)', fontWeight: 600, background: 'transparent', border: 0, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
                 <RotateCcw size={14} /> Edit inputs &amp; re-scan
               </button>
-              <span style={{ fontSize: 11, color: '#94A3B8', background: '#F1F5F9', padding: '4px 10px', borderRadius: 999, fontWeight: 500 }}>
+              <span style={{ fontSize: 11, color: 'var(--slate-400)', background: 'var(--slate-100)', padding: '4px 10px', borderRadius: 999, fontWeight: 500 }}>
                 {res.mode === 'ai' ? '✦ AI analysis' : '◈ Library analysis'}
               </span>
             </div>
 
             {/* Score ring + verdict */}
             <div style={{ display: 'grid', gridTemplateColumns: '200px 1fr', gap: 16, alignItems: 'stretch' }}>
-              <div style={{ background: '#FFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: '20px 16px', textAlign: 'center', boxShadow: '0 1px 3px rgba(15,23,42,0.04)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--slate-200)', borderRadius: 12, padding: '20px 16px', textAlign: 'center', boxShadow: '0 1px 3px rgba(15,23,42,0.04)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
                 <div style={{ position: 'relative', width: 100, height: 100, margin: '0 auto' }}>
                   <svg width="100" height="100" style={{ transform: 'rotate(-90deg)' }}>
-                    <circle cx="50" cy="50" r="38" stroke="#F1F5F9" strokeWidth="10" fill="none" />
+                    <circle cx="50" cy="50" r="38" stroke="var(--slate-100)" strokeWidth="10" fill="none" />
                     <circle cx="50" cy="50" r="38" stroke={v.c} strokeWidth="10" fill="none" strokeLinecap="round"
                       strokeDasharray={`${2 * Math.PI * 38 * res.score / 100} ${2 * Math.PI * 38}`}
                       style={{ transition: 'stroke-dasharray 700ms cubic-bezier(0.2,0,0,1)' }}
                     />
                   </svg>
-                  <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "var(--font-display,'Inter')", fontSize: 28, fontWeight: 700, color: '#0F172A' }}>{res.score}%</span>
+                  <span style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "var(--font-display,'Inter')", fontSize: 28, fontWeight: 700, color: 'var(--slate-900)' }}>{res.score}%</span>
                 </div>
-                <div style={{ fontSize: 12, color: '#64748B', marginTop: 10, fontWeight: 500 }}>JD match rate</div>
-                <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>Target: 75%+</div>
+                <div style={{ fontSize: 12, color: 'var(--slate-500)', marginTop: 10, fontWeight: 500 }}>JD match rate</div>
+                <div style={{ fontSize: 11, color: 'var(--slate-400)', marginTop: 2 }}>Target: 75%+</div>
               </div>
 
               <div style={{ background: v.bg, border: `1.5px solid ${v.bd}`, borderRadius: 12, padding: 20, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
@@ -436,9 +418,9 @@ function ResumeAnalyzerPage() {
                   <VIcon size={22} color={v.c} />
                   <span style={{ fontSize: 18, fontWeight: 700, color: v.c, letterSpacing: '-0.01em' }}>{v.label}</span>
                 </div>
-                <p style={{ fontSize: 13, color: '#374151', lineHeight: 1.65, margin: 0 }}>{v.note}</p>
+                <p style={{ fontSize: 13, color: 'var(--slate-700)', lineHeight: 1.65, margin: 0 }}>{v.note}</p>
                 {res.yJd && (
-                  <div style={{ marginTop: 12, fontSize: 12, color: '#475569', display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,0.5)', padding: '6px 10px', borderRadius: 8 }}>
+                  <div style={{ marginTop: 12, fontSize: 12, color: 'var(--slate-600)', display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,0.5)', padding: '6px 10px', borderRadius: 8 }}>
                     <Briefcase size={13} />
                     JD needs {res.yJd}+ yrs · Resume shows {res.yRes || '—'} yrs {res.yRes && Number(res.yRes) >= Number(res.yJd) ? '✓' : '⚠'}
                   </div>
@@ -449,21 +431,21 @@ function ResumeAnalyzerPage() {
             {/* Keyword stat cards */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14 }}>
               {[
-                { value: (res.mH?.length || 0) + (res.mS?.length || 0), label: 'Matched keywords', bg: '#ECFDF5', c: '#047857', bd: '#A7F3D0' },
-                { value: (res.missH?.length || 0) + (res.missS?.length || 0), label: 'Missing keywords', bg: '#FEF2F2', c: '#DC2626', bd: '#FECACA' },
-                { value: res.missH?.length || 0, label: 'Hard skills gap', bg: '#FFFBEB', c: '#B45309', bd: '#FDE68A' },
+                { value: (res.mH?.length || 0) + (res.mS?.length || 0), label: 'Matched keywords', bg: 'var(--success-50)', c: 'var(--success-600)', bd: 'var(--success-100)' },
+                { value: (res.missH?.length || 0) + (res.missS?.length || 0), label: 'Missing keywords', bg: 'var(--danger-50)', c: 'var(--danger-500)', bd: 'var(--danger-100)' },
+                { value: res.missH?.length || 0, label: 'Hard skills gap', bg: 'var(--warning-50)', c: 'var(--warning-600)', bd: 'var(--warning-100)' },
               ].map((s, i) => (
                 <div key={i} style={{ background: s.bg, border: `1px solid ${s.bd}`, borderRadius: 10, padding: '16px 20px', display: 'flex', alignItems: 'center', gap: 14 }}>
                   <div style={{ fontSize: 32, fontWeight: 700, color: s.c, lineHeight: 1 }}>{s.value}</div>
-                  <div style={{ fontSize: 12, color: '#475569', fontWeight: 500, lineHeight: 1.4 }}>{s.label}</div>
+                  <div style={{ fontSize: 12, color: 'var(--slate-600)', fontWeight: 500, lineHeight: 1.4 }}>{s.label}</div>
                 </div>
               ))}
             </div>
 
             {/* Interview focus */}
             {(res.missH?.length > 0 || res.aiGaps?.length > 0) && (
-              <div style={{ background: '#FFFBEB', border: '1px solid #FCD34D', borderRadius: 10, padding: '14px 18px' }}>
-                <div style={{ fontSize: 13, color: '#92400E', fontWeight: 700, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ background: 'var(--warning-50)', border: '1px solid var(--warning-100)', borderRadius: 10, padding: '14px 18px' }}>
+                <div style={{ fontSize: 13, color: 'var(--warning-700)', fontWeight: 700, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
                   <Target size={14} /> Probe these in the interview
                 </div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
@@ -474,8 +456,8 @@ function ResumeAnalyzerPage() {
 
             {/* AI strengths */}
             {res.mode === 'ai' && res.aiStrengths?.length > 0 && (
-              <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 10, padding: '14px 18px' }}>
-                <div style={{ fontSize: 13, color: '#065F46', fontWeight: 700, marginBottom: 8 }}>AI-identified strengths</div>
+              <div style={{ background: 'var(--success-50)', border: '1px solid var(--success-100)', borderRadius: 10, padding: '14px 18px' }}>
+                <div style={{ fontSize: 13, color: 'var(--success-700)', fontWeight: 700, marginBottom: 8 }}>AI-identified strengths</div>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                   {res.aiStrengths.map(s => chip(s, 'ok'))}
                 </div>
@@ -483,10 +465,10 @@ function ResumeAnalyzerPage() {
             )}
 
             {/* Detail tabs */}
-            <div style={{ background: '#FFF', border: '1px solid #E2E8F0', borderRadius: 12, overflow: 'hidden', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
-              <div style={{ display: 'flex', borderBottom: '1px solid #E2E8F0' }}>
+            <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--slate-200)', borderRadius: 12, overflow: 'hidden', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
+              <div style={{ display: 'flex', borderBottom: '1px solid var(--slate-200)' }}>
                 {[['hard', 'Hard skills'], ['soft', 'Soft skills'], ['search', 'Searchability']].map(([id, l]) => (
-                  <button key={id} onClick={() => setTab(id)} style={{ padding: '12px 20px', border: 0, background: 'transparent', fontSize: 13, fontWeight: 600, color: tab === id ? '#5B4FE9' : '#94A3B8', borderBottom: tab === id ? '2px solid #5B4FE9' : '2px solid transparent', cursor: 'pointer', fontFamily: 'inherit', transition: 'color 120ms', marginBottom: -1 }}>
+                  <button key={id} onClick={() => setTab(id)} style={{ padding: '12px 20px', border: 0, background: 'transparent', fontSize: 13, fontWeight: 600, color: tab === id ? 'var(--brand-500)' : 'var(--slate-400)', borderBottom: tab === id ? '2px solid var(--brand-500)' : '2px solid transparent', cursor: 'pointer', fontFamily: 'inherit', transition: 'color 120ms', marginBottom: -1 }}>
                     {l}
                   </button>
                 ))}
@@ -495,36 +477,36 @@ function ResumeAnalyzerPage() {
                 {tab === 'hard' && (
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
                     <div>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: '#047857', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Matched ({res.mH?.length || 0})</div>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>{res.mH?.length ? res.mH.map(s => chip(s, 'ok')) : <span style={{ fontSize: 13, color: '#94A3B8' }}>None matched</span>}</div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--success-600)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Matched ({res.mH?.length || 0})</div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>{res.mH?.length ? res.mH.map(s => chip(s, 'ok')) : <span style={{ fontSize: 13, color: 'var(--slate-400)' }}>None matched</span>}</div>
                     </div>
                     <div>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: '#B53618', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Missing ({res.missH?.length || 0})</div>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>{res.missH?.length ? res.missH.map(s => chip(s, 'miss')) : <span style={{ fontSize: 13, color: '#94A3B8' }}>Nothing missing — great</span>}</div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--danger-700)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Missing ({res.missH?.length || 0})</div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>{res.missH?.length ? res.missH.map(s => chip(s, 'miss')) : <span style={{ fontSize: 13, color: 'var(--slate-400)' }}>Nothing missing — great</span>}</div>
                     </div>
                   </div>
                 )}
                 {tab === 'soft' && (
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
                     <div>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: '#047857', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Matched ({res.mS?.length || 0})</div>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>{res.mS?.length ? res.mS.map(s => chip(s, 'ok')) : <span style={{ fontSize: 13, color: '#94A3B8' }}>None matched</span>}</div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--success-600)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Matched ({res.mS?.length || 0})</div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>{res.mS?.length ? res.mS.map(s => chip(s, 'ok')) : <span style={{ fontSize: 13, color: 'var(--slate-400)' }}>None matched</span>}</div>
                     </div>
                     <div>
-                      <div style={{ fontSize: 12, fontWeight: 700, color: '#B53618', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Missing ({res.missS?.length || 0})</div>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>{res.missS?.length ? res.missS.map(s => chip(s, 'miss')) : <span style={{ fontSize: 13, color: '#94A3B8' }}>Nothing missing</span>}</div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--danger-700)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Missing ({res.missS?.length || 0})</div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>{res.missS?.length ? res.missS.map(s => chip(s, 'miss')) : <span style={{ fontSize: 13, color: 'var(--slate-400)' }}>Nothing missing</span>}</div>
                     </div>
                   </div>
                 )}
                 {tab === 'search' && (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                     {(res.searchChecks || []).map((s, i) => (
-                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 14px', background: s.ok ? '#ECFDF5' : '#FEF2F2', border: `1px solid ${s.ok ? '#A7F3D0' : '#FECACA'}`, borderRadius: 8 }}>
-                        {s.ok ? <CheckCircle2 size={16} color="#059669" /> : <XCircle size={16} color="#DC2626" />}
-                        <span style={{ fontSize: 13, color: '#0F172A', fontWeight: 500 }}>{s.label}</span>
+                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 14px', background: s.ok ? 'var(--success-50)' : 'var(--danger-50)', border: `1px solid ${s.ok ? 'var(--success-200)' : 'var(--danger-200)'}`, borderRadius: 8 }}>
+                        {s.ok ? <CheckCircle2 size={16} color="var(--success-500)" /> : <XCircle size={16} color="var(--danger-500)" />}
+                        <span style={{ fontSize: 13, color: 'var(--slate-900)', fontWeight: 500 }}>{s.label}</span>
                       </div>
                     ))}
-                    <p style={{ fontSize: 12, color: '#94A3B8', marginTop: 4, lineHeight: 1.5 }}>ATS systems parse contact details and standard sections to rank resumes.</p>
+                    <p style={{ fontSize: 12, color: 'var(--slate-400)', marginTop: 4, lineHeight: 1.5 }}>ATS systems parse contact details and standard sections to rank resumes.</p>
                   </div>
                 )}
               </div>

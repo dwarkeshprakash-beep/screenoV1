@@ -94,13 +94,13 @@ function LiveRoomPage() {
   })
 
   return (
-    <div style={{ height: '100vh', display: 'flex', background: '#0F172A', overflow: 'hidden' }}>
+    <div style={{ height: '100vh', display: 'flex', background: 'var(--slate-900)', overflow: 'hidden' }}>
       {/* Left: Video area */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: 20, gap: 12 }}>
         {/* LiveKit video room */}
-        <div style={{ flex: 1, background: '#0F172A', borderRadius: 12, overflow: 'hidden', position: 'relative' }}>
+        <div style={{ flex: 1, background: 'var(--slate-900)', borderRadius: 12, overflow: 'hidden', position: 'relative' }}>
           {tokenLoading && (
-            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94A3B8', fontSize: 14 }}>
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--slate-400)', fontSize: 14 }}>
               Connecting to video room…
             </div>
           )}
@@ -181,7 +181,7 @@ function LiveRoomPage() {
               <p style={{ fontSize: 13, color: 'var(--danger-500)', marginBottom: 8 }}>Are you sure? This will end the interview for both parties.</p>
               <div style={{ display: 'flex', gap: 8 }}>
                 <button onClick={() => setEnding(false)} style={{ flex: 1, padding: '9px', border: '1px solid var(--border-default)', borderRadius: 8, background: 'none', cursor: 'pointer', fontSize: 13 }}>Cancel</button>
-                <button onClick={handleEndInterview} style={{ flex: 1, padding: '9px', border: 'none', borderRadius: 8, background: 'var(--danger-500)', color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>Confirm End</button>
+                <button onClick={handleEndInterview} style={{ flex: 1, padding: '9px', border: 'none', borderRadius: 8, background: 'var(--danger-500)', color: 'var(--bg-surface)', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>Confirm End</button>
               </div>
             </div>
           ) : (

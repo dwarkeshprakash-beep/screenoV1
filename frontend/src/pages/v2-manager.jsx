@@ -5,20 +5,20 @@ const Btn = ({children, variant="primary", size="md", onClick, disabled, style:s
   const base = {display:"inline-flex",alignItems:"center",justifyContent:"center",gap:6,fontFamily:"inherit",cursor:disabled?"not-allowed":"pointer",border:0,borderRadius:8,fontWeight:600,transition:"all 120ms cubic-bezier(0.2,0,0,1)",whiteSpace:"nowrap",...sty};
   const sizes = {sm:{fontSize:12,padding:"5px 10px"},md:{fontSize:13,padding:"8px 14px"},lg:{fontSize:14,padding:"11px 20px"}};
   const variants = {
-    primary:  {background:disabled?"#E2E8F0":"#5B4FE9", color:disabled?"#94A3B8":"#FFF", boxShadow:disabled?"none":"0 4px 12px rgba(91,79,233,0.2)"},
-    secondary:{background:"#FFF", color:"#0F172A", border:"1px solid #CBD5E1"},
-    ghost:    {background:"transparent", color:"#374151"},
-    danger:   {background:"#FFF", color:"#B53618", border:"1px solid #FFD4C2"},
-    success:  {background:"#059669", color:"#FFF"},
+    primary:  {background:disabled?"var(--slate-200)":"var(--brand-500)", color:disabled?"var(--slate-400)":"var(--bg-surface)", boxShadow:disabled?"none":"0 4px 12px rgba(91,79,233,0.2)"},
+    secondary:{background:"var(--bg-surface)", color:"var(--slate-900)", border:"1px solid var(--slate-300)"},
+    ghost:    {background:"transparent", color:"var(--slate-700)"},
+    danger:   {background:"var(--bg-surface)", color:"var(--danger-700)", border:"1px solid var(--danger-100)"},
+    success:  {background:"var(--success-500)", color:"var(--bg-surface)"},
   };
   return <button onClick={onClick} disabled={disabled} title={title} style={{...base,...sizes[size],...variants[variant]}}>{children}</button>;
 };
 
 const Card = ({children, style:sty, pad=20}) => (
-  <div style={{background:"#FFF",border:"1px solid #E2E8F0",borderRadius:12,padding:pad,boxShadow:"0 1px 3px rgba(15,23,42,0.04)",...sty}}>{children}</div>
+  <div style={{background:"var(--bg-surface)",border:"1px solid var(--slate-200)",borderRadius:12,padding:pad,boxShadow:"0 1px 3px rgba(15,23,42,0.04)",...sty}}>{children}</div>
 );
 
-const Eyebrow = ({children, color="#5B4FE9"}) => (
+const Eyebrow = ({children, color="var(--brand-500)"}) => (
   <div style={{fontSize:11,fontWeight:600,letterSpacing:"0.1em",textTransform:"uppercase",color}}>{children}</div>
 );
 
@@ -32,9 +32,9 @@ const TeamOverviewScreen = ({onNavigate}) => {
     <div style={{display:"flex",flexDirection:"column",gap:20,animation:"v2fade 280ms"}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
         <div>
-          <Eyebrow color="#5B4FE9">MANAGER · TEAM</Eyebrow>
-          <h1 style={{fontFamily:"var(--font-display,'Inter')",fontSize:28,fontWeight:700,color:"#0F172A",margin:"6px 0 4px",letterSpacing:"-0.02em"}}>Team Hiring</h1>
-          <p style={{color:"#6B7280",fontSize:14,margin:0}}>Manage your team's active openings, review candidate scorecards, and make final decisions.</p>
+          <Eyebrow color="var(--brand-500)">MANAGER · TEAM</Eyebrow>
+          <h1 style={{fontFamily:"var(--font-display,'Inter')",fontSize:28,fontWeight:700,color:"var(--slate-900)",margin:"6px 0 4px",letterSpacing:"-0.02em"}}>Team Hiring</h1>
+          <p style={{color:"var(--slate-500)",fontSize:14,margin:0}}>Manage your team's active openings, review candidate scorecards, and make final decisions.</p>
         </div>
         <Btn onClick={()=>onNavigate("add-job")}><i data-lucide="plus" style={{width:14,height:14}}/> Post New Job</Btn>
       </div>
@@ -47,12 +47,12 @@ const TeamOverviewScreen = ({onNavigate}) => {
           {icon:"check-square",value:"2 pending",   sub:"Awaiting My Scorecard",  link:"Divya & Karthik",    n:2},
         ].map((s,i) => (
           <Card key={i} sty={{cursor:"pointer"}} style={{cursor:"pointer"}} onMouseEnter={e=>e.currentTarget.style.boxShadow="0 4px 12px rgba(15,23,42,0.06)"} onMouseLeave={e=>e.currentTarget.style.boxShadow="0 1px 3px rgba(15,23,42,0.04)"}>
-            <div style={{width:36,height:36,borderRadius:9,background:"#EFEDFD",color:"#5B4FE9",display:"inline-flex",alignItems:"center",justifyContent:"center",marginBottom:12}}>
+            <div style={{width:36,height:36,borderRadius:9,background:"var(--brand-50)",color:"var(--brand-500)",display:"inline-flex",alignItems:"center",justifyContent:"center",marginBottom:12}}>
               <i data-lucide={s.icon} style={{width:18,height:18}}/>
             </div>
-            <div style={{fontFamily:"var(--font-display,'Inter')",fontSize:32,fontWeight:700,color:"#0F172A",letterSpacing:"-0.025em",lineHeight:1}}>{s.value}</div>
-            <div style={{color:"#6B7280",fontSize:13,marginTop:4}}>{s.sub}</div>
-            <a style={{color:"#5B4FE9",fontSize:12,fontWeight:500,cursor:"pointer",marginTop:8,display:"block"}}>{s.link}</a>
+            <div style={{fontFamily:"var(--font-display,'Inter')",fontSize:32,fontWeight:700,color:"var(--slate-900)",letterSpacing:"-0.025em",lineHeight:1}}>{s.value}</div>
+            <div style={{color:"var(--slate-500)",fontSize:13,marginTop:4}}>{s.sub}</div>
+            <a style={{color:"var(--brand-500)",fontSize:12,fontWeight:500,cursor:"pointer",marginTop:8,display:"block"}}>{s.link}</a>
           </Card>
         ))}
       </div>
@@ -61,14 +61,14 @@ const TeamOverviewScreen = ({onNavigate}) => {
       <div style={{display:"grid",gridTemplateColumns:"1fr 320px",gap:16}}>
         <Card>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:16}}>
-            <div style={{fontSize:15,fontWeight:700,color:"#0F172A"}}>My Team's Openings</div>
-            <a style={{fontSize:12,color:"#5B4FE9",fontWeight:500,cursor:"pointer"}}>View All</a>
+            <div style={{fontSize:15,fontWeight:700,color:"var(--slate-900)"}}>My Team's Openings</div>
+            <a style={{fontSize:12,color:"var(--brand-500)",fontWeight:500,cursor:"pointer"}}>View All</a>
           </div>
           <table style={{width:"100%",borderCollapse:"collapse"}}>
             <thead>
               <tr>
                 {["ROLE","CANDIDATES","STATUS"].map(h=>(
-                  <th key={h} style={{textAlign:"left",fontSize:11,fontWeight:600,letterSpacing:"0.08em",textTransform:"uppercase",color:"#94A3B8",padding:"0 0 10px",borderBottom:"1px solid #F1F5F9"}}>{h}</th>
+                  <th key={h} style={{textAlign:"left",fontSize:11,fontWeight:600,letterSpacing:"0.08em",textTransform:"uppercase",color:"var(--slate-400)",padding:"0 0 10px",borderBottom:"1px solid var(--slate-100)"}}>{h}</th>
                 ))}
               </tr>
             </thead>
@@ -76,14 +76,14 @@ const TeamOverviewScreen = ({onNavigate}) => {
               {JOBS.map((j,i) => (
                 <tr key={j.id} onClick={()=>onNavigate("job-candidates",j)} style={{cursor:"pointer"}}>
                   <td style={{padding:"14px 0",borderBottom:"1px solid #F9FAFB"}}>
-                    <div style={{fontSize:14,fontWeight:500,color:"#0F172A"}}>{j.title}</div>
-                    <div style={{fontSize:12,color:"#94A3B8",marginTop:2}}>{j.loc}</div>
+                    <div style={{fontSize:14,fontWeight:500,color:"var(--slate-900)"}}>{j.title}</div>
+                    <div style={{fontSize:12,color:"var(--slate-400)",marginTop:2}}>{j.loc}</div>
                   </td>
                   <td style={{padding:"14px 0",borderBottom:"1px solid #F9FAFB"}}>
-                    <span style={{fontSize:14,fontWeight:600,color:"#5B4FE9"}}>{j.candidates} active</span>
+                    <span style={{fontSize:14,fontWeight:600,color:"var(--brand-500)"}}>{j.candidates} active</span>
                   </td>
                   <td style={{padding:"14px 0",borderBottom:"1px solid #F9FAFB"}}>
-                    <span style={{fontSize:12,fontWeight:600,color:"#059669"}}>{j.status}</span>
+                    <span style={{fontSize:12,fontWeight:600,color:"var(--success-500)"}}>{j.status}</span>
                   </td>
                 </tr>
               ))}
@@ -92,12 +92,12 @@ const TeamOverviewScreen = ({onNavigate}) => {
         </Card>
 
         <Card>
-          <div style={{fontSize:15,fontWeight:700,color:"#0F172A",marginBottom:14}}>Hiring Activity</div>
+          <div style={{fontSize:15,fontWeight:700,color:"var(--slate-900)",marginBottom:14}}>Hiring Activity</div>
           {ACTIVITY.map((a,i) => (
             <div key={i} style={{borderTop:i===0?"0":"1px solid #F9FAFB",padding:"12px 0"}}>
-              <div style={{fontSize:13,fontWeight:500,color:"#0F172A"}}>{a.what}</div>
-              <div style={{fontSize:12,color:"#5B4FE9",marginTop:2}}>{a.sub}</div>
-              <div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>{a.when}</div>
+              <div style={{fontSize:13,fontWeight:500,color:"var(--slate-900)"}}>{a.what}</div>
+              <div style={{fontSize:12,color:"var(--brand-500)",marginTop:2}}>{a.sub}</div>
+              <div style={{fontSize:11,color:"var(--slate-400)",marginTop:2}}>{a.when}</div>
             </div>
           ))}
         </Card>
@@ -128,12 +128,12 @@ const MyTeamScreen = ({onNavigate, onSchedule}) => {
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
         <div>
           <Eyebrow>MANAGER · TEAM</Eyebrow>
-          <h1 style={{fontFamily:"var(--font-display,'Inter')",fontSize:26,fontWeight:700,color:"#0F172A",margin:"6px 0 4px",letterSpacing:"-0.02em"}}>My Team</h1>
-          <p style={{color:"#6B7280",fontSize:13,margin:0}}>Track your team's skills, schedule assessments, and monitor development.</p>
+          <h1 style={{fontFamily:"var(--font-display,'Inter')",fontSize:26,fontWeight:700,color:"var(--slate-900)",margin:"6px 0 4px",letterSpacing:"-0.02em"}}>My Team</h1>
+          <p style={{color:"var(--slate-500)",fontSize:13,margin:0}}>Track your team's skills, schedule assessments, and monitor development.</p>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
           {overdue>0 && (
-            <div style={{display:"inline-flex",alignItems:"center",gap:6,padding:"7px 12px",background:"#FFFBEB",border:"1px solid #FEF3C7",borderRadius:8,fontSize:12,fontWeight:600,color:"#B45309"}}>
+            <div style={{display:"inline-flex",alignItems:"center",gap:6,padding:"7px 12px",background:"var(--warning-50)",border:"1px solid var(--warning-100)",borderRadius:8,fontSize:12,fontWeight:600,color:"var(--warning-600)"}}>
               <i data-lucide="alert-triangle" style={{width:14,height:14}}/> {overdue} members overdue for assessment
             </div>
           )}
@@ -145,17 +145,17 @@ const MyTeamScreen = ({onNavigate, onSchedule}) => {
       {/* 3 summary cards */}
       <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14}}>
         {[
-          {icon:"users",       color:"#5B4FE9", bg:"#EFEDFD", value:TEAM.length, label:"Total team members"},
-          {icon:"check-circle-2",color:"#059669",bg:"#ECFDF5", value:TEAM.filter(m=>m.assess.s==="up-to-date").length, label:"Assessed last 90 days"},
-          {icon:"clock",       color:"#D97706", bg:"#FFFBEB", value:TEAM.filter(m=>m.assess.s!=="up-to-date").length, label:"Need assessment"},
+          {icon:"users",       color:"var(--brand-500)", bg:"var(--brand-50)", value:TEAM.length, label:"Total team members"},
+          {icon:"check-circle-2",color:"var(--success-500)",bg:"var(--success-50)", value:TEAM.filter(m=>m.assess.s==="up-to-date").length, label:"Assessed last 90 days"},
+          {icon:"clock",       color:"var(--warning-500)", bg:"var(--warning-50)", value:TEAM.filter(m=>m.assess.s!=="up-to-date").length, label:"Need assessment"},
         ].map((s,i) => (
           <Card key={i} style={{display:"flex",alignItems:"center",gap:14,padding:18}}>
             <div style={{width:44,height:44,borderRadius:10,background:s.bg,color:s.color,display:"inline-flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
               <i data-lucide={s.icon} style={{width:20,height:20}}/>
             </div>
             <div>
-              <div style={{fontFamily:"var(--font-display,'Inter')",fontSize:28,fontWeight:700,color:"#0F172A",letterSpacing:"-0.02em",lineHeight:1}}>{s.value}</div>
-              <div style={{fontSize:12,color:"#6B7280",marginTop:3}}>{s.label}</div>
+              <div style={{fontFamily:"var(--font-display,'Inter')",fontSize:28,fontWeight:700,color:"var(--slate-900)",letterSpacing:"-0.02em",lineHeight:1}}>{s.value}</div>
+              <div style={{fontSize:12,color:"var(--slate-500)",marginTop:3}}>{s.label}</div>
             </div>
           </Card>
         ))}
@@ -163,8 +163,8 @@ const MyTeamScreen = ({onNavigate, onSchedule}) => {
 
       {/* Filter tabs */}
       <div style={{display:"flex",gap:8}}>
-        <button onClick={()=>setTab("all")} style={{padding:"7px 16px",borderRadius:7,border:`1px solid ${tab==="all"?"#5B4FE9":"#E2E8F0"}`,background:tab==="all"?"#FFF":"#FFF",color:tab==="all"?"#5B4FE9":"#374151",fontWeight:tab==="all"?600:500,fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>All members</button>
-        <button onClick={()=>setTab("attention")} style={{padding:"7px 16px",borderRadius:7,border:`1px solid ${tab==="attention"?"#5B4FE9":"#E2E8F0"}`,background:"#FFF",color:tab==="attention"?"#5B4FE9":"#374151",fontWeight:tab==="attention"?600:500,fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>
+        <button onClick={()=>setTab("all")} style={{padding:"7px 16px",borderRadius:7,border:`1px solid ${tab==="all"?"var(--brand-500)":"var(--slate-200)"}`,background:tab==="all"?"var(--bg-surface)":"var(--bg-surface)",color:tab==="all"?"var(--brand-500)":"var(--slate-700)",fontWeight:tab==="all"?600:500,fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>All members</button>
+        <button onClick={()=>setTab("attention")} style={{padding:"7px 16px",borderRadius:7,border:`1px solid ${tab==="attention"?"var(--brand-500)":"var(--slate-200)"}`,background:"var(--bg-surface)",color:tab==="attention"?"var(--brand-500)":"var(--slate-700)",fontWeight:tab==="attention"?600:500,fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>
           Need attention ({TEAM.filter(m=>m.assess.s!=="up-to-date").length})
         </button>
       </div>
@@ -173,44 +173,44 @@ const MyTeamScreen = ({onNavigate, onSchedule}) => {
       <Card style={{padding:0,overflow:"hidden"}}>
         <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
           <thead>
-            <tr style={{background:"#F8FAFC"}}>
+            <tr style={{background:"var(--slate-50)"}}>
               <th style={{padding:"12px 16px",width:36}}>
-                <input type="checkbox" checked={allSel} onChange={()=>setSelected(allSel?new Set():new Set(rows.map(r=>r.id)))} style={{accentColor:"#5B4FE9",cursor:"pointer"}}/>
+                <input type="checkbox" checked={allSel} onChange={()=>setSelected(allSel?new Set():new Set(rows.map(r=>r.id)))} style={{accentColor:"var(--brand-500)",cursor:"pointer"}}/>
               </th>
               {["TEAM MEMBER","LAST ASSESSMENT","SKILLS","UPCOMING","ACTIONS"].map(h=>(
-                <th key={h} style={{textAlign:"left",padding:"12px 16px",fontSize:11,fontWeight:600,letterSpacing:"0.08em",textTransform:"uppercase",color:"#94A3B8",borderBottom:"1px solid #E2E8F0"}}>{h}</th>
+                <th key={h} style={{textAlign:"left",padding:"12px 16px",fontSize:11,fontWeight:600,letterSpacing:"0.08em",textTransform:"uppercase",color:"var(--slate-400)",borderBottom:"1px solid var(--slate-200)"}}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {rows.map((m,i) => (
-              <tr key={m.id} onClick={()=>onNavigate("member-profile",m)} style={{cursor:"pointer",background:selected.has(m.id)?"#F3F0FF":"#FFF",transition:"background 120ms"}}
-                onMouseEnter={e=>{if(!selected.has(m.id)) e.currentTarget.style.background="#F8FAFC";}}
-                onMouseLeave={e=>{if(!selected.has(m.id)) e.currentTarget.style.background="#FFF";}}>
-                <td style={{padding:"14px 16px",borderBottom:"1px solid #F1F5F9"}} onClick={e=>e.stopPropagation()}>
-                  <input type="checkbox" checked={selected.has(m.id)} onChange={()=>toggleSelect(m.id)} style={{accentColor:"#5B4FE9",cursor:"pointer"}}/>
+              <tr key={m.id} onClick={()=>onNavigate("member-profile",m)} style={{cursor:"pointer",background:selected.has(m.id)?"#F3F0FF":"var(--bg-surface)",transition:"background 120ms"}}
+                onMouseEnter={e=>{if(!selected.has(m.id)) e.currentTarget.style.background="var(--slate-50)";}}
+                onMouseLeave={e=>{if(!selected.has(m.id)) e.currentTarget.style.background="var(--bg-surface)";}}>
+                <td style={{padding:"14px 16px",borderBottom:"1px solid var(--slate-100)"}} onClick={e=>e.stopPropagation()}>
+                  <input type="checkbox" checked={selected.has(m.id)} onChange={()=>toggleSelect(m.id)} style={{accentColor:"var(--brand-500)",cursor:"pointer"}}/>
                 </td>
-                <td style={{padding:"14px 16px",borderBottom:"1px solid #F1F5F9"}}>
+                <td style={{padding:"14px 16px",borderBottom:"1px solid var(--slate-100)"}}>
                   <div style={{display:"flex",alignItems:"center",gap:12}}>
                     <window.V2Av name={m.name} size={36}/>
                     <div>
-                      <div style={{fontWeight:600,color:"#0F172A"}}>{m.name}</div>
-                      <div style={{fontSize:12,color:"#6B7280",marginTop:1}}>{m.role}</div>
+                      <div style={{fontWeight:600,color:"var(--slate-900)"}}>{m.name}</div>
+                      <div style={{fontSize:12,color:"var(--slate-500)",marginTop:1}}>{m.role}</div>
                     </div>
                   </div>
                 </td>
-                <td style={{padding:"14px 16px",borderBottom:"1px solid #F1F5F9"}}>
+                <td style={{padding:"14px 16px",borderBottom:"1px solid var(--slate-100)"}}>
                   <window.AssessBadge s={m.assess.s} ago={m.assess.ago}/>
                 </td>
-                <td style={{padding:"14px 16px",borderBottom:"1px solid #F1F5F9"}}>
+                <td style={{padding:"14px 16px",borderBottom:"1px solid var(--slate-100)"}}>
                   <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
-                    {m.skills.length>0 ? m.skills.map(sk=><window.SkillTag key={sk} label={sk}/>) : <span style={{fontSize:12,color:"#94A3B8",fontStyle:"italic"}}>No skills tagged yet</span>}
+                    {m.skills.length>0 ? m.skills.map(sk=><window.SkillTag key={sk} label={sk}/>) : <span style={{fontSize:12,color:"var(--slate-400)",fontStyle:"italic"}}>No skills tagged yet</span>}
                   </div>
                 </td>
-                <td style={{padding:"14px 16px",borderBottom:"1px solid #F1F5F9"}}>
-                  <span style={{fontSize:13,color:m.upcoming==="—"?"#94A3B8":"#5B4FE9",fontWeight:m.upcoming==="—"?400:500}}>{m.upcoming}</span>
+                <td style={{padding:"14px 16px",borderBottom:"1px solid var(--slate-100)"}}>
+                  <span style={{fontSize:13,color:m.upcoming==="—"?"var(--slate-400)":"var(--brand-500)",fontWeight:m.upcoming==="—"?400:500}}>{m.upcoming}</span>
                 </td>
-                <td style={{padding:"14px 16px",borderBottom:"1px solid #F1F5F9"}} onClick={e=>e.stopPropagation()}>
+                <td style={{padding:"14px 16px",borderBottom:"1px solid var(--slate-100)"}} onClick={e=>e.stopPropagation()}>
                   <Btn size="sm" variant="secondary" onClick={()=>onSchedule(m)}>
                     <i data-lucide="calendar-plus" style={{width:12,height:12}}/> Schedule
                   </Btn>
@@ -225,21 +225,21 @@ const MyTeamScreen = ({onNavigate, onSchedule}) => {
       {selected.size>0 && (
         <div style={{
           position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",
-          background:"#0F172A",color:"#FFF",borderRadius:14,
+          background:"var(--slate-900)",color:"var(--bg-surface)",borderRadius:14,
           padding:"10px 14px",display:"inline-flex",alignItems:"center",gap:14,
           boxShadow:"0 16px 40px rgba(15,23,42,0.32)",zIndex:30,
           animation:"v2slide 240ms cubic-bezier(0.2,0,0,1)",
         }}>
           <span style={{fontSize:13,fontWeight:600}}>{selected.size} selected</span>
           {selected.size>=2 && (
-            <Btn size="sm" onClick={()=>setCompareOpen(true)} style={{background:"#5B4FE9",color:"#FFF",border:0}}>
+            <Btn size="sm" onClick={()=>setCompareOpen(true)} style={{background:"var(--brand-500)",color:"var(--bg-surface)",border:0}}>
               <i data-lucide="git-compare" style={{width:12,height:12}}/> Compare {selected.size>2?"(first 2)":""}
             </Btn>
           )}
-          <Btn size="sm" onClick={()=>onSchedule(null,Array.from(selected))} style={{background:selected.size>=2?"rgba(255,255,255,0.1)":"#5B4FE9",color:"#FFF",border:0}}>
+          <Btn size="sm" onClick={()=>onSchedule(null,Array.from(selected))} style={{background:selected.size>=2?"rgba(255,255,255,0.1)":"var(--brand-500)",color:"var(--bg-surface)",border:0}}>
             <i data-lucide="calendar-plus" style={{width:12,height:12}}/> Schedule all
           </Btn>
-          <Btn size="sm" style={{background:"rgba(255,255,255,0.1)",color:"#FFF",border:0}}>
+          <Btn size="sm" style={{background:"rgba(255,255,255,0.1)",color:"var(--bg-surface)",border:0}}>
             <i data-lucide="mail" style={{width:12,height:12}}/> Send reminder
           </Btn>
           <button onClick={()=>setSelected(new Set())} style={{background:"transparent",border:0,color:"#64748B",cursor:"pointer",fontSize:13}}>Deselect</button>
@@ -281,18 +281,18 @@ const MemberProfileScreen = ({member:memberProp, onBack, onSchedule, isExternal}
         {/* Hero */}
         <Card>
           <div style={{display:"flex",alignItems:"flex-start",gap:18}}>
-            <window.V2Av name={member.name} size={64} ring="#DEDAFB"/>
+            <window.V2Av name={member.name} size={64} ring="var(--brand-100)"/>
             <div style={{flex:1,minWidth:0}}>
               <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:4,flexWrap:"wrap"}}>
-                <h1 style={{fontFamily:"var(--font-display,'Inter')",fontSize:22,fontWeight:700,color:"#0F172A",margin:0,letterSpacing:"-0.02em"}}>{member.name}</h1>
+                <h1 style={{fontFamily:"var(--font-display,'Inter')",fontSize:22,fontWeight:700,color:"var(--slate-900)",margin:0,letterSpacing:"-0.02em"}}>{member.name}</h1>
                 {isExternal ? (
-                  <span style={{fontSize:11,fontWeight:600,padding:"3px 9px",borderRadius:9999,background:"#EFF6FF",color:"#1D4ED8"}}>Candidate</span>
+                  <span style={{fontSize:11,fontWeight:600,padding:"3px 9px",borderRadius:9999,background:"var(--info-50)",color:"var(--info-600)"}}>Candidate</span>
                 ) : (
-                  <span style={{fontSize:11,fontWeight:600,padding:"3px 9px",borderRadius:9999,background:"#ECFDF5",color:"#047857"}}>Team Member</span>
+                  <span style={{fontSize:11,fontWeight:600,padding:"3px 9px",borderRadius:9999,background:"var(--success-50)",color:"var(--success-600)"}}>Team Member</span>
                 )}
               </div>
-              <div style={{fontSize:13,color:"#6B7280",marginBottom:10}}>{member.role}</div>
-              <div style={{display:"flex",gap:18,fontSize:12,color:"#94A3B8",flexWrap:"wrap"}}>
+              <div style={{fontSize:13,color:"var(--slate-500)",marginBottom:10}}>{member.role}</div>
+              <div style={{display:"flex",gap:18,fontSize:12,color:"var(--slate-400)",flexWrap:"wrap"}}>
                 <span style={{display:"inline-flex",alignItems:"center",gap:5}}><i data-lucide="mail" style={{width:12,height:12}}/>{member.email}</span>
                 {member.phone && <span style={{display:"inline-flex",alignItems:"center",gap:5}}><i data-lucide="phone" style={{width:12,height:12}}/>{member.phone}</span>}
                 {member.loc && <span style={{display:"inline-flex",alignItems:"center",gap:5}}><i data-lucide="map-pin" style={{width:12,height:12}}/>{member.loc}</span>}
@@ -313,7 +313,7 @@ const MemberProfileScreen = ({member:memberProp, onBack, onSchedule, isExternal}
         </Card>
 
         {/* Tabs */}
-        <div style={{display:"flex",gap:4,borderBottom:"1px solid #E2E8F0",paddingBottom:0}}>
+        <div style={{display:"flex",gap:4,borderBottom:"1px solid var(--slate-200)",paddingBottom:0}}>
           {[
             {id:"overview",   label:"Overview"},
             {id:"analysis",   label:"Analysis"},
@@ -325,8 +325,8 @@ const MemberProfileScreen = ({member:memberProp, onBack, onSchedule, isExternal}
             <button key={t.id} onClick={()=>setTab(t.id)} style={{
               background:"transparent",border:0,padding:"10px 14px",
               fontSize:13,fontWeight:tab===t.id?600:500,
-              color:tab===t.id?"#3A31A3":"#6B7280",
-              borderBottom:tab===t.id?"2px solid #5B4FE9":"2px solid transparent",
+              color:tab===t.id?"var(--brand-700)":"var(--slate-500)",
+              borderBottom:tab===t.id?"2px solid var(--brand-500)":"2px solid transparent",
               marginBottom:-1,cursor:"pointer",fontFamily:"inherit",transition:"color 120ms",
             }}>{t.label}</button>
           ))}
@@ -345,16 +345,16 @@ const MemberProfileScreen = ({member:memberProp, onBack, onSchedule, isExternal}
         {/* resume card */}
         <Card>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:12}}>
-            <div style={{fontSize:13,fontWeight:600,color:"#0F172A"}}>Resume</div>
+            <div style={{fontSize:13,fontWeight:600,color:"var(--slate-900)"}}>Resume</div>
             <Btn size="sm" variant="secondary"><i data-lucide="download" style={{width:12,height:12}}/></Btn>
           </div>
-          <div style={{background:"#F8FAFC",border:"1px solid #E2E8F0",borderRadius:8,padding:12}}>
+          <div style={{background:"var(--slate-50)",border:"1px solid var(--slate-200)",borderRadius:8,padding:12}}>
             {[65,45,100,92,78,100,85,60,100,72,55].map((w,i)=>(
-              <div key={i} style={{height:i%4===0?7:5,background:i%4===0?"#94A3B8":"#CBD5E1",borderRadius:9999,width:`${w}%`,marginBottom:5}}/>
+              <div key={i} style={{height:i%4===0?7:5,background:i%4===0?"var(--slate-400)":"var(--slate-300)",borderRadius:9999,width:`${w}%`,marginBottom:5}}/>
             ))}
           </div>
-          {member.resumeUpdated && <div style={{fontSize:11,color:"#94A3B8",marginTop:8,textAlign:"center"}}>Updated {member.resumeUpdated}</div>}
-          <a style={{display:"block",textAlign:"center",marginTop:8,fontSize:12,color:"#5B4FE9",fontWeight:500,cursor:"pointer"}}>Open full screen</a>
+          {member.resumeUpdated && <div style={{fontSize:11,color:"var(--slate-400)",marginTop:8,textAlign:"center"}}>Updated {member.resumeUpdated}</div>}
+          <a style={{display:"block",textAlign:"center",marginTop:8,fontSize:12,color:"var(--brand-500)",fontWeight:500,cursor:"pointer"}}>Open full screen</a>
         </Card>
 
         {/* quick stats */}
@@ -377,9 +377,9 @@ const MemberProfileScreen = ({member:memberProp, onBack, onSchedule, isExternal}
               {label:"Experience",value:member.exp},
               {label:"Attempts", value:`${member.attempts?.done || 0} / ${member.attempts?.total || 3} done`},
             ].map((it,i) => (
-              <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderTop:i===0?"0":"1px solid #F1F5F9",fontSize:12}}>
-                <span style={{color:"#6B7280"}}>{it.label}</span>
-                <span style={{color:"#0F172A",fontWeight:500}}>{it.value}</span>
+              <div key={i} style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderTop:i===0?"0":"1px solid var(--slate-100)",fontSize:12}}>
+                <span style={{color:"var(--slate-500)"}}>{it.label}</span>
+                <span style={{color:"var(--slate-900)",fontWeight:500}}>{it.value}</span>
               </div>
             ))}
           </Card>
@@ -409,12 +409,12 @@ const ProfileAnalysis = ({member, isExternal}) => {
       <div style={{textAlign:"center"}}>
         <div style={{position:"relative",width:84,height:84,margin:"0 auto"}}>
           <svg width="84" height="84" style={{transform:"rotate(-90deg)"}}>
-            <circle cx="42" cy="42" r="30" stroke="#F1F5F9" strokeWidth="7" fill="none"/>
+            <circle cx="42" cy="42" r="30" stroke="var(--slate-100)" strokeWidth="7" fill="none"/>
             <circle cx="42" cy="42" r="30" stroke={color} strokeWidth="7" fill="none" strokeLinecap="round" strokeDasharray={`${C*pct} ${C}`} style={{transition:"stroke-dasharray 600ms cubic-bezier(0.2,0,0,1)"}}/>
           </svg>
-          <span style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"var(--font-display,'Inter')",fontSize:18,fontWeight:700,color:"#0F172A"}}>{max===100?`${val}%`:val.toFixed(1)}</span>
+          <span style={{position:"absolute",inset:0,display:"flex",alignItems:"center",justifyContent:"center",fontFamily:"var(--font-display,'Inter')",fontSize:18,fontWeight:700,color:"var(--slate-900)"}}>{max===100?`${val}%`:val.toFixed(1)}</span>
         </div>
-        <div style={{fontSize:12,color:"#6B7280",marginTop:6}}>{label}</div>
+        <div style={{fontSize:12,color:"var(--slate-500)",marginTop:6}}>{label}</div>
       </div>
     );
   };
@@ -423,9 +423,9 @@ const ProfileAnalysis = ({member, isExternal}) => {
     <div style={{display:"flex",flexDirection:"column",gap:14}}>
       <Card>
         <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12}}>
-          {ring(+overall,5,"Overall score","#5B4FE9")}
-          {ring(jdMatch,100,"JD match","#059669")}
-          {ring(integrity,100,"Integrity score","#2563EB")}
+          {ring(+overall,5,"Overall score","var(--brand-500)")}
+          {ring(jdMatch,100,"JD match","var(--success-500)")}
+          {ring(integrity,100,"Integrity score","var(--info-500)")}
         </div>
       </Card>
       <Card>
@@ -434,11 +434,11 @@ const ProfileAnalysis = ({member, isExternal}) => {
           {scores.map((s,i)=>(
             <div key={i}>
               <div style={{display:"flex",justifyContent:"space-between",marginBottom:5}}>
-                <span style={{fontSize:13,color:"#374151",fontWeight:500}}>{s.k}</span>
-                <span style={{fontFamily:"monospace",fontSize:13,fontWeight:700,color:s.v>=4?"#047857":s.v>=3?"#B45309":"#B53618"}}>{s.v.toFixed(1)}</span>
+                <span style={{fontSize:13,color:"var(--slate-700)",fontWeight:500}}>{s.k}</span>
+                <span style={{fontFamily:"monospace",fontSize:13,fontWeight:700,color:s.v>=4?"var(--success-600)":s.v>=3?"var(--warning-600)":"var(--danger-700)"}}>{s.v.toFixed(1)}</span>
               </div>
-              <div style={{height:6,background:"#F1F5F9",borderRadius:9999,overflow:"hidden"}}>
-                <div style={{height:"100%",width:`${(s.v/5)*100}%`,background:"#5B4FE9",borderRadius:9999,transition:"width 600ms cubic-bezier(0.2,0,0,1)"}}/>
+              <div style={{height:6,background:"var(--slate-100)",borderRadius:9999,overflow:"hidden"}}>
+                <div style={{height:"100%",width:`${(s.v/5)*100}%`,background:"var(--brand-500)",borderRadius:9999,transition:"width 600ms cubic-bezier(0.2,0,0,1)"}}/>
               </div>
             </div>
           ))}
@@ -447,23 +447,23 @@ const ProfileAnalysis = ({member, isExternal}) => {
       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
         <Card>
           <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
-            <i data-lucide="thumbs-up" style={{width:15,height:15,color:"#047857"}}/>
-            <span style={{fontSize:13,fontWeight:700,color:"#0F172A"}}>Strengths</span>
+            <i data-lucide="thumbs-up" style={{width:15,height:15,color:"var(--success-600)"}}/>
+            <span style={{fontSize:13,fontWeight:700,color:"var(--slate-900)"}}>Strengths</span>
           </div>
           {["Strong .NET fundamentals; clear on idempotency tradeoffs.","Quantified decisions (200 writes/sec peak).","Excellent communicator — structured answers."].map((t,i)=>(
-            <div key={i} style={{display:"flex",gap:8,fontSize:13,color:"#374151",lineHeight:1.5,padding:"7px 0",borderTop:i?"1px solid #F1F5F9":"0"}}>
-              <i data-lucide="check" style={{width:14,height:14,color:"#059669",flexShrink:0,marginTop:2}}/>{t}
+            <div key={i} style={{display:"flex",gap:8,fontSize:13,color:"var(--slate-700)",lineHeight:1.5,padding:"7px 0",borderTop:i?"1px solid var(--slate-100)":"0"}}>
+              <i data-lucide="check" style={{width:14,height:14,color:"var(--success-500)",flexShrink:0,marginTop:2}}/>{t}
             </div>
           ))}
         </Card>
         <Card>
           <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:12}}>
-            <i data-lucide="alert-triangle" style={{width:15,height:15,color:"#B45309"}}/>
-            <span style={{fontSize:13,fontWeight:700,color:"#0F172A"}}>Gaps to probe</span>
+            <i data-lucide="alert-triangle" style={{width:15,height:15,color:"var(--warning-600)"}}/>
+            <span style={{fontSize:13,fontWeight:700,color:"var(--slate-900)"}}>Gaps to probe</span>
           </div>
           {["Limited Azure depth — couldn't explain cold-start.","System decomposition was vague at scale.","No hands-on Kubernetes experience mentioned."].map((t,i)=>(
-            <div key={i} style={{display:"flex",gap:8,fontSize:13,color:"#374151",lineHeight:1.5,padding:"7px 0",borderTop:i?"1px solid #F1F5F9":"0"}}>
-              <i data-lucide="arrow-right" style={{width:14,height:14,color:"#D97706",flexShrink:0,marginTop:2}}/>{t}
+            <div key={i} style={{display:"flex",gap:8,fontSize:13,color:"var(--slate-700)",lineHeight:1.5,padding:"7px 0",borderTop:i?"1px solid var(--slate-100)":"0"}}>
+              <i data-lucide="arrow-right" style={{width:14,height:14,color:"var(--warning-500)",flexShrink:0,marginTop:2}}/>{t}
             </div>
           ))}
         </Card>
@@ -477,9 +477,9 @@ const ProfileAnalysis = ({member, isExternal}) => {
             {label:"Face coverage",value:`${INTEGRITY.faceCoverage}%`, good:INTEGRITY.faceCoverage>=90},
             {label:"Fullscreen",   value:`${INTEGRITY.fullscreen}%`,   good:INTEGRITY.fullscreen>=95},
           ].map((s,i)=>(
-            <div key={i} style={{textAlign:"center",padding:"12px 8px",background:"#F8FAFC",borderRadius:8}}>
-              <div style={{fontFamily:"var(--font-display,'Inter')",fontSize:20,fontWeight:700,color:s.good?"#047857":"#B45309"}}>{s.value}</div>
-              <div style={{fontSize:11,color:"#6B7280",marginTop:3}}>{s.label}</div>
+            <div key={i} style={{textAlign:"center",padding:"12px 8px",background:"var(--slate-50)",borderRadius:8}}>
+              <div style={{fontFamily:"var(--font-display,'Inter')",fontSize:20,fontWeight:700,color:s.good?"var(--success-600)":"var(--warning-600)"}}>{s.value}</div>
+              <div style={{fontSize:11,color:"var(--slate-500)",marginTop:3}}>{s.label}</div>
             </div>
           ))}
         </div>
@@ -504,9 +504,9 @@ const ProfileOverview = ({member, isExternal}) => (
           {label:"Best score",    value:"4.6"},
           {label:"Days overdue",  value:"—"},
         ]).map((s,i) => (
-          <div key={i} style={{textAlign:"center",padding:"12px 8px",background:"#F8FAFC",borderRadius:8}}>
-            <div style={{fontFamily:"var(--font-display,'Inter')",fontSize:22,fontWeight:700,color:"#0F172A",letterSpacing:"-0.015em"}}>{s.value}</div>
-            <div style={{fontSize:11,color:"#6B7280",marginTop:3}}>{s.label}</div>
+          <div key={i} style={{textAlign:"center",padding:"12px 8px",background:"var(--slate-50)",borderRadius:8}}>
+            <div style={{fontFamily:"var(--font-display,'Inter')",fontSize:22,fontWeight:700,color:"var(--slate-900)",letterSpacing:"-0.015em"}}>{s.value}</div>
+            <div style={{fontSize:11,color:"var(--slate-500)",marginTop:3}}>{s.label}</div>
           </div>
         ))}
       </div>
@@ -521,9 +521,9 @@ const ProfileOverview = ({member, isExternal}) => (
             {icon:"alert-triangle",tone:"warning",text:"Limited Azure exposure — may need ramp-up on cloud-native patterns."},
             {icon:"info",        tone:"info",   text:"Notice period: 60 days. Open to hybrid arrangement."},
           ].map((h,i) => (
-            <div key={i} style={{display:"flex",gap:10,padding:12,background:h.tone==="success"?"#ECFDF5":h.tone==="warning"?"#FFFBEB":"#EFF6FF",borderRadius:8}}>
-              <i data-lucide={h.icon} style={{width:15,height:15,color:h.tone==="success"?"#047857":h.tone==="warning"?"#B45309":"#1D4ED8",flexShrink:0,marginTop:2}}/>
-              <span style={{fontSize:13,color:"#0F172A",lineHeight:1.55}}>{h.text}</span>
+            <div key={i} style={{display:"flex",gap:10,padding:12,background:h.tone==="success"?"var(--success-50)":h.tone==="warning"?"var(--warning-50)":"var(--info-50)",borderRadius:8}}>
+              <i data-lucide={h.icon} style={{width:15,height:15,color:h.tone==="success"?"var(--success-600)":h.tone==="warning"?"var(--warning-600)":"var(--info-600)",flexShrink:0,marginTop:2}}/>
+              <span style={{fontSize:13,color:"var(--slate-900)",lineHeight:1.55}}>{h.text}</span>
             </div>
           ))}
         </div>
@@ -535,17 +535,17 @@ const ProfileOverview = ({member, isExternal}) => (
 const ProfileHistory = ({history}) => (
   <Card>
     <div style={{position:"relative",paddingLeft:28}}>
-      <div style={{position:"absolute",left:13,top:6,bottom:6,width:2,background:"#E2E8F0",borderRadius:9999}}/>
+      <div style={{position:"absolute",left:13,top:6,bottom:6,width:2,background:"var(--slate-200)",borderRadius:9999}}/>
       {history.map((h,i) => {
-        const toneColor = {success:"#059669",warning:"#D97706",danger:"#EF4444",info:"#2563EB",brand:"#5B4FE9",neutral:"#94A3B8"};
-        const toneBg    = {success:"#ECFDF5",warning:"#FFFBEB",danger:"#FEF2F2",info:"#EFF6FF",brand:"#EFEDFD",neutral:"#F1F5F9"};
+        const toneColor = {success:"var(--success-500)",warning:"var(--warning-500)",danger:"#EF4444",info:"var(--info-500)",brand:"var(--brand-500)",neutral:"var(--slate-400)"};
+        const toneBg    = {success:"var(--success-50)",warning:"var(--warning-50)",danger:"#FEF2F2",info:"var(--info-50)",brand:"var(--brand-50)",neutral:"var(--slate-100)"};
         return (
           <div key={i} style={{position:"relative",paddingBottom:18}}>
             <span style={{
               position:"absolute",left:-28,top:4,
               width:26,height:26,borderRadius:9999,
-              background:h.done?toneBg[h.tone]:"#FFF",
-              border:h.current?"2px solid #5B4FE9":h.done?"0":"1px solid #E2E8F0",
+              background:h.done?toneBg[h.tone]:"var(--bg-surface)",
+              border:h.current?"2px solid var(--brand-500)":h.done?"0":"1px solid var(--slate-200)",
               color:toneColor[h.tone],
               display:"inline-flex",alignItems:"center",justifyContent:"center",
               boxShadow:h.current?"0 0 0 4px rgba(91,79,233,0.12)":"none",
@@ -554,12 +554,12 @@ const ProfileHistory = ({history}) => (
             </span>
             <div style={{display:"flex",alignItems:"center",gap:10,justifyContent:"space-between"}}>
               <div>
-                <div style={{fontSize:14,fontWeight:600,color:h.done||h.current?"#0F172A":"#94A3B8"}}>{h.type}</div>
-                <div style={{fontSize:12,color:"#6B7280",marginTop:1}}>{h.date} · {h.status}</div>
+                <div style={{fontSize:14,fontWeight:600,color:h.done||h.current?"var(--slate-900)":"var(--slate-400)"}}>{h.type}</div>
+                <div style={{fontSize:12,color:"var(--slate-500)",marginTop:1}}>{h.date} · {h.status}</div>
               </div>
               <div style={{display:"flex",gap:8}}>
-                {h.done && <a style={{fontSize:12,color:"#5B4FE9",fontWeight:500,cursor:"pointer"}}>View report</a>}
-                {h.current && <span style={{fontSize:11,fontWeight:600,padding:"2px 8px",borderRadius:9999,background:"#EFEDFD",color:"#5B4FE9"}}>Current</span>}
+                {h.done && <a style={{fontSize:12,color:"var(--brand-500)",fontWeight:500,cursor:"pointer"}}>View report</a>}
+                {h.current && <span style={{fontSize:11,fontWeight:600,padding:"2px 8px",borderRadius:9999,background:"var(--brand-50)",color:"var(--brand-500)"}}>Current</span>}
               </div>
             </div>
           </div>
@@ -580,15 +580,15 @@ const ProfileTranscript = () => {
       <div style={{display:"flex",flexDirection:"column",gap:14}}>
         {TRANSCRIPT.map((t,i) => (
           <div key={i} style={{display:"flex",gap:12}}>
-            <span style={{fontFamily:"monospace",fontSize:11,color:"#94A3B8",width:38,flexShrink:0,paddingTop:3}}>{t.t}</span>
+            <span style={{fontFamily:"monospace",fontSize:11,color:"var(--slate-400)",width:38,flexShrink:0,paddingTop:3}}>{t.t}</span>
             {t.who==="ai" ? (
-              <div style={{width:28,height:28,borderRadius:9999,background:"#EFEDFD",color:"#5B4FE9",display:"inline-flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
+              <div style={{width:28,height:28,borderRadius:9999,background:"var(--brand-50)",color:"var(--brand-500)",display:"inline-flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
                 <i data-lucide="sparkles" style={{width:13,height:13}}/>
               </div>
             ) : <window.V2Av name="Rahul Sharma" size={28}/>}
             <div style={{flex:1}}>
-              <div style={{fontSize:12,fontWeight:600,color:t.who==="ai"?"#5B4FE9":"#0F172A",marginBottom:2}}>{t.who==="ai"?"Screeno AI":"Candidate"}</div>
-              <div style={{fontSize:13,color:"#374151",lineHeight:1.6}}>{t.text}</div>
+              <div style={{fontSize:12,fontWeight:600,color:t.who==="ai"?"var(--brand-500)":"var(--slate-900)",marginBottom:2}}>{t.who==="ai"?"Screeno AI":"Candidate"}</div>
+              <div style={{fontSize:13,color:"var(--slate-700)",lineHeight:1.6}}>{t.text}</div>
             </div>
           </div>
         ))}
@@ -604,13 +604,13 @@ const ProfileScorecard = () => (
       {who:"Anand Raman",  round:"Tech Round 1", when:"Yesterday",   score:4.3},
       {who:"Screeno AI",   round:"AI Screen",     when:"2 days ago",  score:4.4},
     ].map((s,i) => (
-      <div key={i} style={{display:"flex",alignItems:"center",gap:14,padding:"14px 0",borderTop:i===0?"0":"1px solid #F1F5F9"}}>
+      <div key={i} style={{display:"flex",alignItems:"center",gap:14,padding:"14px 0",borderTop:i===0?"0":"1px solid var(--slate-100)"}}>
         <window.V2Av name={s.who} size={36}/>
         <div style={{flex:1}}>
-          <div style={{fontSize:13,fontWeight:600,color:"#0F172A"}}>{s.who}</div>
-          <div style={{fontSize:12,color:"#6B7280"}}>{s.round} · {s.when}</div>
+          <div style={{fontSize:13,fontWeight:600,color:"var(--slate-900)"}}>{s.who}</div>
+          <div style={{fontSize:12,color:"var(--slate-500)"}}>{s.round} · {s.when}</div>
         </div>
-        <span style={{fontFamily:"monospace",fontWeight:700,color:"#047857",fontSize:14}}>{s.score}</span>
+        <span style={{fontFamily:"monospace",fontWeight:700,color:"var(--success-600)",fontSize:14}}>{s.score}</span>
         <Btn size="sm" variant="secondary">View</Btn>
       </div>
     ))}
@@ -621,18 +621,18 @@ const ProfileNotes = ({member}) => {
   const [note,setNote] = React.useState("");
   return (
     <Card>
-      <div style={{padding:"14px 0",marginBottom:14,paddingLeft:16,borderLeft:"3px solid #5B4FE9",background:"#FAFAFE",borderRadius:"0 8px 8px 0"}}>
+      <div style={{padding:"14px 0",marginBottom:14,paddingLeft:16,borderLeft:"3px solid var(--brand-500)",background:"#FAFAFE",borderRadius:"0 8px 8px 0"}}>
         <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:4}}>
           <window.V2Av name="Kiran Patel" size={22}/>
-          <span style={{fontSize:12,fontWeight:600,color:"#0F172A"}}>Kiran Patel</span>
-          <span style={{fontSize:11,color:"#94A3B8"}}>· 2 days ago</span>
+          <span style={{fontSize:12,fontWeight:600,color:"var(--slate-900)"}}>Kiran Patel</span>
+          <span style={{fontSize:11,color:"var(--slate-400)"}}>· 2 days ago</span>
         </div>
-        <div style={{fontSize:13,color:"#374151",lineHeight:1.6,paddingLeft:30}}>Strong candidate referred internally. Fast learner, good communication on AI round.</div>
+        <div style={{fontSize:13,color:"var(--slate-700)",lineHeight:1.6,paddingLeft:30}}>Strong candidate referred internally. Fast learner, good communication on AI round.</div>
       </div>
       <textarea value={note} onChange={e=>setNote(e.target.value)} placeholder="Add a note for the hiring team…" rows={3}
-        style={{width:"100%",padding:12,border:"1px solid #CBD5E1",borderRadius:8,fontSize:13,fontFamily:"inherit",lineHeight:1.6,outline:"none",resize:"vertical"}}
-        onFocus={e=>{e.target.style.borderColor="#5B4FE9";e.target.style.boxShadow="0 0 0 3px rgba(91,79,233,0.18)";}}
-        onBlur={e=>{e.target.style.borderColor="#CBD5E1";e.target.style.boxShadow="none";}}
+        style={{width:"100%",padding:12,border:"1px solid var(--slate-300)",borderRadius:8,fontSize:13,fontFamily:"inherit",lineHeight:1.6,outline:"none",resize:"vertical"}}
+        onFocus={e=>{e.target.style.borderColor="var(--brand-500)";e.target.style.boxShadow="0 0 0 3px rgba(91,79,233,0.18)";}}
+        onBlur={e=>{e.target.style.borderColor="var(--slate-300)";e.target.style.boxShadow="none";}}
       />
       <div style={{display:"flex",justifyContent:"flex-end",marginTop:8}}>
         <Btn size="sm" disabled={!note.trim()}>Post note</Btn>
@@ -651,18 +651,18 @@ const ManagerCalendarScreen = ({onSchedule}) => {
   const hours = [9,10,11,12,13,14,15,16,17];
   const H=60;
   const typeStyle = {
-    ai:    {bg:"#FFFBEB",border:"#D97706",color:"#92400E"},
-    human: {bg:"#EFEDFD",border:"#5B4FE9",color:"#3A31A3"},
-    exam:  {bg:"#EFF6FF",border:"#2563EB",color:"#1D4ED8"},
+    ai:    {bg:"var(--warning-50)",border:"var(--warning-500)",color:"var(--warning-700)"},
+    human: {bg:"var(--brand-50)",border:"var(--brand-500)",color:"var(--brand-700)"},
+    exam:  {bg:"var(--info-50)",border:"var(--info-500)",color:"var(--info-600)"},
   };
   return (
     <div style={{display:"flex",flexDirection:"column",gap:16}}>
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
         <div style={{display:"flex",alignItems:"center",gap:14}}>
-          <h2 style={{fontFamily:"var(--font-display,'Inter')",fontSize:22,fontWeight:700,color:"#0F172A",margin:0,letterSpacing:"-0.015em"}}>May 26 – 30, 2026</h2>
-          <div style={{display:"inline-flex",gap:2,background:"#F1F5F9",padding:3,borderRadius:8,border:"1px solid #E2E8F0"}}>
+          <h2 style={{fontFamily:"var(--font-display,'Inter')",fontSize:22,fontWeight:700,color:"var(--slate-900)",margin:0,letterSpacing:"-0.015em"}}>May 26 – 30, 2026</h2>
+          <div style={{display:"inline-flex",gap:2,background:"var(--slate-100)",padding:3,borderRadius:8,border:"1px solid var(--slate-200)"}}>
             {["‹","Today","›"].map((l,i)=>(
-              <button key={i} style={{padding:"5px 10px",borderRadius:6,border:0,background:l==="Today"?"#FFF":"transparent",fontSize:12,fontWeight:500,color:"#374151",cursor:"pointer"}}>{l}</button>
+              <button key={i} style={{padding:"5px 10px",borderRadius:6,border:0,background:l==="Today"?"var(--bg-surface)":"transparent",fontSize:12,fontWeight:500,color:"var(--slate-700)",cursor:"pointer"}}>{l}</button>
             ))}
           </div>
         </div>
@@ -670,7 +670,7 @@ const ManagerCalendarScreen = ({onSchedule}) => {
       </div>
 
       {/* Legend */}
-      <div style={{display:"flex",gap:18,fontSize:12,color:"#6B7280"}}>
+      <div style={{display:"flex",gap:18,fontSize:12,color:"var(--slate-500)"}}>
         {[{t:"AI screen",type:"ai"},{t:"Live interview",type:"human"},{t:"Coding exam",type:"exam"}].map(l=>(
           <span key={l.t} style={{display:"inline-flex",alignItems:"center",gap:6}}>
             <span style={{width:10,height:10,borderRadius:3,background:typeStyle[l.type].bg,border:`1px solid ${typeStyle[l.type].border}`}}/>
@@ -680,30 +680,30 @@ const ManagerCalendarScreen = ({onSchedule}) => {
       </div>
 
       {/* Calendar */}
-      <div style={{background:"#FFF",border:"1px solid #E2E8F0",borderRadius:12,overflow:"hidden",boxShadow:"0 1px 3px rgba(15,23,42,0.04)"}}>
-        <div style={{display:"grid",gridTemplateColumns:"56px repeat(5,1fr)",borderBottom:"1px solid #E2E8F0",background:"#FFF"}}>
+      <div style={{background:"var(--bg-surface)",border:"1px solid var(--slate-200)",borderRadius:12,overflow:"hidden",boxShadow:"0 1px 3px rgba(15,23,42,0.04)"}}>
+        <div style={{display:"grid",gridTemplateColumns:"56px repeat(5,1fr)",borderBottom:"1px solid var(--slate-200)",background:"var(--bg-surface)"}}>
           <div/>
           {days.map((d,i) => (
-            <div key={i} style={{padding:"12px 8px",textAlign:"center",borderLeft:"1px solid #F1F5F9"}}>
-              <div style={{fontSize:10,fontWeight:600,letterSpacing:"0.08em",textTransform:"uppercase",color:"#94A3B8"}}>{d.d}</div>
-              <div style={{fontFamily:"var(--font-display,'Inter')",fontSize:22,fontWeight:700,color:i===1?"#5B4FE9":"#0F172A",marginTop:2}}>{d.n}</div>
+            <div key={i} style={{padding:"12px 8px",textAlign:"center",borderLeft:"1px solid var(--slate-100)"}}>
+              <div style={{fontSize:10,fontWeight:600,letterSpacing:"0.08em",textTransform:"uppercase",color:"var(--slate-400)"}}>{d.d}</div>
+              <div style={{fontFamily:"var(--font-display,'Inter')",fontSize:22,fontWeight:700,color:i===1?"var(--brand-500)":"var(--slate-900)",marginTop:2}}>{d.n}</div>
             </div>
           ))}
         </div>
         <div style={{display:"grid",gridTemplateColumns:"56px repeat(5,1fr)"}}>
           <div>
             {hours.map(h=>(
-              <div key={h} style={{height:H,borderBottom:"1px solid #F1F5F9",display:"flex",alignItems:"flex-start",justifyContent:"flex-end",padding:"4px 8px 0",fontSize:11,color:"#94A3B8",fontFamily:"monospace",fontVariantNumeric:"tabular-nums"}}>
+              <div key={h} style={{height:H,borderBottom:"1px solid var(--slate-100)",display:"flex",alignItems:"flex-start",justifyContent:"flex-end",padding:"4px 8px 0",fontSize:11,color:"var(--slate-400)",fontFamily:"monospace",fontVariantNumeric:"tabular-nums"}}>
                 {h<=12?`${h}:00`:`${h-12}:00`}{h<12?" AM":" PM"}
               </div>
             ))}
           </div>
           {days.map((d,di) => (
-            <div key={di} style={{position:"relative",borderLeft:"1px solid #F1F5F9"}}>
-              {hours.map(h=><div key={h} style={{height:H,borderBottom:"1px solid #F1F5F9"}}/>)}
+            <div key={di} style={{position:"relative",borderLeft:"1px solid var(--slate-100)"}}>
+              {hours.map(h=><div key={h} style={{height:H,borderBottom:"1px solid var(--slate-100)"}}/>)}
               {di===1 && (
-                <div style={{position:"absolute",left:0,right:0,top:(14.5-9)*H,height:1,background:"#FF5C35",zIndex:3}}>
-                  <span style={{position:"absolute",left:-5,top:-5,width:10,height:10,borderRadius:9999,background:"#FF5C35"}}/>
+                <div style={{position:"absolute",left:0,right:0,top:(14.5-9)*H,height:1,background:"var(--danger-500)",zIndex:3}}>
+                  <span style={{position:"absolute",left:-5,top:-5,width:10,height:10,borderRadius:9999,background:"var(--danger-500)"}}/>
                 </div>
               )}
               {SCHEDULE.filter(e=>e.day===di).map((ev,ei) => {
@@ -739,7 +739,7 @@ const ReportsScreen = ({onViewReport}) => {
     <div style={{display:"flex",flexDirection:"column",gap:20}}>
       <div>
         <Eyebrow>MANAGER · REPORTS</Eyebrow>
-        <h1 style={{fontFamily:"var(--font-display,'Inter')",fontSize:26,fontWeight:700,color:"#0F172A",margin:"6px 0",letterSpacing:"-0.02em"}}>Reports</h1>
+        <h1 style={{fontFamily:"var(--font-display,'Inter')",fontSize:26,fontWeight:700,color:"var(--slate-900)",margin:"6px 0",letterSpacing:"-0.02em"}}>Reports</h1>
       </div>
 
       {/* Stats */}
@@ -751,17 +751,17 @@ const ReportsScreen = ({onViewReport}) => {
           {label:"Reports pending",   value:"2",   sub:"Send after attempt"},
         ].map((s,i) => (
           <Card key={i} style={{padding:16}}>
-            <div style={{fontSize:11,fontWeight:600,letterSpacing:"0.08em",textTransform:"uppercase",color:"#6B7280"}}>{s.label}</div>
-            <div style={{fontFamily:"var(--font-display,'Inter')",fontSize:26,fontWeight:700,color:"#0F172A",letterSpacing:"-0.02em",lineHeight:1.1,marginTop:4}}>{s.value}</div>
-            <div style={{fontSize:12,color:"#059669",fontWeight:500,marginTop:2}}>{s.sub}</div>
+            <div style={{fontSize:11,fontWeight:600,letterSpacing:"0.08em",textTransform:"uppercase",color:"var(--slate-500)"}}>{s.label}</div>
+            <div style={{fontFamily:"var(--font-display,'Inter')",fontSize:26,fontWeight:700,color:"var(--slate-900)",letterSpacing:"-0.02em",lineHeight:1.1,marginTop:4}}>{s.value}</div>
+            <div style={{fontSize:12,color:"var(--success-500)",fontWeight:500,marginTop:2}}>{s.sub}</div>
           </Card>
         ))}
       </div>
 
       {/* Report list */}
       <Card style={{padding:0,overflow:"hidden"}}>
-        <div style={{padding:"16px 20px",borderBottom:"1px solid #F1F5F9",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-          <div style={{fontSize:15,fontWeight:700,color:"#0F172A"}}>Candidate reports</div>
+        <div style={{padding:"16px 20px",borderBottom:"1px solid var(--slate-100)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+          <div style={{fontSize:15,fontWeight:700,color:"var(--slate-900)"}}>Candidate reports</div>
           <div style={{display:"flex",gap:8}}>
             <Btn size="sm" variant="secondary"><i data-lucide="filter" style={{width:12,height:12}}/> Filter</Btn>
             <Btn size="sm" variant="secondary"><i data-lucide="download" style={{width:12,height:12}}/> Export all</Btn>
@@ -769,44 +769,44 @@ const ReportsScreen = ({onViewReport}) => {
         </div>
         <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
           <thead>
-            <tr style={{background:"#F8FAFC"}}>
+            <tr style={{background:"var(--slate-50)"}}>
               {["CANDIDATE","ROLE","ATTEMPTS","DATE","OVERALL","JD MATCH","DECISION",""].map(h=>(
-                <th key={h} style={{textAlign:"left",padding:"11px 16px",fontSize:11,fontWeight:600,letterSpacing:"0.07em",textTransform:"uppercase",color:"#94A3B8",borderBottom:"1px solid #E2E8F0"}}>{h}</th>
+                <th key={h} style={{textAlign:"left",padding:"11px 16px",fontSize:11,fontWeight:600,letterSpacing:"0.07em",textTransform:"uppercase",color:"var(--slate-400)",borderBottom:"1px solid var(--slate-200)"}}>{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
             {REPORTS.map((r,i) => {
-              const dec = {pass:{label:"Pass",bg:"#ECFDF5",fg:"#047857"},maybe:{label:"Maybe",bg:"#FFFBEB",fg:"#B45309"},pending:{label:"Pending",bg:"#F1F5F9",fg:"#6B7280"}};
+              const dec = {pass:{label:"Pass",bg:"var(--success-50)",fg:"var(--success-600)"},maybe:{label:"Maybe",bg:"var(--warning-50)",fg:"var(--warning-600)"},pending:{label:"Pending",bg:"var(--slate-100)",fg:"var(--slate-500)"}};
               const d = dec[r.decision] || dec.pending;
               return (
                 <tr key={r.id} onClick={()=>onViewReport(r)} style={{cursor:"pointer",transition:"background 120ms"}}
-                  onMouseEnter={e=>e.currentTarget.style.background="#F8FAFC"}
-                  onMouseLeave={e=>e.currentTarget.style.background="#FFF"}>
-                  <td style={{padding:"14px 16px",borderBottom:"1px solid #F1F5F9"}}>
+                  onMouseEnter={e=>e.currentTarget.style.background="var(--slate-50)"}
+                  onMouseLeave={e=>e.currentTarget.style.background="var(--bg-surface)"}>
+                  <td style={{padding:"14px 16px",borderBottom:"1px solid var(--slate-100)"}}>
                     <div style={{display:"flex",alignItems:"center",gap:10}}>
                       <window.V2Av name={r.name} size={32}/>
-                      <div style={{fontWeight:600,color:"#0F172A"}}>{r.name}</div>
+                      <div style={{fontWeight:600,color:"var(--slate-900)"}}>{r.name}</div>
                     </div>
                   </td>
-                  <td style={{padding:"14px 16px",borderBottom:"1px solid #F1F5F9",color:"#6B7280"}}>{r.role}</td>
-                  <td style={{padding:"14px 16px",borderBottom:"1px solid #F1F5F9",fontFamily:"monospace",fontWeight:600,color:"#0F172A"}}>{r.attempts}</td>
-                  <td style={{padding:"14px 16px",borderBottom:"1px solid #F1F5F9",color:"#6B7280"}}>{r.date}</td>
-                  <td style={{padding:"14px 16px",borderBottom:"1px solid #F1F5F9"}}>
+                  <td style={{padding:"14px 16px",borderBottom:"1px solid var(--slate-100)",color:"var(--slate-500)"}}>{r.role}</td>
+                  <td style={{padding:"14px 16px",borderBottom:"1px solid var(--slate-100)",fontFamily:"monospace",fontWeight:600,color:"var(--slate-900)"}}>{r.attempts}</td>
+                  <td style={{padding:"14px 16px",borderBottom:"1px solid var(--slate-100)",color:"var(--slate-500)"}}>{r.date}</td>
+                  <td style={{padding:"14px 16px",borderBottom:"1px solid var(--slate-100)"}}>
                     <div style={{display:"flex",alignItems:"center",gap:8}}>
-                      <span style={{fontFamily:"monospace",fontWeight:700,color:r.overall>=4?"#047857":r.overall>=3?"#B45309":"#B53618"}}>{r.overall.toFixed(1)}</span>
-                      <span style={{flex:1,height:4,background:"#F1F5F9",borderRadius:9999,overflow:"hidden",display:"inline-block",width:48}}>
-                        <span style={{display:"block",height:"100%",width:`${(r.overall/5)*100}%`,background:"#5B4FE9",borderRadius:9999}}/>
+                      <span style={{fontFamily:"monospace",fontWeight:700,color:r.overall>=4?"var(--success-600)":r.overall>=3?"var(--warning-600)":"var(--danger-700)"}}>{r.overall.toFixed(1)}</span>
+                      <span style={{flex:1,height:4,background:"var(--slate-100)",borderRadius:9999,overflow:"hidden",display:"inline-block",width:48}}>
+                        <span style={{display:"block",height:"100%",width:`${(r.overall/5)*100}%`,background:"var(--brand-500)",borderRadius:9999}}/>
                       </span>
                     </div>
                   </td>
-                  <td style={{padding:"14px 16px",borderBottom:"1px solid #F1F5F9"}}>
-                    <span style={{fontFamily:"monospace",fontWeight:700,color:r.jdMatch>=75?"#047857":r.jdMatch>=60?"#B45309":"#B53618"}}>{r.jdMatch}%</span>
+                  <td style={{padding:"14px 16px",borderBottom:"1px solid var(--slate-100)"}}>
+                    <span style={{fontFamily:"monospace",fontWeight:700,color:r.jdMatch>=75?"var(--success-600)":r.jdMatch>=60?"var(--warning-600)":"var(--danger-700)"}}>{r.jdMatch}%</span>
                   </td>
-                  <td style={{padding:"14px 16px",borderBottom:"1px solid #F1F5F9"}}>
+                  <td style={{padding:"14px 16px",borderBottom:"1px solid var(--slate-100)"}}>
                     <span style={{fontSize:11,fontWeight:600,padding:"3px 9px",borderRadius:9999,background:d.bg,color:d.fg}}>{d.label}</span>
                   </td>
-                  <td style={{padding:"14px 16px",borderBottom:"1px solid #F1F5F9"}}>
+                  <td style={{padding:"14px 16px",borderBottom:"1px solid var(--slate-100)"}}>
                     <Btn size="sm" variant="secondary">View report</Btn>
                   </td>
                 </tr>
@@ -857,27 +857,27 @@ const EditMemberModal = ({open, onClose, member, isExternal}) => {
   ];
   return (
     <window.V2Modal open={open} onClose={onClose} width={520}>
-      <div style={{padding:"20px 24px",borderBottom:"1px solid #F1F5F9",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-        <div style={{fontSize:16,fontWeight:700,color:"#0F172A"}}>Edit {isExternal?"candidate":"team member"}</div>
-        <button onClick={onClose} style={{background:"transparent",border:0,cursor:"pointer",color:"#6B7280",padding:6}}><i data-lucide="x" style={{width:18,height:18}}/></button>
+      <div style={{padding:"20px 24px",borderBottom:"1px solid var(--slate-100)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+        <div style={{fontSize:16,fontWeight:700,color:"var(--slate-900)"}}>Edit {isExternal?"candidate":"team member"}</div>
+        <button onClick={onClose} style={{background:"transparent",border:0,cursor:"pointer",color:"var(--slate-500)",padding:6}}><i data-lucide="x" style={{width:18,height:18}}/></button>
       </div>
       <div style={{padding:24,display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
         {fields.map(f=>(
           <div key={f.k}>
-            <label style={{display:"block",fontSize:12,fontWeight:600,color:"#374151",marginBottom:5}}>{f.label}</label>
-            <input value={form[f.k]||""} onChange={e=>set(f.k,e.target.value)} style={{width:"100%",padding:"9px 12px",border:"1px solid #CBD5E1",borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none"}}
-              onFocus={e=>{e.target.style.borderColor="#5B4FE9";e.target.style.boxShadow="0 0 0 3px rgba(91,79,233,0.18)";}}
-              onBlur={e=>{e.target.style.borderColor="#CBD5E1";e.target.style.boxShadow="none";}}/>
+            <label style={{display:"block",fontSize:12,fontWeight:600,color:"var(--slate-700)",marginBottom:5}}>{f.label}</label>
+            <input value={form[f.k]||""} onChange={e=>set(f.k,e.target.value)} style={{width:"100%",padding:"9px 12px",border:"1px solid var(--slate-300)",borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none"}}
+              onFocus={e=>{e.target.style.borderColor="var(--brand-500)";e.target.style.boxShadow="0 0 0 3px rgba(91,79,233,0.18)";}}
+              onBlur={e=>{e.target.style.borderColor="var(--slate-300)";e.target.style.boxShadow="none";}}/>
           </div>
         ))}
         <div style={{gridColumn:"1 / -1"}}>
-          <label style={{display:"block",fontSize:12,fontWeight:600,color:"#374151",marginBottom:5}}>Skills <span style={{color:"#94A3B8",fontWeight:400}}>(comma separated)</span></label>
-          <input value={skillStr} onChange={e=>setSkillStr(e.target.value)} placeholder=".NET, C#, Azure" style={{width:"100%",padding:"9px 12px",border:"1px solid #CBD5E1",borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none"}}
-            onFocus={e=>{e.target.style.borderColor="#5B4FE9";e.target.style.boxShadow="0 0 0 3px rgba(91,79,233,0.18)";}}
-            onBlur={e=>{e.target.style.borderColor="#CBD5E1";e.target.style.boxShadow="none";}}/>
+          <label style={{display:"block",fontSize:12,fontWeight:600,color:"var(--slate-700)",marginBottom:5}}>Skills <span style={{color:"var(--slate-400)",fontWeight:400}}>(comma separated)</span></label>
+          <input value={skillStr} onChange={e=>setSkillStr(e.target.value)} placeholder=".NET, C#, Azure" style={{width:"100%",padding:"9px 12px",border:"1px solid var(--slate-300)",borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none"}}
+            onFocus={e=>{e.target.style.borderColor="var(--brand-500)";e.target.style.boxShadow="0 0 0 3px rgba(91,79,233,0.18)";}}
+            onBlur={e=>{e.target.style.borderColor="var(--slate-300)";e.target.style.boxShadow="none";}}/>
         </div>
       </div>
-      <div style={{display:"flex",justifyContent:"space-between",gap:8,padding:"14px 24px",borderTop:"1px solid #F1F5F9"}}>
+      <div style={{display:"flex",justifyContent:"space-between",gap:8,padding:"14px 24px",borderTop:"1px solid var(--slate-100)"}}>
         <Btn variant="danger" onClick={del}><i data-lucide="trash-2" style={{width:13,height:13}}/> Remove</Btn>
         <div style={{display:"flex",gap:8}}>
           <Btn variant="secondary" onClick={onClose}>Cancel</Btn>
@@ -909,19 +909,19 @@ const ManagerProfileScreen = ({onBack}) => {
   ];
   return (
     <div style={{maxWidth:760,animation:"v2fade 280ms"}}>
-      <button onClick={onBack} style={{display:"flex",alignItems:"center",gap:6,background:"transparent",border:0,color:"#5B4FE9",fontWeight:500,fontSize:13,cursor:"pointer",marginBottom:20}}>
+      <button onClick={onBack} style={{display:"flex",alignItems:"center",gap:6,background:"transparent",border:0,color:"var(--brand-500)",fontWeight:500,fontSize:13,cursor:"pointer",marginBottom:20}}>
         <i data-lucide="arrow-left" style={{width:16,height:16}}/>Back
       </button>
       <div style={{display:"flex",alignItems:"center",gap:16,marginBottom:24}}>
-        <window.V2Av name={form.name||"K"} size={64} ring="#DEDAFB"/>
+        <window.V2Av name={form.name||"K"} size={64} ring="var(--brand-100)"/>
         <div>
-          <h1 style={{fontFamily:"var(--font-display,'Inter')",fontSize:24,fontWeight:700,color:"#0F172A",margin:0,letterSpacing:"-0.02em"}}>{form.name}</h1>
-          <p style={{fontSize:13,color:"#6B7280",marginTop:3}}>{form.title} · {form.department}</p>
+          <h1 style={{fontFamily:"var(--font-display,'Inter')",fontSize:24,fontWeight:700,color:"var(--slate-900)",margin:0,letterSpacing:"-0.02em"}}>{form.name}</h1>
+          <p style={{fontSize:13,color:"var(--slate-500)",marginTop:3}}>{form.title} · {form.department}</p>
         </div>
       </div>
-      <div style={{display:"flex",gap:4,borderBottom:"1px solid #E2E8F0",marginBottom:20}}>
+      <div style={{display:"flex",gap:4,borderBottom:"1px solid var(--slate-200)",marginBottom:20}}>
         {[{id:"profile",label:"Profile"},{id:"settings",label:"Account settings"}].map(t=>(
-          <button key={t.id} onClick={()=>setTab(t.id)} style={{background:"transparent",border:0,padding:"10px 14px",fontSize:13,fontWeight:tab===t.id?600:500,color:tab===t.id?"#3A31A3":"#6B7280",borderBottom:tab===t.id?"2px solid #5B4FE9":"2px solid transparent",marginBottom:-1,cursor:"pointer",fontFamily:"inherit"}}>{t.label}</button>
+          <button key={t.id} onClick={()=>setTab(t.id)} style={{background:"transparent",border:0,padding:"10px 14px",fontSize:13,fontWeight:tab===t.id?600:500,color:tab===t.id?"var(--brand-700)":"var(--slate-500)",borderBottom:tab===t.id?"2px solid var(--brand-500)":"2px solid transparent",marginBottom:-1,cursor:"pointer",fontFamily:"inherit"}}>{t.label}</button>
         ))}
       </div>
       {tab==="profile" && (
@@ -929,16 +929,16 @@ const ManagerProfileScreen = ({onBack}) => {
           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
             {fields.map(f=>(
               <div key={f.k}>
-                <label style={{display:"block",fontSize:12,fontWeight:600,color:"#374151",marginBottom:5}}>{f.label}</label>
-                <input value={form[f.k]||""} onChange={e=>set(f.k,e.target.value)} style={{width:"100%",padding:"9px 12px",border:"1px solid #CBD5E1",borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none"}}
-                  onFocus={e=>{e.target.style.borderColor="#5B4FE9";e.target.style.boxShadow="0 0 0 3px rgba(91,79,233,0.18)";}}
-                  onBlur={e=>{e.target.style.borderColor="#CBD5E1";e.target.style.boxShadow="none";}}/>
+                <label style={{display:"block",fontSize:12,fontWeight:600,color:"var(--slate-700)",marginBottom:5}}>{f.label}</label>
+                <input value={form[f.k]||""} onChange={e=>set(f.k,e.target.value)} style={{width:"100%",padding:"9px 12px",border:"1px solid var(--slate-300)",borderRadius:8,fontSize:13,fontFamily:"inherit",outline:"none"}}
+                  onFocus={e=>{e.target.style.borderColor="var(--brand-500)";e.target.style.boxShadow="0 0 0 3px rgba(91,79,233,0.18)";}}
+                  onBlur={e=>{e.target.style.borderColor="var(--slate-300)";e.target.style.boxShadow="none";}}/>
               </div>
             ))}
           </div>
           <div style={{display:"flex",alignItems:"center",gap:12,marginTop:18}}>
             <Btn onClick={save}>Save changes</Btn>
-            {saved && <span style={{fontSize:13,color:"#047857",display:"inline-flex",alignItems:"center",gap:5}}><i data-lucide="check-circle-2" style={{width:14,height:14}}/>Profile saved</span>}
+            {saved && <span style={{fontSize:13,color:"var(--success-600)",display:"inline-flex",alignItems:"center",gap:5}}><i data-lucide="check-circle-2" style={{width:14,height:14}}/>Profile saved</span>}
           </div>
         </Card>
       )}
@@ -953,10 +953,10 @@ const ManagerProfileScreen = ({onBack}) => {
                 {k:"notifyResults",label:"Report ready alerts",desc:"Notify me when an AI report is generated"},
                 {k:"notifyReminders",label:"Scorecard reminders",desc:"Nudge me about overdue scorecards"},
               ].map((o,i)=>(
-                <div key={o.k} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 0",borderTop:i?"1px solid #F1F5F9":"0"}}>
+                <div key={o.k} style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 0",borderTop:i?"1px solid var(--slate-100)":"0"}}>
                   <div>
-                    <div style={{fontSize:13,fontWeight:600,color:"#0F172A"}}>{o.label}</div>
-                    <div style={{fontSize:12,color:"#6B7280",marginTop:1}}>{o.desc}</div>
+                    <div style={{fontSize:13,fontWeight:600,color:"var(--slate-900)"}}>{o.label}</div>
+                    <div style={{fontSize:12,color:"var(--slate-500)",marginTop:1}}>{o.desc}</div>
                   </div>
                   <window.V2Toggle on={settings[o.k]} onClick={()=>toggle(o.k)}/>
                 </div>
@@ -967,12 +967,12 @@ const ManagerProfileScreen = ({onBack}) => {
             <Eyebrow>Security</Eyebrow>
             <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"12px 0"}}>
               <div>
-                <div style={{fontSize:13,fontWeight:600,color:"#0F172A"}}>Two-factor authentication</div>
-                <div style={{fontSize:12,color:"#6B7280",marginTop:1}}>Require a code at sign-in</div>
+                <div style={{fontSize:13,fontWeight:600,color:"var(--slate-900)"}}>Two-factor authentication</div>
+                <div style={{fontSize:12,color:"var(--slate-500)",marginTop:1}}>Require a code at sign-in</div>
               </div>
               <window.V2Toggle on={settings.twoFactor} onClick={()=>toggle("twoFactor")}/>
             </div>
-            <div style={{paddingTop:12,borderTop:"1px solid #F1F5F9"}}>
+            <div style={{paddingTop:12,borderTop:"1px solid var(--slate-100)"}}>
               <Btn variant="secondary"><i data-lucide="key-round" style={{width:13,height:13}}/> Change password</Btn>
             </div>
           </Card>
@@ -1012,32 +1012,32 @@ const CompareModal = ({open, onClose, members=[]}) => {
   const sa = derive(a), sb = derive(b);
   const fmt = (v,max)=>max===100?`${v}%`:v.toFixed(1);
   const bar = (v,max,win) => (
-    <div style={{flex:1,height:6,background:"#F1F5F9",borderRadius:9999,overflow:"hidden"}}>
-      <div style={{height:"100%",width:`${(v/max)*100}%`,background:win?"#5B4FE9":"#CBD5E1",borderRadius:9999,transition:"width 600ms cubic-bezier(0.2,0,0,1)"}}/>
+    <div style={{flex:1,height:6,background:"var(--slate-100)",borderRadius:9999,overflow:"hidden"}}>
+      <div style={{height:"100%",width:`${(v/max)*100}%`,background:win?"var(--brand-500)":"var(--slate-300)",borderRadius:9999,transition:"width 600ms cubic-bezier(0.2,0,0,1)"}}/>
     </div>
   );
   const aWins = METRICS.filter(m=>sa[m.key]>sb[m.key]).length;
   const bWins = METRICS.filter(m=>sb[m.key]>sa[m.key]).length;
   return (
     <window.V2Modal open={open} onClose={onClose} width={720}>
-      <div style={{padding:"20px 24px",borderBottom:"1px solid #F1F5F9",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+      <div style={{padding:"20px 24px",borderBottom:"1px solid var(--slate-100)",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
         <div>
-          <div style={{fontSize:16,fontWeight:700,color:"#0F172A"}}>Compare candidates</div>
-          <div style={{fontSize:12,color:"#6B7280",marginTop:2}}>Side-by-side across all evaluation metrics</div>
+          <div style={{fontSize:16,fontWeight:700,color:"var(--slate-900)"}}>Compare candidates</div>
+          <div style={{fontSize:12,color:"var(--slate-500)",marginTop:2}}>Side-by-side across all evaluation metrics</div>
         </div>
-        <button onClick={onClose} style={{background:"transparent",border:0,cursor:"pointer",color:"#6B7280",padding:6}}><i data-lucide="x" style={{width:18,height:18}}/></button>
+        <button onClick={onClose} style={{background:"transparent",border:0,cursor:"pointer",color:"var(--slate-500)",padding:6}}><i data-lucide="x" style={{width:18,height:18}}/></button>
       </div>
       <div style={{padding:24}}>
         <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:20}}>
           {[{m:a,w:aWins},{m:b,w:bWins}].map(({m,w},i)=>(
-            <div key={i} style={{background:"#FFF",border:`1px solid ${ (i===0?aWins:bWins) >= (i===0?bWins:aWins) ? "#DEDAFB":"#E2E8F0"}`,borderRadius:12,padding:16}}>
+            <div key={i} style={{background:"var(--bg-surface)",border:`1px solid ${ (i===0?aWins:bWins) >= (i===0?bWins:aWins) ? "var(--brand-100)":"var(--slate-200)"}`,borderRadius:12,padding:16}}>
               <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:10}}>
                 <window.V2Av name={m.name} size={42}/>
                 <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontSize:14,fontWeight:700,color:"#0F172A"}}>{m.name}</div>
-                  <div style={{fontSize:12,color:"#6B7280"}}>{m.role}</div>
+                  <div style={{fontSize:14,fontWeight:700,color:"var(--slate-900)"}}>{m.name}</div>
+                  <div style={{fontSize:12,color:"var(--slate-500)"}}>{m.role}</div>
                 </div>
-                <span style={{fontSize:11,fontWeight:700,padding:"3px 8px",borderRadius:9999,background:w>=METRICS.length/2?"#ECFDF5":"#F1F5F9",color:w>=METRICS.length/2?"#047857":"#6B7280"}}>{w} wins</span>
+                <span style={{fontSize:11,fontWeight:700,padding:"3px 8px",borderRadius:9999,background:w>=METRICS.length/2?"var(--success-50)":"var(--slate-100)",color:w>=METRICS.length/2?"var(--success-600)":"var(--slate-500)"}}>{w} wins</span>
               </div>
               <div style={{display:"flex",flexWrap:"wrap",gap:4}}>
                 {(m.skills||[]).map(s=><window.SkillTag key={s} label={s}/>)}
@@ -1045,19 +1045,19 @@ const CompareModal = ({open, onClose, members=[]}) => {
             </div>
           ))}
         </div>
-        <div style={{border:"1px solid #E2E8F0",borderRadius:12,overflow:"hidden"}}>
+        <div style={{border:"1px solid var(--slate-200)",borderRadius:12,overflow:"hidden"}}>
           {METRICS.map((mt,i)=>{
             const va=sa[mt.key], vb=sb[mt.key];
             return (
-              <div key={mt.key} style={{display:"grid",gridTemplateColumns:"160px 1fr 1fr",alignItems:"center",padding:"11px 16px",borderTop:i?"1px solid #F1F5F9":"0",fontSize:13}}>
-                <span style={{color:"#374151",fontWeight:500}}>{mt.label}</span>
+              <div key={mt.key} style={{display:"grid",gridTemplateColumns:"160px 1fr 1fr",alignItems:"center",padding:"11px 16px",borderTop:i?"1px solid var(--slate-100)":"0",fontSize:13}}>
+                <span style={{color:"var(--slate-700)",fontWeight:500}}>{mt.label}</span>
                 <div style={{display:"flex",alignItems:"center",gap:10,padding:"0 14px 0 0"}}>
                   {bar(va,mt.max,va>=vb)}
-                  <span style={{fontFamily:"monospace",fontWeight:700,minWidth:38,color:va>vb?"#5B4FE9":"#374151"}}>{fmt(va,mt.max)}</span>
+                  <span style={{fontFamily:"monospace",fontWeight:700,minWidth:38,color:va>vb?"var(--brand-500)":"var(--slate-700)"}}>{fmt(va,mt.max)}</span>
                 </div>
                 <div style={{display:"flex",alignItems:"center",gap:10}}>
                   {bar(vb,mt.max,vb>=va)}
-                  <span style={{fontFamily:"monospace",fontWeight:700,minWidth:38,color:vb>va?"#5B4FE9":"#374151"}}>{fmt(vb,mt.max)}</span>
+                  <span style={{fontFamily:"monospace",fontWeight:700,minWidth:38,color:vb>va?"var(--brand-500)":"var(--slate-700)"}}>{fmt(vb,mt.max)}</span>
                 </div>
               </div>
             );
@@ -1079,36 +1079,36 @@ const JobCandidatesScreen = ({job, onNavigate, onBack, onSchedule}) => {
   const [stage, setStage] = React.useState("all");
   React.useEffect(()=>{window.lucide?.createIcons();},[selected.size,compareOpen,stage]);
   const STAGES = {
-    applied:{bg:"#F1F5F9",fg:"#475569",label:"Applied"},
-    screening:{bg:"#EFF6FF",fg:"#1D4ED8",label:"Screening"},
-    interview:{bg:"#EFEDFD",fg:"#5B4FE9",label:"Interview"},
-    offer:{bg:"#ECFDF5",fg:"#047857",label:"Offer"},
-    rejected:{bg:"#FEF2F2",fg:"#B53618",label:"Rejected"},
+    applied:{bg:"var(--slate-100)",fg:"#475569",label:"Applied"},
+    screening:{bg:"var(--info-50)",fg:"var(--info-600)",label:"Screening"},
+    interview:{bg:"var(--brand-50)",fg:"var(--brand-500)",label:"Interview"},
+    offer:{bg:"var(--success-50)",fg:"var(--success-600)",label:"Offer"},
+    rejected:{bg:"#FEF2F2",fg:"var(--danger-700)",label:"Rejected"},
   };
   const rows = stage==="all" ? all : all.filter(c=>c.stage===stage);
   const toggle = id => setSelected(s=>{const n=new Set(s);n.has(id)?n.delete(id):n.add(id);return n;});
   return (
     <div style={{display:"flex",flexDirection:"column",gap:18}}>
-      <button onClick={onBack} style={{display:"flex",alignItems:"center",gap:6,background:"transparent",border:0,color:"#5B4FE9",fontWeight:500,fontSize:13,cursor:"pointer"}}>
+      <button onClick={onBack} style={{display:"flex",alignItems:"center",gap:6,background:"transparent",border:0,color:"var(--brand-500)",fontWeight:500,fontSize:13,cursor:"pointer"}}>
         <i data-lucide="arrow-left" style={{width:16,height:16}}/>Back to Team Overview
       </button>
       <div>
         <Eyebrow>MANAGER · PIPELINE</Eyebrow>
-        <h1 style={{fontFamily:"var(--font-display,'Inter')",fontSize:24,fontWeight:700,color:"#0F172A",margin:"6px 0 4px",letterSpacing:"-0.02em"}}>{job?.title||"Candidates"}</h1>
-        <p style={{color:"#6B7280",fontSize:13,margin:0}}>{rows.length} candidates · click anyone to open their full profile and analysis. Select 2+ to compare.</p>
+        <h1 style={{fontFamily:"var(--font-display,'Inter')",fontSize:24,fontWeight:700,color:"var(--slate-900)",margin:"6px 0 4px",letterSpacing:"-0.02em"}}>{job?.title||"Candidates"}</h1>
+        <p style={{color:"var(--slate-500)",fontSize:13,margin:0}}>{rows.length} candidates · click anyone to open their full profile and analysis. Select 2+ to compare.</p>
       </div>
       <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
         {[["all","All"],["applied","Applied"],["screening","Screening"],["interview","Interview"],["offer","Offer"]].map(([id,l])=>(
-          <button key={id} onClick={()=>setStage(id)} style={{padding:"6px 14px",borderRadius:7,border:`1px solid ${stage===id?"#5B4FE9":"#E2E8F0"}`,background:"#FFF",color:stage===id?"#5B4FE9":"#374151",fontWeight:stage===id?600:500,fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>{l}</button>
+          <button key={id} onClick={()=>setStage(id)} style={{padding:"6px 14px",borderRadius:7,border:`1px solid ${stage===id?"var(--brand-500)":"var(--slate-200)"}`,background:"var(--bg-surface)",color:stage===id?"var(--brand-500)":"var(--slate-700)",fontWeight:stage===id?600:500,fontSize:13,cursor:"pointer",fontFamily:"inherit"}}>{l}</button>
         ))}
       </div>
       <Card style={{padding:0,overflow:"hidden"}}>
         <table style={{width:"100%",borderCollapse:"collapse",fontSize:13}}>
           <thead>
-            <tr style={{background:"#F8FAFC"}}>
+            <tr style={{background:"var(--slate-50)"}}>
               <th style={{padding:"12px 16px",width:36}}></th>
               {["CANDIDATE","STAGE","SCORE","SOURCE","NEXT STEP","ACTIONS"].map(h=>(
-                <th key={h} style={{textAlign:"left",padding:"12px 16px",fontSize:11,fontWeight:600,letterSpacing:"0.07em",textTransform:"uppercase",color:"#94A3B8",borderBottom:"1px solid #E2E8F0"}}>{h}</th>
+                <th key={h} style={{textAlign:"left",padding:"12px 16px",fontSize:11,fontWeight:600,letterSpacing:"0.07em",textTransform:"uppercase",color:"var(--slate-400)",borderBottom:"1px solid var(--slate-200)"}}>{h}</th>
               ))}
             </tr>
           </thead>
@@ -1116,23 +1116,23 @@ const JobCandidatesScreen = ({job, onNavigate, onBack, onSchedule}) => {
             {rows.map(c=>{
               const st=STAGES[c.stage]||STAGES.applied;
               return (
-                <tr key={c.id} onClick={()=>onNavigate("member-profile",{...c,isExternal:true})} style={{cursor:"pointer",background:selected.has(c.id)?"#F3F0FF":"#FFF"}}
-                  onMouseEnter={e=>{if(!selected.has(c.id))e.currentTarget.style.background="#F8FAFC";}}
-                  onMouseLeave={e=>{if(!selected.has(c.id))e.currentTarget.style.background="#FFF";}}>
-                  <td style={{padding:"14px 16px",borderBottom:"1px solid #F1F5F9"}} onClick={e=>e.stopPropagation()}>
-                    <input type="checkbox" checked={selected.has(c.id)} onChange={()=>toggle(c.id)} style={{accentColor:"#5B4FE9",cursor:"pointer"}}/>
+                <tr key={c.id} onClick={()=>onNavigate("member-profile",{...c,isExternal:true})} style={{cursor:"pointer",background:selected.has(c.id)?"#F3F0FF":"var(--bg-surface)"}}
+                  onMouseEnter={e=>{if(!selected.has(c.id))e.currentTarget.style.background="var(--slate-50)";}}
+                  onMouseLeave={e=>{if(!selected.has(c.id))e.currentTarget.style.background="var(--bg-surface)";}}>
+                  <td style={{padding:"14px 16px",borderBottom:"1px solid var(--slate-100)"}} onClick={e=>e.stopPropagation()}>
+                    <input type="checkbox" checked={selected.has(c.id)} onChange={()=>toggle(c.id)} style={{accentColor:"var(--brand-500)",cursor:"pointer"}}/>
                   </td>
-                  <td style={{padding:"14px 16px",borderBottom:"1px solid #F1F5F9"}}>
+                  <td style={{padding:"14px 16px",borderBottom:"1px solid var(--slate-100)"}}>
                     <div style={{display:"flex",alignItems:"center",gap:12}}>
                       <window.V2Av name={c.name} size={36}/>
-                      <div><div style={{fontWeight:600,color:"#0F172A"}}>{c.name}</div><div style={{fontSize:12,color:"#6B7280",marginTop:1}}>{c.role}</div></div>
+                      <div><div style={{fontWeight:600,color:"var(--slate-900)"}}>{c.name}</div><div style={{fontSize:12,color:"var(--slate-500)",marginTop:1}}>{c.role}</div></div>
                     </div>
                   </td>
-                  <td style={{padding:"14px 16px",borderBottom:"1px solid #F1F5F9"}}><span style={{fontSize:11,fontWeight:600,padding:"3px 9px",borderRadius:9999,background:st.bg,color:st.fg}}>{st.label}</span></td>
-                  <td style={{padding:"14px 16px",borderBottom:"1px solid #F1F5F9"}}>{c.score!=null?<span style={{fontFamily:"monospace",fontWeight:700,color:c.score>=4?"#047857":"#B45309"}}>{c.score.toFixed(1)}</span>:<span style={{color:"#94A3B8"}}>—</span>}</td>
-                  <td style={{padding:"14px 16px",borderBottom:"1px solid #F1F5F9",color:"#6B7280"}}>{c.source}</td>
-                  <td style={{padding:"14px 16px",borderBottom:"1px solid #F1F5F9",color:"#5B4FE9",fontSize:12}}>{c.next}</td>
-                  <td style={{padding:"14px 16px",borderBottom:"1px solid #F1F5F9"}} onClick={e=>e.stopPropagation()}>
+                  <td style={{padding:"14px 16px",borderBottom:"1px solid var(--slate-100)"}}><span style={{fontSize:11,fontWeight:600,padding:"3px 9px",borderRadius:9999,background:st.bg,color:st.fg}}>{st.label}</span></td>
+                  <td style={{padding:"14px 16px",borderBottom:"1px solid var(--slate-100)"}}>{c.score!=null?<span style={{fontFamily:"monospace",fontWeight:700,color:c.score>=4?"var(--success-600)":"var(--warning-600)"}}>{c.score.toFixed(1)}</span>:<span style={{color:"var(--slate-400)"}}>—</span>}</td>
+                  <td style={{padding:"14px 16px",borderBottom:"1px solid var(--slate-100)",color:"var(--slate-500)"}}>{c.source}</td>
+                  <td style={{padding:"14px 16px",borderBottom:"1px solid var(--slate-100)",color:"var(--brand-500)",fontSize:12}}>{c.next}</td>
+                  <td style={{padding:"14px 16px",borderBottom:"1px solid var(--slate-100)"}} onClick={e=>e.stopPropagation()}>
                     <Btn size="sm" variant="secondary" onClick={()=>onSchedule(c)}><i data-lucide="calendar-plus" style={{width:12,height:12}}/> Schedule</Btn>
                   </td>
                 </tr>
@@ -1142,9 +1142,9 @@ const JobCandidatesScreen = ({job, onNavigate, onBack, onSchedule}) => {
         </table>
       </Card>
       {selected.size>0 && (
-        <div style={{position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",background:"#0F172A",color:"#FFF",borderRadius:14,padding:"10px 14px",display:"inline-flex",alignItems:"center",gap:14,boxShadow:"0 16px 40px rgba(15,23,42,0.32)",zIndex:30,animation:"v2slide 240ms cubic-bezier(0.2,0,0,1)"}}>
+        <div style={{position:"fixed",bottom:24,left:"50%",transform:"translateX(-50%)",background:"var(--slate-900)",color:"var(--bg-surface)",borderRadius:14,padding:"10px 14px",display:"inline-flex",alignItems:"center",gap:14,boxShadow:"0 16px 40px rgba(15,23,42,0.32)",zIndex:30,animation:"v2slide 240ms cubic-bezier(0.2,0,0,1)"}}>
           <span style={{fontSize:13,fontWeight:600}}>{selected.size} selected</span>
-          {selected.size>=2 && <Btn size="sm" onClick={()=>setCompareOpen(true)} style={{background:"#5B4FE9",color:"#FFF",border:0}}><i data-lucide="git-compare" style={{width:12,height:12}}/> Compare {selected.size>2?"(first 2)":""}</Btn>}
+          {selected.size>=2 && <Btn size="sm" onClick={()=>setCompareOpen(true)} style={{background:"var(--brand-500)",color:"var(--bg-surface)",border:0}}><i data-lucide="git-compare" style={{width:12,height:12}}/> Compare {selected.size>2?"(first 2)":""}</Btn>}
           <button onClick={()=>setSelected(new Set())} style={{background:"transparent",border:0,color:"#64748B",cursor:"pointer",fontSize:13}}>Deselect</button>
         </div>
       )}

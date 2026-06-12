@@ -14,21 +14,27 @@ async function create(data) {
   const rows = await db.query(
     `INSERT INTO interviews
        (manager_id, internal_user_id, external_candidate_id, type, interview_mode,
-        difficulty, question_count, token, token_expires)
+        difficulty, question_count, token, token_expires,
+        client_template_id, monthly_assessment_id, jd_text, interviewer_id)
      VALUES
        (@manager_id, @internal_user_id, @external_candidate_id, @type, @interview_mode,
-        @difficulty, @question_count, @token, @token_expires)
+        @difficulty, @question_count, @token, @token_expires,
+        @client_template_id, @monthly_assessment_id, @jd_text, @interviewer_id)
      RETURNING *`,
     {
-      manager_id:            data.managerId,
-      internal_user_id:      data.internalUserId || null,
-      external_candidate_id: data.externalCandidateId || null,
-      type:                  data.type || 'ai_voice',
-      interview_mode:        data.interviewMode || 'simple',
-      difficulty:            data.difficulty || 'medium',
-      question_count:        data.questionCount || 10,
-      token:                 data.token,
-      token_expires:         data.tokenExpires,
+      manager_id:             data.managerId,
+      internal_user_id:       data.internalUserId       || null,
+      external_candidate_id:  data.externalCandidateId  || null,
+      type:                   data.type                 || 'ai_voice',
+      interview_mode:         data.interviewMode        || 'simple',
+      difficulty:             data.difficulty           || 'medium',
+      question_count:         data.questionCount        || 10,
+      token:                  data.token,
+      token_expires:          data.tokenExpires,
+      client_template_id:     data.clientTemplateId     || null,
+      monthly_assessment_id:  data.monthlyAssessmentId  || null,
+      jd_text:                data.jdText               || null,
+      interviewer_id:         data.interviewerId        || null,
     }
   )
   return rows[0]

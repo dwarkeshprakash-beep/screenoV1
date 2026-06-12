@@ -35,8 +35,8 @@ function CandidateLayout() {
             background: 'linear-gradient(135deg,var(--brand-500),var(--brand-600))',
             position: 'relative',
           }}>
-            <div style={{ position: 'absolute', left: '0.375rem', top: '0.5625rem', width: '1rem', height: '0.15625rem', background: '#FFF', borderRadius: '0.125rem', opacity: 0.95 }} />
-            <div style={{ position: 'absolute', left: '0.375rem', top: '0.9375rem', width: '1rem', height: '0.15625rem', background: '#FFF', borderRadius: '0.125rem', opacity: 0.6 }} />
+            <div style={{ position: 'absolute', left: '0.375rem', top: '0.5625rem', width: '1rem', height: '0.15625rem', background: 'var(--bg-surface)', borderRadius: '0.125rem', opacity: 0.95 }} />
+            <div style={{ position: 'absolute', left: '0.375rem', top: '0.9375rem', width: '1rem', height: '0.15625rem', background: 'var(--bg-surface)', borderRadius: '0.125rem', opacity: 0.6 }} />
           </div>
           <span style={{ fontSize: '1.0625rem', fontWeight: 'var(--fw-bold)', color: 'var(--fg-primary)', letterSpacing: 'var(--tracking-tight)' }}>Screeno</span>
         </div>
@@ -46,7 +46,7 @@ function CandidateLayout() {
         </span>
       </header>
 
-      <div style={{ flex: 1, background: '#F8FAFC' }}>
+      <div style={{ flex: 1, background: 'var(--slate-50)' }}>
         <Outlet />
       </div>
     </div>

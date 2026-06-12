@@ -4,38 +4,16 @@ import { Download, Filter, FileText, TrendingUp, Star, Clock } from 'lucide-reac
 import Spinner from '../../components/shared/Spinner'
 import ErrorMessage from '../../components/shared/ErrorMessage'
 import EmptyState from '../../components/shared/EmptyState'
+import Avatar from '../../components/shared/Avatar'
 import * as api from '../../services/api'
 import { formatDate } from '../../utils/helpers'
 
-const AV_COLORS = [
-  { bg: '#EDE9FE', fg: '#5B21B6' }, { bg: '#FED7AA', fg: '#9A3412' },
-  { bg: '#A7F3D0', fg: '#065F46' }, { bg: '#BFDBFE', fg: '#1E40AF' },
-  { bg: '#FBCFE8', fg: '#9D174D' }, { bg: '#FDE68A', fg: '#854D0E' },
-  { bg: '#C7D2FE', fg: '#3730A3' }, { bg: '#FCA5A5', fg: '#7F1D1D' },
-]
-
-function avHash(s) {
-  let h = 0
-  for (let i = 0; i < (s || '').length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0
-  return Math.abs(h)
-}
-
-function Avatar({ name = '?', size = 32 }) {
-  const c = AV_COLORS[avHash(name) % AV_COLORS.length]
-  const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase()
-  return (
-    <div style={{ width: size, height: size, borderRadius: 9999, flexShrink: 0, background: c.bg, color: c.fg, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: Math.round(size * 0.38), letterSpacing: '-0.01em' }}>
-      {initials}
-    </div>
-  )
-}
-
 function DecisionBadge({ decision }) {
   const map = {
-    pass: { label: 'Pass', bg: '#ECFDF5', fg: '#047857' },
-    maybe: { label: 'Maybe', bg: '#FFFBEB', fg: '#B45309' },
-    needs_review: { label: 'Needs review', bg: '#EFF6FF', fg: '#1D4ED8' },
-    pending: { label: 'Pending', bg: '#F1F5F9', fg: '#6B7280' },
+    pass: { label: 'Pass', bg: 'var(--success-50)', fg: 'var(--success-600)' },
+    maybe: { label: 'Maybe', bg: 'var(--warning-50)', fg: 'var(--warning-600)' },
+    needs_review: { label: 'Needs review', bg: 'var(--info-50)', fg: 'var(--info-600)' },
+    pending: { label: 'Pending', bg: 'var(--slate-100)', fg: 'var(--slate-500)' },
   }
   const d = map[decision] || map.pending
   return <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 9999, background: d.bg, color: d.fg }}>{d.label}</span>
@@ -70,18 +48,17 @@ function ReportsPage() {
   if (error) return <ErrorMessage message={error} />
 
   const visibleReports = decisionFilter === 'all' ? reports : reports.filter(r => (r.decision || 'pending') === decisionFilter)
-  const cardStyle = { background: '#FFF', border: '1px solid #E2E8F0', borderRadius: 12, padding: 20, boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }
-  const thStyle = { textAlign: 'left', padding: '11px 16px', fontSize: 11, fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: '#94A3B8', borderBottom: '1px solid #E2E8F0' }
-  const btnSecondary = { background: '#FFF', color: '#0F172A', border: '1px solid #CBD5E1', borderRadius: 8, fontWeight: 600, padding: '5px 10px', fontSize: 12, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }
+  const cardStyle = { background: 'var(--bg-surface)', border: '1px solid var(--slate-200)', borderRadius: 12, padding: 20, boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }
+  const thStyle = { textAlign: 'left', padding: '11px 16px', fontSize: 11, fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--slate-400)', borderBottom: '1px solid var(--slate-200)' }
+  const btnSecondary = { background: 'var(--bg-surface)', color: 'var(--slate-900)', border: '1px solid var(--slate-300)', borderRadius: 8, fontWeight: 600, padding: '5px 10px', fontSize: 12, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }
 
   function exportCsv() {
-    const headers = ['Candidate', 'Email', 'Type', 'Attempt', 'Completed', 'Score', 'Decision']
+    const headers = ['Candidate', 'Email', 'Type', 'Date', 'Score', 'Decision']
     const rows = visibleReports.map(r => [
-      `${r.first_name || ''} ${r.last_name || ''}`.trim(),
+      `${r.candidate_first || ''} ${r.candidate_last || ''}`.trim(),
       r.email || '',
       r.interview_type || '',
-      r.attempts || '',
-      r.completed_date || r.report_date || '',
+      r.created || '',
       r.overall_score ?? '',
       r.decision || 'pending',
     ])
@@ -95,11 +72,18 @@ function ReportsPage() {
     URL.revokeObjectURL(url)
   }
 
+  const totalCount = reports.length
+  const passCount = reports.filter(r => r.decision === 'pass').length
+  const passRate = totalCount > 0 ? Math.round((passCount / totalCount) * 100) : null
+  const scores = reports.map(r => Number(r.overall_score)).filter(s => !isNaN(s) && s > 0)
+  const avgScore = scores.length > 0 ? (scores.reduce((a, b) => a + b, 0) / scores.length) : null
+  const pendingCount = reports.filter(r => r.status === 'generating').length
+
   const statCards = [
-    { icon: FileText,   bg: '#EFEDFD', color: '#5B4FE9', label: 'Total interviews', value: stats?.totalInterviews ?? reports.length,                               sub: 'Completed attempts' },
-    { icon: TrendingUp, bg: '#ECFDF5', color: '#059669', label: 'Pass rate',        value: stats?.passRate == null ? '—' : `${stats.passRate}%`,                   sub: `${stats?.passCount ?? 0} pass decisions` },
-    { icon: Star,       bg: '#FFFBEB', color: '#D97706', label: 'Avg score',        value: stats?.averageScore == null ? '—' : stats.averageScore.toFixed(1),       sub: `Out of ${stats?.scoreMax || 10}` },
-    { icon: Clock,      bg: '#FEF2F2', color: '#EF4444', label: 'Pending reports',  value: stats?.reportsPending ?? reports.filter(r => !r.report_id).length,       sub: 'Worker queue' },
+    { icon: FileText,   bg: 'var(--brand-50)', color: 'var(--brand-500)', label: 'Total interviews', value: totalCount,                               sub: 'Completed attempts' },
+    { icon: TrendingUp, bg: 'var(--success-50)', color: 'var(--success-500)', label: 'Pass rate',        value: passRate == null ? '—' : `${passRate}%`,                   sub: `${passCount} pass decisions` },
+    { icon: Star,       bg: 'var(--warning-50)', color: 'var(--warning-500)', label: 'Avg score',        value: avgScore == null ? '—' : avgScore.toFixed(1),       sub: `Out of 10` },
+    { icon: Clock,      bg: 'var(--danger-50)', color: 'var(--danger-600)', label: 'Pending reports',  value: pendingCount,       sub: 'Worker queue' },
   ]
 
   return (
@@ -113,16 +97,16 @@ function ReportsPage() {
               <s.icon size={20} />
             </div>
             <div>
-              <div style={{ fontSize: 26, fontWeight: 700, color: '#0F172A', letterSpacing: '-0.02em', lineHeight: 1 }}>{s.value}</div>
-              <div style={{ fontSize: 12, color: '#6B7280', marginTop: 3 }}>{s.label}</div>
+              <div style={{ fontSize: 26, fontWeight: 700, color: 'var(--slate-900)', letterSpacing: '-0.02em', lineHeight: 1 }}>{s.value}</div>
+              <div style={{ fontSize: 12, color: 'var(--slate-500)', marginTop: 3 }}>{s.label}</div>
             </div>
           </div>
         ))}
       </div>
 
       <div style={{ ...cardStyle, padding: 0, overflow: 'hidden' }}>
-        <div style={{ padding: '16px 20px', borderBottom: '1px solid #F1F5F9', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ fontSize: 15, fontWeight: 700, color: '#0F172A' }}>Candidate reports</div>
+        <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--slate-100)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--slate-900)' }}>Candidate reports</div>
           <div style={{ display: 'flex', gap: 8 }}>
             <label style={btnSecondary}>
               <Filter size={12} /> Filter
@@ -143,38 +127,37 @@ function ReportsPage() {
         ) : (
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
-              <tr style={{ background: '#F8FAFC' }}>
-                {['CANDIDATE', 'TYPE', 'ATTEMPT', 'DATE', 'OVERALL', 'DECISION', ''].map(h => <th key={h} style={thStyle}>{h}</th>)}
+              <tr style={{ background: 'var(--slate-50)' }}>
+                {['CANDIDATE', 'TYPE', 'DATE', 'OVERALL', 'DECISION', ''].map(h => <th key={h} style={thStyle}>{h}</th>)}
               </tr>
             </thead>
             <tbody>
               {visibleReports.map((r, i) => {
-                const name = `${r.first_name || ''} ${r.last_name || ''}`.trim() || r.name || 'Unknown'
+                const name = `${r.candidate_first || ''} ${r.candidate_last || ''}`.trim() || r.name || 'Unknown'
                 const overall = r.overall_score != null ? Number(r.overall_score) : null
                 const scoreMax = Number(r.score_max || stats?.scoreMax || 10)
                 return (
-                  <tr key={r.attempt_id || r.report_id || r.candidate_id || i} style={{ cursor: 'pointer', transition: 'background 120ms' }} onMouseEnter={e => e.currentTarget.style.background = '#F8FAFC'} onMouseLeave={e => e.currentTarget.style.background = '#FFF'}>
-                    <td style={{ padding: '14px 16px', borderBottom: '1px solid #F1F5F9' }}>
+                  <tr key={r.id || i} style={{ cursor: 'pointer', transition: 'background 120ms' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--slate-50)'} onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-surface)'}>
+                    <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--slate-100)' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                         <Avatar name={name} size={32} />
-                        <div style={{ fontWeight: 600, color: '#0F172A' }}>{name}</div>
+                        <div style={{ fontWeight: 600, color: 'var(--slate-900)' }}>{name}</div>
                       </div>
                     </td>
-                    <td style={{ padding: '14px 16px', borderBottom: '1px solid #F1F5F9', color: '#6B7280' }}>{r.interview_type || r.type || '-'}</td>
-                    <td style={{ padding: '14px 16px', borderBottom: '1px solid #F1F5F9', fontFamily: 'monospace', fontWeight: 600, color: '#0F172A' }}>{r.attempts || 1}</td>
-                    <td style={{ padding: '14px 16px', borderBottom: '1px solid #F1F5F9', color: '#6B7280' }}>{formatDate(r.report_date || r.completed_date || r.scheduled_date)}</td>
-                    <td style={{ padding: '14px 16px', borderBottom: '1px solid #F1F5F9' }}>
+                    <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--slate-100)', color: 'var(--slate-500)' }}>{r.interview_type || '-'}</td>
+                    <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--slate-100)', color: 'var(--slate-500)' }}>{formatDate(r.created)}</td>
+                    <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--slate-100)' }}>
                       {overall != null ? (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                          <span style={{ fontFamily: 'monospace', fontWeight: 700, color: overall >= 7.5 ? '#047857' : overall >= 5.5 ? '#B45309' : '#B53618' }}>{overall.toFixed(1)}</span>
-                          <span style={{ flex: 1, height: 4, background: '#F1F5F9', borderRadius: 9999, overflow: 'hidden', display: 'inline-block', width: 48 }}>
-                            <span style={{ display: 'block', height: '100%', width: `${Math.min(100, (overall / scoreMax) * 100)}%`, background: '#5B4FE9', borderRadius: 9999 }} />
+                          <span style={{ fontFamily: 'monospace', fontWeight: 700, color: overall >= 7.5 ? 'var(--success-600)' : overall >= 5.5 ? 'var(--warning-600)' : 'var(--danger-700)' }}>{overall.toFixed(1)}</span>
+                          <span style={{ flex: 1, height: 4, background: 'var(--slate-100)', borderRadius: 9999, overflow: 'hidden', display: 'inline-block', width: 48 }}>
+                            <span style={{ display: 'block', height: '100%', width: `${Math.min(100, (overall / scoreMax) * 100)}%`, background: 'var(--brand-500)', borderRadius: 9999 }} />
                           </span>
                         </div>
-                      ) : <span style={{ color: '#94A3B8' }}>-</span>}
+                      ) : <span style={{ color: 'var(--slate-400)' }}>-</span>}
                     </td>
-                    <td style={{ padding: '14px 16px', borderBottom: '1px solid #F1F5F9' }}><DecisionBadge decision={r.decision} /></td>
-                    <td style={{ padding: '14px 16px', borderBottom: '1px solid #F1F5F9' }}>
+                    <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--slate-100)' }}><DecisionBadge decision={r.decision} /></td>
+                    <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--slate-100)' }}>
                       <button type="button" onClick={() => { if (r.team_member_id) navigate(`/manager/team/${r.team_member_id}`) }} style={btnSecondary} aria-label={`View report for ${name}`}>View report</button>
                     </td>
                   </tr>

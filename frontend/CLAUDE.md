@@ -132,20 +132,44 @@ Examples:
 
 ---
 
-## Design tokens usage
+## Design tokens — hex is banned
 
-Always use CSS variables from `tokens.css`. Never hardcode colors.
+Never hardcode color hex values. Every color in the codebase must use a `tokens.css` variable.
+This is widely violated — when touching any file, replace hardcoded hex as you go.
 
 ```css
-/* CORRECT */
-color: var(--brand-500);
-background: var(--bg-page);
-border: 1px solid var(--border-default);
-
-/* WRONG */
-color: #5B4FE9;
-background: #F8FAFC;
+/* CORRECT */                           /* WRONG */
+color: var(--brand-500);                color: #5B4FE9;
+background: var(--bg-page);             background: #F8FAFC;
+border: 1px solid var(--border-default); border: 1px solid #E2E8F0;
 ```
+
+**Quick hex → token reference:**
+
+| Hex | Token |
+|---|---|
+| `#0F172A` | `var(--fg-primary)` |
+| `#374151` | `var(--fg-body)` |
+| `#6B7280` / `#64748B` | `var(--fg-muted)` |
+| `#94A3B8` | `var(--fg-subtle)` |
+| `#5B4FE9` | `var(--brand-500)` |
+| `#4A3FCE` | `var(--brand-600)` |
+| `#3A31A3` | `var(--brand-700)` |
+| `#EFEDFD` | `var(--brand-50)` |
+| `#FFFFFF` / `#FFF` | `var(--bg-surface)` |
+| `#F8FAFC` | `var(--bg-page)` |
+| `#F1F5F9` | `var(--bg-surface-alt)` |
+| `#E2E8F0` | `var(--border-default)` |
+| `#CBD5E1` | `var(--border-strong)` |
+| `#059669` | `var(--success-500)` |
+| `#047857` | `var(--success-600)` |
+| `#ECFDF5` | `var(--success-50)` |
+| `#D97706` | `var(--warning-500)` |
+| `#B45309` | `var(--warning-600)` |
+| `#FFFBEB` | `var(--warning-50)` |
+| `#EF4444` / `#DC2626` | `var(--danger-500)` |
+| `#B53618` | `var(--danger-700)` |
+| `#FEF2F2` | `var(--danger-50)` |
 
 ---
 

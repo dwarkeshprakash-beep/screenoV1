@@ -4,7 +4,7 @@
 const v2hash = s => { let h=0; for(let i=0;i<s.length;i++) h=((h<<5)-h+s.charCodeAt(i))|0; return Math.abs(h); };
 const v2initials = n => n.split(/\s+/).filter(Boolean).slice(0,2).map(w=>w[0]).join("").toUpperCase();
 const V2_AV_COLORS = [
-  {bg:"#EDE9FE",fg:"#5B21B6"},{bg:"#FED7AA",fg:"#9A3412"},{bg:"#A7F3D0",fg:"#065F46"},
+  {bg:"#EDE9FE",fg:"#5B21B6"},{bg:"#FED7AA",fg:"#9A3412"},{bg:"#A7F3D0",fg:"var(--success-700)"},
   {bg:"#BFDBFE",fg:"#1E40AF"},{bg:"#FBCFE8",fg:"#9D174D"},{bg:"#FDE68A",fg:"#854D0E"},
   {bg:"#C7D2FE",fg:"#3730A3"},{bg:"#FCA5A5",fg:"#7F1D1D"},
 ];
@@ -16,7 +16,7 @@ const V2Av = ({name="?", size=36, ring, style:sty}) => {
       background:c.bg, color:c.fg,
       display:"inline-flex", alignItems:"center", justifyContent:"center",
       fontWeight:700, fontSize:Math.round(size*0.38), letterSpacing:"-0.01em",
-      boxShadow: ring ? `0 0 0 2px #FFF, 0 0 0 4px ${ring}` : undefined,
+      boxShadow: ring ? `0 0 0 2px var(--bg-surface), 0 0 0 4px ${ring}` : undefined,
       ...sty,
     }}>
       {v2initials(name)}
@@ -31,19 +31,19 @@ const SKILL_COLORS = {
   "SQL":        {bg:"#DCFCE7",fg:"#166534"},
   "Docker":     {bg:"#DBEAFE",fg:"#1E40AF"},
   "React":      {bg:"#CFFAFE",fg:"#155E75"},
-  "TypeScript": {bg:"#EFF6FF",fg:"#1D4ED8"},
+  "TypeScript": {bg:"var(--info-50)",fg:"var(--info-600)"},
   "CSS":        {bg:"#FCE7F3",fg:"#9D174D"},
   "Node.js":    {bg:"#DCFCE7",fg:"#166534"},
-  "MongoDB":    {bg:"#D1FAE5",fg:"#065F46"},
-  "Java":       {bg:"#FEF3C7",fg:"#92400E"},
+  "MongoDB":    {bg:"var(--success-100)",fg:"var(--success-700)"},
+  "Java":       {bg:"var(--warning-100)",fg:"var(--warning-700)"},
   "Spring":     {bg:"#DCFCE7",fg:"#166534"},
   "Azure":      {bg:"#DBEAFE",fg:"#1E40AF"},
-  "AWS":        {bg:"#FEF3C7",fg:"#92400E"},
+  "AWS":        {bg:"var(--warning-100)",fg:"var(--warning-700)"},
   "GraphQL":    {bg:"#FCE7F3",fg:"#9D174D"},
   "Go":         {bg:"#CFFAFE",fg:"#155E75"},
 };
 const SkillTag = ({label}) => {
-  const c = SKILL_COLORS[label] || {bg:"#F1F5F9",fg:"#475569"};
+  const c = SKILL_COLORS[label] || {bg:"var(--slate-100)",fg:"#475569"};
   return (
     <span style={{
       display:"inline-flex", alignItems:"center",
@@ -57,8 +57,8 @@ const SkillTag = ({label}) => {
 /* assessment badge */
 const AssessBadge = ({s, ago}) => {
   const map = {
-    "up-to-date": {icon:"check-circle-2", color:"#059669", bg:"#ECFDF5", label:"Up to date"},
-    "overdue":    {icon:"alert-triangle", color:"#D97706", bg:"#FFFBEB", label:"Overdue"},
+    "up-to-date": {icon:"check-circle-2", color:"var(--success-500)", bg:"var(--success-50)", label:"Up to date"},
+    "overdue":    {icon:"alert-triangle", color:"var(--warning-500)", bg:"var(--warning-50)", label:"Overdue"},
     "never":      {icon:"minus-circle",  color:"#EF4444", bg:"#FEF2F2", label:"Never assessed"},
   };
   const m = map[s] || map["never"];
@@ -67,7 +67,7 @@ const AssessBadge = ({s, ago}) => {
       <span style={{display:"inline-flex", alignItems:"center", gap:5, padding:"3px 8px", borderRadius:9999, background:m.bg, color:m.color, fontSize:12, fontWeight:600}}>
         <i data-lucide={m.icon} style={{width:12,height:12}} /> {m.label}
       </span>
-      {ago && <div style={{fontSize:11, color:"#94A3B8", marginTop:3}}>{ago}</div>}
+      {ago && <div style={{fontSize:11, color:"var(--slate-400)", marginTop:3}}>{ago}</div>}
     </div>
   );
 };
@@ -81,9 +81,9 @@ const V2Icon = ({name, size=16, color, style:sty}) => (
 const V2Toggle = ({on, onClick}) => (
   <button onClick={onClick} style={{
     width:40, height:23, borderRadius:9999, border:0, cursor:"pointer", flexShrink:0,
-    background:on?"#5B4FE9":"#CBD5E1", position:"relative", transition:"background 160ms", padding:0,
+    background:on?"var(--brand-500)":"var(--slate-300)", position:"relative", transition:"background 160ms", padding:0,
   }}>
-    <span style={{position:"absolute",top:2,left:on?19:2,width:19,height:19,borderRadius:9999,background:"#FFF",boxShadow:"0 1px 3px rgba(15,23,42,0.2)",transition:"left 160ms cubic-bezier(0.2,0,0,1)"}}/>
+    <span style={{position:"absolute",top:2,left:on?19:2,width:19,height:19,borderRadius:9999,background:"var(--bg-surface)",boxShadow:"0 1px 3px rgba(15,23,42,0.2)",transition:"left 160ms cubic-bezier(0.2,0,0,1)"}}/>
   </button>
 );
 
@@ -96,18 +96,18 @@ const ROLES_V2 = [
 
 const V2RoleBar = ({role, onRole, onLogout}) => (
   <div style={{
-    background:"#0F172A", height:38,
+    background:"var(--slate-900)", height:38,
     display:"flex", alignItems:"center",
     padding:"0 14px", gap:4,
     position:"sticky", top:0, zIndex:100,
     borderBottom:"1px solid #1E293B",
   }}>
     <div style={{display:"flex",alignItems:"center",gap:8, marginRight:12}}>
-      <div style={{width:22,height:22,borderRadius:6, background:"linear-gradient(135deg,#5B4FE9,#4A3FCE)", display:"inline-flex",alignItems:"center",justifyContent:"center", position:"relative"}}>
-        <div style={{position:"absolute",left:5,top:7,width:12,height:2.5,background:"#FFF",borderRadius:2,opacity:0.95}}/>
-        <div style={{position:"absolute",left:5,top:12.5,width:12,height:2.5,background:"#FFF",borderRadius:2,opacity:0.6}}/>
+      <div style={{width:22,height:22,borderRadius:6, background:"linear-gradient(135deg,var(--brand-500),var(--brand-600))", display:"inline-flex",alignItems:"center",justifyContent:"center", position:"relative"}}>
+        <div style={{position:"absolute",left:5,top:7,width:12,height:2.5,background:"var(--bg-surface)",borderRadius:2,opacity:0.95}}/>
+        <div style={{position:"absolute",left:5,top:12.5,width:12,height:2.5,background:"var(--bg-surface)",borderRadius:2,opacity:0.6}}/>
       </div>
-      <span style={{color:"#FFF",fontSize:15,fontWeight:700,letterSpacing:"-0.02em"}}>Screeno</span>
+      <span style={{color:"var(--bg-surface)",fontSize:15,fontWeight:700,letterSpacing:"-0.02em"}}>Screeno</span>
     </div>
     <div style={{width:1,height:18,background:"#1E293B",margin:"0 8px"}}/>
     {ROLES_V2.map(r => (
@@ -115,7 +115,7 @@ const V2RoleBar = ({role, onRole, onLogout}) => (
         padding:"4px 12px", borderRadius:5,
         border: role===r.id ? "1px solid #334155" : "1px solid transparent",
         background:"transparent",
-        color: role===r.id ? "#FFF" : "#64748B",
+        color: role===r.id ? "var(--bg-surface)" : "#64748B",
         fontSize:12, fontWeight: role===r.id ? 600 : 500,
         cursor:"pointer", fontFamily:"inherit",
         transition:"all 120ms", letterSpacing:"0.03em",
@@ -168,7 +168,7 @@ const V2SubBar = ({role, page, onPage}) => {
   const withSidebar = role==="manager" || role==="interviewer";
   return (
     <div style={{
-      background:"#0F172A",
+      background:"var(--slate-900)",
       display:"flex", alignItems:"center",
       paddingLeft: withSidebar ? 200 : 0,
       position:"sticky", top:38, zIndex:99,
@@ -184,11 +184,11 @@ const V2SubBar = ({role, page, onPage}) => {
               display:"inline-flex", alignItems:"center", gap:6,
               padding:"10px 16px",
               border:0, background:"transparent",
-              color: page===t.id ? "#FFF" : "#64748B",
+              color: page===t.id ? "var(--bg-surface)" : "#64748B",
               fontWeight: page===t.id ? 600 : 500,
               fontSize:12.5,
               fontFamily:"inherit", cursor:"pointer",
-              borderBottom: page===t.id ? "2px solid #5B4FE9" : "2px solid transparent",
+              borderBottom: page===t.id ? "2px solid var(--brand-500)" : "2px solid transparent",
               transition:"all 120ms", whiteSpace:"nowrap",
             }}
           >
@@ -234,7 +234,7 @@ const V2Sidebar = ({role, page, onPage}) => {
     : {name:"Anand Rao",   role:"Interviewer · Acme", initials:"AR"};
   return (
     <aside style={{
-      width:200, background:"#0F172A", color:"#FFF",
+      width:200, background:"var(--slate-900)", color:"var(--bg-surface)",
       display:"flex", flexDirection:"column",
       position:"sticky", top:76, height:"calc(100vh - 76px)",
       borderRight:"1px solid #1E293B", flexShrink:0,
@@ -250,14 +250,14 @@ const V2Sidebar = ({role, page, onPage}) => {
                   display:"flex", alignItems:"center", gap:10,
                   padding:"9px 12px", borderRadius:7,
                   fontSize:13, fontWeight:500,
-                  color: on?"#FFF":"#94A3B8",
-                  background: on?"#5B4FE9":"transparent",
+                  color: on?"var(--bg-surface)":"var(--slate-400)",
+                  background: on?"var(--brand-500)":"transparent",
                   cursor:"pointer", marginBottom:2,
                   boxShadow: on?"0 4px 12px rgba(91,79,233,0.3)":"none",
                   transition:"all 120ms cubic-bezier(0.2,0,0,1)",
                 }}
-                onMouseEnter={e=>{if(!on){e.currentTarget.style.background="rgba(255,255,255,0.06)";e.currentTarget.style.color="#FFF";}}}
-                onMouseLeave={e=>{if(!on){e.currentTarget.style.background="transparent";e.currentTarget.style.color="#94A3B8";}}}
+                onMouseEnter={e=>{if(!on){e.currentTarget.style.background="rgba(255,255,255,0.06)";e.currentTarget.style.color="var(--bg-surface)";}}}
+                onMouseLeave={e=>{if(!on){e.currentTarget.style.background="transparent";e.currentTarget.style.color="var(--slate-400)";}}}
                 >
                   <i data-lucide={it.icon} style={{width:15,height:15}}/>
                   {it.label}
@@ -272,7 +272,7 @@ const V2Sidebar = ({role, page, onPage}) => {
         onMouseLeave={e=>{e.currentTarget.style.background="transparent";}}>
         <V2Av name={user.name} size={32}/>
         <div style={{flex:1,minWidth:0}}>
-          <div style={{fontSize:12.5,fontWeight:600,color:"#FFF",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{user.name}</div>
+          <div style={{fontSize:12.5,fontWeight:600,color:"var(--bg-surface)",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{user.name}</div>
           <div style={{fontSize:11,color:"#64748B"}}>{user.role}</div>
         </div>
         <i data-lucide={role==="manager"?"settings":"chevron-up"} style={{width:13,height:13,color:"#64748B"}}/>
@@ -284,25 +284,25 @@ const V2Sidebar = ({role, page, onPage}) => {
 /* ─── TOPBAR ─── */
 const V2TopBar = ({title, subtitle, action, notifCount=2}) => (
   <div style={{
-    height:56, background:"#FFF", borderBottom:"1px solid #E2E8F0",
+    height:56, background:"var(--bg-surface)", borderBottom:"1px solid var(--slate-200)",
     display:"flex", alignItems:"center", justifyContent:"space-between",
     padding:"0 24px", flexShrink:0,
   }}>
     <div>
-      <h1 style={{fontFamily:"var(--font-display,'Inter')",fontSize:18,fontWeight:700,color:"#0F172A",margin:0,letterSpacing:"-0.015em"}}>{title}</h1>
-      {subtitle && <div style={{fontSize:11,color:"#94A3B8",marginTop:1}}>{subtitle}</div>}
+      <h1 style={{fontFamily:"var(--font-display,'Inter')",fontSize:18,fontWeight:700,color:"var(--slate-900)",margin:0,letterSpacing:"-0.015em"}}>{title}</h1>
+      {subtitle && <div style={{fontSize:11,color:"var(--slate-400)",marginTop:1}}>{subtitle}</div>}
     </div>
     <div style={{display:"flex",alignItems:"center",gap:10}}>
-      <div style={{display:"flex",alignItems:"center",gap:8,background:"#F1F5F9",borderRadius:8,padding:"7px 12px",width:260}}>
-        <i data-lucide="search" style={{width:13,height:13,color:"#94A3B8"}}/>
-        <span style={{fontSize:13,color:"#94A3B8"}}>Search candidates, jobs…</span>
-        <kbd style={{fontSize:11,color:"#94A3B8",border:"1px solid #E2E8F0",borderRadius:4,padding:"1px 5px",background:"#FFF",marginLeft:"auto"}}>⌘K</kbd>
+      <div style={{display:"flex",alignItems:"center",gap:8,background:"var(--slate-100)",borderRadius:8,padding:"7px 12px",width:260}}>
+        <i data-lucide="search" style={{width:13,height:13,color:"var(--slate-400)"}}/>
+        <span style={{fontSize:13,color:"var(--slate-400)"}}>Search candidates, jobs…</span>
+        <kbd style={{fontSize:11,color:"var(--slate-400)",border:"1px solid var(--slate-200)",borderRadius:4,padding:"1px 5px",background:"var(--bg-surface)",marginLeft:"auto"}}>⌘K</kbd>
       </div>
       <div style={{position:"relative"}}>
-        <button style={{width:36,height:36,borderRadius:8,background:"#F1F5F9",border:0,display:"inline-flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}>
-          <i data-lucide="bell" style={{width:15,height:15,color:"#374151"}}/>
+        <button style={{width:36,height:36,borderRadius:8,background:"var(--slate-100)",border:0,display:"inline-flex",alignItems:"center",justifyContent:"center",cursor:"pointer"}}>
+          <i data-lucide="bell" style={{width:15,height:15,color:"var(--slate-700)"}}/>
         </button>
-        {notifCount>0 && <span style={{position:"absolute",top:6,right:6,width:8,height:8,borderRadius:9999,background:"#EF4444",boxShadow:"0 0 0 2px #FFF"}}/>}
+        {notifCount>0 && <span style={{position:"absolute",top:6,right:6,width:8,height:8,borderRadius:9999,background:"#EF4444",boxShadow:"0 0 0 2px var(--bg-surface)"}}/>}
       </div>
       {action}
     </div>
@@ -317,7 +317,7 @@ const V2AppShell = ({role, page, onPage, title, subtitle, action, children}) => 
       <V2Sidebar role={role} page={page} onPage={onPage}/>
       <div style={{flex:1, display:"flex", flexDirection:"column", minWidth:0}}>
         <V2TopBar title={title} subtitle={subtitle} action={action}/>
-        <div style={{flex:1, background:"#F8FAFC", padding:"24px 28px", overflowY:"auto"}}>
+        <div style={{flex:1, background:"var(--slate-50)", padding:"24px 28px", overflowY:"auto"}}>
           <div key={page} style={{animation:"v2fade 280ms cubic-bezier(0.2,0,0,1)"}}>
             {children}
           </div>
@@ -333,17 +333,17 @@ const V2CandidateShell = ({page, onPage, topRight, children}) => {
   return (
     <div style={{minHeight:"calc(100vh - 76px)", display:"flex", flexDirection:"column"}}>
       {/* minimal header */}
-      <div style={{background:"#FFF", borderBottom:"1px solid #E2E8F0", padding:"0 24px", height:56, display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0}}>
+      <div style={{background:"var(--bg-surface)", borderBottom:"1px solid var(--slate-200)", padding:"0 24px", height:56, display:"flex", alignItems:"center", justifyContent:"space-between", flexShrink:0}}>
         <div style={{display:"inline-flex",alignItems:"center",gap:8}}>
-          <div style={{width:28,height:28,borderRadius:7, background:"linear-gradient(135deg,#5B4FE9,#4A3FCE)", position:"relative"}}>
-            <div style={{position:"absolute",left:6,top:9,width:16,height:2.5,background:"#FFF",borderRadius:2,opacity:0.95}}/>
-            <div style={{position:"absolute",left:6,top:15,width:16,height:2.5,background:"#FFF",borderRadius:2,opacity:0.6}}/>
+          <div style={{width:28,height:28,borderRadius:7, background:"linear-gradient(135deg,var(--brand-500),var(--brand-600))", position:"relative"}}>
+            <div style={{position:"absolute",left:6,top:9,width:16,height:2.5,background:"var(--bg-surface)",borderRadius:2,opacity:0.95}}/>
+            <div style={{position:"absolute",left:6,top:15,width:16,height:2.5,background:"var(--bg-surface)",borderRadius:2,opacity:0.6}}/>
           </div>
-          <span style={{fontSize:17,fontWeight:700,color:"#0F172A",letterSpacing:"-0.02em"}}>Screeno</span>
+          <span style={{fontSize:17,fontWeight:700,color:"var(--slate-900)",letterSpacing:"-0.02em"}}>Screeno</span>
         </div>
-        {topRight || <span style={{fontSize:13,color:"#94A3B8"}}>Need help? <a style={{color:"#5B4FE9",cursor:"pointer"}}>Support</a></span>}
+        {topRight || <span style={{fontSize:13,color:"var(--slate-400)"}}>Need help? <a style={{color:"var(--brand-500)",cursor:"pointer"}}>Support</a></span>}
       </div>
-      <div style={{flex:1, background:"#F8FAFC"}}>
+      <div style={{flex:1, background:"var(--slate-50)"}}>
         <div key={page} style={{animation:"v2fade 280ms cubic-bezier(0.2,0,0,1)"}}>
           {children}
         </div>
@@ -357,7 +357,7 @@ const V2HelpWidget = () => (
   <div style={{position:"fixed", bottom:24, right:24, zIndex:200, display:"flex", flexDirection:"column", alignItems:"flex-end", gap:10}}>
     <button style={{
       width:44, height:44, borderRadius:9999,
-      background:"#0F172A", color:"#FFF",
+      background:"var(--slate-900)", color:"var(--bg-surface)",
       border:0, cursor:"pointer",
       display:"inline-flex", alignItems:"center", justifyContent:"center",
       fontSize:15, fontWeight:700,
@@ -365,7 +365,7 @@ const V2HelpWidget = () => (
     }}>K</button>
     <button style={{
       width:40, height:40, borderRadius:9999,
-      background:"#5B4FE9", color:"#FFF",
+      background:"var(--brand-500)", color:"var(--bg-surface)",
       border:0, cursor:"pointer",
       display:"inline-flex", alignItems:"center", justifyContent:"center",
       boxShadow:"0 6px 16px rgba(91,79,233,0.3)",
@@ -386,36 +386,36 @@ const V2NotifPanel = ({open, onClose}) => {
     {icon:"check-circle-2",tone:"success",text:"AI report generated for Ankit Verma's screening",   when:"Yesterday",    unread:false},
     {icon:"download",    tone:"neutral", text:"Pipeline export is ready to download",                when:"Yesterday",    unread:false},
   ];
-  const toneColor = {brand:"#5B4FE9",danger:"#EF4444",warning:"#D97706",success:"#059669",neutral:"#94A3B8"};
-  const toneBg    = {brand:"#EFEDFD",danger:"#FEF2F2",warning:"#FFFBEB",success:"#ECFDF5",neutral:"#F1F5F9"};
+  const toneColor = {brand:"var(--brand-500)",danger:"#EF4444",warning:"var(--warning-500)",success:"var(--success-500)",neutral:"var(--slate-400)"};
+  const toneBg    = {brand:"var(--brand-50)",danger:"#FEF2F2",warning:"var(--warning-50)",success:"var(--success-50)",neutral:"var(--slate-100)"};
   return (
     <>
       <div onClick={onClose} style={{position:"fixed",inset:0,zIndex:150}}/>
       <div style={{
         position:"fixed", top:76, right:16, width:340,
-        background:"#FFF", border:"1px solid #E2E8F0",
+        background:"var(--bg-surface)", border:"1px solid var(--slate-200)",
         borderRadius:14, boxShadow:"0 20px 40px rgba(15,23,42,0.14)",
         zIndex:160, overflow:"hidden",
         animation:"v2fade 160ms cubic-bezier(0.2,0,0,1)",
       }}>
-        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"14px 18px",borderBottom:"1px solid #F1F5F9"}}>
-          <span style={{fontSize:14,fontWeight:700,color:"#0F172A"}}>Notifications</span>
-          <button onClick={onClose} style={{background:"transparent",border:0,fontSize:12,color:"#5B4FE9",fontWeight:500,cursor:"pointer"}}>Mark all read</button>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"14px 18px",borderBottom:"1px solid var(--slate-100)"}}>
+          <span style={{fontSize:14,fontWeight:700,color:"var(--slate-900)"}}>Notifications</span>
+          <button onClick={onClose} style={{background:"transparent",border:0,fontSize:12,color:"var(--brand-500)",fontWeight:500,cursor:"pointer"}}>Mark all read</button>
         </div>
         {items.map((it,i) => (
-          <div key={i} style={{display:"flex",gap:12,padding:"12px 18px",borderBottom:i<items.length-1?"1px solid #F9FAFB":"0",background:it.unread?"#FAFAFE":"#FFF"}}>
+          <div key={i} style={{display:"flex",gap:12,padding:"12px 18px",borderBottom:i<items.length-1?"1px solid #F9FAFB":"0",background:it.unread?"#FAFAFE":"var(--bg-surface)"}}>
             <div style={{width:32,height:32,borderRadius:9999,background:toneBg[it.tone],color:toneColor[it.tone],display:"inline-flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
               <i data-lucide={it.icon} style={{width:14,height:14}}/>
             </div>
             <div style={{flex:1}}>
-              <div style={{fontSize:13,color:"#0F172A",lineHeight:1.5}}>{it.text}</div>
-              <div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>{it.when}</div>
+              <div style={{fontSize:13,color:"var(--slate-900)",lineHeight:1.5}}>{it.text}</div>
+              <div style={{fontSize:11,color:"var(--slate-400)",marginTop:2}}>{it.when}</div>
             </div>
-            {it.unread && <span style={{width:8,height:8,borderRadius:9999,background:"#5B4FE9",flexShrink:0,marginTop:4}}/>}
+            {it.unread && <span style={{width:8,height:8,borderRadius:9999,background:"var(--brand-500)",flexShrink:0,marginTop:4}}/>}
           </div>
         ))}
-        <div style={{padding:"12px 18px",textAlign:"center",borderTop:"1px solid #F1F5F9"}}>
-          <a style={{fontSize:13,color:"#5B4FE9",fontWeight:500,cursor:"pointer"}}>View all notifications</a>
+        <div style={{padding:"12px 18px",textAlign:"center",borderTop:"1px solid var(--slate-100)"}}>
+          <a style={{fontSize:13,color:"var(--brand-500)",fontWeight:500,cursor:"pointer"}}>View all notifications</a>
         </div>
       </div>
     </>
@@ -433,7 +433,7 @@ const V2Modal = ({open, onClose, width=540, children}) => {
   if(!open) return null;
   return (
     <div onClick={onClose} style={{position:"fixed",inset:0,background:"rgba(15,23,42,0.5)",zIndex:200,display:"flex",alignItems:"center",justifyContent:"center",padding:20,animation:"v2fade 160ms"}}>
-      <div onClick={e=>e.stopPropagation()} style={{background:"#FFF",borderRadius:16,width:"100%",maxWidth:width,maxHeight:"90vh",overflowY:"auto",boxShadow:"0 24px 60px rgba(15,23,42,0.24)",animation:"v2scale 200ms cubic-bezier(0.2,0,0,1)"}}>
+      <div onClick={e=>e.stopPropagation()} style={{background:"var(--bg-surface)",borderRadius:16,width:"100%",maxWidth:width,maxHeight:"90vh",overflowY:"auto",boxShadow:"0 24px 60px rgba(15,23,42,0.24)",animation:"v2scale 200ms cubic-bezier(0.2,0,0,1)"}}>
         {children}
       </div>
     </div>

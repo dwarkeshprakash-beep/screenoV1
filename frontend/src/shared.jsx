@@ -10,9 +10,9 @@ const Icon = ({ name, size = 16, color, strokeWidth, style, className }) => (
 
 // Initials avatar — name-based color
 const INITIALS_COLORS = [
-  { bg: "#DEDAFB", fg: "#3A31A3" }, // brand
+  { bg: "var(--brand-100)", fg: "var(--brand-700)" }, // brand
   { bg: "#FED7AA", fg: "#9A3412" }, // orange
-  { bg: "#A7F3D0", fg: "#065F46" }, // green
+  { bg: "#A7F3D0", fg: "var(--success-700)" }, // green
   { bg: "#BFDBFE", fg: "#1E40AF" }, // blue
   { bg: "#FBCFE8", fg: "#9D174D" }, // pink
   { bg: "#FDE68A", fg: "#854D0E" }, // amber
@@ -31,7 +31,7 @@ const Avatar = ({ name = "?", size = 32, fontSize, src, style, ring }) => {
         width: size, height: size,
         background: src ? "transparent" : c.bg, color: c.fg,
         fontSize: fontSize || Math.round(size * 0.38),
-        boxShadow: ring ? `0 0 0 2px #FFF, 0 0 0 4px ${ring}` : undefined,
+        boxShadow: ring ? `0 0 0 2px var(--bg-surface), 0 0 0 4px ${ring}` : undefined,
         ...style,
       }}
     >
@@ -58,7 +58,7 @@ const ModeBadge = ({ mode, size = 14 }) => {
   const m = MODES[mode];
   if (!m) return null;
   return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 8, color: "#374151", fontSize: 13 }}>
+    <span style={{ display: "inline-flex", alignItems: "center", gap: 8, color: "var(--slate-700)", fontSize: 13 }}>
       <span style={{ width: 24, height: 24, borderRadius: 6, background: `${m.color}15`, color: m.color, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
         <Icon name={m.icon} size={size} />
       </span>
@@ -68,8 +68,8 @@ const ModeBadge = ({ mode, size = 14 }) => {
 };
 
 const Score = ({ value, width = 56, showBar = true }) => {
-  if (value == null) return <span style={{ color: "#94A3B8", fontFamily: "var(--font-mono)" }}>—</span>;
-  const color = value >= 4 ? "#047857" : value >= 3 ? "#B45309" : "#B53618";
+  if (value == null) return <span style={{ color: "var(--slate-400)", fontFamily: "var(--font-mono)" }}>—</span>;
+  const color = value >= 4 ? "var(--success-600)" : value >= 3 ? "var(--warning-600)" : "var(--danger-700)";
   return (
     <span className="scorebar">
       <span style={{ color }}>{value.toFixed(1)}</span>
@@ -82,7 +82,7 @@ const Score = ({ value, width = 56, showBar = true }) => {
   );
 };
 
-const Eyebrow = ({ children, color = "#5B4FE9" }) => (
+const Eyebrow = ({ children, color = "var(--brand-500)" }) => (
   <div className="eyebrow" style={{ color }}>{children}</div>
 );
 
@@ -90,7 +90,7 @@ const Stat = ({ label, value, delta, deltaDir = "up", icon }) => (
   <div className="stat">
     <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
       <div className="stat-label">{label}</div>
-      {icon && <Icon name={icon} size={14} color="#94A3B8" />}
+      {icon && <Icon name={icon} size={14} color="var(--slate-400)" />}
     </div>
     <div className="stat-value">{value}</div>
     {delta && <div className={`stat-delta ${deltaDir}`}>{delta}</div>}
@@ -99,7 +99,7 @@ const Stat = ({ label, value, delta, deltaDir = "up", icon }) => (
 
 const Empty = ({ icon = "inbox", title, body, action }) => (
   <div className="empty">
-    <Icon name={icon} size={48} style={{ width: 48, height: 48, color: "#94A3B8", margin: "0 auto 14px" }} />
+    <Icon name={icon} size={48} style={{ width: 48, height: 48, color: "var(--slate-400)", margin: "0 auto 14px" }} />
     <h3>{title}</h3>
     <p>{body}</p>
     {action}
@@ -115,7 +115,7 @@ const Tabs = ({ items, active, onChange }) => (
     {items.map(it => (
       <button key={it.id} className={active === it.id ? "on" : ""} onClick={() => onChange(it.id)}>
         {it.label}
-        {it.count != null && <span style={{ marginLeft: 6, fontSize: 12, color: "#94A3B8", fontFamily: "var(--font-mono)" }}>({it.count})</span>}
+        {it.count != null && <span style={{ marginLeft: 6, fontSize: 12, color: "var(--slate-400)", fontFamily: "var(--font-mono)" }}>({it.count})</span>}
       </button>
     ))}
   </div>
@@ -185,7 +185,7 @@ const TopBar = ({ title, crumbs, action, searchPlaceholder = "Search candidates,
         {crumbs.map((c, i) => (
           <React.Fragment key={i}>
             {i > 0 && <span className="sep">/</span>}
-            {c.onClick ? <a onClick={c.onClick} style={{ cursor: "pointer" }}>{c.label}</a> : <span style={{ color: i === crumbs.length - 1 ? "#0F172A" : "#6B7280", fontWeight: i === crumbs.length - 1 ? 600 : 400 }}>{c.label}</span>}
+            {c.onClick ? <a onClick={c.onClick} style={{ cursor: "pointer" }}>{c.label}</a> : <span style={{ color: i === crumbs.length - 1 ? "var(--slate-900)" : "var(--slate-500)", fontWeight: i === crumbs.length - 1 ? 600 : 400 }}>{c.label}</span>}
           </React.Fragment>
         ))}
       </div>

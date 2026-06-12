@@ -1,174 +1,337 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Plus, Download, AlertCircle } from 'lucide-react'
 import Modal from '../../components/shared/Modal'
 import Button from '../../components/shared/Button'
+import Spinner from '../../components/shared/Spinner'
+import ErrorMessage from '../../components/shared/ErrorMessage'
+import EmptyState from '../../components/shared/EmptyState'
+import Avatar from '../../components/shared/Avatar'
+import * as api from '../../services/api'
 
-// Mock Data
-const MOCK_SUBJECTS = [
-  { id: 1, name: 'React Frontend', difficulty: 'Medium', topics: 12, enrolled: 4, duration: '3 months', status: 'Active' },
-  { id: 2, name: 'Node.js Backend', difficulty: 'Hard', topics: 8, enrolled: 2, duration: '6 months', status: 'Pending' },
-]
-const MOCK_CALENDAR = [
-  { member: 'Rahul Sharma', months: ['completed', 'scheduled', 'pending', 'pending', 'pending', 'pending', 'pending', 'pending', 'pending', 'pending', 'pending', 'pending'] }
-]
-
-function WizardModal({ open, onClose }) {
+function WizardModal({ open, onClose, onDone }) {
   const [step, setStep] = useState(1)
   const steps = ['Subject details', 'Sub-topics', 'AI Study Material', 'Assign Candidates']
-  
+
+  // Step 1 state
+  const [subject, setSubject] = useState('')
+  const [topic, setTopic] = useState('')
+  const [difficulty, setDifficulty] = useState('medium')
+  // Step 2 state
+  const [subTopics, setSubTopics] = useState('')
+  const [generating, setGenerating] = useState(false)
+  // Step 3 state
+  const [jdText, setJdText] = useState('')
+  const [generatingJd, setGeneratingJd] = useState(false)
+  // Step 4 state
+  const [durationMonths, setDurationMonths] = useState(3)
+  const [teamList, setTeamList] = useState([])
+  const [selectedMemberIds, setSelectedMemberIds] = useState([])
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState(null)
+
+  useEffect(() => {
+    if (open) {
+      setStep(1); setSubject(''); setTopic(''); setDifficulty('medium'); setSubTopics(''); setJdText(''); setDurationMonths(3); setSelectedMemberIds([]); setError(null);
+      api.getTeam().then(r => setTeamList(r.data || [])).catch(() => {})
+    }
+  }, [open])
+
+  async function handleGenerateSubtopics() {
+    if (!subject) return
+    setGenerating(true)
+    setError(null)
+    try {
+      const res = await api.generateSubtopics({ subject, topic, difficulty })
+      setSubTopics(Array.isArray(res.data) ? res.data.join('\n') : res.data)
+    } catch { setError('Could not generate subtopics.') }
+    finally { setGenerating(false) }
+  }
+
+  async function handleGenerateJD() {
+    setGeneratingJd(true)
+    setError(null)
+    try {
+      const topics = subTopics.split('\n').map(t => t.trim()).filter(Boolean)
+      const res = await api.generateAssessmentJD({ subject, subTopics: topics, difficulty })
+      setJdText(typeof res.data === 'string' ? res.data : JSON.stringify(res.data))
+    } catch { setError('Could not generate study material.') }
+    finally { setGeneratingJd(false) }
+  }
+
+  async function handleCreate() {
+    if (!subject) { setError('Subject is required.'); return }
+    setSaving(true)
+    setError(null)
+    try {
+      const topics = subTopics.split('\n').map(t => t.trim()).filter(Boolean)
+      await api.createMonthlyAssessment({
+        subject,
+        topic,
+        sub_topics: JSON.stringify(topics),
+        difficulty,
+        jd_text: jdText,
+        duration_months: durationMonths,
+        team_member_ids: selectedMemberIds,
+      })
+      if (onDone) onDone()
+      onClose()
+    } catch (err) { setError(err.message || 'Could not create assessment.') }
+    finally { setSaving(false) }
+  }
+
   if (!open) return null
 
   return (
     <Modal open={open} onClose={onClose} title={`Create Assessment - Step ${step}: ${steps[step-1]}`} size="lg">
       <div style={{ padding: '10px 0' }}>
         {step === 1 && (
-          <div>
-            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 5 }}>Subject Name</label>
-            <input type="text" placeholder="e.g. Advanced React" style={{ width: '100%', padding: '9px 12px', border: '1px solid #CBD5E1', borderRadius: 8, fontSize: 13, fontFamily: 'inherit' }} />
-            <div style={{ display: 'flex', gap: 10, marginTop: 15 }}>
-              {['Easy', 'Medium', 'Hard'].map(d => (
-                <button key={d} style={{ padding: '6px 12px', borderRadius: 6, border: '1px solid #CBD5E1', background: '#FFF', fontSize: 12, cursor: 'pointer' }}>{d}</button>
-              ))}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--slate-700)', marginBottom: 5 }}>Subject Name</label>
+              <input type="text" placeholder="e.g. Advanced React" value={subject} onChange={e => setSubject(e.target.value)} style={{ width: '100%', padding: '9px 12px', border: '1px solid var(--slate-300)', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', boxSizing: 'border-box' }} />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--slate-700)', marginBottom: 5 }}>Topic (Optional)</label>
+              <input type="text" placeholder="e.g. Frontend Engineering" value={topic} onChange={e => setTopic(e.target.value)} style={{ width: '100%', padding: '9px 12px', border: '1px solid var(--slate-300)', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', boxSizing: 'border-box' }} />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--slate-700)', marginBottom: 5 }}>Difficulty</label>
+              <div style={{ display: 'flex', gap: 10 }}>
+                {['easy', 'medium', 'hard'].map(d => (
+                  <button key={d} onClick={() => setDifficulty(d)} style={{ padding: '6px 12px', borderRadius: 6, border: `1px solid ${difficulty === d ? 'var(--brand-500)' : 'var(--slate-300)'}`, background: difficulty === d ? 'var(--brand-500)' : 'var(--bg-surface)', color: difficulty === d ? 'var(--bg-surface)' : 'var(--slate-700)', fontSize: 12, cursor: 'pointer', textTransform: 'capitalize' }}>{d}</button>
+                ))}
+              </div>
             </div>
           </div>
         )}
         {step === 2 && (
           <div>
-            <p style={{ fontSize: 13, color: '#475569', marginBottom: 15 }}>Add sub-topics manually or use AI to generate them.</p>
-            <Button variant="secondary">Generate with AI ✨</Button>
-            <textarea placeholder="Sub-topics..." style={{ width: '100%', height: 100, padding: '9px 12px', border: '1px solid #CBD5E1', borderRadius: 8, fontSize: 13, marginTop: 10, fontFamily: 'inherit' }} />
+            <p style={{ fontSize: 13, color: 'var(--slate-600)', marginBottom: 15 }}>Add sub-topics manually or use AI to generate them based on the subject.</p>
+            <Button variant="secondary" onClick={handleGenerateSubtopics} disabled={generating || !subject}>
+              {generating ? 'Generating...' : 'Generate with AI ✨'}
+            </Button>
+            <textarea placeholder="Sub-topics (one per line)..." value={subTopics} onChange={e => setSubTopics(e.target.value)} style={{ width: '100%', height: 150, padding: '9px 12px', border: '1px solid var(--slate-300)', borderRadius: 8, fontSize: 13, marginTop: 15, fontFamily: 'inherit', boxSizing: 'border-box', resize: 'vertical' }} />
           </div>
         )}
         {step === 3 && (
-          <div style={{ display: 'flex', gap: 15 }}>
-            <div style={{ flex: 1, border: '1px solid #E2E8F0', borderRadius: 8, padding: 15, background: '#F8FAFC' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 15 }}>
+            <p style={{ fontSize: 13, color: 'var(--slate-600)', margin: 0 }}>Generate study material and guidelines for the candidates.</p>
+            <Button variant="secondary" onClick={handleGenerateJD} disabled={generatingJd}>
+              {generatingJd ? 'Generating...' : 'Generate study material ✨'}
+            </Button>
+            <div style={{ border: '1px solid var(--slate-200)', borderRadius: 8, padding: 15, background: 'var(--slate-50)' }}>
               <p style={{ fontSize: 13, fontWeight: 600, margin: '0 0 10px' }}>Generated JD / Study Material</p>
-              <div style={{ fontSize: 12, color: '#475569', whiteSpace: 'pre-wrap' }}>Mock AI Generated Content...</div>
-            </div>
-            <div style={{ width: 250, display: 'flex', flexDirection: 'column' }}>
-              <p style={{ fontSize: 12, fontWeight: 600, margin: '0 0 5px' }}>Chat to modify</p>
-              <input type="text" placeholder="Make it harder..." style={{ padding: '8px', border: '1px solid #CBD5E1', borderRadius: 6, fontSize: 12 }} />
+              <textarea value={jdText} onChange={e => setJdText(e.target.value)} style={{ width: '100%', height: 200, padding: '9px 12px', border: '1px solid var(--slate-300)', borderRadius: 8, fontSize: 12, fontFamily: 'inherit', boxSizing: 'border-box', resize: 'vertical' }} />
             </div>
           </div>
         )}
         {step === 4 && (
           <div>
             <p style={{ fontSize: 13, fontWeight: 600, marginBottom: 10 }}>Enforced Rules</p>
-            <div style={{ background: '#FEF2F2', padding: 12, borderRadius: 8, border: '1px solid #FECACA', display: 'flex', gap: 8, marginBottom: 15 }}>
-              <AlertCircle size={16} color="#EF4444" />
-              <div style={{ fontSize: 12, color: '#991B1B' }}>
+            <div style={{ background: 'var(--danger-50)', padding: 12, borderRadius: 8, border: '1px solid var(--danger-200)', display: 'flex', gap: 8, marginBottom: 15 }}>
+              <AlertCircle size={16} color="var(--danger-500)" style={{ flexShrink: 0 }} />
+              <div style={{ fontSize: 12, color: 'var(--danger-700)', lineHeight: 1.5 }}>
                 - Cannot be rescheduled.<br/>
                 - 1 time link, must complete once started.<br/>
                 - Tab switching results in warning, then termination.
               </div>
             </div>
-            <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
-              <input type="number" placeholder="Duration (months)" style={{ flex: 1, padding: '8px', border: '1px solid #CBD5E1', borderRadius: 6 }} />
-              <select style={{ flex: 1, padding: '8px', border: '1px solid #CBD5E1', borderRadius: 6 }}>
-                <option>Month-end dates</option>
-                <option>Custom dates</option>
+            
+            <div style={{ marginBottom: 15 }}>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--slate-700)', marginBottom: 5 }}>Duration</label>
+              <select value={durationMonths} onChange={e => setDurationMonths(Number(e.target.value))} style={{ width: '100%', padding: '9px 12px', border: '1px solid var(--slate-300)', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', boxSizing: 'border-box' }}>
+                <option value={1}>1 Month</option>
+                <option value={3}>3 Months</option>
+                <option value={6}>6 Months</option>
+                <option value={12}>12 Months</option>
               </select>
+            </div>
+
+            <div>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--slate-700)', marginBottom: 5 }}>Assign Candidates</label>
+              <div style={{ border: '1px solid var(--slate-200)', borderRadius: 8, maxHeight: 200, overflowY: 'auto', padding: 8 }}>
+                {teamList.map(m => (
+                  <label key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '6px 0', fontSize: 13, cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={selectedMemberIds.includes(m.id)}
+                      onChange={() => setSelectedMemberIds(prev =>
+                        prev.includes(m.id) ? prev.filter(id => id !== m.id) : [...prev, m.id]
+                      )}
+                    />
+                    {m.first_name} {m.last_name}
+                    {m.availability && <span style={{ fontSize: 11, color: 'var(--slate-400)' }}>• {m.availability}</span>}
+                  </label>
+                ))}
+                {teamList.length === 0 && <div style={{ fontSize: 12, color: 'var(--slate-500)', padding: 4 }}>No team members available.</div>}
+              </div>
             </div>
           </div>
         )}
-      </div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 20 }}>
-        <Button variant="secondary" onClick={() => step > 1 ? setStep(step - 1) : onClose()}>Back</Button>
-        <Button onClick={() => step < 4 ? setStep(step + 1) : onClose()}>{step === 4 ? 'Create Assessment' : 'Next Step →'}</Button>
+
+        {error && <div style={{ color: 'var(--danger-700)', fontSize: 13, marginTop: 15 }}>{error}</div>}
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 24, paddingTop: 16, borderTop: '1px solid var(--slate-100)' }}>
+          <Button variant="secondary" onClick={step > 1 ? () => setStep(s => s - 1) : onClose}>
+            {step > 1 ? '← Back' : 'Cancel'}
+          </Button>
+          {step < 4 ? (
+            <Button onClick={() => setStep(s => s + 1)}>Next Step →</Button>
+          ) : (
+            <Button onClick={handleCreate} disabled={saving}>{saving ? 'Creating...' : 'Create Assessment'}</Button>
+          )}
+        </div>
       </div>
     </Modal>
   )
 }
 
 function MonthlyAssessmentPage() {
+  const [assessments, setAssessments] = useState([])
+  const [calendarData, setCalendarData] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
   const [tab, setTab] = useState('subjects')
   const [wizardOpen, setWizardOpen] = useState(false)
 
-  const thStyle = { textAlign: 'left', padding: '12px 16px', fontSize: 11, fontWeight: 600, color: '#94A3B8', borderBottom: '1px solid #E2E8F0', textTransform: 'uppercase' }
-  const tdStyle = { padding: '14px 16px', borderBottom: '1px solid #F1F5F9', fontSize: 13, color: '#374151' }
+  useEffect(() => { loadAll() }, [])
+
+  async function loadAll() {
+    setLoading(true); setError(null)
+    try {
+      const [subjRes, calRes] = await Promise.all([
+        api.getMonthlyAssessments(),
+        api.getMonthlyAssessmentCalendar(),
+      ])
+      setAssessments(subjRes.data || [])
+      setCalendarData(calRes.data || [])
+    } catch { setError('Could not load assessments.') }
+    finally { setLoading(false) }
+  }
+
+  if (loading) return <Spinner center />
+  if (error) return <ErrorMessage message={error} />
+
+  const calRows = calendarData.map(row => ({
+    name: `${row.first_name} ${row.last_name}`,
+    months: JSON.parse(row.month_progress || '[]')
+  }))
+
+  const STATUS_COLORS = {
+    completed: 'var(--success-500)',
+    scheduled: 'var(--info-500)',
+    cancelled: 'var(--danger-500)',
+    pending:   'var(--bg-surface-alt, var(--slate-200))',
+  }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={() => setTab('subjects')} style={{ padding: '7px 16px', borderRadius: 7, border: `1px solid ${tab === 'subjects' ? '#5B4FE9' : '#E2E8F0'}`, background: '#FFF', color: tab === 'subjects' ? '#5B4FE9' : '#374151', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>Subjects</button>
-          <button onClick={() => setTab('calendar')} style={{ padding: '7px 16px', borderRadius: 7, border: `1px solid ${tab === 'calendar' ? '#5B4FE9' : '#E2E8F0'}`, background: '#FFF', color: tab === 'calendar' ? '#5B4FE9' : '#374151', fontWeight: 600, fontSize: 13, cursor: 'pointer' }}>Year Calendar</button>
+    <div style={{ maxWidth: 1000 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+        <div>
+          <h1 style={{ fontSize: 24, fontWeight: 700, color: 'var(--slate-900)', margin: '0 0 4px', letterSpacing: '-0.02em' }}>Monthly Assessment</h1>
+          <p style={{ fontSize: 13, color: 'var(--slate-500)', margin: 0 }}>Create subjects and assign monthly AI exams to team members.</p>
         </div>
-        <div style={{ display: 'flex', gap: 10 }}>
-          {tab === 'calendar' && (
-            <Button variant="secondary"><Download size={13} style={{ marginRight: 6 }}/> Export</Button>
-          )}
-          <Button onClick={() => setWizardOpen(true)}><Plus size={13} style={{ marginRight: 6 }}/> New Assessment</Button>
-        </div>
+        <Button onClick={() => setWizardOpen(true)}>
+          <Plus size={16} style={{ marginRight: 6 }} /> Create Subject
+        </Button>
       </div>
 
-      {tab === 'subjects' ? (
-        <div style={{ background: '#FFF', border: '1px solid #E2E8F0', borderRadius: '0.75rem', overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8125rem' }}>
-            <thead>
-              <tr style={{ background: '#F8FAFC' }}>
-                <th style={thStyle}>Subject</th>
-                <th style={thStyle}>Difficulty</th>
-                <th style={thStyle}>Topics</th>
-                <th style={thStyle}>Enrolled</th>
-                <th style={thStyle}>Duration</th>
-                <th style={thStyle}>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {MOCK_SUBJECTS.map(s => (
-                <tr key={s.id} style={{ background: '#FFF', cursor: 'pointer' }}>
-                  <td style={{ ...tdStyle, fontWeight: 600, color: '#0F172A' }}>{s.name}</td>
-                  <td style={tdStyle}><span style={{ padding: '3px 8px', borderRadius: 999, background: '#F1F5F9', fontSize: 11, fontWeight: 600 }}>{s.difficulty}</span></td>
-                  <td style={tdStyle}>{s.topics} sub-topics</td>
-                  <td style={tdStyle}>{s.enrolled} candidates</td>
-                  <td style={tdStyle}>{s.duration}</td>
-                  <td style={tdStyle}><span style={{ padding: '3px 8px', borderRadius: 999, background: s.status === 'Active' ? '#ECFDF5' : '#FFFBEB', color: s.status === 'Active' ? '#059669' : '#D97706', fontSize: 11, fontWeight: 600 }}>{s.status}</span></td>
+      <div style={{ display: 'flex', gap: 4, borderBottom: '1px solid var(--slate-200)', marginBottom: 24 }}>
+        {[{ id: 'subjects', label: 'Subjects & Rules' }, { id: 'calendar', label: 'Yearly Calendar' }].map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)} style={{ background: 'transparent', border: 0, padding: '10px 14px', fontSize: 13, fontWeight: tab === t.id ? 600 : 500, color: tab === t.id ? 'var(--brand-700)' : 'var(--slate-500)', borderBottom: tab === t.id ? '2px solid var(--brand-500)' : '2px solid transparent', marginBottom: -1, cursor: 'pointer', fontFamily: 'inherit' }}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'subjects' && (
+        <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--slate-200)', borderRadius: 12, overflow: 'hidden', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
+          {assessments.length === 0 ? (
+            <EmptyState message="No subjects created yet. Click 'Create Subject' to get started." />
+          ) : (
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+              <thead>
+                <tr style={{ background: 'var(--slate-50)', borderBottom: '1px solid var(--slate-200)' }}>
+                  <th style={{ padding: '12px 16px', fontSize: 12, fontWeight: 600, color: 'var(--slate-500)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Subject</th>
+                  <th style={{ padding: '12px 16px', fontSize: 12, fontWeight: 600, color: 'var(--slate-500)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Difficulty</th>
+                  <th style={{ padding: '12px 16px', fontSize: 12, fontWeight: 600, color: 'var(--slate-500)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Duration</th>
+                  <th style={{ padding: '12px 16px', fontSize: 12, fontWeight: 600, color: 'var(--slate-500)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Enrolled</th>
+                  <th style={{ padding: '12px 16px', fontSize: 12, fontWeight: 600, color: 'var(--slate-500)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Status</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : (
-        <div style={{ background: '#FFF', border: '1px solid #E2E8F0', borderRadius: '0.75rem', padding: '1.25rem', overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8125rem' }}>
-            <thead>
-              <tr>
-                <th style={{ ...thStyle, background: '#F8FAFC' }}>Member</th>
-                {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map(m => (
-                  <th key={m} style={{ ...thStyle, background: '#F8FAFC', textAlign: 'center' }}>{m}</th>
+              </thead>
+              <tbody>
+                {assessments.map((a, i) => (
+                  <tr key={a.id} style={{ borderBottom: i === assessments.length - 1 ? 'none' : '1px solid var(--slate-100)' }}>
+                    <td style={{ padding: '14px 16px' }}>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--slate-900)' }}>{a.subject}</div>
+                      {a.topic && <div style={{ fontSize: 12, color: 'var(--slate-500)', marginTop: 2 }}>{a.topic}</div>}
+                    </td>
+                    <td style={{ padding: '14px 16px', fontSize: 13, color: 'var(--slate-700)' }}>
+                      <span style={{ display: 'inline-flex', padding: '2px 8px', borderRadius: 9999, background: 'var(--slate-100)', color: 'var(--slate-700)', fontSize: 11, fontWeight: 500, textTransform: 'capitalize' }}>{a.difficulty}</span>
+                    </td>
+                    <td style={{ padding: '14px 16px', fontSize: 13, color: 'var(--slate-700)' }}>{a.duration_months} months</td>
+                    <td style={{ padding: '14px 16px', fontSize: 13, color: 'var(--slate-700)' }}>{a.enrollments?.length || 0}</td>
+                    <td style={{ padding: '14px 16px' }}>
+                      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 8px', borderRadius: 9999, background: a.status === 'active' ? 'var(--success-50)' : 'var(--slate-100)', color: a.status === 'active' ? 'var(--success-600)' : 'var(--slate-600)', fontSize: 12, fontWeight: 500 }}>
+                        <span style={{ width: 6, height: 6, borderRadius: 9999, background: a.status === 'active' ? 'var(--success-500)' : 'var(--slate-400)' }} />
+                        {(a.status || 'pending').charAt(0).toUpperCase() + (a.status || 'pending').slice(1)}
+                      </span>
+                    </td>
+                  </tr>
                 ))}
-              </tr>
-            </thead>
-            <tbody>
-              {MOCK_CALENDAR.map((c, i) => (
-                <tr key={i}>
-                  <td style={{ ...tdStyle, fontWeight: 600, color: '#0F172A' }}>{c.member}</td>
-                  {c.months.map((st, j) => {
-                    let bg = '#F1F5F9'
-                    if (st === 'completed') bg = '#10B981'
-                    if (st === 'scheduled') bg = '#3B82F6'
-                    if (st === 'cancelled') bg = '#EF4444'
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+
+      {tab === 'calendar' && (
+        <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--slate-200)', borderRadius: 12, padding: 20, boxShadow: '0 1px 3px rgba(15,23,42,0.04)', overflowX: 'auto' }}>
+          <div style={{ minWidth: 800 }}>
+            {/* Header row (months) */}
+            <div style={{ display: 'flex', marginBottom: 15 }}>
+              <div style={{ width: 140, fontSize: 12, fontWeight: 600, color: 'var(--slate-500)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Candidate</div>
+              {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m, i) => (
+                <div key={i} style={{ flex: 1, textAlign: 'center', fontSize: 12, fontWeight: 600, color: 'var(--slate-500)' }}>{m}</div>
+              ))}
+            </div>
+            
+            {/* Rows */}
+            {calRows.length === 0 ? (
+              <EmptyState message="No calendar data available." />
+            ) : (
+              calRows.map((row, i) => (
+                <div key={i} style={{ display: 'flex', alignItems: 'center', padding: '12px 0', borderTop: i === 0 ? '0' : '1px solid var(--slate-100)' }}>
+                  <div style={{ width: 140, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Avatar name={row.name} size={24} />
+                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--slate-900)' }}>{row.name}</span>
+                  </div>
+                  {/* month_progress array might just be statuses ['completed', 'scheduled', 'pending', ...] */}
+                  {Array.from({ length: 12 }).map((_, mIndex) => {
+                    const status = row.months[mIndex] || 'pending'
+                    const bg = STATUS_COLORS[status] || STATUS_COLORS.pending
                     return (
-                      <td key={j} style={{ padding: 4, borderBottom: '1px solid #F1F5F9' }}>
-                        <div style={{ height: 24, borderRadius: 4, background: bg, opacity: st === 'pending' ? 0.3 : 1 }} title={st} />
-                      </td>
+                      <div key={mIndex} style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
+                        <div style={{ width: 14, height: 14, borderRadius: 4, background: bg }} title={status} />
+                      </div>
                     )
                   })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <div style={{ display: 'flex', gap: 15, marginTop: 15, fontSize: 12, color: '#64748B' }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><div style={{ width: 10, height: 10, borderRadius: 2, background: '#3B82F6' }}/> Scheduled</span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><div style={{ width: 10, height: 10, borderRadius: 2, background: '#10B981' }}/> Completed</span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><div style={{ width: 10, height: 10, borderRadius: 2, background: '#EF4444' }}/> Failed/Cancelled</span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><div style={{ width: 10, height: 10, borderRadius: 2, background: '#F1F5F9' }}/> Pending</span>
+                </div>
+              ))
+            )}
+          </div>
+          <div style={{ display: 'flex', gap: 15, marginTop: 20, paddingTop: 15, borderTop: '1px solid var(--slate-100)' }}>
+            {Object.entries(STATUS_COLORS).map(([label, color]) => (
+              <div key={label} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--slate-600)', textTransform: 'capitalize' }}>
+                <div style={{ width: 10, height: 10, borderRadius: 3, background: color }} />
+                {label}
+              </div>
+            ))}
           </div>
         </div>
       )}
 
-      <WizardModal open={wizardOpen} onClose={() => setWizardOpen(false)} />
+      <WizardModal open={wizardOpen} onClose={() => setWizardOpen(false)} onDone={loadAll} />
     </div>
   )
 }

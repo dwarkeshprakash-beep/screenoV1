@@ -10,7 +10,7 @@ async function runFetch(endpoint, options, token) {
   return fetch(`${BASE_URL}${endpoint}`, {
     ...fetchOptions,
     headers: {
-      'Content-Type': 'application/json',
+      ...(fetchOptions.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
       ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
       ...fetchOptions.headers,
     },
@@ -158,12 +158,6 @@ export const getAvailableSlots = (token) => request(`/api/schedule/slots/${token
 export const getInterviewers = () => request('/api/schedule/interviewers')
 export const getOrgUsers = () => request('/api/schedule/org-users')
 
-// ── TEMPLATES ────────────────────────────────────────────────
-export const getTemplates = () => request('/api/templates')
-export const createTemplate = (data) => request('/api/templates', { method: 'POST', body: JSON.stringify(data) })
-export const updateTemplate = (id, data) => request(`/api/templates/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
-export const deleteTemplate = (id) => request(`/api/templates/${id}`, { method: 'DELETE' })
-
 // ── REPORTS ───────────────────────────────────────────────────
 export const getTeamReports = () => request('/api/reports/team')
 export const getCandidateReport = (id) => request(`/api/reports/candidate/${id}`)
@@ -259,6 +253,19 @@ export const uploadResume = (teamMemberId, file) => {
   })
 }
 
+export const extractTextFromFile = (file) => {
+  const fd = new FormData()
+  fd.append('file', file)
+  return authFetch('/api/upload/extract-text', { method: 'POST', body: fd })
+    .then(async r => {
+      if (!r.ok) { const b = await r.json().catch(() => ({})); throw new Error(b.error || 'Extract failed') }
+      return r.json()
+    })
+}
+
+export const analyzeResumeMatch = (jd, resume) =>
+  request('/api/upload/analyze-resume', { method: 'POST', body: JSON.stringify({ jd, resume }) })
+
 // ── PROFILE ───────────────────────────────────────────────────
 export const getManagerProfile    = () => request('/api/profile')
 export const updateManagerProfile = (data) =>
@@ -269,11 +276,29 @@ export const getInterviewerProfile    = () => request('/api/profile')
 export const updateInterviewerProfile = (data) =>
   request('/api/profile', { method: 'PATCH', body: JSON.stringify(data) })
 
+export const uploadOwnResume = (file) => {
+  const fd = new FormData(); fd.append('resume', file)
+  return authFetch('/api/profile/resume', { method: 'POST', body: fd })
+    .then(async r => {
+      if (!r.ok) { const b = await r.json().catch(() => ({})); throw new Error(b.error || 'Upload failed') }
+      return r.json()
+    })
+}
+
 // ── ASSESSMENTS & CLIENTS ────────────────────────────────────
 export const getMonthlyAssessments = () => request('/api/assessments/monthly')
 export const createMonthlyAssessment = (data) => request('/api/assessments/monthly', { method: 'POST', body: JSON.stringify(data) })
+export const getMonthlyAssessmentCalendar = () => request('/api/assessments/monthly/calendar')
+export const generateSubtopics = (data) => request('/api/assessments/monthly/generate-subtopics', { method: 'POST', body: JSON.stringify(data) })
+export const generateAssessmentJD = (data) => request('/api/assessments/monthly/generate-jd', { method: 'POST', body: JSON.stringify(data) })
+
 export const getClientTemplates = () => request('/api/templates/client')
 export const createClientTemplate = (data) => request('/api/templates/client', { method: 'POST', body: JSON.stringify(data) })
+export const updateClientTemplate = (id, data) => request(`/api/templates/client/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
+export const getClientTemplate = (id) => request(`/api/templates/client/${id}`)
+export const extractTemplateTags = (text) => request('/api/templates/client/extract-tags', { method: 'POST', body: JSON.stringify({ text }) })
+export const getTemplateMatches = (id) => request(`/api/templates/client/${id}/matches`)
+export const sendJDToTeam = (id, data) => request(`/api/templates/client/${id}/send-jd`, { method: 'POST', body: JSON.stringify(data) })
 
 // ── CANDIDATE PROFILE ────────────────────────────────────────
 export const updateCandidateProfile = (data) => request('/api/profile', { method: 'PATCH', body: JSON.stringify(data) })

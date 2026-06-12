@@ -1,101 +1,93 @@
 # Tech Stack — Screeno
 
-Why each technology was chosen and what was considered.
+What's actually running and why. Updated to reflect current implementation.
 
 ---
 
 ## Frontend
 
-| Technology | Why chosen |
+| Technology | Why |
 |---|---|
-| **React 19 + JSX** | Most widely used, huge community, easy to find help. JSX (not TypeScript) for beginner-friendly readability. |
-| **React Router v6** | Standard routing, built-in protected routes, clean nested layout support |
-| **Axios** | Cleaner API calls than raw fetch, automatic JSON parsing, easy interceptors for auth |
-| **CSS Variables (tokens.css)** | Design tokens already defined, consistent theming, no extra library needed |
-| **speechSynthesis (browser built-in)** | Free, cross-browser, no API key, no server call |
-| **MediaRecorder (browser built-in)** | Cross-browser audio recording, works on Chrome/Firefox/Safari/Edge |
-| **LiveKit** | Best-in-class WebRTC SDK, free tier, reliable for human video interviews |
+| **React 19 + JSX** | Widely used, beginner-readable. JSX not TypeScript — lower friction, easier onboarding |
+| **React Router v6** | Standard routing, nested layouts, built-in auth guard pattern |
+| **fetch() only** | No Axios — built-in, no dependency, api.js wraps it with JWT + refresh logic |
+| **CSS Variables (tokens.css)** | Design tokens defined once, referenced everywhere — no UI library needed |
+| **speechSynthesis** | Browser built-in TTS — free, cross-browser, zero latency, no API key |
+| **MediaRecorder** | Browser built-in audio capture — cross-browser, works on all major browsers |
+| **LiveKit** | Best-in-class WebRTC SDK, free tier, handles reconnect/rejoin |
+| **@uiw/react-codemirror** | Syntax-highlighting code editor for LeetCode questions in ExamPage (only sanctioned exception to build-from-scratch rule) |
+| **lucide-react** | Tree-shakable icon library, already installed |
 
-Rejected: TypeScript (too complex for beginner), Tailwind (setup overhead, tokens.css already exists), Redux (overkill for current scope)
+Rejected: TypeScript (friction), Tailwind (tokens.css already exists), Redux (overkill), Axios (fetch built-in)
 
 ---
 
 ## Backend
 
-| Technology | Why chosen |
+| Technology | Why |
 |---|---|
-| **Node.js 20 + Express** | Same language as frontend (JS throughout), massive ecosystem, simple routing |
-| **mssql** | Official Microsoft SQL Server driver for Node.js, well-maintained, supports connection pooling |
-| **jsonwebtoken** | Standard JWT library, widely used, simple API |
-| **bcryptjs** | Password hashing, pure JS (no C++ native binding issues), reliable |
-| **multer** | Standard file upload handling for Express |
-| **node-cron** | Lightweight cron jobs for cleanup and report generation |
-| **Groq SDK** | Fast LLM inference, generous free tier, simple API |
-| **@huggingface/transformers** | Run Whisper locally in Node.js, completely free, no API dependency |
-| **@google/generative-ai** | Gemini as LLM fallback, free tier, reliable |
-| **cloudinary** | Official Cloudinary SDK, reliable, 25GB free tier |
+| **Node.js 20 + Express 5** | Same language as frontend, simple routing, huge ecosystem |
+| **pg** | PostgreSQL driver for Supabase — official, minimal, no ORM overhead |
+| **jsonwebtoken + bcryptjs** | Standard, pure-JS (no native bindings), widely used |
+| **multer** | Standard file upload parsing in Express (memory storage — no disk writes) |
+| **nodemailer** | Transactional email over Brevo SMTP — simple, no vendor lock-in |
+| **@supabase/supabase-js** | File storage only (resumes/reports to bucket "files") |
+| **livekit-server-sdk** | Generate LiveKit room tokens server-side |
+| **pdfkit + pdf-parse + mammoth** | PDF generation (reports), PDF/docx parsing (resume analysis) |
 
-Rejected: .NET (adds complexity, Node.js more natural with the JS frontend), Fastify (slightly more complex for beginners than Express), Redis (not needed for single company), Socket.io (not needed since no real-time state sync between users)
+All LLM, STT, and Piston calls use plain `fetch()` — no SDK packages for Groq, Gemini, or Cloudinary.
+
+Rejected: Axios (fetch built-in), node-cron (setInterval polling loop instead), mssql (added for Phase 2 only), @huggingface/transformers (Groq Whisper API used instead)
 
 ---
 
 ## Database
 
-| Technology | Why chosen |
+| Technology | Why |
 |---|---|
-| **SQL Server (SSMS)** | Familiar tooling, stored procedures, views, SQL Server Agent for jobs, enterprise-appropriate for company internal data |
-| **DB-first approach** | Design tables in SSMS first — see structure before writing code |
-| **Repository pattern** | Keeps SQL in one place, makes future Supabase/PostgreSQL support easy to add |
+| **Supabase (PostgreSQL)** | Hosted Postgres, free tier, Supabase Storage for files, same project |
+| **Repository pattern** | All SQL in one layer — easy to swap DB, easy to audit queries |
+| **@param style SQL** | Works identically on both Postgres and SQL Server via the connection factory |
+| **No foreign keys** | Simpler migrations, no cascade failures, validation in backend code |
 
-Future: Supabase (PostgreSQL) can be added as an alternative connection — same repository interface, different SQL dialect files.
+Future: SQL Server via `mssql` — same repository interface, change `DB_TYPE=sqlserver` in `.env`
 
 ---
 
 ## AI / Voice
 
-| Technology | Why chosen |
+| Technology | Why |
 |---|---|
-| **Groq Llama 3.3 70B** | Free tier, fast inference (~500ms), best free model for technical interview reasoning |
-| **Google Gemini 2.0 Flash** | LLM fallback, free tier, reliable, handles code/technical questions well |
-| **Groq Whisper Large v3** | Free tier STT, excellent accuracy for technical English, accepts all common audio formats |
-| **@huggingface/transformers (Whisper)** | Self-hosted STT option, completely free, runs in Node.js via WASM, MIT license |
-| **browser.speechSynthesis** | TTS for AI voice, built into every modern browser, cross-browser, zero cost |
-| **MediaRecorder API** | Audio capture, built into every modern browser, cross-browser |
+| **Groq Llama 3.3 70B** | Fast inference (~500ms), free tier, best free model for technical reasoning |
+| **Gemini 2.0 Flash** | LLM fallback — Groq failures auto-fallback here, free tier |
+| **Groq Whisper large-v3** | STT, free tier, high accuracy for technical English |
+| **browser.speechSynthesis** | TTS — built in, free, cross-browser, zero server cost |
+| **MediaRecorder API** | Audio capture — built in, cross-browser |
+| **Piston API (emkc.org)** | Code execution for exam coding questions — free, no API key, no SLA |
+
+Audio strategy: `MediaRecorder` → backend → Groq Whisper → text saved → audio discarded. Never stored.
 
 ---
 
-## Infrastructure / Services
+## Infrastructure
 
-| Technology | Why chosen |
+| Technology | Why |
 |---|---|
-| **Cloudinary** | 25GB free storage, auto-transforms PDFs, reliable CDN, good SDK |
-| **LiveKit** | Open source WebRTC, 10K free minutes/month, excellent SDK, self-hostable |
-| **Resend** | Clean email API, 3K free emails/month, better DX than SendGrid |
+| **Supabase Storage** | Resumes + PDF reports, same project as DB, simple SDK |
+| **LiveKit** | Open source WebRTC, 10K free minutes/month, self-hostable if needed |
+| **Brevo SMTP** | Transactional email, free tier, nodemailer compatible |
 
 ---
 
-## Interview audio strategy — Two modes
-
-Manager chooses when scheduling:
-
-| Mode | When to use | How it works |
-|---|---|---|
-| **Local (Whisper.js)** | Internal team assessments | Browser records with MediaRecorder → audio sent to backend → `@huggingface/transformers` transcribes on server → audio discarded |
-| **API (Groq Whisper)** | External candidate screening | Browser records with MediaRecorder → audio sent to backend → Groq Whisper API transcribes → audio discarded |
-
-In both modes: audio is never stored permanently, transcription happens on backend, only text is saved.
-
----
-
-## Cost (Phase 1 — single company internal use)
+## Cost (Phase 1 — single company internal)
 
 | Item | Cost |
 |---|---|
-| Groq API | Free (generous rate limits) |
-| Gemini API | Free |
-| @huggingface/transformers | Free (self-hosted) |
-| browser APIs (speechSynthesis, MediaRecorder) | Free |
-| SQL Server | Paid if using Azure SQL ($5-15/mo), Free with SSMS on own machine |
-| Cloudinary | Free (25GB) |
+| Groq API (LLM + Whisper) | Free tier |
+| Gemini API | Free tier |
+| Piston (code judge) | Free, no key |
+| Browser APIs (TTS, MediaRecorder) | Free |
+| Supabase (DB + Storage) | Free tier |
 | LiveKit | Free (10K min/month) |
-| **Total monthly** | **$0 - $15** depending on where DB is hosted |
+| Brevo SMTP | Free tier |
+| **Total** | **$0** at current scale |

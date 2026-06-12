@@ -19,9 +19,9 @@ function Button({
   ...rest
 }) {
   const styles = {
-    primary:   { background: 'var(--brand-500)', color: '#fff', border: 'none' },
+    primary:   { background: 'var(--brand-500)', color: 'var(--bg-surface)', border: 'none' },
     secondary: { background: 'transparent', color: 'var(--fg-primary)', border: '1px solid var(--border-default)' },
-    danger:    { background: 'var(--danger-500)', color: '#fff', border: 'none' },
+    danger:    { background: 'var(--danger-500)', color: 'var(--bg-surface)', border: 'none' },
     ghost:     { background: 'transparent', color: 'var(--brand-500)', border: 'none' },
   }
 

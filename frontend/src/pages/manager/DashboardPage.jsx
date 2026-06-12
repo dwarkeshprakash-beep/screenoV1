@@ -38,9 +38,9 @@ function DashboardPage() {
   if (error) return <ErrorMessage message={error} />
 
   const statCards = [
-    { icon: Users,        bg: '#EFEDFD', color: '#5B4FE9', value: stats?.totalMembers ?? '—',        label: 'Team members',         link: 'View team →',  to: '/manager/team' },
-    { icon: CheckSquare,  bg: '#ECFDF5', color: '#059669', value: stats?.candidatesEvaluated ?? '—', label: 'Interviews completed',  link: 'This quarter', to: null },
-    { icon: CalendarPlus, bg: '#FFFBEB', color: '#D97706', value: stats?.pendingScorecard ?? '—',    label: 'Pending scorecards',    link: 'Review now →', to: '/manager/reports' },
+    { icon: Users,        bg: 'var(--brand-50)', color: 'var(--brand-500)', value: stats?.totalMembers ?? '—',        label: 'Team members',         link: 'View team →',  to: '/manager/team' },
+    { icon: CheckSquare,  bg: 'var(--success-50)', color: 'var(--success-500)', value: stats?.candidatesEvaluated ?? '—', label: 'Interviews completed',  link: 'This quarter', to: null },
+    { icon: CalendarPlus, bg: 'var(--warning-50)', color: 'var(--warning-500)', value: stats?.pendingScorecard ?? '—',    label: 'Pending scorecards',    link: 'Review now →', to: '/manager/reports' },
   ]
 
   return (
@@ -107,15 +107,15 @@ function DashboardPage() {
 
         {/* Hiring activity */}
         <div style={{ ...card, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-          <div style={{ fontSize: 15, fontWeight: 700, color: '#0F172A', marginBottom: 14, flexShrink: 0 }}>Hiring Activity</div>
+          <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--slate-900)', marginBottom: 14, flexShrink: 0 }}>Hiring Activity</div>
           <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
             {activity.length === 0 ? (
-              <div style={{ color: '#94A3B8', fontSize: 13, textAlign: 'center', padding: '20px 0' }}>No recent activity.</div>
+              <div style={{ color: 'var(--slate-400)', fontSize: 13, textAlign: 'center', padding: '20px 0' }}>No recent activity.</div>
             ) : activity.map((a, i) => (
-              <div key={i} style={{ borderTop: i === 0 ? '0' : '1px solid #F1F5F9', padding: '12px 0' }}>
-                <div style={{ fontSize: 13, fontWeight: 500, color: '#0F172A' }}>{a.what}</div>
-                <div style={{ fontSize: 12, color: '#5B4FE9', marginTop: 2 }}>{a.sub}</div>
-                <div style={{ fontSize: 11, color: '#94A3B8', marginTop: 2 }}>{formatDate(a.when)}</div>
+              <div key={i} style={{ borderTop: i === 0 ? '0' : '1px solid var(--slate-100)', padding: '12px 0' }}>
+                <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--slate-900)' }}>{a.what}</div>
+                <div style={{ fontSize: 12, color: 'var(--brand-500)', marginTop: 2 }}>{a.sub}</div>
+                <div style={{ fontSize: 11, color: 'var(--slate-400)', marginTop: 2 }}>{formatDate(a.when)}</div>
               </div>
             ))}
           </div>

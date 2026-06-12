@@ -10,10 +10,10 @@ const HOURS = Array.from({ length: 9 }, (_, i) => i + 9)
 const H = 60
 
 const TYPE_STYLE = {
-  ai:    { bg: '#FFFBEB', border: '#D97706', color: '#92400E', label: 'AI screen' },
-  human: { bg: '#EFEDFD', border: '#5B4FE9', color: '#3A31A3', label: 'Live interview' },
-  exam:  { bg: '#EFF6FF', border: '#2563EB', color: '#1D4ED8', label: 'Coding exam' },
-  ai_voice: { bg: '#FFFBEB', border: '#D97706', color: '#92400E', label: 'AI screen' },
+  ai:       { bg: 'var(--warning-50)',  border: 'var(--warning-500)', color: 'var(--warning-700)', label: 'AI screen' },
+  human:    { bg: 'var(--brand-50)',    border: 'var(--brand-500)',   color: 'var(--brand-700)',   label: 'Live interview' },
+  exam:     { bg: 'var(--info-50)',     border: 'var(--info-500)',    color: 'var(--info-600)',    label: 'Coding exam' },
+  ai_voice: { bg: 'var(--warning-50)',  border: 'var(--warning-500)', color: 'var(--warning-700)', label: 'AI screen' },
 }
 
 function getWeekStart(date) {
@@ -99,14 +99,14 @@ function SchedulePage() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <h2 style={{ fontSize: 22, fontWeight: 700, color: '#0F172A', margin: 0, letterSpacing: '-0.015em' }}>{weekLabel(weekStart)}</h2>
-          <div style={{ display: 'inline-flex', gap: 2, background: '#F1F5F9', padding: 3, borderRadius: 8, border: '1px solid #E2E8F0' }}>
+          <h2 style={{ fontSize: 22, fontWeight: 700, color: 'var(--slate-900)', margin: 0, letterSpacing: '-0.015em' }}>{weekLabel(weekStart)}</h2>
+          <div style={{ display: 'inline-flex', gap: 2, background: 'var(--slate-100)', padding: 3, borderRadius: 8, border: '1px solid var(--slate-200)' }}>
             {[
               { label: '‹', action: prevWeek },
               { label: 'Today', action: goToday },
               { label: '›', action: nextWeek },
             ].map((btn, i) => (
-              <button key={i} onClick={btn.action} style={{ padding: '5px 10px', borderRadius: 6, border: 0, background: btn.label === 'Today' ? '#FFF' : 'transparent', fontSize: 12, fontWeight: 500, color: '#374151', cursor: 'pointer', fontFamily: 'inherit' }}>
+              <button key={i} onClick={btn.action} style={{ padding: '5px 10px', borderRadius: 6, border: 0, background: btn.label === 'Today' ? 'var(--bg-surface)' : 'transparent', fontSize: 12, fontWeight: 500, color: 'var(--slate-700)', cursor: 'pointer', fontFamily: 'inherit' }}>
                 {btn.label}
               </button>
             ))}
@@ -115,20 +115,20 @@ function SchedulePage() {
         <div style={{ display: 'flex', gap: 8 }}>
           <button
             onClick={() => navigate('/manager/team')}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#FFF', color: '#0F172A', border: '1px solid #CBD5E1', borderRadius: 8, fontWeight: 600, padding: '8px 14px', fontSize: 13, cursor: 'pointer' }}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--bg-surface)', color: 'var(--slate-900)', border: '1px solid var(--slate-300)', borderRadius: 8, fontWeight: 600, padding: '8px 14px', fontSize: 13, cursor: 'pointer' }}
           >
             My Team
           </button>
           <button
             onClick={() => setScheduleOpen(true)}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: '#5B4FE9', color: '#FFF', border: 0, borderRadius: 8, fontWeight: 600, padding: '8px 14px', fontSize: 13, cursor: 'pointer', boxShadow: '0 4px 12px rgba(91,79,233,0.2)' }}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--brand-500)', color: 'var(--bg-surface)', border: 0, borderRadius: 8, fontWeight: 600, padding: '8px 14px', fontSize: 13, cursor: 'pointer', boxShadow: '0 4px 12px rgba(91,79,233,0.2)' }}
           >
             <CalendarPlus size={13} /> Schedule interview
           </button>
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: 18, fontSize: 12, color: '#6B7280' }}>
+      <div style={{ display: 'flex', gap: 18, fontSize: 12, color: 'var(--slate-500)' }}>
         {[
           { t: 'AI screen', type: 'ai' },
           { t: 'Live interview', type: 'human' },
@@ -149,15 +149,15 @@ function SchedulePage() {
       ) : error ? (
         <ErrorMessage message={error} />
       ) : (
-        <div style={{ background: '#FFF', border: '1px solid #E2E8F0', borderRadius: 12, overflow: 'hidden', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: `56px repeat(5,1fr)`, borderBottom: '1px solid #E2E8F0', background: '#FFF' }}>
+        <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--slate-200)', borderRadius: 12, overflow: 'hidden', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: `56px repeat(5,1fr)`, borderBottom: '1px solid var(--slate-200)', background: 'var(--bg-surface)' }}>
             <div />
             {weekDays.map((d, i) => {
               const isToday = d.getDate() === today.getDate() && d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear()
               return (
-                <div key={i} style={{ padding: '12px 8px', textAlign: 'center', borderLeft: '1px solid #F1F5F9' }}>
-                  <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#94A3B8' }}>{DAY_NAMES[i]}</div>
-                  <div style={{ fontSize: 22, fontWeight: 700, color: isToday ? '#5B4FE9' : '#0F172A', marginTop: 2 }}>{d.getDate()}</div>
+                <div key={i} style={{ padding: '12px 8px', textAlign: 'center', borderLeft: '1px solid var(--slate-100)' }}>
+                  <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--slate-400)' }}>{DAY_NAMES[i]}</div>
+                  <div style={{ fontSize: 22, fontWeight: 700, color: isToday ? 'var(--brand-500)' : 'var(--slate-900)', marginTop: 2 }}>{d.getDate()}</div>
                 </div>
               )
             })}
@@ -166,7 +166,7 @@ function SchedulePage() {
           <div style={{ display: 'grid', gridTemplateColumns: `56px repeat(5,1fr)` }}>
             <div>
               {HOURS.map(h => (
-                <div key={h} style={{ height: H, borderBottom: '1px solid #F1F5F9', display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-end', padding: '4px 8px 0', fontSize: 11, color: '#94A3B8', fontFamily: 'monospace', fontVariantNumeric: 'tabular-nums' }}>
+                <div key={h} style={{ height: H, borderBottom: '1px solid var(--slate-100)', display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-end', padding: '4px 8px 0', fontSize: 11, color: 'var(--slate-400)', fontFamily: 'monospace', fontVariantNumeric: 'tabular-nums' }}>
                   {hourLabel(h)}
                 </div>
               ))}
@@ -174,8 +174,8 @@ function SchedulePage() {
             {weekDays.map((d, di) => {
               const dayEvs = eventsForDay(d)
               return (
-                <div key={di} style={{ position: 'relative', borderLeft: '1px solid #F1F5F9' }}>
-                  {HOURS.map(h => <div key={h} style={{ height: H, borderBottom: '1px solid #F1F5F9' }} />)}
+                <div key={di} style={{ position: 'relative', borderLeft: '1px solid var(--slate-100)' }}>
+                  {HOURS.map(h => <div key={h} style={{ height: H, borderBottom: '1px solid var(--slate-100)' }} />)}
                   {dayEvs.map((ev, ei) => {
                     const ts = getTypeStyle(ev.type)
                     const startH = getStartHour(ev)
@@ -190,8 +190,10 @@ function SchedulePage() {
                         onMouseEnter={e => e.currentTarget.style.filter = 'brightness(0.95)'}
                         onMouseLeave={e => e.currentTarget.style.filter = 'none'}
                       >
-                        <div style={{ fontSize: 12, fontWeight: 600, color: ts.color, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ev.candidateName || ev.title || ts.label}</div>
-                        {dur >= 0.8 && <div style={{ fontSize: 11, color: ts.color, opacity: 0.8 }}>{ev.sub || ev.status || ''}</div>}
+                        <div style={{ fontSize: 12, fontWeight: 600, color: ts.color, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {ev.candidate_first ? `${ev.candidate_first} ${ev.candidate_last}` : (ev.candidateName || ev.title || ts.label)}
+                        </div>
+                        {dur >= 0.8 && <div style={{ fontSize: 11, color: ts.color, opacity: 0.8 }}>{ev.status || ''}</div>}
                       </div>
                     )
                   })}

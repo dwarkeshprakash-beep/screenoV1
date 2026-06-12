@@ -33,14 +33,14 @@ function HumanInterviewPage() {
 
   if (disconnected) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, height: 'calc(100vh - 60px)', background: '#0F172A', color: '#FFF', textAlign: 'center', padding: 24 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, height: 'calc(100vh - 60px)', background: 'var(--slate-900)', color: 'var(--bg-surface)', textAlign: 'center', padding: 24 }}>
         <h3 style={{ fontSize: 17, fontWeight: 700 }}>You've been disconnected</h3>
-        <p style={{ fontSize: 13, color: '#94A3B8', maxWidth: 360 }}>
+        <p style={{ fontSize: 13, color: 'var(--slate-400)', maxWidth: 360 }}>
           The connection to the interview room was lost. Check your network and rejoin — the interviewer will still be in the room.
         </p>
         <button
           onClick={load}
-          style={{ padding: '9px 18px', fontSize: 13, fontWeight: 600, border: 'none', borderRadius: 8, background: 'var(--brand-500, #5B4FE9)', color: '#FFF', cursor: 'pointer' }}
+          style={{ padding: '9px 18px', fontSize: 13, fontWeight: 600, border: 'none', borderRadius: 8, background: 'var(--brand-500, var(--brand-500))', color: 'var(--bg-surface)', cursor: 'pointer' }}
         >
           Rejoin room
         </button>
@@ -49,7 +49,7 @@ function HumanInterviewPage() {
   }
 
   return (
-    <div style={{ height: 'calc(100vh - 60px)', background: '#0F172A' }}>
+    <div style={{ height: 'calc(100vh - 60px)', background: 'var(--slate-900)' }}>
       <LiveKitRoom
         token={room.token}
         serverUrl={room.wsUrl}

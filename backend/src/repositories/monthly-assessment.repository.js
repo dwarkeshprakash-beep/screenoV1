@@ -48,7 +48,7 @@ async function getByManager(managerId) {
 
 async function getEnrollmentsByAssessment(assessmentId) {
   return db.query(
-    `SELECT e.*, tm.user_id, tm.manager_id, u.first_name, u.last_name, u.email 
+    `SELECT e.*, tm.user_id, tm.manager_id, u.first_name, u.last_name, u.email, u.availability
      FROM monthly_assessment_enrollments e
      JOIN team_members tm ON tm.id = e.team_member_id
      JOIN users u ON u.id = tm.user_id
@@ -57,4 +57,34 @@ async function getEnrollmentsByAssessment(assessmentId) {
   )
 }
 
-module.exports = { create, createEnrollment, getByManager, getEnrollmentsByAssessment }
+// Calendar view: all enrollments for a manager with interview status
+async function getCalendarByManager(managerId) {
+  return db.query(
+    `SELECT e.*, a.subject_name, a.difficulty,
+            tm.user_id, u.first_name, u.last_name,
+            i.id AS interview_id, i.status AS interview_status, i.result AS interview_result
+     FROM monthly_assessment_enrollments e
+     JOIN monthly_assessments a ON a.id = e.assessment_id
+     JOIN team_members tm ON tm.id = e.team_member_id
+     JOIN users u ON u.id = tm.user_id
+     LEFT JOIN interviews i ON i.id = e.interview_id
+     WHERE a.manager_id = @managerId
+     ORDER BY a.created DESC, u.first_name`,
+    { managerId }
+  )
+}
+
+// Called when a month-end interview is created from an enrollment
+async function updateEnrollmentInterview(enrollmentId, interviewId) {
+  await db.query(
+    `UPDATE monthly_assessment_enrollments
+     SET interview_id = @interviewId, status = 'scheduled'
+     WHERE id = @id`,
+    { id: enrollmentId, interviewId }
+  )
+}
+
+module.exports = {
+  create, createEnrollment, getByManager, getEnrollmentsByAssessment,
+  getCalendarByManager, updateEnrollmentInterview,
+}

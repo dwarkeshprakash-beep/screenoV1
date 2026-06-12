@@ -4,11 +4,11 @@ const ReportsScreen = ({ tweaks }) => {
   window.useLucide();
 
   const funnel = [
-    { stage: "Applied",   n: 142, w: "100%", color: "#2563EB" },
-    { stage: "Screened",  n: 87,  w: "61%",  color: "#5B4FE9" },
-    { stage: "Interview", n: 34,  w: "24%",  color: "#D97706" },
-    { stage: "Offer",     n: 12,  w: "8.5%", color: "#059669" },
-    { stage: "Hired",     n: 7,   w: "4.9%", color: "#047857" },
+    { stage: "Applied",   n: 142, w: "100%", color: "var(--info-500)" },
+    { stage: "Screened",  n: 87,  w: "61%",  color: "var(--brand-500)" },
+    { stage: "Interview", n: 34,  w: "24%",  color: "var(--warning-500)" },
+    { stage: "Offer",     n: 12,  w: "8.5%", color: "var(--success-500)" },
+    { stage: "Hired",     n: 7,   w: "4.9%", color: "var(--success-600)" },
   ];
 
   // Weekly bars data
@@ -52,18 +52,18 @@ const ReportsScreen = ({ tweaks }) => {
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
             <div>
               <window.Eyebrow>Hiring funnel · last 30 days</window.Eyebrow>
-              <div style={{ fontFamily: "var(--font-display)", fontSize: 18, fontWeight: 600, color: "#0F172A", marginTop: 6 }}>4.9% applied → hired</div>
+              <div style={{ fontFamily: "var(--font-display)", fontSize: 18, fontWeight: 600, color: "var(--slate-900)", marginTop: 6 }}>4.9% applied → hired</div>
             </div>
             <button className="btn btn-ghost btn-sm">By role <window.Icon name="chevron-down" size={12} /></button>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {funnel.map((f, i) => (
               <div key={f.stage}>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "#374151", marginBottom: 6 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--slate-700)", marginBottom: 6 }}>
                   <span style={{ fontWeight: 500 }}>{f.stage}</span>
-                  <span><strong style={{ fontFamily: "var(--font-mono)", color: "#0F172A" }}>{f.n}</strong> <span style={{ color: "#6B7280" }}>· {f.w}</span></span>
+                  <span><strong style={{ fontFamily: "var(--font-mono)", color: "var(--slate-900)" }}>{f.n}</strong> <span style={{ color: "var(--slate-500)" }}>· {f.w}</span></span>
                 </div>
-                <div style={{ height: 24, background: "#F8FAFC", borderRadius: 6, position: "relative", overflow: "hidden" }}>
+                <div style={{ height: 24, background: "var(--slate-50)", borderRadius: 6, position: "relative", overflow: "hidden" }}>
                   <div style={{ height: "100%", width: f.w, background: f.color, borderRadius: 6, transition: "width 400ms cubic-bezier(0.2,0,0,1)" }} />
                 </div>
               </div>
@@ -76,19 +76,19 @@ const ReportsScreen = ({ tweaks }) => {
           <window.Eyebrow>Applications by source</window.Eyebrow>
           <div style={{ marginTop: 18, display: "flex", flexDirection: "column", gap: 14 }}>
             {[
-              { name: "Naukri",      n: 58, pct: 41, color: "#5B4FE9" },
-              { name: "Referrals",   n: 42, pct: 30, color: "#059669" },
-              { name: "LinkedIn",    n: 28, pct: 20, color: "#2563EB" },
-              { name: "Direct",      n: 14, pct: 9,  color: "#D97706" },
+              { name: "Naukri",      n: 58, pct: 41, color: "var(--brand-500)" },
+              { name: "Referrals",   n: 42, pct: 30, color: "var(--success-500)" },
+              { name: "LinkedIn",    n: 28, pct: 20, color: "var(--info-500)" },
+              { name: "Direct",      n: 14, pct: 9,  color: "var(--warning-500)" },
             ].map(s => (
               <div key={s.name} style={{ display: "flex", alignItems: "center", gap: 12 }}>
                 <span style={{ width: 10, height: 10, borderRadius: 3, background: s.color, flexShrink: 0 }} />
                 <div style={{ flex: 1 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "#0F172A" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "var(--slate-900)" }}>
                     <span style={{ fontWeight: 500 }}>{s.name}</span>
-                    <span style={{ color: "#6B7280", fontSize: 12 }}>{s.n} · {s.pct}%</span>
+                    <span style={{ color: "var(--slate-500)", fontSize: 12 }}>{s.n} · {s.pct}%</span>
                   </div>
-                  <div style={{ height: 4, background: "#F1F5F9", borderRadius: 9999, marginTop: 6, overflow: "hidden" }}>
+                  <div style={{ height: 4, background: "var(--slate-100)", borderRadius: 9999, marginTop: 6, overflow: "hidden" }}>
                     <div style={{ height: "100%", width: `${s.pct}%`, background: s.color, borderRadius: 9999 }} />
                   </div>
                 </div>
@@ -103,23 +103,23 @@ const ReportsScreen = ({ tweaks }) => {
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 22 }}>
           <div>
             <window.Eyebrow>Weekly pipeline volume</window.Eyebrow>
-            <div style={{ fontFamily: "var(--font-display)", fontSize: 18, fontWeight: 600, color: "#0F172A", marginTop: 6 }}>Last 5 weeks</div>
+            <div style={{ fontFamily: "var(--font-display)", fontSize: 18, fontWeight: 600, color: "var(--slate-900)", marginTop: 6 }}>Last 5 weeks</div>
           </div>
-          <div style={{ display: "flex", gap: 16, fontSize: 12, color: "#6B7280" }}>
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><span style={{ width: 10, height: 10, borderRadius: 2, background: "#BDB4F6" }} /> Applied</span>
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><span style={{ width: 10, height: 10, borderRadius: 2, background: "#5B4FE9" }} /> Screened</span>
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><span style={{ width: 10, height: 10, borderRadius: 2, background: "#D97706" }} /> Interview</span>
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><span style={{ width: 10, height: 10, borderRadius: 2, background: "#059669" }} /> Hired</span>
+          <div style={{ display: "flex", gap: 16, fontSize: 12, color: "var(--slate-500)" }}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><span style={{ width: 10, height: 10, borderRadius: 2, background: "var(--brand-200)" }} /> Applied</span>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><span style={{ width: 10, height: 10, borderRadius: 2, background: "var(--brand-500)" }} /> Screened</span>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><span style={{ width: 10, height: 10, borderRadius: 2, background: "var(--warning-500)" }} /> Interview</span>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><span style={{ width: 10, height: 10, borderRadius: 2, background: "var(--success-500)" }} /> Hired</span>
           </div>
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 24, alignItems: "end", height: 240, padding: "0 12px" }}>
           {weeks.map(w => {
             const max = 48;
             const bars = [
-              { v: w.a, c: "#BDB4F6" },
-              { v: w.s, c: "#5B4FE9" },
-              { v: w.i, c: "#D97706" },
-              { v: w.h, c: "#059669" },
+              { v: w.a, c: "var(--brand-200)" },
+              { v: w.s, c: "var(--brand-500)" },
+              { v: w.i, c: "var(--warning-500)" },
+              { v: w.h, c: "var(--success-500)" },
             ];
             return (
               <div key={w.w} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8, height: "100%" }}>
@@ -132,7 +132,7 @@ const ReportsScreen = ({ tweaks }) => {
                     }} title={`${b.v}`} />
                   ))}
                 </div>
-                <div style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "#94A3B8" }}>{w.w}</div>
+                <div style={{ fontSize: 11, fontFamily: "var(--font-mono)", color: "var(--slate-400)" }}>{w.w}</div>
               </div>
             );
           })}

@@ -29,9 +29,9 @@ function getPageMeta(pathname) {
 // ── Screeno logo mark ─────────────────────────────────────────
 function LogoMark({ size = 22 }) {
   return (
-    <div style={{ width: size, height: size, borderRadius: Math.round(size * 0.27), background: 'linear-gradient(135deg,#5B4FE9,#4A3FCE)', display: 'inline-flex', flexShrink: 0, position: 'relative' }}>
-      <div style={{ position: 'absolute', left: '23%', top: '32%', width: '54%', height: '11%', background: '#FFF', borderRadius: 2, opacity: 0.95 }} />
-      <div style={{ position: 'absolute', left: '23%', top: '57%', width: '54%', height: '11%', background: '#FFF', borderRadius: 2, opacity: 0.6 }} />
+    <div style={{ width: size, height: size, borderRadius: Math.round(size * 0.27), background: 'linear-gradient(135deg,var(--brand-500),var(--brand-600))', display: 'inline-flex', flexShrink: 0, position: 'relative' }}>
+      <div style={{ position: 'absolute', left: '23%', top: '32%', width: '54%', height: '11%', background: 'var(--bg-surface)', borderRadius: 2, opacity: 0.95 }} />
+      <div style={{ position: 'absolute', left: '23%', top: '57%', width: '54%', height: '11%', background: 'var(--bg-surface)', borderRadius: 2, opacity: 0.6 }} />
     </div>
   )
 }
@@ -46,7 +46,7 @@ const ROLE_LABELS = {
 function RoleBar({ role, onLogout, onLogoClick }) {
   return (
     <div style={{
-      background: '#0F172A', height: 38,
+      background: 'var(--slate-900)', height: 38,
       display: 'flex', alignItems: 'center',
       padding: '0 14px', gap: 4,
       position: 'sticky', top: 0, zIndex: 100,
@@ -60,13 +60,13 @@ function RoleBar({ role, onLogout, onLogoClick }) {
         style={{ display: 'flex', alignItems: 'center', gap: 8, marginRight: 12, cursor: 'pointer' }}
       >
         <LogoMark size={22} />
-        <span style={{ color: '#FFF', fontSize: 15, fontWeight: 700, letterSpacing: '-0.02em' }}>Screeno</span>
+        <span style={{ color: 'var(--bg-surface)', fontSize: 15, fontWeight: 700, letterSpacing: '-0.02em' }}>Screeno</span>
       </div>
       <div style={{ width: 1, height: 18, background: '#1E293B', margin: '0 8px' }} />
       <span style={{
         padding: '4px 12px', borderRadius: 5,
         border: '1px solid #334155',
-        color: '#FFF',
+        color: 'var(--bg-surface)',
         fontSize: 12, fontWeight: 600,
         letterSpacing: '0.06em',
       }}>
@@ -82,7 +82,7 @@ function RoleBar({ role, onLogout, onLogoClick }) {
           fontSize: 12, fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit',
           transition: 'color 120ms',
         }}
-        onMouseEnter={e => e.currentTarget.style.color = '#FFF'}
+        onMouseEnter={e => e.currentTarget.style.color = 'var(--bg-surface)'}
         onMouseLeave={e => e.currentTarget.style.color = '#64748B'}
       >
         <LogOut size={13} /> Logout
@@ -121,7 +121,7 @@ function AppLayout({ role = 'manager' }) {
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0 }}>
           <TopBar title={title} subtitle={subtitle} role={role} />
 
-          <main style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '1.5rem 1.75rem', background: '#F8FAFC', overflowY: 'auto' }}>
+          <main style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '1.5rem 1.75rem', background: 'var(--slate-50)', overflowY: 'auto' }}>
             <Outlet />
           </main>
         </div>

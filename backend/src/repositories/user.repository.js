@@ -3,7 +3,7 @@ const db = require('../db/connection')
 
 async function getByEmail(email) {
   const rows = await db.query(
-    `SELECT id, company_id, first_name, last_name, email, password, role, resume_url, tags
+    `SELECT id, company_id, first_name, last_name, email, password, role, resume_url, tags, availability
      FROM users
      WHERE email = @email`,
     { email }
@@ -13,7 +13,7 @@ async function getByEmail(email) {
 
 async function getById(id) {
   const rows = await db.query(
-    `SELECT id, company_id, first_name, last_name, email, role, resume_url, tags
+    `SELECT id, company_id, first_name, last_name, email, role, resume_url, tags, availability
      FROM users
      WHERE id = @id`,
     { id }
@@ -21,19 +21,35 @@ async function getById(id) {
   return rows[0] || null
 }
 
-async function updateProfile(id, { firstName, lastName, resumeUrl, tags }) {
+async function updateProfile(id, { firstName, lastName, resumeUrl, tags, availability }) {
   const rows = await db.query(
     `UPDATE users
      SET
-       first_name = COALESCE(@first_name, first_name),
-       last_name  = COALESCE(@last_name,  last_name),
-       resume_url = COALESCE(@resume_url, resume_url),
-       tags       = COALESCE(@tags,       tags)
+       first_name   = COALESCE(@first_name,   first_name),
+       last_name    = COALESCE(@last_name,    last_name),
+       resume_url   = COALESCE(@resume_url,   resume_url),
+       tags         = COALESCE(@tags,         tags),
+       availability = COALESCE(@availability, availability)
      WHERE id = @id
      RETURNING *`,
-    { id, first_name: firstName || null, last_name: lastName || null, resume_url: resumeUrl || null, tags: tags ? JSON.stringify(tags) : null }
+    {
+      id,
+      first_name:   firstName    || null,
+      last_name:    lastName     || null,
+      resume_url:   resumeUrl    || null,
+      tags:         tags ? (typeof tags === 'string' ? tags : JSON.stringify(tags)) : null,
+      availability: availability || null,
+    }
   )
   return rows[0]
+}
+
+async function getByIdWithPassword(id) {
+  const rows = await db.query(
+    `SELECT * FROM users WHERE id = @id`,
+    { id }
+  )
+  return rows[0] || null
 }
 
 async function updatePassword(id, passwordHash) {
@@ -196,7 +212,7 @@ async function createMinimal(companyId, { firstName, lastName, email, passwordHa
 }
 
 module.exports = {
-  getByEmail, getByEmailForCompany, getById, getNotInTeam,
+  getByEmail, getByEmailForCompany, getById, getByIdWithPassword, getNotInTeam,
   getByRole, getByCompany, updateProfile, updatePassword, updateOrgProfile,
   bulkUpsert, createMinimal,
 }

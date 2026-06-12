@@ -19,7 +19,6 @@ const MANAGER_NAV = [
   {
     section: 'TOOLS',
     items: [
-      { to: '/manager/templates',       icon: LayoutTemplate,  label: 'Templates' },
       { to: '/manager/resume-analyzer', icon: ScanSearch,      label: 'Resume Analyzer' },
     ],
   },
@@ -100,13 +99,13 @@ function Sidebar({ role = 'manager', onLogout }) {
                   onMouseEnter={e => {
                     if (!isActive && to !== '#') {
                       e.currentTarget.style.background = 'rgba(255,255,255,0.06)'
-                      e.currentTarget.style.color = '#FFF'
+                      e.currentTarget.style.color = 'var(--bg-surface)'
                     }
                   }}
                   onMouseLeave={e => {
                     if (!isActive) {
                       e.currentTarget.style.background = 'transparent'
-                      e.currentTarget.style.color = '#94A3B8'
+                      e.currentTarget.style.color = 'var(--slate-400)'
                     }
                   }}
                 >

@@ -17,13 +17,12 @@ async function extractTextFromBuffer(buffer, mimetype, originalname) {
     return buffer.toString('utf8')
   }
   if (mimetype === 'application/pdf' || name.endsWith('.pdf')) {
-    const { PDFParse } = require('pdf-parse')
-    const parser = new PDFParse({ data: buffer })
     try {
-      const result = await parser.getText()
+      const pdfParse = require('pdf-parse')
+      const result = await pdfParse(buffer)
       return result.text || ''
-    } finally {
-      await parser.destroy()
+    } catch {
+      return ''
     }
   }
   if (mimetype.includes('wordprocessing') || name.endsWith('.docx') || name.endsWith('.doc')) {
@@ -46,6 +45,17 @@ router.post('/resume', upload.single('resume'), async (req, res) => {
 
     const { url } = await storageService.uploadResume(req.file.buffer, `user_${member.user_id}`)
     await userRepository.updateProfile(member.user_id, { resumeUrl: url })
+
+    // Extract text then auto-tag — fire and forget so upload returns immediately
+    extractTextFromBuffer(req.file.buffer, req.file.mimetype, req.file.originalname)
+      .then(async (text) => {
+        if (!text || text.length < 50) return
+        const tags = await llmService.extractTagsFromText(text)
+        if (tags && tags.length > 0) {
+          await userRepository.updateProfile(member.user_id, { tags })
+        }
+      })
+      .catch(err => console.error('auto-tag extraction failed:', err.message))
 
     res.json({ success: true, data: { resumeUrl: url } })
   } catch (err) {

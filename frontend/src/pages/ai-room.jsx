@@ -22,9 +22,9 @@ const AIRoomScreen = ({ state: initialState = "speaking", onEnd }) => {
   }, [aiState, showTranscript]);
 
   const stateLabel = {
-    speaking:  { text: "AI is speaking…",   icon: "volume-2", color: "#5B4FE9" },
-    thinking:  { text: "AI is thinking…",   icon: "loader-2", color: "#94A3B8" },
-    listening: { text: "AI is listening…",  icon: "ear",      color: "#059669" },
+    speaking:  { text: "AI is speaking…",   icon: "volume-2", color: "var(--brand-500)" },
+    thinking:  { text: "AI is thinking…",   icon: "loader-2", color: "var(--slate-400)" },
+    listening: { text: "AI is listening…",  icon: "ear",      color: "var(--success-500)" },
   }[aiState];
 
   return (
@@ -41,12 +41,12 @@ const AIRoomScreen = ({ state: initialState = "speaking", onEnd }) => {
       {/* Current question card */}
       <window.Reveal delay={120} style={{
         marginTop: 28, maxWidth: 520, width: "100%",
-        background: "#FFF", border: "1px solid #E2E8F0", borderLeft: "4px solid #5B4FE9",
+        background: "var(--bg-surface)", border: "1px solid var(--slate-200)", borderLeft: "4px solid var(--brand-500)",
         borderRadius: 12, padding: "16px 20px",
         boxShadow: "0 4px 14px rgba(15,23,42,0.06), 0 1px 3px rgba(15,23,42,0.04)",
       }}>
-        <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "#6B7280", marginBottom: 6 }}>Current question</div>
-        <p style={{ fontSize: 15, color: "#0F172A", margin: 0, lineHeight: 1.55, fontWeight: 500 }}>
+        <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--slate-500)", marginBottom: 6 }}>Current question</div>
+        <p style={{ fontSize: 15, color: "var(--slate-900)", margin: 0, lineHeight: 1.55, fontWeight: 500 }}>
           Tell me about a time you had to debug a critical production issue under time pressure.
         </p>
       </window.Reveal>
@@ -59,10 +59,10 @@ const AIRoomScreen = ({ state: initialState = "speaking", onEnd }) => {
             display: "inline-flex", alignItems: "center", gap: 6,
             padding: "6px 10px", borderRadius: 8,
             background: "transparent", border: 0,
-            color: "#5B4FE9", fontSize: 12, fontWeight: 600, cursor: "pointer",
+            color: "var(--brand-500)", fontSize: 12, fontWeight: 600, cursor: "pointer",
             transition: "background 120ms",
           }}
-          onMouseEnter={e => e.currentTarget.style.background = "#F1F5F9"}
+          onMouseEnter={e => e.currentTarget.style.background = "var(--slate-100)"}
           onMouseLeave={e => e.currentTarget.style.background = "transparent"}
         >
           <window.Icon name={showTranscript ? "chevron-down" : "chevron-right"} size={12} />
@@ -73,7 +73,7 @@ const AIRoomScreen = ({ state: initialState = "speaking", onEnd }) => {
             <div
               ref={transcriptRef}
               style={{
-                background: "#FFF", border: "1px solid #E2E8F0", borderRadius: 12, padding: 16,
+                background: "var(--bg-surface)", border: "1px solid var(--slate-200)", borderRadius: 12, padding: 16,
                 maxHeight: 160, overflowY: "auto", display: "flex", flexDirection: "column", gap: 10,
                 boxShadow: "0 1px 3px rgba(15,23,42,0.04)",
               }}
@@ -86,9 +86,9 @@ const AIRoomScreen = ({ state: initialState = "speaking", onEnd }) => {
                     padding: last ? "6px 8px" : 0,
                     background: last ? "#F3F0FF" : "transparent",
                     borderRadius: last ? 6 : 0,
-                    color: m.who === "ai" ? "#6B7280" : "#0F172A",
+                    color: m.who === "ai" ? "var(--slate-500)" : "var(--slate-900)",
                   }}>
-                    <strong style={{ color: m.who === "ai" ? "#5B4FE9" : "#0F172A", marginRight: 6, fontWeight: 600 }}>
+                    <strong style={{ color: m.who === "ai" ? "var(--brand-500)" : "var(--slate-900)", marginRight: 6, fontWeight: 600 }}>
                       {m.who === "ai" ? "AI:" : "You:"}
                     </strong>
                     {m.text}
@@ -105,40 +105,40 @@ const AIRoomScreen = ({ state: initialState = "speaking", onEnd }) => {
         position: "absolute", bottom: 120, left: 24,
         width: 120, height: 120, borderRadius: 9999,
         background: "linear-gradient(135deg, #475569, #1E293B)",
-        border: "3px solid #FFF",
+        border: "3px solid var(--bg-surface)",
         boxShadow: "0 12px 28px rgba(15,23,42,0.18)",
         display: "flex", alignItems: "center", justifyContent: "center",
         overflow: "hidden", flexShrink: 0,
       }}>
         <window.AvatarV2 name="Rahul Sharma" size={108} />
       </div>
-      <div style={{ position: "absolute", bottom: 100, left: 24, width: 120, textAlign: "center", fontSize: 11, color: "#6B7280", fontWeight: 500 }}>You</div>
+      <div style={{ position: "absolute", bottom: 100, left: 24, width: 120, textAlign: "center", fontSize: 11, color: "var(--slate-500)", fontWeight: 500 }}>You</div>
 
       {/* Controls (fixed bottom-center) */}
       <div style={{
         position: "fixed", bottom: 72, left: "50%", transform: "translateX(-50%)",
         display: "inline-flex", gap: 8, padding: 6,
         background: "rgba(255,255,255,0.92)", backdropFilter: "blur(10px)",
-        border: "1px solid #E2E8F0", borderRadius: 9999,
+        border: "1px solid var(--slate-200)", borderRadius: 9999,
         boxShadow: "0 12px 28px rgba(15,23,42,0.12), 0 2px 6px rgba(15,23,42,0.04)",
         zIndex: 5,
       }}>
         <RoundCtrl icon={muted ? "mic-off" : "mic"} label={muted ? "Unmute" : "Mute"} onClick={() => setMuted(m => !m)} active={muted} />
         <RoundCtrl icon="rotate-cw" label="Repeat question" />
         <RoundCtrl icon="skip-forward" label="Skip" />
-        <div style={{ width: 1, background: "#E2E8F0", margin: "4px 4px" }} />
+        <div style={{ width: 1, background: "var(--slate-200)", margin: "4px 4px" }} />
         <button
           onClick={onEnd}
           style={{
             display: "inline-flex", alignItems: "center", gap: 6,
             padding: "8px 16px", borderRadius: 9999,
-            background: "#FF5C35", color: "#FFF", border: 0,
+            background: "var(--danger-500)", color: "var(--bg-surface)", border: 0,
             fontSize: 13, fontWeight: 600, cursor: "pointer",
             boxShadow: "0 4px 12px rgba(255,92,53,0.25)",
             transition: "background 120ms",
           }}
-          onMouseEnter={e => e.currentTarget.style.background = "#E0451F"}
-          onMouseLeave={e => e.currentTarget.style.background = "#FF5C35"}
+          onMouseEnter={e => e.currentTarget.style.background = "var(--danger-600)"}
+          onMouseLeave={e => e.currentTarget.style.background = "var(--danger-500)"}
         >
           <window.Icon name="phone-off" size={14} /> End
         </button>
@@ -147,20 +147,20 @@ const AIRoomScreen = ({ state: initialState = "speaking", onEnd }) => {
       {/* Demo control to flip states */}
       <div style={{
         position: "fixed", top: 88, right: 24,
-        background: "#FFF", border: "1px solid #E2E8F0", borderRadius: 10,
+        background: "var(--bg-surface)", border: "1px solid var(--slate-200)", borderRadius: 10,
         padding: 8, display: "flex", gap: 4, alignItems: "center",
         boxShadow: "0 4px 12px rgba(15,23,42,0.06)",
         zIndex: 5, fontSize: 11,
       }}>
-        <span style={{ fontWeight: 600, color: "#94A3B8", letterSpacing: "0.05em", textTransform: "uppercase", paddingRight: 4 }}>State</span>
+        <span style={{ fontWeight: 600, color: "var(--slate-400)", letterSpacing: "0.05em", textTransform: "uppercase", paddingRight: 4 }}>State</span>
         {["listening", "thinking", "speaking"].map(s => (
           <button
             key={s}
             onClick={() => setAiState(s)}
             style={{
               padding: "5px 9px", borderRadius: 6, border: 0,
-              background: aiState === s ? "#5B4FE9" : "transparent",
-              color: aiState === s ? "#FFF" : "#475569",
+              background: aiState === s ? "var(--brand-500)" : "transparent",
+              color: aiState === s ? "var(--bg-surface)" : "#475569",
               fontSize: 11, fontWeight: 600, cursor: "pointer",
               textTransform: "capitalize", transition: "all 120ms",
             }}
@@ -179,12 +179,12 @@ const RoundCtrl = ({ icon, label, onClick, active }) => (
     title={label}
     style={{
       width: 40, height: 40, borderRadius: 9999, border: 0,
-      background: active ? "#FFEDE6" : "transparent",
-      color: active ? "#B53618" : "#0F172A",
+      background: active ? "var(--danger-50)" : "transparent",
+      color: active ? "var(--danger-700)" : "var(--slate-900)",
       display: "inline-flex", alignItems: "center", justifyContent: "center",
       cursor: "pointer", transition: "all 120ms",
     }}
-    onMouseEnter={e => { if (!active) e.currentTarget.style.background = "#F1F5F9"; }}
+    onMouseEnter={e => { if (!active) e.currentTarget.style.background = "var(--slate-100)"; }}
     onMouseLeave={e => { if (!active) e.currentTarget.style.background = "transparent"; }}
   >
     <window.Icon name={icon} size={16} />
@@ -201,7 +201,7 @@ const AIOrb = ({ state }) => {
         {/* Soft gradient core */}
         <div style={{
           position: "absolute", inset: 24, borderRadius: 9999,
-          background: "radial-gradient(circle at 35% 30%, #DEDAFB, #5B4FE9 70%, #4A3FCE 100%)",
+          background: "radial-gradient(circle at 35% 30%, var(--brand-100), var(--brand-500) 70%, var(--brand-600) 100%)",
           boxShadow: "0 12px 36px rgba(91,79,233,0.32), 0 0 0 12px rgba(91,79,233,0.08)",
         }} />
         {/* Inner highlight */}
@@ -214,7 +214,7 @@ const AIOrb = ({ state }) => {
           {[0, 1, 2, 3, 4].map(i => (
             <span key={i} style={{
               width: 6, height: 50,
-              background: "#FFF", borderRadius: 9999,
+              background: "var(--bg-surface)", borderRadius: 9999,
               transformOrigin: "center",
               animation: `barWave 1.2s ease-in-out ${i * 110}ms infinite`,
               boxShadow: "0 0 8px rgba(255,255,255,0.6)",
@@ -232,18 +232,18 @@ const AIOrb = ({ state }) => {
         {[0, 1, 2].map(i => (
           <span key={i} style={{
             position: "absolute", width: 160, height: 160, borderRadius: 9999,
-            border: "2px solid #059669",
+            border: "2px solid var(--success-500)",
             animation: `ringPulse 2.4s ease-out ${i * 800}ms infinite`,
             opacity: 0,
           }} />
         ))}
         <div style={{
           width: 120, height: 120, borderRadius: 9999,
-          background: "radial-gradient(circle at 35% 30%, #D1FAE5, #059669 75%)",
+          background: "radial-gradient(circle at 35% 30%, var(--success-100), var(--success-500) 75%)",
           boxShadow: "0 12px 28px rgba(5,150,105,0.32), 0 0 0 8px rgba(16,185,129,0.12)",
           display: "flex", alignItems: "center", justifyContent: "center",
         }}>
-          <window.Icon name="ear" size={42} color="#FFF" />
+          <window.Icon name="ear" size={42} color="var(--bg-surface)" />
         </div>
         <style>{`
           @keyframes ringPulse {
@@ -260,23 +260,23 @@ const AIOrb = ({ state }) => {
     <div style={{ position: "relative", width: size, height: size, display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div style={{
         position: "absolute", inset: 0, borderRadius: 9999,
-        background: "conic-gradient(from 0deg, #DEDAFB, #5B4FE9, #DEDAFB)",
+        background: "conic-gradient(from 0deg, var(--brand-100), var(--brand-500), var(--brand-100))",
         animation: "spin 4s linear infinite",
         opacity: 0.4,
       }} />
       <div style={{
         position: "absolute", inset: 12, borderRadius: 9999,
-        background: "#F8FAFC",
+        background: "var(--slate-50)",
       }} />
       <div style={{
         position: "relative", zIndex: 1,
         width: 140, height: 140, borderRadius: 9999,
-        background: "radial-gradient(circle at 35% 30%, #DEDAFB, #5B4FE9 90%)",
+        background: "radial-gradient(circle at 35% 30%, var(--brand-100), var(--brand-500) 90%)",
         animation: "softPulse 2s ease-in-out infinite",
         display: "flex", alignItems: "center", justifyContent: "center",
         boxShadow: "0 12px 28px rgba(91,79,233,0.18)",
       }}>
-        <window.Icon name="sparkles" size={42} color="#FFF" />
+        <window.Icon name="sparkles" size={42} color="var(--bg-surface)" />
       </div>
       <style>{`
         @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }

@@ -14,17 +14,17 @@ const ROLES = [
 const LOCATIONS = ["Bangalore", "Hyderabad", "Pune", "Gurugram", "Chennai", "Mumbai", "Noida", "Remote"];
 
 const STAGES = {
-  applied:    { label: "Applied",    tone: "info",    color: "#2563EB", dot: "#3B82F6" },
-  screen:     { label: "In screen",  tone: "brand",   color: "#5B4FE9", dot: "#7B69ED" },
-  interview:  { label: "Interview",  tone: "warning", color: "#D97706", dot: "#F59E0B" },
-  offer:      { label: "Offer",      tone: "success", color: "#059669", dot: "#10B981" },
-  rejected:   { label: "Rejected",   tone: "danger",  color: "#FF5C35", dot: "#F87171" },
+  applied:    { label: "Applied",    tone: "info",    color: "var(--info-500)", dot: "#3B82F6" },
+  screen:     { label: "In screen",  tone: "brand",   color: "var(--brand-500)", dot: "var(--brand-400)" },
+  interview:  { label: "Interview",  tone: "warning", color: "var(--warning-500)", dot: "#F59E0B" },
+  offer:      { label: "Offer",      tone: "success", color: "var(--success-500)", dot: "#10B981" },
+  rejected:   { label: "Rejected",   tone: "danger",  color: "var(--danger-500)", dot: "#F87171" },
 };
 
 const MODES = {
-  exam:  { label: "Coding exam",      icon: "file-text", color: "#2563EB" },
-  ai:    { label: "AI voice screen",  icon: "phone",     color: "#D97706" },
-  video: { label: "Live video",       icon: "video",     color: "#5B4FE9" },
+  exam:  { label: "Coding exam",      icon: "file-text", color: "var(--info-500)" },
+  ai:    { label: "AI voice screen",  icon: "phone",     color: "var(--warning-500)" },
+  video: { label: "Live video",       icon: "video",     color: "var(--brand-500)" },
 };
 
 const CANDIDATES = [

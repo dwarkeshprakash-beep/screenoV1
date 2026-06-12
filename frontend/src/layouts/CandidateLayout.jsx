@@ -14,15 +14,15 @@ const TimerRing = ({ remaining, total, size = 44, stroke = 3.5, label }) => {
   const pct = Math.max(0, Math.min(1, remaining / total));
   const offset = c * (1 - pct);
   const lowTime = remaining < total * 0.15;
-  const color = lowTime ? "#FF5C35" : "#5B4FE9";
+  const color = lowTime ? "var(--danger-500)" : "var(--brand-500)";
   const mins = String(Math.floor(remaining / 60)).padStart(2, "0");
   const secs = String(remaining % 60).padStart(2, "0");
   return (
     <div style={{ display: "inline-flex", alignItems: "center", gap: 10 }}>
-      <span style={{ fontSize: 11, color: "#6B7280", letterSpacing: "0.06em", textTransform: "uppercase", fontWeight: 600 }}>{label || "Time left"}</span>
+      <span style={{ fontSize: 11, color: "var(--slate-500)", letterSpacing: "0.06em", textTransform: "uppercase", fontWeight: 600 }}>{label || "Time left"}</span>
       <div style={{ position: "relative", width: size, height: size, display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
         <svg width={size} height={size} style={{ position: "absolute", inset: 0, transform: "rotate(-90deg)" }}>
-          <circle cx={size / 2} cy={size / 2} r={r} stroke="#E2E8F0" strokeWidth={stroke} fill="none" />
+          <circle cx={size / 2} cy={size / 2} r={r} stroke="var(--slate-200)" strokeWidth={stroke} fill="none" />
           <circle
             cx={size / 2} cy={size / 2} r={r}
             stroke={color} strokeWidth={stroke} fill="none"
@@ -30,7 +30,7 @@ const TimerRing = ({ remaining, total, size = 44, stroke = 3.5, label }) => {
             style={{ transition: "stroke-dashoffset 0.4s linear, stroke 200ms" }}
           />
         </svg>
-        <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, fontWeight: 600, color: lowTime ? "#B53618" : "#0F172A", fontVariantNumeric: "tabular-nums" }}>{mins}:{secs}</span>
+        <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, fontWeight: 600, color: lowTime ? "var(--danger-700)" : "var(--slate-900)", fontVariantNumeric: "tabular-nums" }}>{mins}:{secs}</span>
       </div>
     </div>
   );
@@ -42,26 +42,26 @@ const StepIndicator = ({ steps, currentIdx }) => (
     {steps.map((s, i) => {
       const done = i < currentIdx;
       const active = i === currentIdx;
-      const dotColor = done ? "#5B4FE9" : active ? "#5B4FE9" : "#E2E8F0";
-      const labelColor = done ? "#0F172A" : active ? "#5B4FE9" : "#94A3B8";
+      const dotColor = done ? "var(--brand-500)" : active ? "var(--brand-500)" : "var(--slate-200)";
+      const labelColor = done ? "var(--slate-900)" : active ? "var(--brand-500)" : "var(--slate-400)";
       return (
         <React.Fragment key={s.id}>
           <div style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
             <span style={{
               width: 24, height: 24, borderRadius: 9999,
-              background: done ? "#5B4FE9" : "#FFF",
-              border: active ? "2px solid #5B4FE9" : done ? "0" : "1px solid #CBD5E1",
-              color: "#FFF",
+              background: done ? "var(--brand-500)" : "var(--bg-surface)",
+              border: active ? "2px solid var(--brand-500)" : done ? "0" : "1px solid var(--slate-300)",
+              color: "var(--bg-surface)",
               display: "inline-flex", alignItems: "center", justifyContent: "center",
               flexShrink: 0,
               boxShadow: active ? "0 0 0 4px rgba(91,79,233,0.16)" : "none",
               transition: "all 240ms cubic-bezier(0.2,0,0,1)",
             }}>
               {done
-                ? <window.Icon name="check" size={13} color="#FFF" />
+                ? <window.Icon name="check" size={13} color="var(--bg-surface)" />
                 : active
-                  ? <span style={{ width: 8, height: 8, borderRadius: 9999, background: "#5B4FE9" }} />
-                  : <span style={{ fontSize: 11, fontWeight: 600, color: "#94A3B8", fontFamily: "var(--font-mono)" }}>{i + 1}</span>
+                  ? <span style={{ width: 8, height: 8, borderRadius: 9999, background: "var(--brand-500)" }} />
+                  : <span style={{ fontSize: 11, fontWeight: 600, color: "var(--slate-400)", fontFamily: "var(--font-mono)" }}>{i + 1}</span>
               }
             </span>
             <span style={{ fontSize: 13, fontWeight: active ? 600 : 500, color: labelColor, transition: "color 240ms" }}>{s.label}</span>
@@ -69,7 +69,7 @@ const StepIndicator = ({ steps, currentIdx }) => (
           {i < steps.length - 1 && (
             <span style={{
               width: 48, height: 2, margin: "0 14px",
-              background: "linear-gradient(90deg, " + (done ? "#5B4FE9" : "#E2E8F0") + ", " + (i + 1 <= currentIdx ? "#5B4FE9" : "#E2E8F0") + ")",
+              background: "linear-gradient(90deg, " + (done ? "var(--brand-500)" : "var(--slate-200)") + ", " + (i + 1 <= currentIdx ? "var(--brand-500)" : "var(--slate-200)") + ")",
               borderRadius: 9999, transition: "all 240ms",
             }} />
           )}
@@ -84,13 +84,13 @@ const CandidateHeader = ({ currentStep, showTimer, remaining, total }) => {
   const idx = CANDIDATE_STEPS.findIndex(s => s.id === currentStep);
   return (
     <header style={{
-      height: 64, background: "#FFF", borderBottom: "1px solid #E2E8F0",
+      height: 64, background: "var(--bg-surface)", borderBottom: "1px solid var(--slate-200)",
       display: "grid", gridTemplateColumns: "200px 1fr 200px",
       alignItems: "center", padding: "0 32px",
       position: "sticky", top: 0, zIndex: 10,
     }}>
       <div style={{ display: "flex", alignItems: "center" }}>
-        <window.ScreenoLogo color="#5B4FE9" dotColor="#5B4FE9" size={22} />
+        <window.ScreenoLogo color="var(--brand-500)" dotColor="var(--brand-500)" size={22} />
       </div>
 
       <div style={{ display: "flex", justifyContent: "center" }}>
@@ -101,7 +101,7 @@ const CandidateHeader = ({ currentStep, showTimer, remaining, total }) => {
         {showTimer ? (
           <TimerRing remaining={remaining} total={total} />
         ) : (
-          <span style={{ fontSize: 12, color: "#94A3B8", display: "inline-flex", alignItems: "center", gap: 6 }}>
+          <span style={{ fontSize: 12, color: "var(--slate-400)", display: "inline-flex", alignItems: "center", gap: 6 }}>
             <window.Icon name="user" size={13} /> Candidate
           </span>
         )}
@@ -113,9 +113,9 @@ const CandidateHeader = ({ currentStep, showTimer, remaining, total }) => {
 /* Footer */
 const CandidateFooter = () => (
   <footer style={{
-    height: 48, background: "#FFF", borderTop: "1px solid #E2E8F0",
+    height: 48, background: "var(--bg-surface)", borderTop: "1px solid var(--slate-200)",
     display: "flex", alignItems: "center", justifyContent: "space-between",
-    padding: "0 32px", fontSize: 12, color: "#94A3B8",
+    padding: "0 32px", fontSize: 12, color: "var(--slate-400)",
     flexShrink: 0,
   }}>
     <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
@@ -123,8 +123,8 @@ const CandidateFooter = () => (
       Secure & encrypted
     </span>
     <span style={{ display: "inline-flex", alignItems: "center", gap: 16 }}>
-      <a style={{ color: "#94A3B8", cursor: "pointer" }} onMouseEnter={e => e.target.style.color = "#5B4FE9"} onMouseLeave={e => e.target.style.color = "#94A3B8"}>Help</a>
-      <a style={{ color: "#94A3B8", cursor: "pointer" }} onMouseEnter={e => e.target.style.color = "#5B4FE9"} onMouseLeave={e => e.target.style.color = "#94A3B8"}>Privacy</a>
+      <a style={{ color: "var(--slate-400)", cursor: "pointer" }} onMouseEnter={e => e.target.style.color = "var(--brand-500)"} onMouseLeave={e => e.target.style.color = "var(--slate-400)"}>Help</a>
+      <a style={{ color: "var(--slate-400)", cursor: "pointer" }} onMouseEnter={e => e.target.style.color = "var(--brand-500)"} onMouseLeave={e => e.target.style.color = "var(--slate-400)"}>Privacy</a>
       <span>© 2026 Screeno</span>
     </span>
   </footer>
@@ -141,7 +141,7 @@ const CandidateLayout = ({
   React.useEffect(() => { window.lucide && window.lucide.createIcons(); }, [step, showTimer]);
 
   return (
-    <div style={{ minHeight: "calc(100vh - 52px)", background: "#F8FAFC", display: "flex", flexDirection: "column" }}>
+    <div style={{ minHeight: "calc(100vh - 52px)", background: "var(--slate-50)", display: "flex", flexDirection: "column" }}>
       <CandidateHeader currentStep={step} showTimer={showTimer} remaining={remaining} total={total} />
       <main style={{ flex: 1, display: "flex", justifyContent: "center", padding: "48px 24px" }}>
         <div key={step} style={{

@@ -6,7 +6,12 @@ const express = require('express')
 const bcrypt = require('bcryptjs')
 const authMiddleware = require('../middleware/auth')
 const userRepository = require('../repositories/user.repository')
-const db = require('../db/connection')
+const multer = require('multer')
+const storageService = require('../services/storage.service')
+const pdfService = require('../services/pdf.service')
+const llmService = require('../services/llm.service')
+
+const upload = multer({ storage: multer.memoryStorage() })
 
 const router = express.Router()
 router.use(authMiddleware)
@@ -34,7 +39,7 @@ router.get('/', async (req, res) => {
  */
 router.patch('/', async (req, res) => {
   try {
-    const { firstName, lastName, currentPassword, newPassword } = req.body
+    const { firstName, lastName, currentPassword, newPassword, availability } = req.body
 
     if (newPassword) {
       if (!currentPassword) {
@@ -42,11 +47,7 @@ router.patch('/', async (req, res) => {
       }
 
       // getById omits password for safety — fetch the full row to verify the hash
-      const rows = await db.query(
-        `SELECT * FROM users WHERE id = @id`,
-        { id: req.user.id }
-      )
-      const fullUser = rows[0]
+      const fullUser = await userRepository.getByIdWithPassword(req.user.id)
       if (!fullUser) return res.status(404).json({ success: false, error: 'User not found' })
 
       const valid = await bcrypt.compare(currentPassword, fullUser.password)
@@ -56,8 +57,8 @@ router.patch('/', async (req, res) => {
       await userRepository.updatePassword(req.user.id, hash)
     }
 
-    if (firstName || lastName) {
-      await userRepository.updateProfile(req.user.id, { firstName, lastName })
+    if (firstName || lastName || availability) {
+      await userRepository.updateProfile(req.user.id, { firstName, lastName, availability })
     }
 
     const updated = await userRepository.getById(req.user.id)
@@ -68,6 +69,28 @@ router.patch('/', async (req, res) => {
   } catch (err) {
     console.error('PATCH /profile failed:', err)
     res.status(500).json({ success: false, error: 'Could not update profile' })
+  }
+})
+
+router.post('/resume', upload.single('resume'), async (req, res) => {
+  try {
+    // Same logic as /api/upload/resume but uses req.user.id directly
+    const buffer = req.file.buffer
+    const resumeUrl = await storageService.uploadResume(req.user.id, buffer, req.file.originalname)
+    await userRepository.updateProfile(req.user.id, { resumeUrl })
+    // Fire-and-forget async tag extraction — never blocks the response
+    ;(async () => {
+      try {
+        const text = await pdfService.extractTextFromBuffer(buffer)
+        if (text) {
+          const tags = await llmService.extractTagsFromText(text)
+          await userRepository.updateProfile(req.user.id, { tags: JSON.stringify(tags) })
+        }
+      } catch { /* tag extraction failure is non-fatal */ }
+    })()
+    res.json({ success: true, data: { resumeUrl } })
+  } catch (err) {
+    res.status(500).json({ success: false, error: 'Upload failed' })
   }
 })
 

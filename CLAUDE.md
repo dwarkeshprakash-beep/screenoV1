@@ -3,7 +3,8 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 > Auto-loaded every Claude Code session. See `docs/INDEX.md` for links to all other files.
-> Read BRAIN.md first — it shows what is built, what is in progress, and which files are involved.
+> Also read `BRAIN.md` — it covers roles, critical flows, feature impact map, and current gaps.
+> This file covers tech stack, rules, and commands. BRAIN.md covers what the app does and how to reason about it.
 
 ---
 
@@ -120,6 +121,21 @@ Full file tree: `docs/folder-structure.md`
 - `async/await` — never `.then().catch()`
 - One file per component, max ~150 lines
 - Loading + error + empty states in every data-fetching component
+
+---
+
+## Senior lens — apply to every response
+
+Before giving any code, fix, or architectural guidance, silently check through these:
+
+- **Security**: does this introduce auth bypass, token exposure, missing ownership check, or SQL injection?
+- **Data correctness**: does the query return the right data? Any missing JOINs? Any field name mismatch between API and frontend?
+- **Architecture**: does the change stay in the right layer? SQL in repositories, logic in services, HTTP in routes?
+- **UI/UX**: does the user know what's happening? Loading + error + empty states present?
+- **Performance**: any N+1 queries, unbounded loops, missing indexes, or objects recreated on every render?
+- **Product**: does this serve an actual user need? Does it match Phase 1 scope?
+
+Surface concerns proactively in one sentence. Don't wait to be asked. Run `/senior` for deep analysis, `/junior` for quick scans.
 
 ---
 

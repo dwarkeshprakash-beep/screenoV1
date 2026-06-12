@@ -56,7 +56,7 @@ const PipelineScreen = ({ onOpenCandidate, tweaks, navigate }) => {
     <th className="sortable" style={{ width, textAlign: align }} onClick={() => setSort({ col: id, dir: sort.col === id && sort.dir === "asc" ? "desc" : "asc" })}>
       <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
         {children}
-        <window.Icon name={sort.col === id ? (sort.dir === "asc" ? "chevron-up" : "chevron-down") : "chevrons-up-down"} size={12} color="#94A3B8" />
+        <window.Icon name={sort.col === id ? (sort.dir === "asc" ? "chevron-up" : "chevron-down") : "chevrons-up-down"} size={12} color="var(--slate-400)" />
       </span>
     </th>
   );
@@ -95,7 +95,7 @@ const PipelineScreen = ({ onOpenCandidate, tweaks, navigate }) => {
         <div className="card card-pad" style={{ padding: 0 }}>
           <div style={{ padding: "0 16px" }}>
             {[...Array(6)].map((_, i) => (
-              <div key={i} style={{ display: "flex", alignItems: "center", gap: 16, padding: "16px 0", borderBottom: i < 5 ? "1px solid #F1F5F9" : 0 }}>
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 16, padding: "16px 0", borderBottom: i < 5 ? "1px solid var(--slate-100)" : 0 }}>
                 <window.Skeleton w={32} h={32} r={9999} />
                 <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 6 }}>
                   <window.Skeleton w="40%" h={12} />
@@ -136,19 +136,19 @@ const PipelineScreen = ({ onOpenCandidate, tweaks, navigate }) => {
                   <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                     <window.Avatar name={c.name} size={36} />
                     <div>
-                      <div style={{ fontWeight: 600, color: "#0F172A" }}>{c.name}</div>
-                      <div style={{ fontSize: 12, color: "#6B7280", marginTop: 1, display: "flex", alignItems: "center", gap: 6 }}>
-                        <window.Icon name="map-pin" size={11} color="#94A3B8" />
+                      <div style={{ fontWeight: 600, color: "var(--slate-900)" }}>{c.name}</div>
+                      <div style={{ fontSize: 12, color: "var(--slate-500)", marginTop: 1, display: "flex", alignItems: "center", gap: 6 }}>
+                        <window.Icon name="map-pin" size={11} color="var(--slate-400)" />
                         {c.loc} · {c.exp}
                       </div>
                     </div>
                   </div>
                 </td>
-                <td style={{ color: "#374151" }}>{c.role}</td>
+                <td style={{ color: "var(--slate-700)" }}>{c.role}</td>
                 <td><window.ModeBadge mode={c.mode} /></td>
                 <td><window.StageBadge stage={c.stage} /></td>
                 <td><window.Score value={c.score} /></td>
-                <td style={{ color: "#6B7280", fontSize: 12 }}>{c.applied}</td>
+                <td style={{ color: "var(--slate-500)", fontSize: 12 }}>{c.applied}</td>
                 <td>
                   <button className="btn btn-ghost btn-icon" onClick={(e) => e.stopPropagation()}>
                     <window.Icon name="more-horizontal" size={16} />
@@ -178,12 +178,12 @@ const Kanban = ({ candidates, onOpen, stages }) => {
               <div className="kan-col-title">
                 <span className="kan-col-dot" style={{ background: meta.dot }} />
                 {meta.label}
-                <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "#6B7280", marginLeft: 4 }}>{col.length}</span>
+                <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, color: "var(--slate-500)", marginLeft: 4 }}>{col.length}</span>
               </div>
               <button className="btn btn-ghost btn-icon" style={{ padding: 4 }}><window.Icon name="plus" size={14} /></button>
             </div>
             {col.length === 0 ? (
-              <div style={{ color: "#94A3B8", fontSize: 12, padding: "20px 0", textAlign: "center" }}>None</div>
+              <div style={{ color: "var(--slate-400)", fontSize: 12, padding: "20px 0", textAlign: "center" }}>None</div>
             ) : col.map(c => {
               const mode = MODES[c.mode];
               return (
@@ -191,8 +191,8 @@ const Kanban = ({ candidates, onOpen, stages }) => {
                   <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
                     <window.Avatar name={c.name} size={32} />
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 600, color: "#0F172A", fontSize: 13 }}>{c.name}</div>
-                      <div style={{ fontSize: 11, color: "#6B7280", marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.role}</div>
+                      <div style={{ fontWeight: 600, color: "var(--slate-900)", fontSize: 13 }}>{c.name}</div>
+                      <div style={{ fontSize: 11, color: "var(--slate-500)", marginTop: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{c.role}</div>
                     </div>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 10, gap: 8 }}>

@@ -70,7 +70,8 @@ backend/
 │   │   ├── candidate.routes.js     /api/candidate
 │   │   ├── report.routes.js        /api/reports
 │   │   ├── schedule.routes.js      /api/schedule
-│   │   ├── template.routes.js      /api/templates
+│   │   ├── client-template.routes.js  /api/templates/client
+│   │   ├── monthly-assessment.routes.js /api/assessments/monthly
 │   │   ├── exam.routes.js          /api/exam
 │   │   ├── upload.routes.js        /api/upload
 │   │   └── profile.routes.js       /api/profile
@@ -101,7 +102,10 @@ backend/
 │   │   ├── email-delivery.repository.js
 │   │   ├── refresh-token.repository.js
 │   │   ├── report.repository.js
-│   │   └── report-job.repository.js
+│   │   ├── report-job.repository.js
+│   │   ├── client-template.repository.js
+│   │   ├── monthly-assessment.repository.js
+│   │   └── external-candidate.repository.js
 │   ├── middleware/
 │   │   ├── auth.js         ← validate JWT access token
 │   │   ├── role.js         ← requireRole('manager'|'candidate'|'interviewer')
@@ -227,10 +231,19 @@ GET    /api/reports/team
 GET    /api/reports/candidate/:id
 GET    /api/reports/candidate/:id/history     ← every ready report for the candidate, newest first
 
-GET    /api/templates
-POST   /api/templates
-PATCH  /api/templates/:id
-DELETE /api/templates/:id
+GET    /api/templates/client                  ← manager: list client requirement templates
+POST   /api/templates/client
+GET    /api/templates/client/:id
+PATCH  /api/templates/client/:id
+POST   /api/templates/client/extract-tags    ← LLM tag extraction from JD text
+GET    /api/templates/client/:id/matches     ← team members whose tags overlap template
+POST   /api/templates/client/:id/send-jd    ← email JD to selected team members
+
+GET    /api/assessments/monthly             ← manager: list monthly assessments (with enrollments)
+POST   /api/assessments/monthly
+GET    /api/assessments/monthly/calendar    ← year-view calendar of all enrollments
+POST   /api/assessments/monthly/generate-subtopics
+POST   /api/assessments/monthly/generate-jd
 
 GET    /api/exam/:token
 POST   /api/exam/:token/submit

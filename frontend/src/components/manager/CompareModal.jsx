@@ -5,7 +5,7 @@ import Modal from '../shared/Modal'
 
 const AV_COLORS = [
   { bg: '#EDE9FE', fg: '#5B21B6' }, { bg: '#FED7AA', fg: '#9A3412' },
-  { bg: '#A7F3D0', fg: '#065F46' }, { bg: '#BFDBFE', fg: '#1E40AF' },
+  { bg: '#A7F3D0', fg: 'var(--success-700)' }, { bg: '#BFDBFE', fg: '#1E40AF' },
   { bg: '#FBCFE8', fg: '#9D174D' }, { bg: '#FDE68A', fg: '#854D0E' },
   { bg: '#C7D2FE', fg: '#3730A3' }, { bg: '#FCA5A5', fg: '#7F1D1D' },
 ]
@@ -34,8 +34,8 @@ function Avatar({ name = '?', size = 52 }) {
 function assessLabel(lastAssessed) {
   if (!lastAssessed) return { label: 'Never assessed', bg: '#FEF2F2', fg: '#EF4444' }
   const days = (Date.now() - new Date(lastAssessed).getTime()) / 86400000
-  if (days > 90) return { label: 'Overdue', bg: '#FFFBEB', fg: '#D97706' }
-  return { label: 'Up to date', bg: '#ECFDF5', fg: '#059669' }
+  if (days > 90) return { label: 'Overdue', bg: 'var(--warning-50)', fg: 'var(--warning-500)' }
+  return { label: 'Up to date', bg: 'var(--success-50)', fg: 'var(--success-500)' }
 }
 
 function SkillChip({ label, present }) {
@@ -44,8 +44,8 @@ function SkillChip({ label, present }) {
       display: 'inline-flex', alignItems: 'center', gap: 4,
       padding: '3px 9px', borderRadius: 9999,
       fontSize: 11, fontWeight: 600,
-      background: present ? '#ECFDF5' : '#FEF2F2',
-      color: present ? '#047857' : '#B53618',
+      background: present ? 'var(--success-50)' : '#FEF2F2',
+      color: present ? 'var(--success-600)' : 'var(--danger-700)',
     }}>
       {present ? '✓' : '✗'} {label}
     </span>
@@ -54,18 +54,18 @@ function SkillChip({ label, present }) {
 
 function Row({ label, left, right }) {
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px 1fr', gap: 8, padding: '10px 0', borderBottom: '1px solid #F1F5F9', alignItems: 'center' }}>
-      <div style={{ fontSize: 13, color: '#374151' }}>{left}</div>
-      <div style={{ fontSize: 11, fontWeight: 600, color: '#94A3B8', textAlign: 'center', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</div>
-      <div style={{ fontSize: 13, color: '#374151', textAlign: 'right' }}>{right}</div>
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px 1fr', gap: 8, padding: '10px 0', borderBottom: '1px solid var(--slate-100)', alignItems: 'center' }}>
+      <div style={{ fontSize: 13, color: 'var(--slate-700)' }}>{left}</div>
+      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--slate-400)', textAlign: 'center', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</div>
+      <div style={{ fontSize: 13, color: 'var(--slate-700)', textAlign: 'right' }}>{right}</div>
     </div>
   )
 }
 
-function ScoreBar({ value, max = 5, color = '#5B4FE9' }) {
+function ScoreBar({ value, max = 5, color = 'var(--brand-500)' }) {
   const pct = Math.min(100, (value / max) * 100)
   return (
-    <div style={{ height: 6, background: '#F1F5F9', borderRadius: 9999, overflow: 'hidden', width: '100%' }}>
+    <div style={{ height: 6, background: 'var(--slate-100)', borderRadius: 9999, overflow: 'hidden', width: '100%' }}>
       <div style={{ height: '100%', width: `${pct}%`, background: color, borderRadius: 9999, transition: 'width 500ms cubic-bezier(0.2,0,0,1)' }} />
     </div>
   )
@@ -98,23 +98,23 @@ function CompareModal({ open, onClose, members = [] }) {
     <Modal open={open} onClose={onClose} title="Compare Members" size="lg">
       {/* Header avatars */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 100px 1fr', gap: 8, marginBottom: 24 }}>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, padding: '16px 12px', background: '#FAFAFE', borderRadius: 10, border: '1px solid #EFEDFD' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, padding: '16px 12px', background: '#FAFAFE', borderRadius: 10, border: '1px solid var(--brand-50)' }}>
           <Avatar name={nameA} size={52} />
-          <div style={{ fontWeight: 700, fontSize: 14, color: '#0F172A', textAlign: 'center' }}>{nameA}</div>
-          <div style={{ fontSize: 12, color: '#6B7280', textAlign: 'center' }}>{a.email}</div>
+          <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--slate-900)', textAlign: 'center' }}>{nameA}</div>
+          <div style={{ fontSize: 12, color: 'var(--slate-500)', textAlign: 'center' }}>{a.email}</div>
           <span style={{ padding: '3px 10px', borderRadius: 9999, fontSize: 11, fontWeight: 600, background: assessA.bg, color: assessA.fg }}>{assessA.label}</span>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ width: 36, height: 36, borderRadius: 9999, background: '#F1F5F9', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <span style={{ fontSize: 14, fontWeight: 700, color: '#94A3B8' }}>VS</span>
+          <div style={{ width: 36, height: 36, borderRadius: 9999, background: 'var(--slate-100)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--slate-400)' }}>VS</span>
           </div>
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, padding: '16px 12px', background: '#FAFAFE', borderRadius: 10, border: '1px solid #EFEDFD' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, padding: '16px 12px', background: '#FAFAFE', borderRadius: 10, border: '1px solid var(--brand-50)' }}>
           <Avatar name={nameB} size={52} />
-          <div style={{ fontWeight: 700, fontSize: 14, color: '#0F172A', textAlign: 'center' }}>{nameB}</div>
-          <div style={{ fontSize: 12, color: '#6B7280', textAlign: 'center' }}>{b.email}</div>
+          <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--slate-900)', textAlign: 'center' }}>{nameB}</div>
+          <div style={{ fontSize: 12, color: 'var(--slate-500)', textAlign: 'center' }}>{b.email}</div>
           <span style={{ padding: '3px 10px', borderRadius: 9999, fontSize: 11, fontWeight: 600, background: assessB.bg, color: assessB.fg }}>{assessB.label}</span>
         </div>
       </div>
@@ -122,15 +122,15 @@ function CompareModal({ open, onClose, members = [] }) {
       {/* AI Score comparison */}
       {(scoreA !== null || scoreB !== null) && (
         <div style={{ marginBottom: 20 }}>
-          <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#94A3B8', marginBottom: 10 }}>Latest AI Score</div>
+          <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--slate-400)', marginBottom: 10 }}>Latest AI Score</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 100px 1fr', gap: 8, alignItems: 'center' }}>
             <div>
-              <div style={{ fontWeight: 700, fontSize: 22, color: '#0F172A', marginBottom: 4 }}>{scoreA !== null ? `${scoreA}/5` : '—'}</div>
+              <div style={{ fontWeight: 700, fontSize: 22, color: 'var(--slate-900)', marginBottom: 4 }}>{scoreA !== null ? `${scoreA}/5` : '—'}</div>
               <ScoreBar value={scoreA || 0} />
             </div>
-            <div style={{ textAlign: 'center', fontSize: 11, color: '#94A3B8', fontWeight: 600 }}>SCORE</div>
+            <div style={{ textAlign: 'center', fontSize: 11, color: 'var(--slate-400)', fontWeight: 600 }}>SCORE</div>
             <div style={{ textAlign: 'right' }}>
-              <div style={{ fontWeight: 700, fontSize: 22, color: '#0F172A', marginBottom: 4 }}>{scoreB !== null ? `${scoreB}/5` : '—'}</div>
+              <div style={{ fontWeight: 700, fontSize: 22, color: 'var(--slate-900)', marginBottom: 4 }}>{scoreB !== null ? `${scoreB}/5` : '—'}</div>
               <ScoreBar value={scoreB || 0} />
             </div>
           </div>
@@ -139,7 +139,7 @@ function CompareModal({ open, onClose, members = [] }) {
 
       {/* Basic info comparison */}
       <div style={{ marginBottom: 20 }}>
-        <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#94A3B8', marginBottom: 6 }}>Profile</div>
+        <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--slate-400)', marginBottom: 6 }}>Profile</div>
         <Row
           label="ROLE"
           left={a.role || a.job_title || '—'}
@@ -160,10 +160,10 @@ function CompareModal({ open, onClose, members = [] }) {
       {/* Skills comparison */}
       {allSkills.length > 0 && (
         <div>
-          <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: '#94A3B8', marginBottom: 10 }}>Skills</div>
+          <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--slate-400)', marginBottom: 10 }}>Skills</div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
             <div>
-              <div style={{ fontSize: 11, fontWeight: 600, color: '#5B4FE9', marginBottom: 8 }}>{nameA}</div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--brand-500)', marginBottom: 8 }}>{nameA}</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
                 {allSkills.map(sk => (
                   <SkillChip key={sk} label={sk} present={skillsA.includes(sk)} />
@@ -171,7 +171,7 @@ function CompareModal({ open, onClose, members = [] }) {
               </div>
             </div>
             <div>
-              <div style={{ fontSize: 11, fontWeight: 600, color: '#5B4FE9', marginBottom: 8 }}>{nameB}</div>
+              <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--brand-500)', marginBottom: 8 }}>{nameB}</div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5 }}>
                 {allSkills.map(sk => (
                   <SkillChip key={sk} label={sk} present={skillsB.includes(sk)} />
@@ -183,7 +183,7 @@ function CompareModal({ open, onClose, members = [] }) {
       )}
 
       {allSkills.length === 0 && (
-        <div style={{ textAlign: 'center', padding: '20px 0', color: '#94A3B8', fontSize: 13 }}>
+        <div style={{ textAlign: 'center', padding: '20px 0', color: 'var(--slate-400)', fontSize: 13 }}>
           No skills data yet. Add skills to member profiles to compare.
         </div>
       )}

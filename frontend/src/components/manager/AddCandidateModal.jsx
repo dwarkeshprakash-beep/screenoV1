@@ -15,7 +15,7 @@ const TAB_MANUAL = 'manual'
 // ── tiny avatar ────────────────────────────────────────────────
 const AV_COLORS = [
   { bg: '#EDE9FE', fg: '#5B21B6' }, { bg: '#FED7AA', fg: '#9A3412' },
-  { bg: '#A7F3D0', fg: '#065F46' }, { bg: '#BFDBFE', fg: '#1E40AF' },
+  { bg: '#A7F3D0', fg: 'var(--success-700)' }, { bg: '#BFDBFE', fg: '#1E40AF' },
   { bg: '#FBCFE8', fg: '#9D174D' }, { bg: '#FDE68A', fg: '#854D0E' },
 ]
 function avHash(s) {
@@ -146,35 +146,35 @@ function AddCandidateModal({ open, onClose, onDone }) {
       style={{
         flex: 1, padding: '9px 0', border: 'none', background: 'transparent',
         fontFamily: 'inherit', fontSize: 13, fontWeight: tab === id ? 600 : 500,
-        color: tab === id ? '#5B4FE9' : '#6B7280',
-        borderBottom: tab === id ? '2px solid #5B4FE9' : '2px solid transparent',
+        color: tab === id ? 'var(--brand-500)' : 'var(--slate-500)',
+        borderBottom: tab === id ? '2px solid var(--brand-500)' : '2px solid transparent',
         cursor: 'pointer', transition: 'all 120ms',
       }}
     >{label}</button>
   )
 
   const inputStyle = {
-    width: '100%', padding: '9px 12px', border: '1px solid #CBD5E1', borderRadius: 8,
+    width: '100%', padding: '9px 12px', border: '1px solid var(--slate-300)', borderRadius: 8,
     fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box',
     transition: 'border-color 120ms, box-shadow 120ms',
   }
   const lbl = (text, optional) => (
-    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#374151', marginBottom: 5 }}>
-      {text} {optional && <span style={{ fontWeight: 400, color: '#94A3B8' }}>(optional)</span>}
+    <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--slate-700)', marginBottom: 5 }}>
+      {text} {optional && <span style={{ fontWeight: 400, color: 'var(--slate-400)' }}>(optional)</span>}
     </label>
   )
 
   return (
     <Modal open={open} onClose={onClose} title="Add Team Member" size="md">
       {/* Tabs */}
-      <div style={{ display: 'flex', borderBottom: '1px solid #E2E8F0', marginBottom: 20 }}>
+      <div style={{ display: 'flex', borderBottom: '1px solid var(--slate-200)', marginBottom: 20 }}>
         {tabBtn(TAB_FIND,   'Find in organisation')}
         {tabBtn(TAB_MANUAL, 'Add manually')}
       </div>
 
       {/* Success message */}
       {success && (
-        <div style={{ padding: '10px 14px', background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 8, fontSize: 13, color: '#047857', marginBottom: 16 }}>
+        <div style={{ padding: '10px 14px', background: 'var(--success-50)', border: '1px solid #A7F3D0', borderRadius: 8, fontSize: 13, color: 'var(--success-600)', marginBottom: 16 }}>
           ✓ {success}
         </div>
       )}
@@ -182,7 +182,7 @@ function AddCandidateModal({ open, onClose, onDone }) {
       {/* ── FIND TAB ─────────────────────────────────────────── */}
       {tab === TAB_FIND && (
         <div>
-          <p style={{ fontSize: 12, color: '#6B7280', margin: '0 0 14px' }}>
+          <p style={{ fontSize: 12, color: 'var(--slate-500)', margin: '0 0 14px' }}>
             Search your organisation's users and add one or more to your team. Members can appear in multiple managers' teams.
           </p>
 
@@ -193,21 +193,21 @@ function AddCandidateModal({ open, onClose, onDone }) {
             value={search}
             onChange={e => setSearch(e.target.value)}
             style={{ ...inputStyle, marginBottom: 12 }}
-            onFocus={e => { e.target.style.borderColor = '#5B4FE9'; e.target.style.boxShadow = '0 0 0 3px rgba(91,79,233,0.18)' }}
-            onBlur={e => { e.target.style.borderColor = '#CBD5E1'; e.target.style.boxShadow = 'none' }}
+            onFocus={e => { e.target.style.borderColor = 'var(--brand-500)'; e.target.style.boxShadow = '0 0 0 3px rgba(91,79,233,0.18)' }}
+            onBlur={e => { e.target.style.borderColor = 'var(--slate-300)'; e.target.style.boxShadow = 'none' }}
           />
 
           {selected.size > 0 && (
-            <div style={{ fontSize: 12, color: '#5B4FE9', fontWeight: 600, marginBottom: 8 }}>
+            <div style={{ fontSize: 12, color: 'var(--brand-500)', fontWeight: 600, marginBottom: 8 }}>
               {selected.size} selected
             </div>
           )}
 
-          <div style={{ maxHeight: 280, overflowY: 'auto', border: '1px solid #E2E8F0', borderRadius: 8 }}>
+          <div style={{ maxHeight: 280, overflowY: 'auto', border: '1px solid var(--slate-200)', borderRadius: 8 }}>
             {usersLoading ? (
               <Spinner center />
             ) : filtered.length === 0 ? (
-              <div style={{ padding: '20px', textAlign: 'center', color: '#94A3B8', fontSize: 13 }}>
+              <div style={{ padding: '20px', textAlign: 'center', color: 'var(--slate-400)', fontSize: 13 }}>
                 {search ? 'No users match your search.' : 'All organisation users are already in your team.'}
               </div>
             ) : (
@@ -221,27 +221,27 @@ function AddCandidateModal({ open, onClose, onDone }) {
                     style={{
                       display: 'flex', alignItems: 'center', gap: 12,
                       padding: '10px 14px', cursor: 'pointer',
-                      borderTop: i === 0 ? 'none' : '1px solid #F1F5F9',
-                      background: isSel ? '#FAFAFE' : '#FFF',
+                      borderTop: i === 0 ? 'none' : '1px solid var(--slate-100)',
+                      background: isSel ? '#FAFAFE' : 'var(--bg-surface)',
                       transition: 'background 100ms',
                     }}
-                    onMouseEnter={e => { if (!isSel) e.currentTarget.style.background = '#F8FAFC' }}
-                    onMouseLeave={e => { if (!isSel) e.currentTarget.style.background = '#FFF' }}
+                    onMouseEnter={e => { if (!isSel) e.currentTarget.style.background = 'var(--slate-50)' }}
+                    onMouseLeave={e => { if (!isSel) e.currentTarget.style.background = 'var(--bg-surface)' }}
                   >
                     <input
                       type="checkbox"
                       checked={isSel}
                       onChange={() => toggleUser(u.id)}
                       onClick={e => e.stopPropagation()}
-                      style={{ accentColor: '#5B4FE9', cursor: 'pointer', flexShrink: 0 }}
+                      style={{ accentColor: 'var(--brand-500)', cursor: 'pointer', flexShrink: 0 }}
                     />
                     <TinyAv name={name} />
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontWeight: 600, fontSize: 13, color: '#0F172A', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</div>
-                      <div style={{ fontSize: 11, color: '#6B7280' }}>{u.email}</div>
+                      <div style={{ fontWeight: 600, fontSize: 13, color: 'var(--slate-900)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</div>
+                      <div style={{ fontSize: 11, color: 'var(--slate-500)' }}>{u.email}</div>
                     </div>
                     {u.last_assessed && (
-                      <span style={{ fontSize: 11, color: '#94A3B8', whiteSpace: 'nowrap' }}>
+                      <span style={{ fontSize: 11, color: 'var(--slate-400)', whiteSpace: 'nowrap' }}>
                         Last assessed {new Date(u.last_assessed).toLocaleDateString()}
                       </span>
                     )}
@@ -265,7 +265,7 @@ function AddCandidateModal({ open, onClose, onDone }) {
       {/* ── MANUAL TAB ───────────────────────────────────────── */}
       {tab === TAB_MANUAL && (
         <form onSubmit={handleManualSubmit}>
-          <p style={{ fontSize: 12, color: '#6B7280', margin: '0 0 16px' }}>
+          <p style={{ fontSize: 12, color: 'var(--slate-500)', margin: '0 0 16px' }}>
             Add someone who isn't in the system yet. They'll receive an invite email when you schedule their first interview.
           </p>
 
@@ -279,8 +279,8 @@ function AddCandidateModal({ open, onClose, onDone }) {
                   value={form.firstName}
                   onChange={e => setF('firstName', e.target.value)}
                   style={inputStyle}
-                  onFocus={e => { e.target.style.borderColor = '#5B4FE9'; e.target.style.boxShadow = '0 0 0 3px rgba(91,79,233,0.18)' }}
-                  onBlur={e => { e.target.style.borderColor = '#CBD5E1'; e.target.style.boxShadow = 'none' }}
+                  onFocus={e => { e.target.style.borderColor = 'var(--brand-500)'; e.target.style.boxShadow = '0 0 0 3px rgba(91,79,233,0.18)' }}
+                  onBlur={e => { e.target.style.borderColor = 'var(--slate-300)'; e.target.style.boxShadow = 'none' }}
                 />
               </div>
               <div>
@@ -291,8 +291,8 @@ function AddCandidateModal({ open, onClose, onDone }) {
                   value={form.lastName}
                   onChange={e => setF('lastName', e.target.value)}
                   style={inputStyle}
-                  onFocus={e => { e.target.style.borderColor = '#5B4FE9'; e.target.style.boxShadow = '0 0 0 3px rgba(91,79,233,0.18)' }}
-                  onBlur={e => { e.target.style.borderColor = '#CBD5E1'; e.target.style.boxShadow = 'none' }}
+                  onFocus={e => { e.target.style.borderColor = 'var(--brand-500)'; e.target.style.boxShadow = '0 0 0 3px rgba(91,79,233,0.18)' }}
+                  onBlur={e => { e.target.style.borderColor = 'var(--slate-300)'; e.target.style.boxShadow = 'none' }}
                 />
               </div>
             </div>
@@ -305,8 +305,8 @@ function AddCandidateModal({ open, onClose, onDone }) {
                 value={form.email}
                 onChange={e => setF('email', e.target.value)}
                 style={inputStyle}
-                onFocus={e => { e.target.style.borderColor = '#5B4FE9'; e.target.style.boxShadow = '0 0 0 3px rgba(91,79,233,0.18)' }}
-                onBlur={e => { e.target.style.borderColor = '#CBD5E1'; e.target.style.boxShadow = 'none' }}
+                onFocus={e => { e.target.style.borderColor = 'var(--brand-500)'; e.target.style.boxShadow = '0 0 0 3px rgba(91,79,233,0.18)' }}
+                onBlur={e => { e.target.style.borderColor = 'var(--slate-300)'; e.target.style.boxShadow = 'none' }}
               />
             </div>
 
@@ -318,8 +318,8 @@ function AddCandidateModal({ open, onClose, onDone }) {
                 value={form.phone}
                 onChange={e => setF('phone', e.target.value)}
                 style={inputStyle}
-                onFocus={e => { e.target.style.borderColor = '#5B4FE9'; e.target.style.boxShadow = '0 0 0 3px rgba(91,79,233,0.18)' }}
-                onBlur={e => { e.target.style.borderColor = '#CBD5E1'; e.target.style.boxShadow = 'none' }}
+                onFocus={e => { e.target.style.borderColor = 'var(--brand-500)'; e.target.style.boxShadow = '0 0 0 3px rgba(91,79,233,0.18)' }}
+                onBlur={e => { e.target.style.borderColor = 'var(--slate-300)'; e.target.style.boxShadow = 'none' }}
               />
             </div>
 
@@ -332,8 +332,8 @@ function AddCandidateModal({ open, onClose, onDone }) {
                   value={form.employeeId}
                   onChange={e => setF('employeeId', e.target.value)}
                   style={inputStyle}
-                  onFocus={e => { e.target.style.borderColor = '#5B4FE9'; e.target.style.boxShadow = '0 0 0 3px rgba(91,79,233,0.18)' }}
-                  onBlur={e => { e.target.style.borderColor = '#CBD5E1'; e.target.style.boxShadow = 'none' }}
+                  onFocus={e => { e.target.style.borderColor = 'var(--brand-500)'; e.target.style.boxShadow = '0 0 0 3px rgba(91,79,233,0.18)' }}
+                  onBlur={e => { e.target.style.borderColor = 'var(--slate-300)'; e.target.style.boxShadow = 'none' }}
                 />
               </div>
               <div>
@@ -344,8 +344,8 @@ function AddCandidateModal({ open, onClose, onDone }) {
                   value={form.department}
                   onChange={e => setF('department', e.target.value)}
                   style={inputStyle}
-                  onFocus={e => { e.target.style.borderColor = '#5B4FE9'; e.target.style.boxShadow = '0 0 0 3px rgba(91,79,233,0.18)' }}
-                  onBlur={e => { e.target.style.borderColor = '#CBD5E1'; e.target.style.boxShadow = 'none' }}
+                  onFocus={e => { e.target.style.borderColor = 'var(--brand-500)'; e.target.style.boxShadow = '0 0 0 3px rgba(91,79,233,0.18)' }}
+                  onBlur={e => { e.target.style.borderColor = 'var(--slate-300)'; e.target.style.boxShadow = 'none' }}
                 />
               </div>
             </div>
@@ -358,8 +358,8 @@ function AddCandidateModal({ open, onClose, onDone }) {
                 value={form.position}
                 onChange={e => setF('position', e.target.value)}
                 style={inputStyle}
-                onFocus={e => { e.target.style.borderColor = '#5B4FE9'; e.target.style.boxShadow = '0 0 0 3px rgba(91,79,233,0.18)' }}
-                onBlur={e => { e.target.style.borderColor = '#CBD5E1'; e.target.style.boxShadow = 'none' }}
+                onFocus={e => { e.target.style.borderColor = 'var(--brand-500)'; e.target.style.boxShadow = '0 0 0 3px rgba(91,79,233,0.18)' }}
+                onBlur={e => { e.target.style.borderColor = 'var(--slate-300)'; e.target.style.boxShadow = 'none' }}
               />
             </div>
 
@@ -370,8 +370,8 @@ function AddCandidateModal({ open, onClose, onDone }) {
                   value={form.source}
                   onChange={e => setF('source', e.target.value)}
                   style={inputStyle}
-                  onFocus={e => { e.target.style.borderColor = '#5B4FE9'; e.target.style.boxShadow = '0 0 0 3px rgba(91,79,233,0.18)' }}
-                  onBlur={e => { e.target.style.borderColor = '#CBD5E1'; e.target.style.boxShadow = 'none' }}
+                  onFocus={e => { e.target.style.borderColor = 'var(--brand-500)'; e.target.style.boxShadow = '0 0 0 3px rgba(91,79,233,0.18)' }}
+                  onBlur={e => { e.target.style.borderColor = 'var(--slate-300)'; e.target.style.boxShadow = 'none' }}
                 >
                   <option value="LinkedIn">LinkedIn</option>
                   <option value="Naukri">Naukri</option>
@@ -391,16 +391,16 @@ function AddCandidateModal({ open, onClose, onDone }) {
                     onClick={() => setF('type', t)}
                     style={{
                       flex: 1, padding: '8px 0', borderRadius: 8, fontFamily: 'inherit',
-                      border: `1px solid ${form.type === t ? '#5B4FE9' : '#E2E8F0'}`,
-                      background: form.type === t ? '#EFEDFD' : '#FFF',
-                      color: form.type === t ? '#3A31A3' : '#374151',
+                      border: `1px solid ${form.type === t ? 'var(--brand-500)' : 'var(--slate-200)'}`,
+                      background: form.type === t ? 'var(--brand-50)' : 'var(--bg-surface)',
+                      color: form.type === t ? 'var(--brand-700)' : 'var(--slate-700)',
                       fontWeight: 600, fontSize: 13, cursor: 'pointer', transition: 'all 120ms',
                       textTransform: 'capitalize',
                     }}
                   >{t}</button>
                 ))}
               </div>
-              <p style={{ fontSize: 11, color: '#94A3B8', margin: '6px 0 0' }}>
+              <p style={{ fontSize: 11, color: 'var(--slate-400)', margin: '6px 0 0' }}>
                 Internal = employee. External = freelancer or contractor.
               </p>
             </div>

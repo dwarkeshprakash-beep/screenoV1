@@ -185,4 +185,34 @@ async function sendReportReady(to, { candidate, interviewId, companyName }) {
   })
 }
 
-module.exports = { sendMail, sendMagicLink, sendReportReady, getDeliveredRecipients }
+async function sendJDForResumeUpdate(to, { candidateName, clientName, jdText, deadline }) {
+  const deadlineStr = deadline ? new Date(deadline).toLocaleDateString('en-IN') : 'as soon as possible'
+
+  await sendMail({
+    to,
+    subject: `Action required: Update your resume for ${clientName}`,
+    text: [
+      `Hi ${candidateName},`,
+      '',
+      `Your profile is being considered for a requirement at ${clientName}.`,
+      `Please update your resume to highlight the following skills by ${deadlineStr}.`,
+      '',
+      jdText ? `Requirement details:\n${jdText}` : '',
+      '',
+      'Log in to your Screeno account to upload your updated resume.',
+      'This is an automated email from Praskesh Infotech. Please do not reply.',
+    ].join('\n'),
+    html: `
+      <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px">
+        <h2 style="color:#0F172A">Update your resume</h2>
+        <p>Hi <strong>${candidateName}</strong>,</p>
+        <p>Your profile is being considered for a requirement at <strong>${clientName}</strong>.</p>
+        <p>Please update your resume to highlight the relevant skills and upload it by <strong>${deadlineStr}</strong>.</p>
+        ${jdText ? `<div style="background:#F8FAFC;border-left:4px solid #5B4FE9;padding:16px;margin:16px 0;font-size:14px;color:#374151;white-space:pre-line">${jdText.slice(0, 1500)}</div>` : ''}
+        <p style="color:#94A3B8;font-size:12px">This is an automated email from Praskesh Infotech. Please do not reply.</p>
+      </div>
+    `,
+  })
+}
+
+module.exports = { sendMail, sendMagicLink, sendReportReady, sendJDForResumeUpdate, getDeliveredRecipients }

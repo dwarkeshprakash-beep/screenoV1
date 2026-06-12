@@ -28,7 +28,7 @@ const LoginScreen = ({ navigate }) => {
       <div style={{ padding: "48px 64px", display: "flex", flexDirection: "column", justifyContent: "space-between", position: "relative", overflow: "hidden", borderRight: "1px solid rgba(226,232,240,0.6)" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <div className="sb-brand-mark" />
-          <span style={{ fontSize: 19, fontWeight: 700, color: "#0F172A", letterSpacing: "-0.02em" }}>Screeno</span>
+          <span style={{ fontSize: 19, fontWeight: 700, color: "var(--slate-900)", letterSpacing: "-0.02em" }}>Screeno</span>
         </div>
 
         <div style={{ maxWidth: 480 }}>
@@ -36,7 +36,7 @@ const LoginScreen = ({ navigate }) => {
           <h1 className="display" style={{ fontSize: 48, lineHeight: 1.1, margin: "14px 0 18px", letterSpacing: "-0.03em" }}>
             One pipeline.<br />Three interviewers.
           </h1>
-          <p style={{ fontSize: 15, color: "#374151", lineHeight: 1.7, margin: 0 }}>
+          <p style={{ fontSize: 15, color: "var(--slate-700)", lineHeight: 1.7, margin: 0 }}>
             Coding exams, AI voice screens, and live video interviews — all in one place, with consistent scorecards your hiring panel can trust.
           </p>
 
@@ -47,35 +47,35 @@ const LoginScreen = ({ navigate }) => {
               { icon: "video",     title: "Live video interview",    body: "Built-in scorecard, suggested questions, and recording." },
             ].map((f, i) => (
               <div key={i} style={{ display: "flex", gap: 14, alignItems: "flex-start" }}>
-                <div style={{ width: 36, height: 36, borderRadius: 8, background: "#FFF", border: "1px solid #E2E8F0", color: "#5B4FE9", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                <div style={{ width: 36, height: 36, borderRadius: 8, background: "var(--bg-surface)", border: "1px solid var(--slate-200)", color: "var(--brand-500)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
                   <window.Icon name={f.icon} size={16} />
                 </div>
                 <div>
-                  <div style={{ fontWeight: 600, color: "#0F172A", fontSize: 14 }}>{f.title}</div>
-                  <div style={{ fontSize: 13, color: "#6B7280", marginTop: 2 }}>{f.body}</div>
+                  <div style={{ fontWeight: 600, color: "var(--slate-900)", fontSize: 14 }}>{f.title}</div>
+                  <div style={{ fontSize: 13, color: "var(--slate-500)", marginTop: 2 }}>{f.body}</div>
                 </div>
               </div>
             ))}
           </div>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 14, fontSize: 12, color: "#6B7280" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 14, fontSize: 12, color: "var(--slate-500)" }}>
           <window.Avatar name="Rohit K" size={28} />
           <div style={{ flex: 1, lineHeight: 1.5 }}>
             "We cut time-to-hire from 32 days to 14 in one quarter. The AI screen is shockingly good."
-            <div style={{ marginTop: 4, color: "#0F172A", fontWeight: 600 }}>Rohit Kapoor — Head of Engineering, Razorpe</div>
+            <div style={{ marginTop: 4, color: "var(--slate-900)", fontWeight: 600 }}>Rohit Kapoor — Head of Engineering, Razorpe</div>
           </div>
         </div>
       </div>
 
       {/* Right panel — form */}
-      <div style={{ background: "#FFF", padding: "48px 56px", display: "flex", flexDirection: "column", justifyContent: "center" }}>
+      <div style={{ background: "var(--bg-surface)", padding: "48px 56px", display: "flex", flexDirection: "column", justifyContent: "center" }}>
         <div style={{ maxWidth: 380, width: "100%", margin: "0 auto" }}>
           <h2 className="display" style={{ fontSize: 28, margin: 0, marginBottom: 6, letterSpacing: "-0.02em" }}>Welcome back</h2>
-          <p style={{ fontSize: 14, color: "#6B7280", margin: "0 0 28px" }}>Sign in to your Screeno workspace.</p>
+          <p style={{ fontSize: 14, color: "var(--slate-500)", margin: "0 0 28px" }}>Sign in to your Screeno workspace.</p>
 
           {/* Role tabs */}
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6, padding: 4, background: "#F1F5F9", borderRadius: 10, marginBottom: 24 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6, padding: 4, background: "var(--slate-100)", borderRadius: 10, marginBottom: 24 }}>
             {[
               { id: "hr", label: "HR / Recruiter", icon: "user-cog" },
               { id: "interviewer", label: "Interviewer", icon: "users" },
@@ -87,8 +87,8 @@ const LoginScreen = ({ navigate }) => {
                 style={{
                   display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
                   padding: "10px 6px", borderRadius: 6, border: 0,
-                  background: role === r.id ? "#FFF" : "transparent",
-                  color: role === r.id ? "#5B4FE9" : "#6B7280",
+                  background: role === r.id ? "var(--bg-surface)" : "transparent",
+                  color: role === r.id ? "var(--brand-500)" : "var(--slate-500)",
                   fontWeight: role === r.id ? 600 : 500, fontSize: 12,
                   boxShadow: role === r.id ? "0 1px 3px rgba(15,23,42,0.06)" : "none",
                   cursor: "pointer", transition: "all 120ms",
@@ -116,7 +116,7 @@ const LoginScreen = ({ navigate }) => {
             <div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
                 <label className="label">Password</label>
-                <a style={{ fontSize: 12, color: "#5B4FE9", fontWeight: 500, cursor: "pointer" }}>Forgot?</a>
+                <a style={{ fontSize: 12, color: "var(--brand-500)", fontWeight: 500, cursor: "pointer" }}>Forgot?</a>
               </div>
               <input
                 type="password"
@@ -128,8 +128,8 @@ const LoginScreen = ({ navigate }) => {
               {errors.password && <div className="field-err"><window.Icon name="alert-circle" size={12} /> {errors.password}</div>}
             </div>
 
-            <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "#374151", cursor: "pointer", marginTop: 4 }}>
-              <input type="checkbox" defaultChecked style={{ width: 16, height: 16, accentColor: "#5B4FE9" }} />
+            <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, color: "var(--slate-700)", cursor: "pointer", marginTop: 4 }}>
+              <input type="checkbox" defaultChecked style={{ width: 16, height: 16, accentColor: "var(--brand-500)" }} />
               Keep me signed in
             </label>
 
@@ -137,8 +137,8 @@ const LoginScreen = ({ navigate }) => {
               {submitting ? <><window.Icon name="loader-2" size={14} style={{ animation: "spin 1s linear infinite" }} /> Signing in…</> : <>Sign in <window.Icon name="arrow-right" size={14} /></>}
             </button>
 
-            <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "6px 0", color: "#94A3B8", fontSize: 11, fontWeight: 500 }}>
-              <div style={{ flex: 1, height: 1, background: "#E2E8F0" }} /> OR <div style={{ flex: 1, height: 1, background: "#E2E8F0" }} />
+            <div style={{ display: "flex", alignItems: "center", gap: 12, margin: "6px 0", color: "var(--slate-400)", fontSize: 11, fontWeight: 500 }}>
+              <div style={{ flex: 1, height: 1, background: "var(--slate-200)" }} /> OR <div style={{ flex: 1, height: 1, background: "var(--slate-200)" }} />
             </div>
 
             <button type="button" className="btn btn-secondary btn-lg" style={{ width: "100%" }}>
@@ -147,8 +147,8 @@ const LoginScreen = ({ navigate }) => {
             </button>
           </form>
 
-          <div style={{ textAlign: "center", marginTop: 24, fontSize: 13, color: "#6B7280" }}>
-            New to Screeno? <a style={{ color: "#5B4FE9", fontWeight: 500, cursor: "pointer" }}>Request access</a>
+          <div style={{ textAlign: "center", marginTop: 24, fontSize: 13, color: "var(--slate-500)" }}>
+            New to Screeno? <a style={{ color: "var(--brand-500)", fontWeight: 500, cursor: "pointer" }}>Request access</a>
           </div>
         </div>
       </div>

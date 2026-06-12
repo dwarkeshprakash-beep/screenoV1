@@ -52,11 +52,14 @@ async function updateMember(id, data, managerId) {
   const member = await teamMemberRepository.getByIdForManager(id, managerId)
   if (!member) throw new Error('Member not found')
 
-  if (data.firstName !== undefined || data.lastName !== undefined || data.resumeUrl !== undefined) {
+  const hasProfileUpdate = data.firstName !== undefined || data.lastName !== undefined
+    || data.resumeUrl !== undefined || data.availability !== undefined
+  if (hasProfileUpdate) {
     await userRepository.updateProfile(member.user_id, {
-      firstName: data.firstName || null,
-      lastName:  data.lastName  || null,
-      resumeUrl: data.resumeUrl || null,
+      firstName:    data.firstName    || null,
+      lastName:     data.lastName     || null,
+      resumeUrl:    data.resumeUrl    || null,
+      availability: data.availability || null,
     })
   }
 

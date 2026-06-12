@@ -148,24 +148,24 @@ function DeviceCheckPage() {
 
   return (
     <div style={{ padding: '40px 24px', maxWidth: 540, margin: '0 auto' }}>
-      <h1 style={{ fontFamily: 'Inter, sans-serif', fontSize: 24, fontWeight: 700, color: '#0F172A', margin: '0 0 4px', letterSpacing: '-0.02em' }}>
+      <h1 style={{ fontFamily: 'Inter, sans-serif', fontSize: 24, fontWeight: 700, color: 'var(--slate-900)', margin: '0 0 4px', letterSpacing: '-0.02em' }}>
         Let&apos;s check your device
       </h1>
-      <p style={{ fontSize: 14, color: '#6B7280', margin: '0 0 24px' }}>This takes about 30 seconds.</p>
+      <p style={{ fontSize: 14, color: 'var(--slate-500)', margin: '0 0 24px' }}>This takes about 30 seconds.</p>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 20 }}>
         {CHECKS.map(c => {
           const st = getStatus(c.id)
-          const iconBg  = st === 'pass' ? '#ECFDF5' : st === 'checking' ? '#EFEDFD' : st === 'fail' ? '#FEF2F2' : '#F1F5F9'
-          const iconClr = st === 'pass' ? '#059669' : st === 'checking' ? '#5B4FE9' : st === 'fail' ? '#EF4444' : '#94A3B8'
+          const iconBg  = st === 'pass' ? 'var(--success-50)' : st === 'checking' ? 'var(--brand-50)' : st === 'fail' ? '#FEF2F2' : 'var(--slate-100)'
+          const iconClr = st === 'pass' ? 'var(--success-500)' : st === 'checking' ? 'var(--brand-500)' : st === 'fail' ? '#EF4444' : 'var(--slate-400)'
           return (
-            <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', background: '#FFF', border: '1px solid #E2E8F0', borderRadius: 12, transition: 'all 220ms' }}>
+            <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', background: 'var(--bg-surface)', border: '1px solid var(--slate-200)', borderRadius: 12, transition: 'all 220ms' }}>
               <div style={{ width: 40, height: 40, borderRadius: 10, background: iconBg, color: iconClr, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 220ms' }}>
                 <c.icon size={18} />
               </div>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 14, fontWeight: 600, color: '#0F172A' }}>{c.label}</div>
-                <div style={{ fontSize: 12, color: '#6B7280', marginTop: 1 }}>
+                <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--slate-900)' }}>{c.label}</div>
+                <div style={{ fontSize: 12, color: 'var(--slate-500)', marginTop: 1 }}>
                   {st === 'idle' && 'Waiting…'}
                   {st === 'checking' && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Loader2 size={12} style={{ animation: 'v2spin 1s linear infinite' }} />Checking…</span>}
                   {st === 'pass' && c.detail}
@@ -173,11 +173,11 @@ function DeviceCheckPage() {
                 </div>
                 {c.id === 'speaker' && st !== 'pass' && statuses.camera === 'pass' && (
                   <div style={{ marginTop: 8, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                    <button onClick={playTestTone} style={{ padding: '5px 10px', border: '1px solid #CBD5E1', borderRadius: 7, background: '#FFF', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                    <button onClick={playTestTone} style={{ padding: '5px 10px', border: '1px solid var(--slate-300)', borderRadius: 7, background: 'var(--bg-surface)', fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
                       <Play size={11} /> Test
                     </button>
                     {speakerPlayed && !speakerConfirmed && (
-                      <button onClick={confirmSpeaker} style={{ padding: '5px 10px', border: 0, borderRadius: 7, background: '#059669', color: '#FFF', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
+                      <button onClick={confirmSpeaker} style={{ padding: '5px 10px', border: 0, borderRadius: 7, background: 'var(--success-500)', color: 'var(--bg-surface)', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>
                         I heard it
                       </button>
                     )}
@@ -188,12 +188,12 @@ function DeviceCheckPage() {
                 {st === 'pass' && c.extraType === 'level' && (
                   <div style={{ display: 'flex', alignItems: 'center', gap: 2, height: 24 }}>
                     {micBars.map((v, j) => (
-                      <span key={j} style={{ width: 3, height: `${Math.max(6, v * 22)}px`, background: '#5B4FE9', borderRadius: 9999, transition: 'height 180ms', display: 'inline-block' }} />
+                      <span key={j} style={{ width: 3, height: `${Math.max(6, v * 22)}px`, background: 'var(--brand-500)', borderRadius: 9999, transition: 'height 180ms', display: 'inline-block' }} />
                     ))}
                   </div>
                 )}
                 {st === 'pass' && <CheckCircle2 size={20} color="#10B981" />}
-                {st === 'checking' && <Loader2 size={20} color="#94A3B8" style={{ animation: 'v2spin 1s linear infinite' }} />}
+                {st === 'checking' && <Loader2 size={20} color="var(--slate-400)" style={{ animation: 'v2spin 1s linear infinite' }} />}
                 {st === 'fail' && <XCircle size={20} color="#EF4444" />}
               </div>
             </div>
@@ -202,7 +202,7 @@ function DeviceCheckPage() {
       </div>
 
       {allPassed && (
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 10, marginBottom: 14, color: '#047857', fontSize: 13, fontWeight: 600 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', background: 'var(--success-50)', border: '1px solid #A7F3D0', borderRadius: 10, marginBottom: 14, color: 'var(--success-600)', fontSize: 13, fontWeight: 600 }}>
           <CheckCircle2 size={15} /> All checks passed — you&apos;re good to go!
         </div>
       )}
@@ -213,7 +213,7 @@ function DeviceCheckPage() {
           localStorage.setItem('screenoDeviceBypass', String(!allPassed))
           navigate(`/interview/${token}/consent`)
         }}
-        style={{ width: '100%', padding: '13px 20px', borderRadius: 10, background: checksComplete ? '#5B4FE9' : '#E2E8F0', color: checksComplete ? '#FFF' : '#94A3B8', border: 0, fontSize: 14, fontWeight: 600, cursor: checksComplete ? 'pointer' : 'not-allowed', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, boxShadow: checksComplete ? '0 8px 20px rgba(91,79,233,0.25)' : 'none', transition: 'all 160ms' }}
+        style={{ width: '100%', padding: '13px 20px', borderRadius: 10, background: checksComplete ? 'var(--brand-500)' : 'var(--slate-200)', color: checksComplete ? 'var(--bg-surface)' : 'var(--slate-400)', border: 0, fontSize: 14, fontWeight: 600, cursor: checksComplete ? 'pointer' : 'not-allowed', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, boxShadow: checksComplete ? '0 8px 20px rgba(91,79,233,0.25)' : 'none', transition: 'all 160ms' }}
       >
         Continue <ArrowRight size={14} />
       </button>

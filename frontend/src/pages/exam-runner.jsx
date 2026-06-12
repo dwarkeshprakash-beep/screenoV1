@@ -68,10 +68,10 @@ const ExamRunnerScreenV2 = ({ initialKind = "mcq", onExit }) => {
   return (
     <div style={{ display: "grid", gridTemplateColumns: "280px 1fr", gap: 24, maxWidth: 1280, margin: "0 auto" }}>
       {/* Left — question nav */}
-      <aside style={{ background: "#FFF", border: "1px solid #E2E8F0", borderRadius: 12, padding: 16, height: "fit-content", boxShadow: "0 1px 3px rgba(15,23,42,0.04)", position: "sticky", top: 80 }}>
+      <aside style={{ background: "var(--bg-surface)", border: "1px solid var(--slate-200)", borderRadius: 12, padding: 16, height: "fit-content", boxShadow: "0 1px 3px rgba(15,23,42,0.04)", position: "sticky", top: 80 }}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: "#0F172A" }}>{EXAM_SECTION.name}</div>
-          <button style={{ background: "transparent", border: 0, color: "#94A3B8", cursor: "pointer", padding: 4, borderRadius: 4 }} title="Collapse section">
+          <div style={{ fontSize: 13, fontWeight: 600, color: "var(--slate-900)" }}>{EXAM_SECTION.name}</div>
+          <button style={{ background: "transparent", border: 0, color: "var(--slate-400)", cursor: "pointer", padding: 4, borderRadius: 4 }} title="Collapse section">
             <window.Icon name="chevron-down" size={14} />
           </button>
         </div>
@@ -82,26 +82,26 @@ const ExamRunnerScreenV2 = ({ initialKind = "mcq", onExit }) => {
           ))}
         </div>
 
-        <div style={{ fontSize: 12, color: "#6B7280", marginBottom: 8 }}>
-          <span style={{ fontFamily: "var(--font-mono)", color: "#0F172A", fontWeight: 600 }}>{EXAM_SECTION.answered}</span> of {EXAM_SECTION.total} answered
+        <div style={{ fontSize: 12, color: "var(--slate-500)", marginBottom: 8 }}>
+          <span style={{ fontFamily: "var(--font-mono)", color: "var(--slate-900)", fontWeight: 600 }}>{EXAM_SECTION.answered}</span> of {EXAM_SECTION.total} answered
         </div>
-        <div style={{ height: 4, background: "#F1F5F9", borderRadius: 9999, overflow: "hidden" }}>
-          <div style={{ height: "100%", width: `${sectionPct}%`, background: "#5B4FE9", borderRadius: 9999, transition: "width 240ms" }} />
+        <div style={{ height: 4, background: "var(--slate-100)", borderRadius: 9999, overflow: "hidden" }}>
+          <div style={{ height: "100%", width: `${sectionPct}%`, background: "var(--brand-500)", borderRadius: 9999, transition: "width 240ms" }} />
         </div>
 
         {/* Legend */}
-        <div style={{ marginTop: 18, paddingTop: 14, borderTop: "1px solid #F1F5F9", display: "flex", flexDirection: "column", gap: 8 }}>
-          <Legend color="#5B4FE9" label="Answered" />
-          <Legend color="#FFF" border="#5B4FE9" label="Current" />
-          <Legend color="#FEF3C7" textColor="#92400E" label="Skipped" />
-          <Legend color="#F1F5F9" label="Unanswered" />
+        <div style={{ marginTop: 18, paddingTop: 14, borderTop: "1px solid var(--slate-100)", display: "flex", flexDirection: "column", gap: 8 }}>
+          <Legend color="var(--brand-500)" label="Answered" />
+          <Legend color="var(--bg-surface)" border="var(--brand-500)" label="Current" />
+          <Legend color="var(--warning-100)" textColor="var(--warning-700)" label="Skipped" />
+          <Legend color="var(--slate-100)" label="Unanswered" />
         </div>
 
         <button
           onClick={() => setSubmitOpen(true)}
-          style={{ marginTop: 18, width: "100%", padding: "10px 14px", background: "#FFF", border: "1px solid #5B4FE9", borderRadius: 8, color: "#5B4FE9", fontWeight: 600, fontSize: 13, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, transition: "all 120ms" }}
-          onMouseEnter={e => { e.currentTarget.style.background = "#EFEDFD"; }}
-          onMouseLeave={e => { e.currentTarget.style.background = "#FFF"; }}
+          style={{ marginTop: 18, width: "100%", padding: "10px 14px", background: "var(--bg-surface)", border: "1px solid var(--brand-500)", borderRadius: 8, color: "var(--brand-500)", fontWeight: 600, fontSize: 13, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6, transition: "all 120ms" }}
+          onMouseEnter={e => { e.currentTarget.style.background = "var(--brand-50)"; }}
+          onMouseLeave={e => { e.currentTarget.style.background = "var(--bg-surface)"; }}
         >
           Submit section <window.Icon name="arrow-right" size={12} />
         </button>
@@ -111,13 +111,13 @@ const ExamRunnerScreenV2 = ({ initialKind = "mcq", onExit }) => {
       <main style={{ display: "flex", flexDirection: "column", gap: 16 }}>
         {/* Top bar */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 4px" }}>
-          <div style={{ fontSize: 13, color: "#374151", fontWeight: 600 }}>{EXAM_SECTION.name}</div>
+          <div style={{ fontSize: 13, color: "var(--slate-700)", fontWeight: 600 }}>{EXAM_SECTION.name}</div>
           <div style={{
             display: "inline-flex", alignItems: "center", gap: 6,
             fontFamily: "var(--font-mono)", fontWeight: 600, fontSize: 13,
-            color: lowTime ? "#B53618" : "#0F172A",
+            color: lowTime ? "var(--danger-700)" : "var(--slate-900)",
             padding: "5px 12px",
-            background: lowTime ? "#FFEDE6" : "#F1F5F9",
+            background: lowTime ? "var(--danger-50)" : "var(--slate-100)",
             borderRadius: 6, fontVariantNumeric: "tabular-nums",
           }}>
             <window.Icon name="clock" size={13} />
@@ -126,13 +126,13 @@ const ExamRunnerScreenV2 = ({ initialKind = "mcq", onExit }) => {
         </div>
 
         {/* Progress bar */}
-        <div style={{ height: 3, background: "#F1F5F9", borderRadius: 9999, overflow: "hidden" }}>
-          <div style={{ height: "100%", width: `${sectionPct}%`, background: "linear-gradient(90deg, #5B4FE9, #7B69ED)", borderRadius: 9999, transition: "width 240ms" }} />
+        <div style={{ height: 3, background: "var(--slate-100)", borderRadius: 9999, overflow: "hidden" }}>
+          <div style={{ height: "100%", width: `${sectionPct}%`, background: "linear-gradient(90deg, var(--brand-500), var(--brand-400))", borderRadius: 9999, transition: "width 240ms" }} />
         </div>
 
         {/* Type switcher (prototype convenience) */}
         <div style={{ display: "flex", gap: 8, alignItems: "center", padding: "0 4px" }}>
-          <span style={{ fontSize: 11, color: "#94A3B8", fontWeight: 600, letterSpacing: "0.05em", textTransform: "uppercase" }}>Q type</span>
+          <span style={{ fontSize: 11, color: "var(--slate-400)", fontWeight: 600, letterSpacing: "0.05em", textTransform: "uppercase" }}>Q type</span>
           {[
             { id: "mcq", label: "MCQ" },
             { id: "text", label: "Short text" },
@@ -140,22 +140,22 @@ const ExamRunnerScreenV2 = ({ initialKind = "mcq", onExit }) => {
           ].map(t => (
             <button key={t.id} onClick={() => setKind(t.id)} style={{
               padding: "4px 10px", borderRadius: 6, border: 0, fontSize: 11, fontWeight: 600,
-              background: kind === t.id ? "#5B4FE9" : "#F1F5F9",
-              color:      kind === t.id ? "#FFF"    : "#475569",
+              background: kind === t.id ? "var(--brand-500)" : "var(--slate-100)",
+              color:      kind === t.id ? "var(--bg-surface)"    : "#475569",
               cursor: "pointer", transition: "all 120ms",
             }}>{t.label}</button>
           ))}
         </div>
 
         {/* Question card */}
-        <window.Reveal key={kind} style={{ background: "#FFF", border: "1px solid #E2E8F0", borderRadius: 14, padding: 28, boxShadow: "0 1px 3px rgba(15,23,42,0.04)" }}>
+        <window.Reveal key={kind} style={{ background: "var(--bg-surface)", border: "1px solid var(--slate-200)", borderRadius: 14, padding: 28, boxShadow: "0 1px 3px rgba(15,23,42,0.04)" }}>
           <div style={{ display: "inline-flex", alignItems: "center", gap: 8, marginBottom: 14 }}>
-            <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, fontWeight: 700, color: "#5B4FE9", background: "#EFEDFD", padding: "3px 9px", borderRadius: 6 }}>Q{q.no}</span>
+            <span style={{ fontFamily: "var(--font-mono)", fontSize: 11, fontWeight: 700, color: "var(--brand-500)", background: "var(--brand-50)", padding: "3px 9px", borderRadius: 6 }}>Q{q.no}</span>
             <window.Chip tone="info" icon={kind === "mcq" ? "check-square" : kind === "text" ? "type" : "code-2"}>
               {kind === "mcq" ? "Multiple choice" : kind === "text" ? "Short text" : "Coding"}
             </window.Chip>
           </div>
-          <h2 style={{ fontFamily: "var(--font-display)", fontSize: 19, fontWeight: 600, color: "#0F172A", letterSpacing: "-0.01em", lineHeight: 1.6, margin: "0 0 22px" }}>
+          <h2 style={{ fontFamily: "var(--font-display)", fontSize: 19, fontWeight: 600, color: "var(--slate-900)", letterSpacing: "-0.01em", lineHeight: 1.6, margin: "0 0 22px" }}>
             {q.title}
           </h2>
 
@@ -170,23 +170,23 @@ const ExamRunnerScreenV2 = ({ initialKind = "mcq", onExit }) => {
                     style={{
                       display: "flex", alignItems: "center", gap: 14,
                       textAlign: "left", padding: "14px 18px", borderRadius: 10,
-                      background: isSelected ? "#EFEDFD" : "#FFF",
-                      border: `${isSelected ? 2 : 1}px solid ${isSelected ? "#5B4FE9" : "#E2E8F0"}`,
+                      background: isSelected ? "var(--brand-50)" : "var(--bg-surface)",
+                      border: `${isSelected ? 2 : 1}px solid ${isSelected ? "var(--brand-500)" : "var(--slate-200)"}`,
                       cursor: "pointer", transition: "all 120ms cubic-bezier(0.2, 0, 0, 1)",
-                      fontSize: 14, color: "#0F172A", fontWeight: 500,
+                      fontSize: 14, color: "var(--slate-900)", fontWeight: 500,
                     }}
-                    onMouseEnter={e => { if (!isSelected) { e.currentTarget.style.borderColor = "#5B4FE9"; e.currentTarget.style.background = "#F8FAFC"; } }}
-                    onMouseLeave={e => { if (!isSelected) { e.currentTarget.style.borderColor = "#E2E8F0"; e.currentTarget.style.background = "#FFF"; } }}
+                    onMouseEnter={e => { if (!isSelected) { e.currentTarget.style.borderColor = "var(--brand-500)"; e.currentTarget.style.background = "var(--slate-50)"; } }}
+                    onMouseLeave={e => { if (!isSelected) { e.currentTarget.style.borderColor = "var(--slate-200)"; e.currentTarget.style.background = "var(--bg-surface)"; } }}
                   >
                     <span style={{
                       width: 22, height: 22, borderRadius: 9999,
-                      border: `2px solid ${isSelected ? "#5B4FE9" : "#CBD5E1"}`,
+                      border: `2px solid ${isSelected ? "var(--brand-500)" : "var(--slate-300)"}`,
                       display: "inline-flex", alignItems: "center", justifyContent: "center",
                       flexShrink: 0, transition: "all 120ms",
                     }}>
-                      {isSelected && <span style={{ width: 10, height: 10, borderRadius: 9999, background: "#5B4FE9" }} />}
+                      {isSelected && <span style={{ width: 10, height: 10, borderRadius: 9999, background: "var(--brand-500)" }} />}
                     </span>
-                    <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "#94A3B8", width: 16 }}>{String.fromCharCode(65 + i)}</span>
+                    <span style={{ fontFamily: "var(--font-mono)", fontSize: 12, color: "var(--slate-400)", width: 16 }}>{String.fromCharCode(65 + i)}</span>
                     {opt}
                   </button>
                 );
@@ -203,14 +203,14 @@ const ExamRunnerScreenV2 = ({ initialKind = "mcq", onExit }) => {
                 rows={8}
                 style={{
                   width: "100%", padding: 14, borderRadius: 10,
-                  border: "1px solid #CBD5E1", fontFamily: "inherit", fontSize: 14,
-                  lineHeight: 1.6, color: "#0F172A", outline: "none", resize: "vertical",
-                  background: "#FFF", transition: "all 120ms",
+                  border: "1px solid var(--slate-300)", fontFamily: "inherit", fontSize: 14,
+                  lineHeight: 1.6, color: "var(--slate-900)", outline: "none", resize: "vertical",
+                  background: "var(--bg-surface)", transition: "all 120ms",
                 }}
-                onFocus={e => { e.target.style.borderColor = "#5B4FE9"; e.target.style.boxShadow = "0 0 0 3px rgba(91,79,233,0.18)"; }}
-                onBlur={e => { e.target.style.borderColor = "#CBD5E1"; e.target.style.boxShadow = "none"; }}
+                onFocus={e => { e.target.style.borderColor = "var(--brand-500)"; e.target.style.boxShadow = "0 0 0 3px rgba(91,79,233,0.18)"; }}
+                onBlur={e => { e.target.style.borderColor = "var(--slate-300)"; e.target.style.boxShadow = "none"; }}
               />
-              <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8, fontSize: 11, color: "#94A3B8" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8, fontSize: 11, color: "var(--slate-400)" }}>
                 <span>Up to 500 words</span>
                 <span>{text.split(/\s+/).filter(Boolean).length} words · {text.length} chars</span>
               </div>
@@ -219,16 +219,16 @@ const ExamRunnerScreenV2 = ({ initialKind = "mcq", onExit }) => {
 
           {kind === "code" && (
             <div style={{ borderRadius: 10, overflow: "hidden", border: "1px solid #1E293B" }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 14px", background: "#0F172A", borderBottom: "1px solid #1E293B" }}>
-                <div style={{ display: "inline-flex", alignItems: "center", gap: 8, color: "#94A3B8", fontSize: 12, fontFamily: "var(--font-mono)" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "8px 14px", background: "var(--slate-900)", borderBottom: "1px solid #1E293B" }}>
+                <div style={{ display: "inline-flex", alignItems: "center", gap: 8, color: "var(--slate-400)", fontSize: 12, fontFamily: "var(--font-mono)" }}>
                   <window.Icon name="file-code" size={13} />
                   Repository.cs
                 </div>
-                <select style={{ background: "#1E293B", color: "#CBD5E1", border: "1px solid #334155", borderRadius: 6, padding: "3px 8px", fontSize: 11, outline: "none" }}>
+                <select style={{ background: "#1E293B", color: "var(--slate-300)", border: "1px solid #334155", borderRadius: 6, padding: "3px 8px", fontSize: 11, outline: "none" }}>
                   <option>C#</option><option>JavaScript</option><option>Python</option><option>Java</option>
                 </select>
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "44px 1fr", background: "#0F172A", color: "#E2E8F0", fontFamily: "var(--font-mono)", fontSize: 13, minHeight: 240 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "44px 1fr", background: "var(--slate-900)", color: "var(--slate-200)", fontFamily: "var(--font-mono)", fontSize: 13, minHeight: 240 }}>
                 <div style={{ padding: "14px 8px", textAlign: "right", color: "#475569", borderRight: "1px solid #1E293B", userSelect: "none" }}>
                   {code.split("\n").map((_, i) => <div key={i} style={{ lineHeight: 1.6 }}>{i + 1}</div>)}
                 </div>
@@ -236,12 +236,12 @@ const ExamRunnerScreenV2 = ({ initialKind = "mcq", onExit }) => {
                   value={code}
                   onChange={e => setCode(e.target.value)}
                   spellCheck={false}
-                  style={{ background: "transparent", color: "#E2E8F0", border: 0, outline: "none", resize: "vertical", padding: "14px 14px", fontFamily: "inherit", fontSize: "inherit", lineHeight: 1.6, tabSize: 4, whiteSpace: "pre", minHeight: 240 }}
+                  style={{ background: "transparent", color: "var(--slate-200)", border: 0, outline: "none", resize: "vertical", padding: "14px 14px", fontFamily: "inherit", fontSize: "inherit", lineHeight: 1.6, tabSize: 4, whiteSpace: "pre", minHeight: 240 }}
                 />
               </div>
-              <div style={{ padding: "8px 14px", background: "#0F172A", borderTop: "1px solid #1E293B", display: "flex", justifyContent: "space-between", color: "#64748B", fontSize: 11, fontFamily: "var(--font-mono)" }}>
+              <div style={{ padding: "8px 14px", background: "var(--slate-900)", borderTop: "1px solid #1E293B", display: "flex", justifyContent: "space-between", color: "#64748B", fontSize: 11, fontFamily: "var(--font-mono)" }}>
                 <span>Tests: 0 / 6 passed · click Run to evaluate</span>
-                <button style={{ background: "#5B4FE9", color: "#FFF", border: 0, padding: "4px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                <button style={{ background: "var(--brand-500)", color: "var(--bg-surface)", border: 0, padding: "4px 10px", borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", display: "inline-flex", alignItems: "center", gap: 4 }}>
                   <window.Icon name="play" size={11} /> Run
                 </button>
               </div>
@@ -251,11 +251,11 @@ const ExamRunnerScreenV2 = ({ initialKind = "mcq", onExit }) => {
 
         {/* Bottom bar */}
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginTop: 4 }}>
-          <div style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 12, color: "#94A3B8" }}>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--slate-400)" }}>
             <window.Icon
               name={saveState === "saving" ? "loader-2" : "check"}
               size={13}
-              style={{ animation: saveState === "saving" ? "spin 1s linear infinite" : "none", color: saveState === "saving" ? "#94A3B8" : "#10B981" }}
+              style={{ animation: saveState === "saving" ? "spin 1s linear infinite" : "none", color: saveState === "saving" ? "var(--slate-400)" : "#10B981" }}
             />
             {saveState === "saving" ? "Saving…" : "Saved 3s ago"}
           </div>
@@ -270,31 +270,31 @@ const ExamRunnerScreenV2 = ({ initialKind = "mcq", onExit }) => {
       <window.Modal open={submitOpen} onClose={() => setSubmitOpen(false)} width={480}>
         <div style={{ padding: "24px 24px 0" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-            <div style={{ width: 44, height: 44, borderRadius: 10, background: "#FFFBEB", color: "#B45309", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
+            <div style={{ width: 44, height: 44, borderRadius: 10, background: "var(--warning-50)", color: "var(--warning-600)", display: "inline-flex", alignItems: "center", justifyContent: "center" }}>
               <window.Icon name="alert-triangle" size={20} />
             </div>
             <div>
-              <h3 style={{ fontFamily: "var(--font-display)", fontSize: 18, fontWeight: 700, color: "#0F172A", margin: 0, letterSpacing: "-0.01em" }}>Submit section?</h3>
-              <p style={{ fontSize: 13, color: "#6B7280", margin: "4px 0 0", lineHeight: 1.55 }}>You'll move to the next section. You can't come back to edit these answers.</p>
+              <h3 style={{ fontFamily: "var(--font-display)", fontSize: 18, fontWeight: 700, color: "var(--slate-900)", margin: 0, letterSpacing: "-0.01em" }}>Submit section?</h3>
+              <p style={{ fontSize: 13, color: "var(--slate-500)", margin: "4px 0 0", lineHeight: 1.55 }}>You'll move to the next section. You can't come back to edit these answers.</p>
             </div>
           </div>
 
-          <div style={{ marginTop: 18, padding: 14, background: "#F8FAFC", borderRadius: 10, border: "1px solid #E2E8F0" }}>
+          <div style={{ marginTop: 18, padding: 14, background: "var(--slate-50)", borderRadius: 10, border: "1px solid var(--slate-200)" }}>
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 6 }}>
-              <span style={{ color: "#6B7280" }}>Answered</span>
-              <span style={{ fontWeight: 600, color: "#0F172A", fontFamily: "var(--font-mono)" }}>{EXAM_SECTION.answered} / {EXAM_SECTION.total}</span>
+              <span style={{ color: "var(--slate-500)" }}>Answered</span>
+              <span style={{ fontWeight: 600, color: "var(--slate-900)", fontFamily: "var(--font-mono)" }}>{EXAM_SECTION.answered} / {EXAM_SECTION.total}</span>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 6 }}>
-              <span style={{ color: "#6B7280" }}>Skipped</span>
-              <span style={{ fontWeight: 600, color: "#B45309", fontFamily: "var(--font-mono)" }}>1</span>
+              <span style={{ color: "var(--slate-500)" }}>Skipped</span>
+              <span style={{ fontWeight: 600, color: "var(--warning-600)", fontFamily: "var(--font-mono)" }}>1</span>
             </div>
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
-              <span style={{ color: "#6B7280" }}>Unanswered</span>
-              <span style={{ fontWeight: 600, color: "#B53618", fontFamily: "var(--font-mono)" }}>2</span>
+              <span style={{ color: "var(--slate-500)" }}>Unanswered</span>
+              <span style={{ fontWeight: 600, color: "var(--danger-700)", fontFamily: "var(--font-mono)" }}>2</span>
             </div>
           </div>
         </div>
-        <div style={{ display: "flex", gap: 10, padding: 20, justifyContent: "flex-end", borderTop: "1px solid #F1F5F9", marginTop: 22 }}>
+        <div style={{ display: "flex", gap: 10, padding: 20, justifyContent: "flex-end", borderTop: "1px solid var(--slate-100)", marginTop: 22 }}>
           <button style={btnGhost} onClick={() => setSubmitOpen(false)}>Keep working</button>
           <button style={btnBrand} onClick={() => setSubmitOpen(false)}>Submit section</button>
         </div>
@@ -305,10 +305,10 @@ const ExamRunnerScreenV2 = ({ initialKind = "mcq", onExit }) => {
 
 const QNavButton = ({ num, state }) => {
   const styles = {
-    answered:   { bg: "#5B4FE9", fg: "#FFF",     border: "1px solid transparent" },
-    current:    { bg: "#FFF",    fg: "#5B4FE9",  border: "2px solid #5B4FE9", weight: 700 },
-    skipped:    { bg: "#FEF3C7", fg: "#92400E",  border: "1px solid transparent" },
-    unanswered: { bg: "#F1F5F9", fg: "#64748B",  border: "1px solid transparent" },
+    answered:   { bg: "var(--brand-500)", fg: "var(--bg-surface)",     border: "1px solid transparent" },
+    current:    { bg: "var(--bg-surface)",    fg: "var(--brand-500)",  border: "2px solid var(--brand-500)", weight: 700 },
+    skipped:    { bg: "var(--warning-100)", fg: "var(--warning-700)",  border: "1px solid transparent" },
+    unanswered: { bg: "var(--slate-100)", fg: "#64748B",  border: "1px solid transparent" },
   }[state] || {};
   return (
     <button style={{
@@ -322,8 +322,8 @@ const QNavButton = ({ num, state }) => {
 };
 
 const Legend = ({ color, border, label, textColor }) => (
-  <div style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 12, color: "#6B7280" }}>
-    <span style={{ width: 16, height: 16, borderRadius: 9999, background: color, border: border ? `2px solid ${border}` : "1px solid #E2E8F0", color: textColor }} />
+  <div style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 12, color: "var(--slate-500)" }}>
+    <span style={{ width: 16, height: 16, borderRadius: 9999, background: color, border: border ? `2px solid ${border}` : "1px solid var(--slate-200)", color: textColor }} />
     {label}
   </div>
 );
@@ -331,14 +331,14 @@ const Legend = ({ color, border, label, textColor }) => (
 const btnGhost = {
   display: "inline-flex", alignItems: "center", gap: 6,
   padding: "9px 14px", borderRadius: 8,
-  background: "#FFF", border: "1px solid #CBD5E1",
-  fontSize: 13, fontWeight: 600, color: "#0F172A", cursor: "pointer",
+  background: "var(--bg-surface)", border: "1px solid var(--slate-300)",
+  fontSize: 13, fontWeight: 600, color: "var(--slate-900)", cursor: "pointer",
   transition: "all 120ms",
 };
 const btnBrand = {
   display: "inline-flex", alignItems: "center", gap: 6,
   padding: "9px 16px", borderRadius: 8,
-  background: "#5B4FE9", color: "#FFF", border: 0,
+  background: "var(--brand-500)", color: "var(--bg-surface)", border: 0,
   fontSize: 13, fontWeight: 600, cursor: "pointer",
   boxShadow: "0 4px 12px rgba(91,79,233,0.2)",
   transition: "all 120ms",

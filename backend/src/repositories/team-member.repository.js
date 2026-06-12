@@ -8,6 +8,8 @@ const SELECT_COLS = `
   u.emp_number     AS employee_id,
   u.job_title      AS current_position,
   u.location,
+  u.availability,
+  u.tags,
   d.name           AS department,
   u.resume_url,
   u.resume_updated,

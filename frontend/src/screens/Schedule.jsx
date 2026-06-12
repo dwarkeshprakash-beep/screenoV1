@@ -69,9 +69,9 @@ const ScheduleScreen = ({ tweaks }) => {
               {hours.map(h => <div key={h} className="cal-slot" />)}
               {/* now line */}
               {d.today && (
-                <div style={{ position: "absolute", left: 0, right: 0, top: (15.25 - 9) * HOUR_PX, height: 1, background: "#FF5C35", zIndex: 5 }}>
-                  <span style={{ position: "absolute", left: -6, top: -5, width: 11, height: 11, borderRadius: 9999, background: "#FF5C35" }} />
-                  <span style={{ position: "absolute", right: 6, top: -16, fontSize: 10, color: "#FF5C35", fontFamily: "var(--font-mono)", fontWeight: 600 }}>3:15 PM</span>
+                <div style={{ position: "absolute", left: 0, right: 0, top: (15.25 - 9) * HOUR_PX, height: 1, background: "var(--danger-500)", zIndex: 5 }}>
+                  <span style={{ position: "absolute", left: -6, top: -5, width: 11, height: 11, borderRadius: 9999, background: "var(--danger-500)" }} />
+                  <span style={{ position: "absolute", right: 6, top: -16, fontSize: 10, color: "var(--danger-500)", fontFamily: "var(--font-mono)", fontWeight: 600 }}>3:15 PM</span>
                 </div>
               )}
               {SCHEDULE.filter(e => e.day === di).map((e, ei) => (
@@ -94,15 +94,15 @@ const ScheduleScreen = ({ tweaks }) => {
       </div>
 
       {/* Legend */}
-      <div style={{ display: "flex", gap: 18, fontSize: 12, color: "#6B7280", padding: "0 4px" }}>
+      <div style={{ display: "flex", gap: 18, fontSize: 12, color: "var(--slate-500)", padding: "0 4px" }}>
         <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-          <span style={{ width: 10, height: 10, borderRadius: 3, background: "#EFEDFD", border: "1px solid #5B4FE9" }} /> Live interview
+          <span style={{ width: 10, height: 10, borderRadius: 3, background: "var(--brand-50)", border: "1px solid var(--brand-500)" }} /> Live interview
         </span>
         <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-          <span style={{ width: 10, height: 10, borderRadius: 3, background: "#FFFBEB", border: "1px solid #D97706" }} /> AI screen
+          <span style={{ width: 10, height: 10, borderRadius: 3, background: "var(--warning-50)", border: "1px solid var(--warning-500)" }} /> AI screen
         </span>
         <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
-          <span style={{ width: 10, height: 10, borderRadius: 3, background: "#EFF6FF", border: "1px solid #2563EB" }} /> Coding exam window
+          <span style={{ width: 10, height: 10, borderRadius: 3, background: "var(--info-50)", border: "1px solid var(--info-500)" }} /> Coding exam window
         </span>
       </div>
     </div>
