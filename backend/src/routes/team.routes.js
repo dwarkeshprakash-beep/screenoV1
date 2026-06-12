@@ -4,6 +4,7 @@ const authMiddleware = require('../middleware/auth')
 const requireRole = require('../middleware/role')
 const teamService = require('../services/team.service')
 const interviewRepository = require('../repositories/interview.repository')
+const externalCandidateRepo = require('../repositories/external-candidate.repository')
 
 const router = express.Router()
 
@@ -123,6 +124,36 @@ router.post('/import', async (req, res) => {
   } catch (err) {
     console.error('POST /team/import failed:', err)
     res.status(500).json({ success: false, error: 'Could not import CSV' })
+  }
+})
+
+// GET /api/team/external — list external candidates for this company
+router.get('/external', async (req, res) => {
+  try {
+    const candidates = await externalCandidateRepo.getByCompany(req.user.companyId)
+    res.json({ success: true, data: candidates })
+  } catch (err) {
+    console.error('GET /team/external failed:', err)
+    res.status(500).json({ success: false, error: 'Could not load external candidates' })
+  }
+})
+
+// POST /api/team/external — add external candidate
+router.post('/external', async (req, res) => {
+  try {
+    const { firstName, lastName, email, resumeUrl } = req.body
+    if (!firstName || !email) return res.status(400).json({ success: false, error: 'First name and email are required' })
+    const candidate = await externalCandidateRepo.create({
+      company_id: req.user.companyId,
+      first_name: firstName,
+      last_name:  lastName || '',
+      email,
+      resume_url: resumeUrl || null,
+    })
+    res.status(201).json({ success: true, data: candidate })
+  } catch (err) {
+    console.error('POST /team/external failed:', err)
+    res.status(500).json({ success: false, error: 'Could not add external candidate' })
   }
 })
 

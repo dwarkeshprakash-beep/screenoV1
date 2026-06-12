@@ -138,7 +138,7 @@ function ScorecardPage() {
               </div>
 
               <EvidenceField
-                defaultText={draft?.summary ? `${draft.summary.slice(0, 80)}...` : ''}
+                defaultText={''}
                 onChange={text => setEvidence(prev => ({ ...prev, [c.key]: text }))}
               />
             </div>

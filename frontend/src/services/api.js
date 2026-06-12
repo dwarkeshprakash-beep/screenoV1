@@ -146,6 +146,8 @@ export const updateMember = (id, data) => request(`/api/team/member/${id}`, { me
 export const removeMember = (id) => request(`/api/team/member/${id}`, { method: 'DELETE' })
 export const importTeamCSV = (csv) =>
   request('/api/team/import', { method: 'POST', body: JSON.stringify({ csv }) })
+export const getExternalCandidates = () => request('/api/team/external')
+export const addExternalCandidate = (data) => request('/api/team/external', { method: 'POST', body: JSON.stringify(data) })
 
 // ── SCHEDULE ──────────────────────────────────────────────────
 export const createSchedule = (data) =>
@@ -159,7 +161,7 @@ export const getInterviewers = () => request('/api/schedule/interviewers')
 export const getOrgUsers = () => request('/api/schedule/org-users')
 
 // ── REPORTS ───────────────────────────────────────────────────
-export const getTeamReports = () => request('/api/reports/team')
+export const getTeamReports = (source) => request(`/api/reports/team${source ? `?source=${source}` : ''}`)
 export const getCandidateReport = (id) => request(`/api/reports/candidate/${id}`)
 export const getCandidateReportHistory = (id) => request(`/api/reports/candidate/${id}/history`)
 

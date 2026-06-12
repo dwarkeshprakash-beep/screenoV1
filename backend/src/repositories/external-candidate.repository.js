@@ -5,7 +5,13 @@ async function create(data) {
     `INSERT INTO external_candidates (company_id, first_name, last_name, email, resume_url)
      VALUES (@company_id, @first_name, @last_name, @email, @resume_url)
      RETURNING *`,
-    data
+    {
+      company_id: data.company_id,
+      first_name: data.first_name,
+      last_name:  data.last_name  || '',
+      email:      data.email,
+      resume_url: data.resume_url || null,
+    }
   )
   return rows[0]
 }
@@ -18,4 +24,18 @@ async function getById(id) {
   return rows[0] || null
 }
 
-module.exports = { create, getById }
+async function getByCompany(companyId) {
+  return db.query(
+    `SELECT ec.*,
+            MAX(i.created) AS last_interview,
+            COUNT(i.id)    AS interview_count
+     FROM external_candidates ec
+     LEFT JOIN interviews i ON i.external_candidate_id = ec.id
+     WHERE ec.company_id = @companyId
+     GROUP BY ec.id
+     ORDER BY ec.first_name, ec.last_name`,
+    { companyId }
+  )
+}
+
+module.exports = { create, getById, getByCompany }

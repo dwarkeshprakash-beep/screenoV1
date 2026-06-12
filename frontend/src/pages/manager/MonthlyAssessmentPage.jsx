@@ -16,6 +16,7 @@ function WizardModal({ open, onClose, onDone }) {
   const [subject, setSubject] = useState('')
   const [topic, setTopic] = useState('')
   const [difficulty, setDifficulty] = useState('medium')
+  const [customDifficulty, setCustomDifficulty] = useState('')
   // Step 2 state
   const [subTopics, setSubTopics] = useState('')
   const [generating, setGenerating] = useState(false)
@@ -60,6 +61,7 @@ function WizardModal({ open, onClose, onDone }) {
 
   async function handleCreate() {
     if (!subject) { setError('Subject is required.'); return }
+    if (selectedMemberIds.length === 0) { setError('Select at least one candidate.'); return }
     setSaving(true)
     setError(null)
     try {
@@ -68,7 +70,7 @@ function WizardModal({ open, onClose, onDone }) {
         subject,
         topic,
         sub_topics: JSON.stringify(topics),
-        difficulty,
+        difficulty: difficulty === 'custom' ? (customDifficulty || 'custom') : difficulty,
         jd_text: jdText,
         duration_months: durationMonths,
         team_member_ids: selectedMemberIds,
@@ -97,10 +99,13 @@ function WizardModal({ open, onClose, onDone }) {
             <div>
               <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--slate-700)', marginBottom: 5 }}>Difficulty</label>
               <div style={{ display: 'flex', gap: 10 }}>
-                {['easy', 'medium', 'hard'].map(d => (
+                {['easy', 'medium', 'hard', 'custom'].map(d => (
                   <button key={d} onClick={() => setDifficulty(d)} style={{ padding: '6px 12px', borderRadius: 6, border: `1px solid ${difficulty === d ? 'var(--brand-500)' : 'var(--slate-300)'}`, background: difficulty === d ? 'var(--brand-500)' : 'var(--bg-surface)', color: difficulty === d ? 'var(--bg-surface)' : 'var(--slate-700)', fontSize: 12, cursor: 'pointer', textTransform: 'capitalize' }}>{d}</button>
                 ))}
               </div>
+              {difficulty === 'custom' && (
+                <input type="text" placeholder="e.g. 2–3 years experience, senior level" value={customDifficulty} onChange={e => setCustomDifficulty(e.target.value)} style={{ marginTop: 8, width: '100%', padding: '8px 12px', border: '1px solid var(--slate-300)', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', boxSizing: 'border-box' }} />
+              )}
             </div>
           </div>
         )}
@@ -141,6 +146,7 @@ function WizardModal({ open, onClose, onDone }) {
               <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--slate-700)', marginBottom: 5 }}>Duration</label>
               <select value={durationMonths} onChange={e => setDurationMonths(Number(e.target.value))} style={{ width: '100%', padding: '9px 12px', border: '1px solid var(--slate-300)', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', boxSizing: 'border-box' }}>
                 <option value={1}>1 Month</option>
+                <option value={2}>2 Months</option>
                 <option value={3}>3 Months</option>
                 <option value={6}>6 Months</option>
                 <option value={12}>12 Months</option>
@@ -212,10 +218,11 @@ function MonthlyAssessmentPage() {
   if (loading) return <Spinner center />
   if (error) return <ErrorMessage message={error} />
 
-  const calRows = calendarData.map(row => ({
-    name: `${row.first_name} ${row.last_name}`,
-    months: JSON.parse(row.month_progress || '[]')
-  }))
+  const calRows = calendarData.map(row => {
+    let months = []
+    try { months = JSON.parse(row.month_progress || '[]') } catch { months = [] }
+    return { name: `${row.first_name || ''} ${row.last_name || ''}`.trim(), months }
+  })
 
   const STATUS_COLORS = {
     completed: 'var(--success-500)',
@@ -263,8 +270,8 @@ function MonthlyAssessmentPage() {
                 {assessments.map((a, i) => (
                   <tr key={a.id} style={{ borderBottom: i === assessments.length - 1 ? 'none' : '1px solid var(--slate-100)' }}>
                     <td style={{ padding: '14px 16px' }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--slate-900)' }}>{a.subject}</div>
-                      {a.topic && <div style={{ fontSize: 12, color: 'var(--slate-500)', marginTop: 2 }}>{a.topic}</div>}
+                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--slate-900)' }}>{a.subject_name}</div>
+                      {a.topics && <div style={{ fontSize: 12, color: 'var(--slate-500)', marginTop: 2 }}>{a.topics}</div>}
                     </td>
                     <td style={{ padding: '14px 16px', fontSize: 13, color: 'var(--slate-700)' }}>
                       <span style={{ display: 'inline-flex', padding: '2px 8px', borderRadius: 9999, background: 'var(--slate-100)', color: 'var(--slate-700)', fontSize: 11, fontWeight: 500, textTransform: 'capitalize' }}>{a.difficulty}</span>

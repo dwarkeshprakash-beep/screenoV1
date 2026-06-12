@@ -16,6 +16,19 @@ export function formatDate(date) {
 }
 
 /**
+ * Format a date+time string for display (e.g. "Jun 3, 2026 · 10:30 AM")
+ * @param {string|Date} date
+ * @returns {string}
+ */
+export function formatDateTime(date) {
+  if (!date) return '—'
+  const d = new Date(date)
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+       + ' · '
+       + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true })
+}
+
+/**
  * Truncate a string to maxLen characters, adding ellipsis if cut.
  * @param {string} str
  * @param {number} maxLen

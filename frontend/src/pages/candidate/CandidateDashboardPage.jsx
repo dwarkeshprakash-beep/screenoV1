@@ -66,8 +66,8 @@ function CandidateDashboardPage() {
 
   const upcoming  = interviews.filter(i => i.status === 'scheduled' || i.status === 'in_progress')
   const completed = interviews.filter(i => i.status === 'completed')
-  const avgScore  = completed.length ? (completed.reduce((s, c) => s + (c.score || 0), 0) / completed.length).toFixed(1) : 'N/A'
-  const firstName = user.name ? user.name.split(' ')[0] : 'there'
+  const avgScore  = completed.length ? (completed.reduce((s, c) => s + (Number(c.overall_score) || 0), 0) / completed.length).toFixed(1) : 'N/A'
+  const firstName = user.first_name || user.name?.split(' ')[0] || 'there'
 
   if (loading) return <div style={{ padding: 40, display: 'flex', justifyContent: 'center' }}><Spinner /></div>
   if (error) return <div style={{ padding: 40, color: 'var(--danger-600)', fontSize: 14 }}>{error}</div>
@@ -156,8 +156,8 @@ function CandidateDashboardPage() {
                   </p>
                   <p style={{ fontSize: 11, color: 'var(--slate-400)', margin: '2px 0 0' }}>{formatDate(c.created)}</p>
                 </div>
-                <div style={{ fontSize: 20, fontWeight: 700, color: (c.score || 0) >= 4 ? 'var(--success-500)' : 'var(--warning-500)' }}>
-                  {c.score || '—'}
+                <div style={{ fontSize: 20, fontWeight: 700, color: (Number(c.overall_score) || 0) >= 5.5 ? 'var(--success-500)' : 'var(--warning-500)' }}>
+                  {c.overall_score != null ? Number(c.overall_score).toFixed(1) : '—'}
                 </div>
               </div>
             ))}

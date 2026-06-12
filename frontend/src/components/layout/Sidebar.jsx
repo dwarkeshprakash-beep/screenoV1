@@ -13,7 +13,7 @@ const MANAGER_NAV = [
     section: 'ASSESSMENTS',
     items: [
       { to: '/manager/monthly',         icon: CheckSquare,     label: 'Monthly Assessment' },
-      { to: '/manager/clients',         icon: Users,           label: 'Client Interviews' },
+      { to: '/manager/clients',         icon: Users,           label: 'Client Mandates' },
     ],
   },
   {

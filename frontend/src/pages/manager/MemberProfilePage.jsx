@@ -412,12 +412,11 @@ function MemberProfilePage() {
           </div>
           {member.resume_url ? (
             <>
-              <div style={{ background: 'var(--slate-50)', border: '1px solid var(--slate-200)', borderRadius: 8, padding: 12 }}>
-                {[65,45,100,92,78,100,85,60,100,72,55].map((w, i) => (
-                  <div key={i} style={{ height: i % 4 === 0 ? 7 : 5, background: i % 4 === 0 ? 'var(--slate-400)' : 'var(--slate-300)', borderRadius: 9999, width: `${w}%`, marginBottom: 5 }} />
-                ))}
+              <div style={{ background: 'var(--bg-surface-alt)', border: '1px solid var(--border-default)', borderRadius: 8, padding: '14px 12px', textAlign: 'center' }}>
+                <FileText size={28} color="var(--fg-subtle)" style={{ marginBottom: 8 }} />
+                <div style={{ fontSize: 12, color: 'var(--fg-muted)', fontWeight: 500 }}>Resume uploaded</div>
               </div>
-              <a href={member.resume_url} target="_blank" rel="noreferrer" style={{ display: 'block', textAlign: 'center', marginTop: 8, fontSize: 12, color: 'var(--brand-500)', fontWeight: 500, cursor: 'pointer', textDecoration: 'none' }}>Open full screen</a>
+              <a href={member.resume_url} target="_blank" rel="noreferrer" style={{ display: 'block', textAlign: 'center', marginTop: 8, fontSize: 12, color: 'var(--brand-500)', fontWeight: 500, cursor: 'pointer', textDecoration: 'none' }}>View resume →</a>
             </>
           ) : (
             <div style={{ border: '1px dashed var(--slate-300)', borderRadius: 8, padding: '14px 12px', textAlign: 'center', fontSize: 13, color: 'var(--slate-400)', cursor: 'pointer' }} onClick={() => fileInputRef.current?.click()}>

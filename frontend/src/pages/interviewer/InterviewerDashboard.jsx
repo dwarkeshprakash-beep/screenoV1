@@ -5,7 +5,7 @@ import Spinner from '../../components/shared/Spinner'
 import ErrorMessage from '../../components/shared/ErrorMessage'
 import EmptyState from '../../components/shared/EmptyState'
 import * as api from '../../services/api'
-import { formatDate } from '../../utils/helpers'
+import { formatDate, formatDateTime } from '../../utils/helpers'
 
 import Avatar from '../../components/shared/Avatar'
 const card = { background: 'var(--bg-surface)', border: '1px solid var(--slate-200)', borderRadius: 12, padding: 20, boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }
@@ -113,7 +113,7 @@ function InterviewerDashboard() {
             return (
               <div key={iv.id} style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 0', borderTop: i === 0 ? '0' : '1px solid var(--slate-100)' }}>
                 <div style={{ width: 90, flexShrink: 0 }}>
-                  <div style={{ fontSize: 13, fontFamily: 'monospace', fontWeight: 700, color: 'var(--slate-900)' }}>{formatDate(iv.scheduled_start || iv.created)}</div>
+                  <div style={{ fontSize: 13, fontFamily: 'monospace', fontWeight: 700, color: 'var(--slate-900)' }}>{formatDateTime(iv.scheduled_start || iv.created)}</div>
                   {isNext && <div style={{ fontSize: 11, color: 'var(--success-500)', fontWeight: 600, marginTop: 2 }}>Upcoming</div>}
                 </div>
                 <Avatar name={name} size={40} />
