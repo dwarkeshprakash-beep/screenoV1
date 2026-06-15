@@ -1,10 +1,16 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   AlertCircle,
-  CalendarPlus,
+  ArrowRight,
+  BookOpen,
+  CalendarDays,
   ChevronLeft,
   ChevronRight,
+  Clock3,
+  ListChecks,
   Plus,
+  Search,
+  Sparkles,
   Trash2,
   UserPlus,
   Users,
@@ -18,8 +24,6 @@ import Modal from '../../components/shared/Modal'
 import Spinner from '../../components/shared/Spinner'
 import * as api from '../../services/api'
 
-// ── helpers ───────────────────────────────────────────────────
-
 function parseStoredArray(value) {
   if (Array.isArray(value)) return value
   if (!value) return []
@@ -32,14 +36,14 @@ function parseStoredArray(value) {
 }
 
 function currentMonth() {
-  const d = new Date()
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+  const date = new Date()
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
 }
 
 function shiftMonth(value, amount) {
   const [year, month] = value.split('-').map(Number)
-  const d = new Date(Date.UTC(year, month - 1 + amount, 1))
-  return d.toISOString().slice(0, 7)
+  const date = new Date(Date.UTC(year, month - 1 + amount, 1))
+  return date.toISOString().slice(0, 7)
 }
 
 function monthLabel(value) {
@@ -51,27 +55,12 @@ function monthLabel(value) {
   })
 }
 
-// ── field styles for wizard ────────────────────────────────────
-
-const labelStyle = {
-  display: 'block',
-  fontSize: 12,
-  fontWeight: 600,
-  color: 'var(--fg-body)',
-  marginBottom: 5,
+function formatDate(value) {
+  if (!value) return 'Not set'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return 'Not set'
+  return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
 }
-
-const fieldStyle = {
-  width: '100%',
-  padding: '9px 12px',
-  border: '1px solid var(--border-default)',
-  borderRadius: 8,
-  fontSize: 13,
-  fontFamily: 'inherit',
-  boxSizing: 'border-box',
-}
-
-// ── Create Subject wizard ─────────────────────────────────────
 
 function WizardModal({ open, onClose, onDone }) {
   const [step, setStep] = useState(1)
@@ -79,12 +68,11 @@ function WizardModal({ open, onClose, onDone }) {
   const [difficulty, setDifficulty] = useState('medium')
   const [durationMonths, setDurationMonths] = useState(3)
   const [subTopics, setSubTopics] = useState('')
-  const [jdText, setJdText] = useState('')
+  const [studyMaterial, setStudyMaterial] = useState('')
   const [generating, setGenerating] = useState(false)
-  const [generatingJd, setGeneratingJd] = useState(false)
+  const [generatingMaterial, setGeneratingMaterial] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
-  const steps = ['Subject details', 'Sub-topics', 'Study material']
 
   useEffect(() => {
     if (!open) return
@@ -93,265 +81,402 @@ function WizardModal({ open, onClose, onDone }) {
     setDifficulty('medium')
     setDurationMonths(3)
     setSubTopics('')
-    setJdText('')
+    setStudyMaterial('')
     setError(null)
   }, [open])
 
-  async function handleGenerateSubtopics() {
+  async function generateSubtopics() {
     if (!subject.trim()) return
     setGenerating(true)
     setError(null)
     try {
-      const response = await api.generateSubtopics({ subject: subject.trim(), difficulty })
+      const response = await api.generateSubtopics({
+        subject: subject.trim(),
+        difficulty,
+      })
       setSubTopics(Array.isArray(response.data) ? response.data.join('\n') : response.data)
     } catch {
-      setError('Could not generate sub-topics.')
+      setError('Could not generate sub-topics. You can enter them manually.')
     } finally {
       setGenerating(false)
     }
   }
 
-  async function handleGenerateJD() {
-    setGeneratingJd(true)
+  async function generateStudyMaterial() {
+    const topics = subTopics.split('\n').map(item => item.trim()).filter(Boolean)
+    if (topics.length === 0) {
+      setError('Add or generate at least one sub-topic first.')
+      return
+    }
+    setGeneratingMaterial(true)
     setError(null)
     try {
-      const topics = subTopics.split('\n').map(t => t.trim()).filter(Boolean)
-      const response = await api.generateAssessmentJD({ subject: subject.trim(), subTopics: topics, difficulty })
-      setJdText(typeof response.data === 'string' ? response.data : JSON.stringify(response.data))
+      const response = await api.generateAssessmentJD({
+        subject: subject.trim(),
+        subTopics: topics,
+        difficulty,
+      })
+      setStudyMaterial(typeof response.data === 'string' ? response.data : JSON.stringify(response.data))
     } catch {
-      setError('Could not generate study material.')
+      setError('Could not generate study material. You can enter it manually.')
     } finally {
-      setGeneratingJd(false)
+      setGeneratingMaterial(false)
     }
   }
 
-  function goNext() {
-    if (step === 1 && !subject.trim()) { setError('Subject is required.'); return }
-    setError(null)
-    setStep(c => c + 1)
-  }
-
-  async function handleCreate() {
-    if (!subject.trim()) { setError('Subject is required.'); return }
+  async function createSubject() {
+    if (!subject.trim()) {
+      setError('Subject name is required.')
+      return
+    }
     setSaving(true)
     setError(null)
     try {
-      const topics = subTopics.split('\n').map(t => t.trim()).filter(Boolean)
+      const topics = subTopics.split('\n').map(item => item.trim()).filter(Boolean)
       await api.createMonthlyAssessment({
         subject: subject.trim(),
         sub_topics: JSON.stringify(topics),
         difficulty,
-        jd_text: jdText,
+        jd_text: studyMaterial,
         duration_months: durationMonths,
       })
       await onDone?.()
       onClose()
-    } catch (err) {
-      setError(err.message || 'Could not create the subject.')
+    } catch (saveError) {
+      setError(saveError.message || 'Could not create the subject.')
     } finally {
       setSaving(false)
     }
   }
 
-  if (!open) return null
+  function nextStep() {
+    if (step === 1 && !subject.trim()) {
+      setError('Subject name is required.')
+      return
+    }
+    setError(null)
+    setStep(current => current + 1)
+  }
 
   return (
-    <Modal open={open} onClose={onClose} title={`Create subject — Step ${step}: ${steps[step - 1]}`} size="lg">
-      <div style={{ padding: '10px 0' }}>
+    <Modal open={open} onClose={onClose} title="Create monthly subject" size="lg">
+      <div className="workspace-stack">
+        <div className="workspace-tabs" aria-label="Creation progress">
+          {['Subject', 'Sub-topics', 'Study material'].map((label, index) => (
+            <button
+              key={label}
+              type="button"
+              className={`workspace-tabs__button${step === index + 1 ? ' is-active' : ''}`}
+              onClick={() => {
+                if (index === 0 || subject.trim()) setStep(index + 1)
+              }}
+            >
+              <span>{index + 1}</span>
+              {label}
+            </button>
+          ))}
+        </div>
+
         {step === 1 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <div>
-              <label htmlFor="monthly-subject" style={labelStyle}>Subject name</label>
-              <input id="monthly-subject" type="text" placeholder="e.g. Advanced React" value={subject} onChange={e => setSubject(e.target.value)} style={fieldStyle} />
-              <div style={{ marginTop: 5, fontSize: 11, color: 'var(--fg-muted)' }}>Only the subject name is needed — AI can generate sub-topics.</div>
+          <div className="form-grid">
+            <div className="form-field form-field--full">
+              <label htmlFor="monthly-subject" className="form-label">Subject name</label>
+              <input
+                id="monthly-subject"
+                className="form-input"
+                placeholder="Example: Advanced React"
+                value={subject}
+                onChange={event => setSubject(event.target.value)}
+              />
+              <span className="form-help">
+                Only the subject name is required. AI can prepare the sub-topics from it.
+              </span>
             </div>
-            <div>
-              <span style={labelStyle}>Difficulty</span>
-              <div style={{ display: 'flex', gap: 10 }}>
-                {['easy', 'medium', 'hard'].map(opt => (
-                  <button key={opt} type="button" onClick={() => setDifficulty(opt)} style={{ padding: '6px 12px', borderRadius: 6, border: `1px solid ${difficulty === opt ? 'var(--brand-500)' : 'var(--border-default)'}`, background: difficulty === opt ? 'var(--brand-500)' : 'var(--bg-surface)', color: difficulty === opt ? 'var(--bg-surface)' : 'var(--fg-body)', fontSize: 12, cursor: 'pointer', textTransform: 'capitalize' }}>{opt}</button>
-                ))}
-              </div>
-            </div>
-            <div>
-              <label htmlFor="monthly-duration" style={labelStyle}>Duration</label>
-              <select id="monthly-duration" value={durationMonths} onChange={e => setDurationMonths(Number(e.target.value))} style={fieldStyle}>
-                {[1, 2, 3, 6, 12].map(m => <option key={m} value={m}>{m} month{m === 1 ? '' : 's'}</option>)}
+            <div className="form-field">
+              <label htmlFor="monthly-difficulty" className="form-label">Difficulty</label>
+              <select
+                id="monthly-difficulty"
+                className="form-input"
+                value={difficulty}
+                onChange={event => setDifficulty(event.target.value)}
+              >
+                <option value="easy">Easy</option>
+                <option value="medium">Medium</option>
+                <option value="hard">Hard</option>
               </select>
             </div>
-            <div style={{ display: 'flex', gap: 8, padding: 12, borderRadius: 8, background: 'var(--danger-50)', border: '1px solid var(--danger-200)' }}>
-              <AlertCircle size={16} color="var(--danger-500)" style={{ flexShrink: 0 }} />
-              <div style={{ fontSize: 12, color: 'var(--danger-700)', lineHeight: 1.5 }}>Assignments use a one-time link. Tab switching is warned and repeated violations terminate the assessment.</div>
+            <div className="form-field">
+              <label htmlFor="monthly-duration" className="form-label">Plan duration</label>
+              <select
+                id="monthly-duration"
+                className="form-input"
+                value={durationMonths}
+                onChange={event => setDurationMonths(Number(event.target.value))}
+              >
+                {[1, 2, 3, 6, 12].map(months => (
+                  <option key={months} value={months}>
+                    {months} month{months === 1 ? '' : 's'}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div
+              className="form-field form-field--full"
+              style={{
+                flexDirection: 'row',
+                alignItems: 'flex-start',
+                padding: 12,
+                borderRadius: 8,
+                background: 'var(--warning-50)',
+                color: 'var(--warning-700)',
+              }}
+            >
+              <AlertCircle size={17} style={{ flexShrink: 0, marginTop: 1 }} />
+              <span className="form-help" style={{ color: 'inherit' }}>
+                Candidates receive a secure one-time assessment link. Repeated tab switching can end the session.
+              </span>
             </div>
           </div>
         )}
 
         {step === 2 && (
-          <div>
-            <p style={{ fontSize: 13, color: 'var(--fg-muted)', margin: '0 0 15px' }}>Add sub-topics manually or generate them from the subject name.</p>
-            <Button variant="secondary" onClick={handleGenerateSubtopics} disabled={generating || !subject.trim()}>{generating ? 'Generating...' : 'Generate with AI'}</Button>
-            <textarea aria-label="Sub-topics" placeholder="One sub-topic per line" value={subTopics} onChange={e => setSubTopics(e.target.value)} style={{ ...fieldStyle, height: 170, marginTop: 15, resize: 'vertical' }} />
+          <div className="workspace-stack" style={{ gap: 14 }}>
+            <div className="workspace-section-heading">
+              <div>
+                <h3 style={{ fontSize: 16 }}>Build the syllabus</h3>
+                <p>Generate from the subject name or edit one sub-topic per line.</p>
+              </div>
+              <Button variant="secondary" onClick={generateSubtopics} loading={generating}>
+                <Sparkles size={15} />
+                Generate with AI
+              </Button>
+            </div>
+            <textarea
+              aria-label="Sub-topics"
+              className="form-input"
+              rows={10}
+              placeholder="One sub-topic per line"
+              value={subTopics}
+              onChange={event => setSubTopics(event.target.value)}
+              style={{ resize: 'vertical' }}
+            />
           </div>
         )}
 
         {step === 3 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 15 }}>
-            <p style={{ fontSize: 13, color: 'var(--fg-muted)', margin: 0 }}>Generate or edit the study material that candidates receive with this subject.</p>
-            <Button variant="secondary" onClick={handleGenerateJD} disabled={generatingJd}>{generatingJd ? 'Generating...' : 'Generate study material'}</Button>
-            <div style={{ border: '1px solid var(--border-default)', borderRadius: 8, padding: 15, background: 'var(--bg-surface-alt)' }}>
-              <label htmlFor="monthly-study-material" style={labelStyle}>Study material</label>
-              <textarea id="monthly-study-material" value={jdText} onChange={e => setJdText(e.target.value)} style={{ ...fieldStyle, height: 220, resize: 'vertical' }} />
+          <div className="workspace-stack" style={{ gap: 14 }}>
+            <div className="workspace-section-heading">
+              <div>
+                <h3 style={{ fontSize: 16 }}>Candidate study material</h3>
+                <p>This content is included in the assignment communication.</p>
+              </div>
+              <Button variant="secondary" onClick={generateStudyMaterial} loading={generatingMaterial}>
+                <Sparkles size={15} />
+                Generate material
+              </Button>
             </div>
+            <textarea
+              aria-label="Study material"
+              className="form-input"
+              rows={12}
+              placeholder="Add preparation notes, focus areas, and learning resources..."
+              value={studyMaterial}
+              onChange={event => setStudyMaterial(event.target.value)}
+              style={{ resize: 'vertical' }}
+            />
           </div>
         )}
 
-        {error && <div style={{ color: 'var(--danger-700)', fontSize: 13, marginTop: 15 }}>{error}</div>}
+        {error && (
+          <div style={{ padding: 11, borderRadius: 8, background: 'var(--danger-50)', color: 'var(--danger-700)', fontSize: 12 }}>
+            {error}
+          </div>
+        )}
 
-        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 24, paddingTop: 16, borderTop: '1px solid var(--border-default)' }}>
-          <Button variant="secondary" onClick={step > 1 ? () => setStep(c => c - 1) : onClose}>{step > 1 ? 'Back' : 'Cancel'}</Button>
-          {step < steps.length
-            ? <Button onClick={goNext}>Next step</Button>
-            : <Button onClick={handleCreate} disabled={saving}>{saving ? 'Creating...' : 'Create subject'}</Button>}
+        <div className="form-actions">
+          <Button variant="secondary" onClick={step > 1 ? () => setStep(current => current - 1) : onClose}>
+            {step > 1 ? 'Back' : 'Cancel'}
+          </Button>
+          {step < 3 ? (
+            <Button onClick={nextStep}>Continue</Button>
+          ) : (
+            <Button onClick={createSubject} loading={saving}>Create subject</Button>
+          )}
         </div>
       </div>
     </Modal>
   )
 }
 
-// ── Subject detail modal ───────────────────────────────────────
-
 function SubjectDetailModal({ assessment, open, onClose, onAssign }) {
   if (!assessment) return null
+
   const topics = parseStoredArray(assessment.sub_topics)
   const enrollments = assessment.enrollments || []
+  const activeEnrollments = enrollments.filter(item => item.status !== 'cancelled')
+
   return (
     <Modal open={open} onClose={onClose} title={assessment.subject_name} size="lg">
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 18, padding: '6px 0' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+      <div className="workspace-stack">
+        <div className="detail-facts">
           {[
-            ['Difficulty', assessment.difficulty],
-            ['Duration', `${assessment.duration_months} month${Number(assessment.duration_months) === 1 ? '' : 's'}`],
-            ['Total assignments', enrollments.length],
-          ].map(([lbl, val]) => (
-            <div key={lbl} style={{ padding: 12, borderRadius: 9, background: 'var(--bg-surface-alt)' }}>
-              <div style={{ fontSize: 11, color: 'var(--fg-muted)', textTransform: 'uppercase', marginBottom: 4 }}>{lbl}</div>
-              <strong style={{ fontSize: 13, textTransform: lbl === 'Difficulty' ? 'capitalize' : 'none' }}>{val}</strong>
+            ['Difficulty', assessment.difficulty || 'Not set'],
+            ['Duration', `${assessment.duration_months || 1} month${Number(assessment.duration_months) === 1 ? '' : 's'}`],
+            ['Active assignments', activeEnrollments.length],
+            ['Total assignment history', enrollments.length],
+            ['Sub-topics', topics.length],
+            ['Created', formatDate(assessment.created)],
+          ].map(([label, value]) => (
+            <div className="detail-fact" key={label}>
+              <div className="detail-fact__label">{label}</div>
+              <div className="detail-fact__value" style={{ textTransform: label === 'Difficulty' ? 'capitalize' : 'none' }}>
+                {value}
+              </div>
             </div>
           ))}
         </div>
 
-        <div>
-          <h3 style={{ fontSize: 13, margin: '0 0 8px' }}>Sub-topics</h3>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {topics.length > 0
-              ? topics.map(t => <span key={t} style={{ padding: '4px 8px', borderRadius: 999, background: 'var(--brand-50)', color: 'var(--brand-700)', fontSize: 12 }}>{t}</span>)
-              : <span style={{ fontSize: 12, color: 'var(--fg-muted)' }}>No sub-topics added.</span>}
-          </div>
-        </div>
-
-        <div>
-          <h3 style={{ fontSize: 13, margin: '0 0 8px' }}>Study material</h3>
-          <div style={{ maxHeight: 200, overflowY: 'auto', padding: 12, borderRadius: 9, border: '1px solid var(--border-default)', whiteSpace: 'pre-wrap', fontSize: 12, lineHeight: 1.6, color: 'var(--fg-body)' }}>
-            {assessment.ai_generated_jd || 'No study material added.'}
-          </div>
-        </div>
-
-        {enrollments.length > 0 && (
-          <div>
-            <h3 style={{ fontSize: 13, margin: '0 0 8px' }}>Assignment history</h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
-              {enrollments.map(e => (
-                <div key={e.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '8px 10px', borderRadius: 8, background: 'var(--bg-surface-alt)', fontSize: 12 }}>
-                  <strong>{e.first_name} {e.last_name}</strong>
-                  <span style={{ color: 'var(--fg-muted)' }}>{e.start_date ? new Date(e.start_date).toLocaleDateString() : 'Date not set'}</span>
-                </div>
-              ))}
+        <section>
+          <div className="workspace-section-heading" style={{ marginBottom: 10 }}>
+            <div>
+              <h3 style={{ fontSize: 15 }}>Sub-topics</h3>
+              <p>The syllabus used to generate questions and preparation material.</p>
             </div>
           </div>
+          {topics.length > 0 ? (
+            <div className="tag-list">
+              {topics.map(topic => <span className="tag" key={topic}>{topic}</span>)}
+            </div>
+          ) : (
+            <div style={{ color: 'var(--fg-muted)', fontSize: 13 }}>No sub-topics added.</div>
+          )}
+        </section>
+
+        <section>
+          <div className="workspace-section-heading" style={{ marginBottom: 10 }}>
+            <div>
+              <h3 style={{ fontSize: 15 }}>Study material</h3>
+              <p>The preparation guidance sent to assigned candidates.</p>
+            </div>
+          </div>
+          <div style={{
+            maxHeight: 260,
+            overflowY: 'auto',
+            padding: 16,
+            border: '1px solid var(--border-default)',
+            borderRadius: 10,
+            background: 'var(--slate-50)',
+            color: 'var(--fg-body)',
+            fontSize: 13,
+            lineHeight: 1.7,
+            whiteSpace: 'pre-wrap',
+          }}>
+            {assessment.ai_generated_jd || 'No study material added.'}
+          </div>
+        </section>
+
+        {enrollments.length > 0 && (
+          <section>
+            <div className="workspace-section-heading" style={{ marginBottom: 10 }}>
+              <div>
+                <h3 style={{ fontSize: 15 }}>Assignment history</h3>
+                <p>Every candidate previously assigned to this subject.</p>
+              </div>
+            </div>
+            <div className="assignment-list">
+              {enrollments.map(enrollment => {
+                const name = `${enrollment.first_name || ''} ${enrollment.last_name || ''}`.trim()
+                return (
+                  <div className="assignment-row" key={enrollment.id}>
+                    <Avatar name={name} size={30} />
+                    <div className="assignment-row__content">
+                      <strong>{name}</strong>
+                      <span>{formatDate(enrollment.start_date)} - {formatDate(enrollment.end_date)}</span>
+                    </div>
+                    <span className={`status-pill${enrollment.status === 'cancelled' ? ' status-pill--danger' : ' status-pill--brand'}`}>
+                      {enrollment.status || 'pending'}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          </section>
         )}
 
-        <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-          <Button onClick={() => onAssign(assessment)}><UserPlus size={14} /> Assign candidates</Button>
+        <div className="form-actions" style={{ justifyContent: 'flex-end' }}>
+          <Button onClick={() => onAssign(assessment)}>
+            <UserPlus size={15} />
+            Assign candidates
+          </Button>
         </div>
       </div>
     </Modal>
   )
 }
 
-// ── Main page ──────────────────────────────────────────────────
-
 function MonthlyAssessmentPage() {
-  const [tab, setTab] = useState('subjects')
+  const [tab, setTab] = useState('library')
   const [month, setMonth] = useState(currentMonth)
   const [calendarYear, setCalendarYear] = useState(() => new Date().getFullYear())
-
+  const [query, setQuery] = useState('')
   const [assessments, setAssessments] = useState([])
   const [plan, setPlan] = useState(null)
   const [calendarData, setCalendarData] = useState([])
-
   const [loading, setLoading] = useState(true)
   const [planLoading, setPlanLoading] = useState(false)
   const [error, setError] = useState(null)
   const [planError, setPlanError] = useState(null)
-
   const [wizardOpen, setWizardOpen] = useState(false)
   const [selectedAssessment, setSelectedAssessment] = useState(null)
   const [assignAssessment, setAssignAssessment] = useState(null)
   const [cancellingEnrollmentId, setCancellingEnrollmentId] = useState(null)
 
-  useEffect(() => { void loadAll() }, [])
-
-  async function loadAll() {
+  const loadAll = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const [assessmentRes, calendarRes] = await Promise.all([
+      const [assessmentResponse, calendarResponse] = await Promise.all([
         api.getMonthlyAssessments(),
         api.getMonthlyAssessmentCalendar(),
       ])
-      setAssessments(assessmentRes.data || [])
-      setCalendarData(calendarRes.data || [])
+      setAssessments(assessmentResponse.data || [])
+      setCalendarData(calendarResponse.data || [])
     } catch {
-      setError('Could not load assessments.')
+      setError('Could not load monthly assessments.')
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
   const loadPlan = useCallback(async () => {
     setPlanLoading(true)
     setPlanError(null)
     try {
-      const res = await api.getMonthlyAssessmentPlan(month)
-      setPlan(res.data)
-    } catch (err) {
-      setPlanError(err.message || 'Could not load the monthly plan.')
+      const response = await api.getMonthlyAssessmentPlan(month)
+      setPlan(response.data)
+    } catch (loadError) {
+      setPlanError(loadError.message || 'Could not load the monthly plan.')
     } finally {
       setPlanLoading(false)
     }
   }, [month])
 
-  useEffect(() => { if (tab === 'subjects') void loadPlan() }, [tab, loadPlan])
+  useEffect(() => { void loadAll() }, [loadAll])
+  useEffect(() => { if (tab === 'plan') void loadPlan() }, [tab, loadPlan])
 
-  async function handleRefresh() {
+  async function refreshAll() {
     await Promise.all([loadAll(), loadPlan()])
-  }
-
-  function openAssign(assessment) {
-    setSelectedAssessment(null)
-    setAssignAssessment(assessment)
   }
 
   async function cancelEnrollment(enrollment) {
     const name = `${enrollment.first_name || ''} ${enrollment.last_name || ''}`.trim()
-    if (!window.confirm(`Cancel ${name}'s ${enrollment.subject_name || 'monthly assessment'} plan?`)) {
-      return
-    }
+    if (!window.confirm(`Cancel ${name}'s ${enrollment.subject_name || 'monthly assessment'} plan?`)) return
+
     setCancellingEnrollmentId(enrollment.id)
     setPlanError(null)
     try {
       await api.cancelMonthlyEnrollment(enrollment.id)
-      await handleRefresh()
+      await refreshAll()
     } catch (cancelError) {
       setPlanError(cancelError.message || 'Could not cancel the monthly assessment.')
     } finally {
@@ -359,153 +484,271 @@ function MonthlyAssessmentPage() {
     }
   }
 
-  // ── yearly calendar computation ──────────────────────────────
+  const visibleAssessments = useMemo(() => {
+    const normalized = query.trim().toLowerCase()
+    if (!normalized) return assessments
+    return assessments.filter(assessment => {
+      const topics = parseStoredArray(assessment.sub_topics).join(' ').toLowerCase()
+      return String(assessment.subject_name || '').toLowerCase().includes(normalized)
+        || String(assessment.difficulty || '').toLowerCase().includes(normalized)
+        || topics.includes(normalized)
+    })
+  }, [assessments, query])
 
-  const calendarRows = calendarData.map(row => {
+  const calendarRows = useMemo(() => calendarData.map(row => {
     const progress = parseStoredArray(row.month_progress)
     const duration = Number(row.duration_months) || progress.length || 1
     const startDate = new Date(row.start_date || row.assessment_created || row.created)
     if (Number.isNaN(startDate.getTime())) return null
+
     const months = new Array(12).fill(null)
-    for (let i = 0; i < duration; i++) {
-      const md = new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth() + i, 1))
-      if (md.getUTCFullYear() === calendarYear) {
-        months[md.getUTCMonth()] = row.status === 'cancelled'
+    for (let index = 0; index < duration; index += 1) {
+      const monthDate = new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth() + index, 1))
+      if (monthDate.getUTCFullYear() === calendarYear) {
+        months[monthDate.getUTCMonth()] = row.status === 'cancelled'
           ? 'cancelled'
-          : (progress[i] || row.interview_status || 'pending')
+          : (progress[index] || row.interview_status || 'pending')
       }
     }
+
     return {
       id: row.id,
       name: `${row.first_name || ''} ${row.last_name || ''}`.trim(),
       subject: row.subject_name,
       months,
     }
-  }).filter(Boolean).filter(row => row.months.some(Boolean))
-
-  const statusColors = {
-    completed: 'var(--success-500)',
-    scheduled: 'var(--brand-500)',
-    cancelled: 'var(--danger-500)',
-    pending:   'var(--brand-100)',
-  }
-
-  const tabBtn = active => ({
-    background: 'transparent', border: 0, padding: '10px 14px', fontSize: 13,
-    fontWeight: active ? 600 : 500,
-    color: active ? 'var(--brand-700)' : 'var(--fg-muted)',
-    borderBottom: active ? '2px solid var(--brand-500)' : '2px solid transparent',
-    marginBottom: -1, cursor: 'pointer', fontFamily: 'inherit',
-  })
+  }).filter(Boolean).filter(row => row.months.some(Boolean)), [calendarData, calendarYear])
 
   if (loading) return <Spinner center />
   if (error) return <ErrorMessage message={error} />
 
-  const subjects = plan?.subjects || []
+  const planSubjects = plan?.subjects || []
+  const statusColors = {
+    completed: 'var(--success-500)',
+    scheduled: 'var(--brand-500)',
+    cancelled: 'var(--danger-500)',
+    pending: 'var(--brand-100)',
+  }
 
   return (
-    <div style={{ maxWidth: 1100 }}>
-      {/* ── tab row ── */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border-default)', marginBottom: 24 }}>
-        <div style={{ display: 'flex', gap: 4 }}>
-          {[{ id: 'subjects', label: 'Subjects' }, { id: 'calendar', label: 'Yearly calendar' }].map(item => (
-            <button key={item.id} type="button" onClick={() => setTab(item.id)} style={tabBtn(tab === item.id)}>{item.label}</button>
+    <div className="workspace-page workspace-stack">
+      <div className="workspace-toolbar">
+        <div className="workspace-tabs" aria-label="Monthly assessment sections">
+          {[
+            { id: 'library', label: 'Subject library', Icon: BookOpen },
+            { id: 'plan', label: 'Monthly plan', Icon: ListChecks },
+            { id: 'calendar', label: 'Yearly calendar', Icon: CalendarDays },
+          ].map(({ id, label, Icon }) => (
+            <button
+              key={id}
+              type="button"
+              className={`workspace-tabs__button${tab === id ? ' is-active' : ''}`}
+              onClick={() => setTab(id)}
+            >
+              <Icon size={15} />
+              {label}
+            </button>
           ))}
         </div>
-        {tab === 'subjects' && (
-          <Button onClick={() => setWizardOpen(true)} style={{ marginBottom: 1 }}><Plus size={14} /> Create subject</Button>
+        {tab === 'library' && (
+          <Button onClick={() => setWizardOpen(true)}>
+            <Plus size={15} />
+            Create subject
+          </Button>
         )}
       </div>
 
-      {/* ── SUBJECTS TAB ── */}
-      {tab === 'subjects' && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-          {/* month navigator */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
-            <div>
-              <h2 style={{ margin: 0, fontSize: 18, fontWeight: 700, color: 'var(--fg-primary)' }}>{monthLabel(month)}</h2>
-              <p style={{ margin: '3px 0 0', fontSize: 12, color: 'var(--fg-muted)' }}>Who is taking each subject and who has no assessment assigned this month.</p>
+      {tab === 'library' && (
+        <div className="workspace-stack">
+          <div className="workspace-section-heading">
+            <div className="workspace-intro">
+              <h2>Reusable subject library</h2>
+              <p>Create a subject once, review all its information, and assign it to different candidates each month.</p>
             </div>
-            <div style={{ display: 'flex', gap: 6 }}>
-              <button type="button" onClick={() => setMonth(v => shiftMonth(v, -1))} aria-label="Previous month" style={{ border: '1px solid var(--border-default)', background: 'var(--bg-surface)', borderRadius: 8, padding: 7, cursor: 'pointer', display: 'inline-flex' }}><ChevronLeft size={16} /></button>
-              <Button variant="secondary" onClick={() => setMonth(currentMonth())}>This month</Button>
-              <button type="button" onClick={() => setMonth(v => shiftMonth(v, 1))} aria-label="Next month" style={{ border: '1px solid var(--border-default)', background: 'var(--bg-surface)', borderRadius: 8, padding: 7, cursor: 'pointer', display: 'inline-flex' }}><ChevronRight size={16} /></button>
+            <div className="workspace-search">
+              <Search size={16} />
+              <input
+                value={query}
+                onChange={event => setQuery(event.target.value)}
+                placeholder="Search subjects or sub-topics..."
+              />
+            </div>
+          </div>
+
+          {assessments.length === 0 ? (
+            <div className="workspace-panel">
+              <EmptyState message="No subjects created yet. Create your first reusable monthly subject." />
+            </div>
+          ) : visibleAssessments.length === 0 ? (
+            <div className="workspace-panel">
+              <EmptyState message="No subjects match this search." />
+            </div>
+          ) : (
+            <div className="workspace-grid workspace-grid--wide">
+              {visibleAssessments.map(assessment => {
+                const topics = parseStoredArray(assessment.sub_topics)
+                const activeCount = (assessment.enrollments || []).filter(item => item.status !== 'cancelled').length
+                return (
+                  <button
+                    type="button"
+                    className="workspace-card"
+                    key={assessment.id}
+                    onClick={() => setSelectedAssessment(assessment)}
+                  >
+                    <div className="workspace-card__body">
+                      <div className="workspace-card__topline">
+                        <div className="workspace-card__icon"><BookOpen size={20} /></div>
+                        <span className="status-pill status-pill--brand">{assessment.difficulty}</span>
+                      </div>
+                      <div style={{ marginTop: 18 }}>
+                        <div className="workspace-card__eyebrow">Monthly subject</div>
+                        <h3 className="workspace-card__title">{assessment.subject_name}</h3>
+                        <p className="workspace-card__subtitle">
+                          {topics.length > 0
+                            ? `${topics.slice(0, 3).join(', ')}${topics.length > 3 ? ` and ${topics.length - 3} more` : ''}`
+                            : 'No sub-topics added yet'}
+                        </p>
+                      </div>
+                      <div className="workspace-card__meta">
+                        <span><Clock3 size={13} /> {assessment.duration_months || 1} month plan</span>
+                        <span><Users size={13} /> {activeCount} active</span>
+                        <span><ListChecks size={13} /> {topics.length} sub-topics</span>
+                      </div>
+                      <div className="workspace-card__footer">
+                        <span className="workspace-card__link">
+                          View full subject <ArrowRight size={13} />
+                        </span>
+                        <span style={{ color: 'var(--fg-subtle)', fontSize: 11 }}>{formatDate(assessment.created)}</span>
+                      </div>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {tab === 'plan' && (
+        <div className="workspace-stack">
+          <div className="month-navigator">
+            <div className="workspace-intro">
+              <h2>{monthLabel(month)}</h2>
+              <p>See assigned candidates, open capacity, and cancellation controls for this month.</p>
+            </div>
+            <div className="month-navigator__actions">
+              <button type="button" className="icon-button" onClick={() => setMonth(value => shiftMonth(value, -1))} aria-label="Previous month">
+                <ChevronLeft size={16} />
+              </button>
+              <Button variant="secondary" size="sm" onClick={() => setMonth(currentMonth())}>This month</Button>
+              <button type="button" className="icon-button" onClick={() => setMonth(value => shiftMonth(value, 1))} aria-label="Next month">
+                <ChevronRight size={16} />
+              </button>
             </div>
           </div>
 
           {planLoading ? <Spinner center /> : planError ? <ErrorMessage message={planError} /> : (
             <>
-              {/* stat cards */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12 }}>
+              <div className="stat-grid">
                 {[
-                  ['Team members', plan?.teamCount || 0],
+                  ['Organization members', plan?.teamCount || 0],
                   ['Assigned this month', plan?.assignedCount || 0],
                   ['Not assigned', plan?.unassigned?.length || 0],
-                ].map(([lbl, val]) => (
-                  <div key={lbl} style={{ padding: 16, background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderRadius: 10 }}>
-                    <div style={{ fontSize: 26, fontWeight: 700, color: 'var(--fg-primary)' }}>{val}</div>
-                    <div style={{ marginTop: 3, fontSize: 12, color: 'var(--fg-muted)' }}>{lbl}</div>
+                ].map(([label, value]) => (
+                  <div className="stat-card" key={label}>
+                    <div className="stat-card__value">{value}</div>
+                    <div className="stat-card__label">{label}</div>
                   </div>
                 ))}
               </div>
 
-              {/* subject cards */}
-              <section>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-                  <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: 'var(--fg-primary)' }}>Subject assignments</h3>
-                  <span style={{ fontSize: 12, color: 'var(--fg-muted)' }}>{subjects.filter(s => s.candidates.length > 0).length} active this month</span>
+              <section className="workspace-stack" style={{ gap: 12 }}>
+                <div className="workspace-section-heading">
+                  <div>
+                    <h3 style={{ fontSize: 16 }}>Subject assignments</h3>
+                    <p>{planSubjects.filter(subject => subject.candidates.length > 0).length} subjects active in {monthLabel(month)}.</p>
+                  </div>
                 </div>
-                {subjects.length === 0 ? (
-                  <EmptyState message="No subjects created yet. Create one to start assigning candidates." />
+
+                {planSubjects.length === 0 ? (
+                  <div className="workspace-panel">
+                    <EmptyState message="No subjects are available. Create a subject from the library first." />
+                  </div>
                 ) : (
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(19rem, 1fr))', gap: 12 }}>
-                    {subjects.map(subject => {
-                      const fullTemplate = assessments.find(a => a.id === subject.id)
-                      return (
-                        <div key={subject.id} style={{ padding: 16, background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderRadius: 11 }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'flex-start' }}>
-                            <div
-                              style={{ cursor: 'pointer', flex: 1 }}
-                              onClick={() => fullTemplate && setSelectedAssessment(fullTemplate)}
-                              role="button"
-                              tabIndex={0}
-                              onKeyDown={e => { if ((e.key === 'Enter' || e.key === ' ') && fullTemplate) setSelectedAssessment(fullTemplate) }}
-                            >
-                              <h4 style={{ margin: 0, fontSize: 14, color: 'var(--brand-700)' }}>{subject.subject_name}</h4>
-                              <p style={{ margin: '3px 0 0', fontSize: 11, color: 'var(--fg-muted)', textTransform: 'capitalize' }}>{subject.difficulty} · {subject.duration_months} month{Number(subject.duration_months) === 1 ? '' : 's'}</p>
+                  <div className="workspace-grid workspace-grid--wide">
+                    {planSubjects.map(subject => (
+                      <div className="workspace-card" key={subject.id}>
+                        <div className="workspace-card__body">
+                          <div className="workspace-card__topline">
+                            <div>
+                              <div className="workspace-card__eyebrow">Subject plan</div>
+                              <h3 className="workspace-card__title">{subject.subject_name}</h3>
+                              <p className="workspace-card__subtitle" style={{ textTransform: 'capitalize' }}>
+                                {subject.difficulty} difficulty, {subject.duration_months} month{Number(subject.duration_months) === 1 ? '' : 's'}
+                              </p>
                             </div>
-                            <Button variant="secondary" onClick={() => openAssign(subject)}>
-                              <CalendarPlus size={12} /> Assign
+                            <Button variant="secondary" size="sm" onClick={() => setAssignAssessment(subject)}>
+                              <UserPlus size={13} />
+                              Assign
                             </Button>
                           </div>
 
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 7, marginTop: 14 }}>
-                            {subject.candidates.length === 0
-                              ? <div style={{ padding: '10px 0', fontSize: 12, color: 'var(--fg-muted)' }}>No candidates assigned this month.</div>
-                              : subject.candidates.map(c => {
-                                const name = `${c.first_name || ''} ${c.last_name || ''}`.trim()
-                                return (
-                                  <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '9px 10px', borderRadius: 8, background: 'var(--bg-surface-alt)' }}>
-                                    <Avatar name={name} size={26} />
-                                    <span style={{ flex: 1, minWidth: 0 }}>
-                                      <strong style={{ display: 'block', fontSize: 12, color: 'var(--fg-primary)' }}>{name}</strong>
-                                      <span style={{ display: 'block', fontSize: 10, color: 'var(--fg-muted)', marginTop: 2 }}>
-                                        {new Date(c.start_date).toLocaleDateString()} - {new Date(c.end_date).toLocaleDateString()}
-                                        {' | '}{subject.duration_months} month{Number(subject.duration_months) === 1 ? '' : 's'}
-                                      </span>
-                                    </span>
-                                    <button
-                                      type="button"
-                                      disabled={cancellingEnrollmentId === c.id}
-                                      onClick={() => cancelEnrollment({ ...c, subject_name: subject.subject_name })}
-                                      title="Cancel this monthly assessment"
-                                      style={{ border: 0, background: 'transparent', color: 'var(--danger-600)', cursor: cancellingEnrollmentId === c.id ? 'wait' : 'pointer', padding: 5, display: 'inline-flex' }}
-                                    >
-                                      <Trash2 size={14} />
-                                    </button>
+                          <div className="assignment-list">
+                            {subject.candidates.length === 0 ? (
+                              <div style={{ padding: '12px 0', color: 'var(--fg-muted)', fontSize: 12 }}>
+                                No candidates assigned in this month.
+                              </div>
+                            ) : subject.candidates.map(candidate => {
+                              const name = `${candidate.first_name || ''} ${candidate.last_name || ''}`.trim()
+                              return (
+                                <div className="assignment-row" key={candidate.id}>
+                                  <Avatar name={name} size={28} />
+                                  <div className="assignment-row__content">
+                                    <strong>{name}</strong>
+                                    <span>{formatDate(candidate.start_date)} - {formatDate(candidate.end_date)}</span>
                                   </div>
-                                )
-                              })}
+                                  <button
+                                    type="button"
+                                    className="danger-icon-button"
+                                    disabled={cancellingEnrollmentId === candidate.id}
+                                    onClick={() => cancelEnrollment({ ...candidate, subject_name: subject.subject_name })}
+                                    aria-label={`Cancel ${name}'s assignment`}
+                                  >
+                                    <Trash2 size={14} />
+                                  </button>
+                                </div>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+
+              <section className="workspace-panel detail-panel">
+                <div className="workspace-section-heading" style={{ marginBottom: 14 }}>
+                  <div>
+                    <h3 style={{ fontSize: 16 }}>Members without an assessment</h3>
+                    <p>People still available for a plan in {monthLabel(month)}.</p>
+                  </div>
+                  <span className="status-pill status-pill--warning">{plan?.unassigned?.length || 0} available</span>
+                </div>
+                {!plan?.unassigned?.length ? (
+                  <div style={{ color: 'var(--success-600)', fontSize: 13 }}>
+                    Every organization member has an assessment this month.
+                  </div>
+                ) : (
+                  <div className="workspace-grid">
+                    {plan.unassigned.map(member => {
+                      const name = `${member.first_name || ''} ${member.last_name || ''}`.trim()
+                      return (
+                        <div className="member-row" key={member.id}>
+                          <Avatar name={name} size={30} />
+                          <div className="member-row__content">
+                            <strong>{name}</strong>
+                            <span>{member.current_position || member.email}</span>
                           </div>
                         </div>
                       )
@@ -513,109 +756,106 @@ function MonthlyAssessmentPage() {
                   </div>
                 )}
               </section>
-
-              {/* unassigned members */}
-              <section style={{ padding: 16, background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderRadius: 11 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                  <Users size={16} color="var(--warning-600)" />
-                  <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: 'var(--fg-primary)' }}>Team members without an assessment this month</h3>
-                </div>
-                {!plan?.unassigned?.length
-                  ? <div style={{ fontSize: 12, color: 'var(--success-600)' }}>Every team member has at least one assessment this month.</div>
-                  : (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(14rem, 1fr))', gap: 8 }}>
-                      {plan.unassigned.map(member => {
-                        const name = `${member.first_name || ''} ${member.last_name || ''}`.trim()
-                        return (
-                          <div key={member.id} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: 10, border: '1px solid var(--border-default)', borderRadius: 8 }}>
-                            <Avatar name={name} size={28} />
-                            <span>
-                              <strong style={{ display: 'block', fontSize: 12, color: 'var(--fg-primary)' }}>{name}</strong>
-                              <span style={{ fontSize: 10, color: 'var(--fg-muted)' }}>{member.current_position || member.email}</span>
-                            </span>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  )}
-              </section>
             </>
           )}
         </div>
       )}
 
-      {/* ── YEARLY CALENDAR TAB ── */}
       {tab === 'calendar' && (
-        <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderRadius: 12, padding: 20, boxShadow: '0 1px 3px rgba(15,23,42,0.04)', overflowX: 'auto' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
-            <strong style={{ fontSize: 15, color: 'var(--fg-primary)' }}>{calendarYear} assessment plan</strong>
-            <div style={{ display: 'flex', gap: 6 }}>
-              <button type="button" onClick={() => setCalendarYear(y => y - 1)} aria-label="Previous year" style={{ border: '1px solid var(--border-default)', background: 'var(--bg-surface)', borderRadius: 7, padding: 6, cursor: 'pointer', display: 'inline-flex' }}><ChevronLeft size={15} /></button>
-              <button type="button" onClick={() => setCalendarYear(new Date().getFullYear())} style={{ border: '1px solid var(--border-default)', background: 'var(--bg-surface)', borderRadius: 7, padding: '5px 10px', cursor: 'pointer', fontSize: 12 }}>Current year</button>
-              <button type="button" onClick={() => setCalendarYear(y => y + 1)} aria-label="Next year" style={{ border: '1px solid var(--border-default)', background: 'var(--bg-surface)', borderRadius: 7, padding: 6, cursor: 'pointer', display: 'inline-flex' }}><ChevronRight size={15} /></button>
+        <div className="workspace-panel calendar-shell">
+          <div className="month-navigator" style={{ border: 0, borderBottom: '1px solid var(--border-default)', borderRadius: 0, boxShadow: 'none' }}>
+            <div className="workspace-intro">
+              <h2>{calendarYear} assessment calendar</h2>
+              <p>Annual visibility of candidate plans and their current status.</p>
+            </div>
+            <div className="month-navigator__actions">
+              <button type="button" className="icon-button" onClick={() => setCalendarYear(year => year - 1)} aria-label="Previous year">
+                <ChevronLeft size={16} />
+              </button>
+              <Button variant="secondary" size="sm" onClick={() => setCalendarYear(new Date().getFullYear())}>
+                Current year
+              </Button>
+              <button type="button" className="icon-button" onClick={() => setCalendarYear(year => year + 1)} aria-label="Next year">
+                <ChevronRight size={16} />
+              </button>
             </div>
           </div>
 
-          <div style={{ minWidth: 820 }}>
-            <div style={{ display: 'flex', marginBottom: 12 }}>
-              <div style={{ width: 150, fontSize: 11, fontWeight: 700, color: 'var(--fg-muted)', textTransform: 'uppercase' }}>Candidate · Subject</div>
-              {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map(m => (
-                <div key={m} style={{ flex: 1, textAlign: 'center', fontSize: 11, fontWeight: 700, color: 'var(--fg-muted)' }}>{m}</div>
-              ))}
-            </div>
+          <div className="calendar-scroll">
+            <div className="calendar-grid">
+              <div style={{ display: 'grid', gridTemplateColumns: '190px repeat(12, 1fr)', gap: 0, padding: '18px 0 10px' }}>
+                <div className="workspace-card__eyebrow">Candidate / subject</div>
+                {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map(label => (
+                  <div key={label} style={{ textAlign: 'center', color: 'var(--fg-muted)', fontSize: 11, fontWeight: 700 }}>{label}</div>
+                ))}
+              </div>
 
-            {calendarRows.length === 0
-              ? <EmptyState message="No assignments found for this year." />
-              : calendarRows.map((row, i) => (
-                <div key={`${row.id}-${i}`} style={{ display: 'flex', alignItems: 'center', padding: '10px 0', borderTop: i === 0 ? 0 : '1px solid var(--border-default)' }}>
-                  <div style={{ width: 150, display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <Avatar name={row.name} size={24} />
+              {calendarRows.length === 0 ? (
+                <EmptyState message="No assignments were found for this year." />
+              ) : calendarRows.map((row, index) => (
+                <div
+                  key={`${row.id}-${index}`}
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '190px repeat(12, 1fr)',
+                    alignItems: 'center',
+                    minHeight: 58,
+                    borderTop: '1px solid var(--border-default)',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}>
+                    <Avatar name={row.name} size={28} />
                     <span style={{ minWidth: 0 }}>
-                      <strong style={{ display: 'block', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.name}</strong>
-                      <span style={{ display: 'block', fontSize: 10, color: 'var(--fg-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.subject}</span>
+                      <strong style={{ display: 'block', overflow: 'hidden', color: 'var(--fg-primary)', fontSize: 12, textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.name}</strong>
+                      <span style={{ display: 'block', overflow: 'hidden', marginTop: 2, color: 'var(--fg-muted)', fontSize: 10, textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.subject}</span>
                     </span>
                   </div>
-                  {row.months.map((status, mi) => (
-                    <div key={mi} style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
-                      {status
-                        ? <div
-                            title={`${status.charAt(0).toUpperCase() + status.slice(1)} — ${['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][mi]}`}
-                            style={{ width: 16, height: 16, borderRadius: 4, background: statusColors[status] || statusColors.pending, border: '1px solid rgba(0,0,0,0.06)' }}
-                          />
-                        : <div style={{ width: 16, height: 16, borderRadius: 4, background: 'transparent', border: '1px dashed var(--border-default)' }} />}
+                  {row.months.map((status, monthIndex) => (
+                    <div key={monthIndex} style={{ display: 'flex', justifyContent: 'center' }}>
+                      <span
+                        title={status || 'No plan'}
+                        style={{
+                          width: 18,
+                          height: 18,
+                          borderRadius: 5,
+                          border: status ? '1px solid rgba(15,23,42,0.06)' : '1px dashed var(--border-strong)',
+                          background: status ? (statusColors[status] || statusColors.pending) : 'transparent',
+                        }}
+                      />
                     </div>
                   ))}
                 </div>
               ))}
+            </div>
           </div>
 
-          <div style={{ display: 'flex', gap: 16, marginTop: 20, paddingTop: 14, borderTop: '1px solid var(--border-default)' }}>
-            {Object.entries(statusColors).map(([lbl, color]) => (
-              <div key={lbl} style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--fg-muted)', textTransform: 'capitalize' }}>
-                <span style={{ width: 12, height: 12, borderRadius: 3, background: color, border: '1px solid rgba(0,0,0,0.06)', display: 'inline-block' }} />
-                {lbl}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 14, padding: '14px 20px', borderTop: '1px solid var(--border-default)' }}>
+            {Object.entries(statusColors).map(([label, color]) => (
+              <div key={label} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--fg-muted)', fontSize: 11, textTransform: 'capitalize' }}>
+                <span style={{ width: 11, height: 11, borderRadius: 3, background: color }} />
+                {label}
               </div>
             ))}
           </div>
         </div>
       )}
 
-      {/* ── modals ── */}
-      <WizardModal open={wizardOpen} onClose={() => setWizardOpen(false)} onDone={handleRefresh} />
-
+      <WizardModal open={wizardOpen} onClose={() => setWizardOpen(false)} onDone={refreshAll} />
       <MonthlyAssessmentAssignModal
         open={Boolean(assignAssessment)}
         assessment={assignAssessment}
         defaultDate={`${month}-01`}
         onClose={() => setAssignAssessment(null)}
-        onDone={handleRefresh}
+        onDone={refreshAll}
       />
-
       <SubjectDetailModal
         assessment={selectedAssessment}
         open={Boolean(selectedAssessment)}
         onClose={() => setSelectedAssessment(null)}
-        onAssign={a => { setSelectedAssessment(null); setAssignAssessment(a) }}
+        onAssign={assessment => {
+          setSelectedAssessment(null)
+          setAssignAssessment(assessment)
+        }}
       />
     </div>
   )

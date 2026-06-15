@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import TopBar from './TopBar'
@@ -91,7 +92,12 @@ function RoleBar({ role, onLogout, onLogoClick }) {
 function AppLayout({ role = 'manager' }) {
   const location = useLocation()
   const navigate = useNavigate()
+  const [sidebarOpen, setSidebarOpen] = useState(false)
   const { title, subtitle } = getPageMeta(location.pathname)
+
+  useEffect(() => {
+    setSidebarOpen(false)
+  }, [location.pathname])
 
   function handleLogout() {
     api.logout().catch(() => {})
@@ -105,16 +111,29 @@ function AppLayout({ role = 'manager' }) {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <div className="app-shell">
       <RoleBar role={role} onLogout={handleLogout} onLogoClick={handleLogoClick} />
 
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-        <Sidebar />
+      <div className="app-shell__body">
+        <Sidebar open={sidebarOpen} onNavigate={() => setSidebarOpen(false)} />
+        {sidebarOpen && (
+          <button
+            type="button"
+            className="mobile-sidebar-scrim"
+            aria-label="Close navigation"
+            onClick={() => setSidebarOpen(false)}
+          />
+        )}
 
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, minHeight: 0 }}>
-          <TopBar title={title} subtitle={subtitle} role={role} />
+        <div className="app-shell__content">
+          <TopBar
+            title={title}
+            subtitle={subtitle}
+            role={role}
+            onMenuClick={() => setSidebarOpen(current => !current)}
+          />
 
-          <main style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '1.5rem 1.75rem', background: 'var(--slate-50)', overflowY: 'auto' }}>
+          <main className="app-main">
             <Outlet />
           </main>
         </div>

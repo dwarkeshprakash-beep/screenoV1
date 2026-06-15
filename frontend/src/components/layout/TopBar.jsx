@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Bell, Search, CalendarPlus, CheckCircle2, FileText, Clock, X } from 'lucide-react'
+import { Bell, Search, CalendarPlus, CheckCircle2, FileText, Clock, Menu, X } from 'lucide-react'
 import * as api from '../../services/api'
 import { formatDate } from '../../utils/helpers'
 
@@ -77,7 +77,7 @@ function NotifDropdown({ items, loading, onClose, onViewAll }) {
 }
 
 // ── TopBar ────────────────────────────────────────────────────
-function TopBar({ title = '', subtitle = '', action = null, role = 'manager' }) {
+function TopBar({ title = '', subtitle = '', action = null, role = 'manager', onMenuClick }) {
   const navigate = useNavigate()
   const [query, setQuery] = useState('')
   const [notifOpen, setNotifOpen] = useState(false)
@@ -128,16 +128,28 @@ function TopBar({ title = '', subtitle = '', action = null, role = 'manager' }) 
       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       padding: '0 1.5rem', flexShrink: 0,
     }}>
-      <div>
-        <h1 style={{ fontFamily: "var(--font-display)", fontSize: 'var(--fs-xl)', fontWeight: 'var(--fw-bold)', color: 'var(--fg-primary)', margin: 0, letterSpacing: 'var(--tracking-tight)' }}>
-          {title}
-        </h1>
-        {subtitle && <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--fg-subtle)', marginTop: '0.0625rem' }}>{subtitle}</div>}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
+        {isManager && (
+          <button
+            type="button"
+            className="icon-button topbar-menu-button"
+            aria-label="Open navigation"
+            onClick={onMenuClick}
+          >
+            <Menu size={17} />
+          </button>
+        )}
+        <div style={{ minWidth: 0 }}>
+          <h1 style={{ fontFamily: "var(--font-display)", fontSize: 'var(--fs-xl)', fontWeight: 'var(--fw-bold)', color: 'var(--fg-primary)', margin: 0, letterSpacing: 'var(--tracking-tight)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {title}
+          </h1>
+          {subtitle && <div style={{ fontSize: 'var(--fs-xs)', color: 'var(--fg-subtle)', marginTop: '0.0625rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{subtitle}</div>}
+        </div>
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
         {isManager && (
-          <form onSubmit={submitSearch} role="search" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--slate-100)', borderRadius: 'var(--radius-md)', padding: '0.4375rem 0.75rem', width: '16.25rem', maxWidth: '100%' }}>
+          <form className="topbar-search" onSubmit={submitSearch} role="search" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--slate-100)', borderRadius: 'var(--radius-md)', padding: '0.4375rem 0.75rem', width: '16.25rem', maxWidth: '100%' }}>
             <Search size={13} color="var(--fg-subtle)" />
             <input
               aria-label="Search candidates"

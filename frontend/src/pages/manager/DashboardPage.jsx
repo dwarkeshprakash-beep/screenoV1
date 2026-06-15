@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Users, CheckSquare, CalendarPlus } from 'lucide-react'
 import Spinner from '../../components/shared/Spinner'
 import ErrorMessage from '../../components/shared/ErrorMessage'
+import Button from '../../components/shared/Button'
 import * as api from '../../services/api'
 import { formatDate } from '../../utils/helpers'
 
@@ -44,19 +45,16 @@ function DashboardPage() {
   ]
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', flex: 1, minHeight: 0 }}>
+    <div className="workspace-page" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', flex: 1, minHeight: 0 }}>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
-          <h1 style={{ fontSize: 'var(--fs-3xl)', fontWeight: 'var(--fw-bold)', color: 'var(--fg-primary)', margin: '0 0 0.25rem', letterSpacing: 'var(--tracking-tight)' }}>Dashboard</h1>
+          <h2 style={{ fontSize: 'var(--fs-2xl)', fontWeight: 'var(--fw-bold)', color: 'var(--fg-primary)', margin: '0 0 0.25rem', letterSpacing: 'var(--tracking-tight)' }}>Hiring operations</h2>
           <p style={{ color: 'var(--fg-muted)', fontSize: 'var(--fs-sm)', margin: 0 }}>Track your team's assessment progress and hiring activity.</p>
         </div>
-        <button
-          onClick={() => navigate('/manager/team')}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: '0.375rem', background: 'var(--brand-500)', color: 'var(--fg-on-brand)', border: 0, borderRadius: 'var(--radius-md)', fontWeight: 'var(--fw-semibold)', padding: '0.5rem 0.875rem', fontSize: 'var(--fs-sm)', cursor: 'pointer', boxShadow: '0 4px 12px rgba(91,79,233,0.2)' }}
-        >
+        <Button onClick={() => navigate('/manager/team')}>
           <Users size={14} /> My Team
-        </button>
+        </Button>
       </div>
 
       {/* Stat cards */}

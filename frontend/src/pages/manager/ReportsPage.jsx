@@ -22,7 +22,8 @@ function DecisionBadge({ decision }) {
 function ReportTable({ reports, navigate, btnSecondary, thStyle }) {
   if (reports.length === 0) return <EmptyState message="No reports yet. Reports are generated after interviews complete." />
   return (
-    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+    <div style={{ overflowX: 'auto' }}>
+    <table style={{ width: '100%', minWidth: 780, borderCollapse: 'collapse', fontSize: 13 }}>
       <thead>
         <tr style={{ background: 'var(--bg-surface-alt)' }}>
           {['CANDIDATE', 'SOURCE', 'TYPE', 'DATE', 'OVERALL', 'DECISION', ''].map(h => <th key={h} style={thStyle}>{h}</th>)}
@@ -69,6 +70,7 @@ function ReportTable({ reports, navigate, btnSecondary, thStyle }) {
         })}
       </tbody>
     </table>
+    </div>
   )
 }
 
@@ -151,9 +153,9 @@ function ReportsPage() {
   ]
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+    <div className="workspace-page" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(13rem, 1fr))', gap: 14 }}>
         {statCards.map(s => (
           <div key={s.label} style={{ ...cardStyle, display: 'flex', alignItems: 'center', gap: 12, padding: 18 }}>
             <div style={{ width: 44, height: 44, borderRadius: 10, background: s.bg, color: s.color, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>

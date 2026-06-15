@@ -8,6 +8,7 @@ import App from './App.jsx'
 import ErrorBoundary from './components/shared/ErrorBoundary.jsx'
 import '@tokens'                    // design tokens from project root (alias in vite.config.js)
 import './styles/globals.css'        // global resets
+import './styles/product-ui.css'
 
 window.addEventListener('unhandledrejection', (event) => {
   console.error('Unhandled promise rejection:', event.reason)

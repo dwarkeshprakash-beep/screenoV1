@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { CalendarPlus } from 'lucide-react'
 import Spinner from '../../components/shared/Spinner'
 import ErrorMessage from '../../components/shared/ErrorMessage'
+import Button from '../../components/shared/Button'
 import ScheduleModal from '../../components/manager/ScheduleModal'
 import * as api from '../../services/api'
 
@@ -95,9 +96,9 @@ function SchedulePage() {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+    <div className="workspace-page workspace-stack" style={{ gap: 16 }}>
+      <div className="workspace-toolbar">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
           <h2 style={{ fontSize: 22, fontWeight: 700, color: 'var(--slate-900)', margin: 0, letterSpacing: '-0.015em' }}>{weekLabel(weekStart)}</h2>
           <div style={{ display: 'inline-flex', gap: 2, background: 'var(--slate-100)', padding: 3, borderRadius: 8, border: '1px solid var(--slate-200)' }}>
             {[
@@ -111,19 +112,11 @@ function SchedulePage() {
             ))}
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button
-            onClick={() => navigate('/manager/team')}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--bg-surface)', color: 'var(--slate-900)', border: '1px solid var(--slate-300)', borderRadius: 8, fontWeight: 600, padding: '8px 14px', fontSize: 13, cursor: 'pointer' }}
-          >
-            My Team
-          </button>
-          <button
-            onClick={() => setScheduleOpen(true)}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--brand-500)', color: 'var(--bg-surface)', border: 0, borderRadius: 8, fontWeight: 600, padding: '8px 14px', fontSize: 13, cursor: 'pointer', boxShadow: '0 4px 12px rgba(91,79,233,0.2)' }}
-          >
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <Button variant="secondary" onClick={() => navigate('/manager/team')}>My Team</Button>
+          <Button onClick={() => setScheduleOpen(true)}>
             <CalendarPlus size={13} /> Schedule interview
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -147,7 +140,8 @@ function SchedulePage() {
       ) : error ? (
         <ErrorMessage message={error} />
       ) : (
-        <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--slate-200)', borderRadius: 12, overflow: 'hidden', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
+        <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--slate-200)', borderRadius: 12, overflowX: 'auto', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
+          <div style={{ minWidth: 780 }}>
           <div style={{ display: 'grid', gridTemplateColumns: `56px repeat(5,1fr)`, borderBottom: '1px solid var(--slate-200)', background: 'var(--bg-surface)' }}>
             <div />
             {weekDays.map((d, i) => {
@@ -198,6 +192,7 @@ function SchedulePage() {
                 </div>
               )
             })}
+          </div>
           </div>
         </div>
       )}

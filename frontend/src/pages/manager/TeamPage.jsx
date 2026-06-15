@@ -222,7 +222,7 @@ function TeamPage() {
   })
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+    <div className="workspace-page" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
       {/* Roster type selector */}
       <div style={{ display: 'flex', gap: 8 }}>
@@ -407,8 +407,8 @@ function TeamPage() {
           {extLoading ? <Spinner center /> : extError ? <ErrorMessage message={extError} /> : externals.length === 0 ? (
             <EmptyState message="No external candidates yet. Add contractors or freelancers to schedule interviews." />
           ) : (
-            <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderRadius: '0.75rem', overflow: 'hidden', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+            <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderRadius: '0.75rem', overflowX: 'auto', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
+              <table style={{ width: '100%', minWidth: 720, borderCollapse: 'collapse', fontSize: 13 }}>
                 <thead>
                   <tr style={{ background: 'var(--bg-surface-alt)' }}>
                     {['CANDIDATE', 'EMAIL', 'INTERVIEWS', 'LAST INTERVIEW', 'ACTIONS'].map(h => <th key={h} style={thStyle}>{h}</th>)}

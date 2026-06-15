@@ -1,6 +1,5 @@
-// Modal — overlay dialog. Closes on backdrop click or Escape key.
-
 import { useEffect } from 'react'
+import { X } from 'lucide-react'
 
 /**
  * @param {boolean} open - controls visibility
@@ -9,16 +8,21 @@ import { useEffect } from 'react'
  * @param {'sm'|'md'|'lg'} size
  */
 function Modal({ open, onClose, title, children, size = 'md' }) {
-  const widths = { sm: '25rem', md: '35rem', lg: '50rem' }
-
-  // Close on Escape key
   useEffect(() => {
-    if (!open) return
-    function handleKey(e) {
-      if (e.key === 'Escape') onClose()
+    if (!open) return undefined
+
+    function handleKey(event) {
+      if (event.key === 'Escape') onClose()
     }
+
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
     document.addEventListener('keydown', handleKey)
-    return () => document.removeEventListener('keydown', handleKey)
+
+    return () => {
+      document.body.style.overflow = previousOverflow
+      document.removeEventListener('keydown', handleKey)
+    }
   }, [open, onClose])
 
   if (!open) return null
@@ -28,60 +32,19 @@ function Modal({ open, onClose, title, children, size = 'md' }) {
       role="dialog"
       aria-modal="true"
       aria-labelledby="modal-title"
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'rgba(0,0,0,0.45)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 1000,
-        padding: '1rem',
+      className="product-modal-backdrop"
+      onMouseDown={event => {
+        if (event.target === event.currentTarget) onClose()
       }}
     >
-      <div
-        style={{
-          background: 'var(--bg-surface)',
-          borderRadius: 'var(--radius-xl)',
-          width: '100%',
-          maxWidth: widths[size] || widths.md,
-          maxHeight: '90vh',
-          display: 'flex',
-          flexDirection: 'column',
-          boxShadow: 'var(--shadow-xl)',
-        }}
-      >
-        {/* Header */}
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '1.25rem 1.5rem',
-          borderBottom: '1px solid var(--border-default)',
-        }}>
-          <h2 id="modal-title" style={{ fontSize: 'var(--fs-lg)', fontWeight: 'var(--fw-bold)', color: 'var(--fg-primary)', margin: 0 }}>
-            {title}
-          </h2>
-          <button
-            onClick={onClose}
-            aria-label="Close"
-            style={{
-              background: 'none',
-              border: 'none',
-              fontSize: '1.25rem',
-              color: 'var(--fg-muted)',
-              cursor: 'pointer',
-              lineHeight: 1,
-            }}
-          >
-            ×
+      <div className={`product-modal product-modal--${size}`}>
+        <div className="product-modal__header">
+          <h2 id="modal-title" className="product-modal__title">{title}</h2>
+          <button type="button" onClick={onClose} aria-label="Close" className="product-modal__close">
+            <X size={17} />
           </button>
         </div>
-
-        {/* Body */}
-        <div style={{ padding: '1.5rem', overflowY: 'auto', flex: 1, minHeight: 0 }}>
-          {children}
-        </div>
+        <div className="product-modal__body">{children}</div>
       </div>
     </div>
   )

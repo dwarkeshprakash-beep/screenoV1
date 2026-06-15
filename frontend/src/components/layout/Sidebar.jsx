@@ -36,7 +36,7 @@ function getInitials(name) {
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase()
 }
 
-function Sidebar() {
+function Sidebar({ open = false, onNavigate }) {
   const navigate  = useNavigate()
   const location  = useLocation()
   const nav = MANAGER_NAV
@@ -53,7 +53,7 @@ function Sidebar() {
   const userRole = 'Manager'
 
   return (
-    <aside style={{
+    <aside className={`manager-sidebar${open ? ' is-open' : ''}`} style={{
       width: '14rem',
       background: 'var(--bg-sidebar)',
       color: 'var(--fg-on-dark)',
@@ -79,7 +79,11 @@ function Sidebar() {
               return (
                 <div
                   key={to + label}
-                  onClick={() => to !== '#' && navigate(to)}
+                  onClick={() => {
+                    if (to === '#') return
+                    navigate(to)
+                    onNavigate?.()
+                  }}
                   style={{
                     display: 'flex', alignItems: 'center', gap: '0.625rem',
                     padding: '0.5625rem 0.75rem', borderRadius: 'var(--radius-md)',
@@ -118,6 +122,7 @@ function Sidebar() {
       <div
         onClick={() => {
           navigate('/manager/profile')
+          onNavigate?.()
         }}
         style={{
           padding: '0.75rem 0.875rem', borderTop: '1px solid var(--border-sidebar)',
