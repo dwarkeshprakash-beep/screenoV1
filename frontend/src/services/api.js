@@ -96,6 +96,7 @@ export const addExternalCandidate = data =>
 
 export const createSchedule = data =>
   request('/api/schedule', { method: 'POST', body: JSON.stringify(data) })
+export const getScheduleOrgUsers = () => request('/api/schedule/org-users')
 export const getCalendarEvents = week =>
   request(`/api/schedule/calendar${week ? `?week=${week}` : ''}`)
 

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, LayoutTemplate, Sparkles, X, Download, Send, Calendar } from 'lucide-react'
+import { Plus, LayoutTemplate, Sparkles, X, Download, Send, Calendar, Upload } from 'lucide-react'
 import Modal from '../../components/shared/Modal'
 import Button from '../../components/shared/Button'
 import Spinner from '../../components/shared/Spinner'
@@ -21,16 +21,37 @@ function WizardModal({ open, onClose, onCreated }) {
   const [extractedTags, setExtractedTags] = useState([])
   const [customTag, setCustomTag]         = useState('')
   const [extracting, setExtracting]       = useState(false)
+  const [extractingJd, setExtractingJd]   = useState(false)
+  const [jdFileName, setJdFileName]       = useState('')
   const [saving, setSaving]               = useState(false)
   const [saveError, setSaveError]         = useState(null)
 
   function reset() {
     setStep(1); setClientName(''); setClientEmail(''); setRequirements('')
     setHeadcount(''); setJdText(''); setCustomInfo(''); setExtractedTags([])
-    setCustomTag(''); setSaveError(null)
+    setCustomTag(''); setJdFileName(''); setSaveError(null)
   }
 
   function handleClose() { reset(); onClose() }
+
+  async function handleJdFile(event) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+    setExtractingJd(true)
+    setSaveError(null)
+    try {
+      const response = await api.extractTextFromFile(file)
+      const text = response.data?.text || ''
+      if (!text.trim()) throw new Error('No readable text was found in this file')
+      setJdText(text)
+      setJdFileName(file.name)
+    } catch (error) {
+      setSaveError(error.message || 'Could not read the JD file')
+    } finally {
+      setExtractingJd(false)
+    }
+  }
 
   async function handleExtract() {
     if (!clientName.trim()) { setSaveError('Client name is required'); return }
@@ -103,8 +124,13 @@ function WizardModal({ open, onClose, onCreated }) {
               <input value={headcount} onChange={e => setHeadcount(e.target.value)} type="number" min="1" placeholder="1" style={inp} />
             </div>
             <div>
-              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--fg-body)', marginBottom: 4 }}>Client JD <span style={{ fontWeight: 400, color: 'var(--fg-muted)' }}>(paste full job description)</span></label>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--fg-body)', marginBottom: 4 }}>Client JD <span style={{ fontWeight: 400, color: 'var(--fg-muted)' }}>(paste text or upload a document)</span></label>
               <textarea value={jdText} onChange={e => setJdText(e.target.value)} placeholder="Paste the client JD here for AI tag extraction and candidate matching…" style={{ ...inp, height: 120, resize: 'vertical' }} />
+              <input id="client-jd-file" type="file" accept=".pdf,.doc,.docx,.txt" onChange={handleJdFile} style={{ display: 'none' }} />
+              <label htmlFor="client-jd-file" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 8, padding: '7px 10px', border: '1px solid var(--border-default)', borderRadius: 7, cursor: extractingJd ? 'wait' : 'pointer', fontSize: 12, fontWeight: 600, color: 'var(--fg-body)' }}>
+                <Upload size={13} /> {extractingJd ? 'Reading document...' : 'Upload PDF, DOC, DOCX, or TXT'}
+              </label>
+              {jdFileName && <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--fg-muted)' }}>{jdFileName}</span>}
             </div>
             <div>
               <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--fg-body)', marginBottom: 4 }}>Custom Info <span style={{ fontWeight: 400, color: 'var(--fg-muted)' }}>(optional notes for the team)</span></label>
@@ -163,19 +189,28 @@ function SendInviteModal({ open, onClose, template, candidateIds, members }) {
   }
 
   async function handleSend() {
+    if (!Number.isInteger(questionCount) || questionCount < 1 || questionCount > 50) {
+      setError('Question count must be between 1 and 50.')
+      return
+    }
     setSending(true)
     setError(null)
     try {
-      await Promise.all(candidateIds.map(teamMemberId =>
-        api.createSchedule({
-          teamMemberId,
+      await Promise.all(candidateIds.map(teamMemberId => {
+        const selectedMember = members.find(member =>
+          Number(member.id || member.team_member_id) === Number(teamMemberId)
+        )
+        return api.createSchedule({
+          ...(selectedMember?.user_id
+            ? { userId: selectedMember.user_id }
+            : { teamMemberId }),
           type:               'ai_voice',
           interviewMode,
           difficulty,
           questionCount,
           clientTemplateId: template.id,
         })
-      ))
+      }))
       setDone(true)
       setTimeout(() => { reset(); onClose() }, 1400)
     } catch (err) {
@@ -227,9 +262,7 @@ function SendInviteModal({ open, onClose, template, candidateIds, members }) {
             </div>
             <div>
               <p style={sectionHd}>Questions</p>
-              <select value={questionCount} onChange={e => setQCount(Number(e.target.value))} style={{ padding: '7px 10px', border: '1px solid var(--border-default)', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', background: 'var(--bg-surface)' }}>
-                {[5,8,10,15,20].map(n => <option key={n} value={n}>{n} questions</option>)}
-              </select>
+              <input type="number" min="1" max="50" value={questionCount} onChange={e => setQCount(Number(e.target.value))} style={{ width: 110, padding: '7px 10px', border: '1px solid var(--border-default)', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', background: 'var(--bg-surface)' }} />
             </div>
           </div>
 
@@ -261,6 +294,8 @@ function DetailView({ template: initialTemplate, onBack }) {
   const [editing, setEditing]               = useState(false)
   const [editData, setEditData]             = useState({})
   const [savingEdit, setSavingEdit]         = useState(false)
+  const [extractingEditJd, setExtractingEditJd] = useState(false)
+  const [editJdFileName, setEditJdFileName] = useState('')
   const [reports, setReports]               = useState([])
 
   const tags = (() => { try { return typeof template.tags === 'string' ? JSON.parse(template.tags) : (template.tags || []) } catch { return [] } })()
@@ -316,6 +351,24 @@ function DetailView({ template: initialTemplate, onBack }) {
     }
   }
 
+  async function handleEditJdFile(event) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+    setExtractingEditJd(true)
+    try {
+      const response = await api.extractTextFromFile(file)
+      const text = response.data?.text || ''
+      if (!text.trim()) throw new Error('No readable text was found in this file')
+      setEditData(current => ({ ...current, jd_text: text }))
+      setEditJdFileName(file.name)
+    } catch (error) {
+      setJdSentMsg(error.message || 'Could not read the JD file.')
+    } finally {
+      setExtractingEditJd(false)
+    }
+  }
+
   function toggleSelect(teamMemberId) {
     setSelectedIds(prev => prev.includes(teamMemberId)
       ? prev.filter(id => id !== teamMemberId)
@@ -340,7 +393,7 @@ function DetailView({ template: initialTemplate, onBack }) {
           <h2 style={{ fontSize: 20, margin: 0, color: 'var(--fg-primary)', fontWeight: 700 }}>{template.client_name}</h2>
           <span style={{ fontSize: 13, color: 'var(--fg-muted)' }}>— {template.requirements}</span>
         </div>
-        <Button variant="secondary" onClick={() => { setEditData({ client_name: template.client_name, client_email: template.client_email || '', requirements: template.requirements, headcount: template.headcount, custom_info: template.custom_info || '' }); setEditing(true) }}>
+        <Button variant="secondary" onClick={() => { setEditData({ client_name: template.client_name, client_email: template.client_email || '', requirements: template.requirements, headcount: template.headcount, jd_text: template.jd_text || '', custom_info: template.custom_info || '' }); setEditJdFileName(''); setEditing(true) }}>
           Edit
         </Button>
       </div>
@@ -482,6 +535,15 @@ function DetailView({ template: initialTemplate, onBack }) {
             </div>
           ))}
           <div>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--fg-body)', marginBottom: 4 }}>Client JD</label>
+            <textarea value={editData.jd_text || ''} onChange={e => setEditData(d => ({ ...d, jd_text: e.target.value }))} rows={6} style={{ ...inp, resize: 'vertical' }} />
+            <input id="edit-client-jd-file" type="file" accept=".pdf,.doc,.docx,.txt" onChange={handleEditJdFile} style={{ display: 'none' }} />
+            <label htmlFor="edit-client-jd-file" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 7, padding: '6px 9px', border: '1px solid var(--border-default)', borderRadius: 7, cursor: extractingEditJd ? 'wait' : 'pointer', fontSize: 12, fontWeight: 600 }}>
+              <Upload size={12} /> {extractingEditJd ? 'Reading document...' : 'Replace from file'}
+            </label>
+            {editJdFileName && <span style={{ marginLeft: 8, fontSize: 11, color: 'var(--fg-muted)' }}>{editJdFileName}</span>}
+          </div>
+          <div>
             <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--fg-body)', marginBottom: 4 }}>Notes</label>
             <textarea value={editData.custom_info || ''} onChange={e => setEditData(d => ({ ...d, custom_info: e.target.value }))} rows={3} style={{ ...inp, resize: 'vertical' }} />
           </div>
@@ -542,11 +604,7 @@ function ClientInterviewsPage() {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
-          <h1 style={{ fontSize: 24, fontWeight: 700, color: 'var(--fg-primary)', margin: '0 0 4px', letterSpacing: '-0.02em' }}>Client Mandates</h1>
-          <p style={{ fontSize: 13, color: 'var(--fg-muted)', margin: 0 }}>Create client hiring requirements, match team members, send JDs and interview invites.</p>
-        </div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
         <Button onClick={() => setWizardOpen(true)}><Plus size={13} style={{ marginRight: 6 }} /> New Mandate</Button>
       </div>
 

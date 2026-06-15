@@ -170,6 +170,24 @@ async function run() {
   assert.equal(team.status, 200)
   assert.equal(team.payload.data.length, 1)
 
+  const organizationOnlyUser = (await db.query(
+    `INSERT INTO users
+       (company_id, first_name, last_name, email, password, role, availability)
+     VALUES
+       (@companyId, 'Organization', 'Only', @email, @password, 'employee', 'bench')
+     RETURNING id`,
+    {
+      companyId: primary.company.id,
+      email: `organization-only-${stamp}@example.test`,
+      password: await bcrypt.hash(primary.password, 10),
+    }
+  ))[0]
+  state.userIds.push(organizationOnlyUser.id)
+
+  const orgUsers = await api('/api/schedule/org-users', { token: managerToken })
+  assert.equal(orgUsers.status, 200)
+  assert.ok(orgUsers.payload.data.some(user => user.id === organizationOnlyUser.id))
+
   const invalidDocument = new FormData()
   invalidDocument.append('file', new Blob(['not a document'], { type: 'audio/webm' }), 'audio.webm')
   const invalidDocumentUpload = await api('/api/upload/extract-text', {
@@ -235,6 +253,7 @@ async function run() {
       subject: 'Backend Engineering',
       difficulty: 'medium',
       duration_months: 2,
+      assessment_date: '2026-07-15',
       team_member_ids: [primary.teamMember.id],
       sub_topics: ['Node.js', 'PostgreSQL'],
       jd_text: 'Backend assessment',
@@ -242,6 +261,17 @@ async function run() {
   })
   assert.equal(assessment.status, 201)
   state.assessmentIds.push(assessment.payload.data.id)
+  assert.equal(assessment.payload.data.enrollments.length, 1)
+  assert.ok(String(assessment.payload.data.enrollments[0].start_date).startsWith('2026-07-15'))
+
+  const monthlyCalendar = await api('/api/assessments/monthly/calendar', {
+    token: managerToken,
+  })
+  assert.equal(monthlyCalendar.status, 200)
+  assert.ok(monthlyCalendar.payload.data.some(row =>
+    row.assessment_id === assessment.payload.data.id
+      && String(row.start_date).startsWith('2026-07-15')
+  ))
 
   const foreignAssessment = await api('/api/assessments/monthly', {
     method: 'POST',
@@ -269,6 +299,45 @@ async function run() {
   assert.equal(schedule.payload.data.status, 'scheduled')
   assert.equal(schedule.payload.data.token, undefined)
   state.interviewIds.push(schedule.payload.data.id)
+
+  const organizationSchedule = await api('/api/schedule', {
+    method: 'POST',
+    token: managerToken,
+    body: {
+      userId: organizationOnlyUser.id,
+      type: 'ai_voice',
+      interviewMode: 'adaptive',
+      difficulty: 'hard',
+      questionCount: 7,
+      reportUserIds: [primary.candidate.id],
+    },
+  })
+  assert.equal(organizationSchedule.status, 201)
+  assert.equal(organizationSchedule.payload.data.internal_user_id, organizationOnlyUser.id)
+  assert.equal(organizationSchedule.payload.data.question_count, 7)
+  assert.match(
+    organizationSchedule.payload.data.report_emails,
+    new RegExp(`manager-${stamp}@example\\.test`)
+  )
+  assert.match(
+    organizationSchedule.payload.data.report_emails,
+    new RegExp(`candidate-${stamp}@example\\.test`)
+  )
+  state.interviewIds.push(organizationSchedule.payload.data.id)
+
+  const foreignRecipientSchedule = await api('/api/schedule', {
+    method: 'POST',
+    token: managerToken,
+    body: {
+      userId: organizationOnlyUser.id,
+      type: 'ai_voice',
+      interviewMode: 'simple',
+      difficulty: 'medium',
+      questionCount: 5,
+      reportUserIds: [foreign.candidate.id],
+    },
+  })
+  assert.equal(foreignRecipientSchedule.status, 400)
 
   const externalSchedule = await api('/api/schedule', {
     method: 'POST',

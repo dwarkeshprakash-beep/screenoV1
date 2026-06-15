@@ -29,12 +29,16 @@ async function validateContext(data, managerId) {
 }
 
 async function createSchedule(data, managerId, companyId) {
-  if (!data.teamMemberId && !data.candidateId) {
-    throw new Error('teamMemberId or candidateId is required')
+  if (!data.userId && !data.teamMemberId && !data.candidateId) {
+    throw new Error('userId or candidateId is required')
   }
   if (!['ai_voice', 'exam'].includes(data.type)) throw new Error('Invalid interview type')
   if (!['simple', 'adaptive'].includes(data.interviewMode)) {
     throw new Error('Invalid interview mode')
+  }
+  const questionCount = Number(data.questionCount)
+  if (!Number.isInteger(questionCount) || questionCount < 1 || questionCount > 50) {
+    throw new Error('Question count must be an integer between 1 and 50')
   }
   await validateContext(data, managerId)
 
@@ -43,7 +47,13 @@ async function createSchedule(data, managerId, companyId) {
   let internalUserId = null
   let externalCandidateId = null
 
-  if (data.teamMemberId) {
+  if (data.userId) {
+    const user = await userRepository.getByIdForCompany(Number(data.userId), companyId)
+    if (!user) throw new Error('Organization member not found')
+    internalUserId = user.id
+    candidateName = `${user.first_name} ${user.last_name}`.trim()
+    candidateEmail = user.email
+  } else if (data.teamMemberId) {
     const teamMember = await teamMemberRepository.getByIdForManager(
       Number(data.teamMemberId),
       managerId
@@ -63,6 +73,23 @@ async function createSchedule(data, managerId, companyId) {
     candidateEmail = candidate.email
   }
 
+  const manager = await userRepository.getByIdForCompany(managerId, companyId)
+  if (!manager) throw new Error('Manager not found')
+  const requestedReportUserIds = Array.isArray(data.reportUserIds)
+    ? [...new Set(data.reportUserIds.map(Number).filter(Number.isInteger))]
+    : []
+  const reportUsers = await userRepository.getByIdsForCompany(
+    requestedReportUserIds,
+    companyId
+  )
+  if (reportUsers.length !== requestedReportUserIds.length) {
+    throw new Error('Some report recipients are not in your organization')
+  }
+  const reportEmails = [...new Set([
+    manager.email,
+    ...reportUsers.map(user => user.email),
+  ].filter(Boolean))]
+
   const token = crypto.randomBytes(32).toString('hex')
   const tokenHash = crypto.createHash('sha256').update(token).digest('hex')
   const windowDays = 7
@@ -75,12 +102,12 @@ async function createSchedule(data, managerId, companyId) {
     type: data.type,
     interviewMode: data.type === 'exam' ? 'simple' : data.interviewMode,
     difficulty: data.difficulty || 'medium',
-    questionCount: data.questionCount || 10,
+    questionCount,
     tokenHash,
     tokenExpires,
     clientTemplateId: data.clientTemplateId || null,
     monthlyAssessmentId: data.monthlyAssessmentId || null,
-    reportEmails: data.reportEmails || null,
+    reportEmails: reportEmails.join(',') || null,
   })
 
   finishScheduleSetup({
@@ -117,6 +144,8 @@ async function finishScheduleSetup({
       companyName: data.companyName || 'Your company',
       jobTitle: data.jobTitle || 'Assessment',
       windowDays,
+      assessmentDate: data.assessmentDate || null,
+      details: data.details || null,
     })
     inviteSent = true
   } catch (err) {

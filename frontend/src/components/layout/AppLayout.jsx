@@ -9,7 +9,7 @@ const PAGE_META = {
   '/manager/dashboard':        { title: 'Team Overview',      subtitle: 'Your team at a glance' },
   '/manager/team':             { title: 'My Team',            subtitle: 'Manage team members and assessments' },
   '/manager/monthly':          { title: 'Monthly Assessment', subtitle: 'Manage recurring team assessments' },
-  '/manager/clients':          { title: 'Client Interviews',  subtitle: 'Template and schedule client interviews' },
+  '/manager/clients':          { title: 'Client Mandates',    subtitle: 'Create hiring requirements and schedule interviews' },
   '/manager/schedule':         { title: 'Schedule',           subtitle: 'Upcoming interviews and sessions' },
   '/manager/reports':          { title: 'Reports',            subtitle: 'Analytics and candidate insights' },
   '/manager/templates':        { title: 'Templates',          subtitle: 'Interview and exam templates' },

@@ -135,8 +135,31 @@ async function sendMail({ to, subject, html, text, attachments = [] }) {
 
 // ── Email templates ───────────────────────────────────────────────────────────
 
-async function sendMagicLink(to, { candidateName, interviewToken, companyName, jobTitle, windowDays }) {
+function escapeHtml(value) {
+  return String(value || '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;')
+}
+
+async function sendMagicLink(to, {
+  candidateName,
+  interviewToken,
+  companyName,
+  jobTitle,
+  windowDays,
+  assessmentDate,
+  details,
+}) {
   const link = `${process.env.FRONTEND_URL}/interview/${interviewToken}`
+  const dateText = assessmentDate
+    ? new Date(assessmentDate).toLocaleString('en-IN', {
+      dateStyle: 'long',
+      timeStyle: 'short',
+    })
+    : null
 
   await sendMail({
     to,
@@ -145,6 +168,8 @@ async function sendMagicLink(to, { candidateName, interviewToken, companyName, j
       `Hi ${candidateName},`,
       '',
       `You've been invited to complete an interview for ${jobTitle || 'an assessment'} at ${companyName}.`,
+      dateText ? `Assessment date: ${dateText}` : '',
+      details ? `Details:\n${details}` : '',
       '',
       `Interview link: ${link}`,
       '',
@@ -155,6 +180,8 @@ async function sendMagicLink(to, { candidateName, interviewToken, companyName, j
       <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px">
         <h2 style="color:#0F172A">Hi ${candidateName},</h2>
         <p>You've been invited to complete an interview for <strong>${jobTitle || 'an assessment'}</strong> at <strong>${companyName}</strong>.</p>
+        ${dateText ? `<p><strong>Assessment date:</strong> ${escapeHtml(dateText)}</p>` : ''}
+        ${details ? `<div style="background:#F8FAFC;border-left:4px solid #5B4FE9;padding:16px;margin:16px 0;font-size:14px;color:#374151;white-space:pre-line">${escapeHtml(details).slice(0, 3000)}</div>` : ''}
         <p style="margin:24px 0">
           <a href="${link}" style="background:#5B4FE9;color:#fff;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:600">
             Start Interview &rarr;
@@ -167,6 +194,48 @@ async function sendMagicLink(to, { candidateName, interviewToken, companyName, j
         <p style="color:#6B7280;font-size:14px">This link is valid for ${windowDays || 7} days. You can return to it at any time.</p>
         <hr style="border:none;border-top:1px solid #E2E8F0;margin:24px 0" />
         <p style="color:#94A3B8;font-size:12px">This is an automated email from Praskesh Infotech. Please do not reply to this email.</p>
+      </div>
+    `,
+  })
+}
+
+async function sendMonthlyAssessmentInvite(to, {
+  candidateName,
+  companyName,
+  subject,
+  assessmentDate,
+  durationMonths,
+  jdText,
+}) {
+  const dateText = new Date(assessmentDate).toLocaleDateString('en-IN', {
+    dateStyle: 'long',
+  })
+  const details = String(jdText || '').trim()
+  await sendMail({
+    to,
+    subject: `Monthly assessment scheduled - ${subject}`,
+    text: [
+      `Hi ${candidateName},`,
+      '',
+      `${companyName} has assigned you the monthly assessment "${subject}".`,
+      `Start date: ${dateText}`,
+      `Duration: ${durationMonths} month${durationMonths === 1 ? '' : 's'}`,
+      '',
+      details ? `JD / study material:\n${details}` : '',
+      '',
+      'Your manager will send the interview link through Screeno.',
+      'This is an automated email from Praskesh Infotech. Please do not reply.',
+    ].filter(Boolean).join('\n'),
+    html: `
+      <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px">
+        <h2 style="color:#0F172A">Monthly assessment assigned</h2>
+        <p>Hi <strong>${escapeHtml(candidateName)}</strong>,</p>
+        <p><strong>${escapeHtml(companyName)}</strong> has assigned you <strong>${escapeHtml(subject)}</strong>.</p>
+        <p><strong>Start date:</strong> ${escapeHtml(dateText)}<br />
+        <strong>Duration:</strong> ${durationMonths} month${durationMonths === 1 ? '' : 's'}</p>
+        ${details ? `<div style="background:#F8FAFC;border-left:4px solid #5B4FE9;padding:16px;margin:16px 0;font-size:14px;color:#374151;white-space:pre-line">${escapeHtml(details).slice(0, 5000)}</div>` : ''}
+        <p>Your manager will send the interview link through Screeno.</p>
+        <p style="color:#94A3B8;font-size:12px">This is an automated email from Praskesh Infotech. Please do not reply.</p>
       </div>
     `,
   })
@@ -224,4 +293,11 @@ async function sendJDForResumeUpdate(to, { candidateName, clientName, jdText, de
   })
 }
 
-module.exports = { sendMail, sendMagicLink, sendReportReady, sendJDForResumeUpdate, getDeliveredRecipients }
+module.exports = {
+  sendMail,
+  sendMagicLink,
+  sendMonthlyAssessmentInvite,
+  sendReportReady,
+  sendJDForResumeUpdate,
+  getDeliveredRecipients,
+}

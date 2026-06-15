@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Plus, AlertCircle } from 'lucide-react'
+import { Plus, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react'
 import Modal from '../../components/shared/Modal'
 import Button from '../../components/shared/Button'
 import Spinner from '../../components/shared/Spinner'
@@ -8,13 +8,29 @@ import EmptyState from '../../components/shared/EmptyState'
 import Avatar from '../../components/shared/Avatar'
 import * as api from '../../services/api'
 
+function defaultAssessmentDate() {
+  const date = new Date()
+  date.setDate(date.getDate() + 7)
+  return date.toISOString().slice(0, 10)
+}
+
+function parseStoredArray(value) {
+  if (Array.isArray(value)) return value
+  if (!value) return []
+  try {
+    const parsed = JSON.parse(value)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
 function WizardModal({ open, onClose, onDone }) {
   const [step, setStep] = useState(1)
   const steps = ['Subject details', 'Sub-topics', 'AI Study Material', 'Assign Candidates']
 
   // Step 1 state
   const [subject, setSubject] = useState('')
-  const [topic, setTopic] = useState('')
   const [difficulty, setDifficulty] = useState('medium')
   const [customDifficulty, setCustomDifficulty] = useState('')
   // Step 2 state
@@ -25,6 +41,7 @@ function WizardModal({ open, onClose, onDone }) {
   const [generatingJd, setGeneratingJd] = useState(false)
   // Step 4 state
   const [durationMonths, setDurationMonths] = useState(3)
+  const [assessmentDate, setAssessmentDate] = useState(defaultAssessmentDate)
   const [teamList, setTeamList] = useState([])
   const [selectedMemberIds, setSelectedMemberIds] = useState([])
   const [saving, setSaving] = useState(false)
@@ -32,7 +49,7 @@ function WizardModal({ open, onClose, onDone }) {
 
   useEffect(() => {
     if (!open) return
-    setStep(1); setSubject(''); setTopic(''); setDifficulty('medium'); setSubTopics(''); setJdText(''); setDurationMonths(3); setSelectedMemberIds([]); setError(null)
+    setStep(1); setSubject(''); setDifficulty('medium'); setSubTopics(''); setJdText(''); setDurationMonths(3); setAssessmentDate(defaultAssessmentDate()); setSelectedMemberIds([]); setError(null)
     async function loadTeam() {
       try {
         const response = await api.getTeam()
@@ -49,7 +66,7 @@ function WizardModal({ open, onClose, onDone }) {
     setGenerating(true)
     setError(null)
     try {
-      const res = await api.generateSubtopics({ subject, topic, difficulty })
+      const res = await api.generateSubtopics({ subject, difficulty })
       setSubTopics(Array.isArray(res.data) ? res.data.join('\n') : res.data)
     } catch { setError('Could not generate subtopics.') }
     finally { setGenerating(false) }
@@ -68,6 +85,7 @@ function WizardModal({ open, onClose, onDone }) {
 
   async function handleCreate() {
     if (!subject) { setError('Subject is required.'); return }
+    if (!assessmentDate) { setError('Assessment start date is required.'); return }
     if (selectedMemberIds.length === 0) { setError('Select at least one candidate.'); return }
     setSaving(true)
     setError(null)
@@ -75,11 +93,11 @@ function WizardModal({ open, onClose, onDone }) {
       const topics = subTopics.split('\n').map(t => t.trim()).filter(Boolean)
       await api.createMonthlyAssessment({
         subject,
-        topic,
         sub_topics: JSON.stringify(topics),
         difficulty: difficulty === 'custom' ? (customDifficulty || 'custom') : difficulty,
         jd_text: jdText,
         duration_months: durationMonths,
+        assessment_date: assessmentDate,
         team_member_ids: selectedMemberIds,
       })
       if (onDone) onDone()
@@ -98,10 +116,6 @@ function WizardModal({ open, onClose, onDone }) {
             <div>
               <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--slate-700)', marginBottom: 5 }}>Subject Name</label>
               <input type="text" placeholder="e.g. Advanced React" value={subject} onChange={e => setSubject(e.target.value)} style={{ width: '100%', padding: '9px 12px', border: '1px solid var(--slate-300)', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', boxSizing: 'border-box' }} />
-            </div>
-            <div>
-              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--slate-700)', marginBottom: 5 }}>Topic (Optional)</label>
-              <input type="text" placeholder="e.g. Frontend Engineering" value={topic} onChange={e => setTopic(e.target.value)} style={{ width: '100%', padding: '9px 12px', border: '1px solid var(--slate-300)', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', boxSizing: 'border-box' }} />
             </div>
             <div>
               <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--slate-700)', marginBottom: 5 }}>Difficulty</label>
@@ -150,6 +164,8 @@ function WizardModal({ open, onClose, onDone }) {
             </div>
             
             <div style={{ marginBottom: 15 }}>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--slate-700)', marginBottom: 5 }}>Assessment Start Date</label>
+              <input type="date" value={assessmentDate} onChange={e => setAssessmentDate(e.target.value)} style={{ width: '100%', padding: '9px 12px', border: '1px solid var(--slate-300)', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', boxSizing: 'border-box', marginBottom: 12 }} />
               <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--slate-700)', marginBottom: 5 }}>Duration</label>
               <select value={durationMonths} onChange={e => setDurationMonths(Number(e.target.value))} style={{ width: '100%', padding: '9px 12px', border: '1px solid var(--slate-300)', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', boxSizing: 'border-box' }}>
                 <option value={1}>1 Month</option>
@@ -206,6 +222,8 @@ function MonthlyAssessmentPage() {
   const [error, setError] = useState(null)
   const [tab, setTab] = useState('subjects')
   const [wizardOpen, setWizardOpen] = useState(false)
+  const [selectedAssessment, setSelectedAssessment] = useState(null)
+  const [calendarYear, setCalendarYear] = useState(() => new Date().getFullYear())
 
   useEffect(() => { loadAll() }, [])
 
@@ -226,14 +244,27 @@ function MonthlyAssessmentPage() {
   if (error) return <ErrorMessage message={error} />
 
   const calRows = calendarData.map(row => {
-    let months
-    try {
-      months = JSON.parse(row.month_progress || '[]')
-    } catch {
-      months = []
+    const progress = parseStoredArray(row.month_progress)
+    const duration = Number(row.duration_months) || progress.length || 1
+    const startDate = new Date(row.start_date || row.assessment_created || row.created)
+    const months = new Array(12).fill(null)
+    for (let index = 0; index < duration; index += 1) {
+      const monthDate = new Date(Date.UTC(
+        startDate.getUTCFullYear(),
+        startDate.getUTCMonth() + index,
+        1
+      ))
+      if (monthDate.getUTCFullYear() === calendarYear) {
+        months[monthDate.getUTCMonth()] = progress[index] || 'pending'
+      }
     }
-    return { name: `${row.first_name || ''} ${row.last_name || ''}`.trim(), months }
-  })
+    return {
+      id: row.id,
+      name: `${row.first_name || ''} ${row.last_name || ''}`.trim(),
+      subject: row.subject_name,
+      months,
+    }
+  }).filter(row => row.months.some(Boolean))
 
   const STATUS_COLORS = {
     completed: 'var(--success-500)',
@@ -244,11 +275,7 @@ function MonthlyAssessmentPage() {
 
   return (
     <div style={{ maxWidth: 1000 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
-        <div>
-          <h1 style={{ fontSize: 24, fontWeight: 700, color: 'var(--slate-900)', margin: '0 0 4px', letterSpacing: '-0.02em' }}>Monthly Assessment</h1>
-          <p style={{ fontSize: 13, color: 'var(--slate-500)', margin: 0 }}>Create subjects and assign monthly AI exams to team members.</p>
-        </div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', marginBottom: 24 }}>
         <Button onClick={() => setWizardOpen(true)}>
           <Plus size={16} style={{ marginRight: 6 }} /> Create Subject
         </Button>
@@ -279,10 +306,10 @@ function MonthlyAssessmentPage() {
               </thead>
               <tbody>
                 {assessments.map((a, i) => (
-                  <tr key={a.id} style={{ borderBottom: i === assessments.length - 1 ? 'none' : '1px solid var(--slate-100)' }}>
+                  <tr key={a.id} onClick={() => setSelectedAssessment(a)} style={{ borderBottom: i === assessments.length - 1 ? 'none' : '1px solid var(--slate-100)', cursor: 'pointer' }}>
                     <td style={{ padding: '14px 16px' }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--slate-900)' }}>{a.subject_name}</div>
-                      {a.topics && <div style={{ fontSize: 12, color: 'var(--slate-500)', marginTop: 2 }}>{a.topics}</div>}
+                      <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--brand-700)' }}>{a.subject_name}</div>
+                      {parseStoredArray(a.sub_topics).length > 0 && <div style={{ fontSize: 12, color: 'var(--slate-500)', marginTop: 2 }}>{parseStoredArray(a.sub_topics).slice(0, 3).join(', ')}</div>}
                     </td>
                     <td style={{ padding: '14px 16px', fontSize: 13, color: 'var(--slate-700)' }}>
                       <span style={{ display: 'inline-flex', padding: '2px 8px', borderRadius: 9999, background: 'var(--slate-100)', color: 'var(--slate-700)', fontSize: 11, fontWeight: 500, textTransform: 'capitalize' }}>{a.difficulty}</span>
@@ -305,6 +332,14 @@ function MonthlyAssessmentPage() {
 
       {tab === 'calendar' && (
         <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--slate-200)', borderRadius: 12, padding: 20, boxShadow: '0 1px 3px rgba(15,23,42,0.04)', overflowX: 'auto' }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+            <strong style={{ fontSize: 15, color: 'var(--slate-900)' }}>{calendarYear} assessment plan</strong>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button type="button" onClick={() => setCalendarYear(year => year - 1)} aria-label="Previous year" style={{ border: '1px solid var(--slate-300)', background: 'var(--bg-surface)', borderRadius: 7, padding: 6, cursor: 'pointer', display: 'inline-flex' }}><ChevronLeft size={15} /></button>
+              <button type="button" onClick={() => setCalendarYear(new Date().getFullYear())} style={{ border: '1px solid var(--slate-300)', background: 'var(--bg-surface)', borderRadius: 7, padding: '5px 10px', cursor: 'pointer', fontSize: 12 }}>Current year</button>
+              <button type="button" onClick={() => setCalendarYear(year => year + 1)} aria-label="Next year" style={{ border: '1px solid var(--slate-300)', background: 'var(--bg-surface)', borderRadius: 7, padding: 6, cursor: 'pointer', display: 'inline-flex' }}><ChevronRight size={15} /></button>
+            </div>
+          </div>
           <div style={{ minWidth: 800 }}>
             {/* Header row (months) */}
             <div style={{ display: 'flex', marginBottom: 15 }}>
@@ -322,15 +357,17 @@ function MonthlyAssessmentPage() {
                 <div key={i} style={{ display: 'flex', alignItems: 'center', padding: '12px 0', borderTop: i === 0 ? '0' : '1px solid var(--slate-100)' }}>
                   <div style={{ width: 140, display: 'flex', alignItems: 'center', gap: 8 }}>
                     <Avatar name={row.name} size={24} />
-                    <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--slate-900)' }}>{row.name}</span>
+                    <span style={{ minWidth: 0 }}>
+                      <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: 'var(--slate-900)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.name}</span>
+                      <span style={{ display: 'block', fontSize: 10, color: 'var(--slate-500)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.subject}</span>
+                    </span>
                   </div>
-                  {/* month_progress array might just be statuses ['completed', 'scheduled', 'pending', ...] */}
                   {Array.from({ length: 12 }).map((_, mIndex) => {
-                    const status = row.months[mIndex] || 'pending'
-                    const bg = STATUS_COLORS[status] || STATUS_COLORS.pending
+                    const status = row.months[mIndex]
+                    const bg = status ? (STATUS_COLORS[status] || STATUS_COLORS.pending) : 'transparent'
                     return (
                       <div key={mIndex} style={{ flex: 1, display: 'flex', justifyContent: 'center' }}>
-                        <div style={{ width: 14, height: 14, borderRadius: 4, background: bg }} title={status} />
+                        <div style={{ width: 14, height: 14, borderRadius: 4, background: bg, border: status ? 0 : '1px solid var(--slate-100)' }} title={status || 'Not scheduled'} />
                       </div>
                     )
                   })}
@@ -350,6 +387,48 @@ function MonthlyAssessmentPage() {
       )}
 
       <WizardModal open={wizardOpen} onClose={() => setWizardOpen(false)} onDone={loadAll} />
+      <Modal open={Boolean(selectedAssessment)} onClose={() => setSelectedAssessment(null)} title={selectedAssessment?.subject_name || 'Assessment details'} size="lg">
+        {selectedAssessment && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 18, padding: '6px 0' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 12 }}>
+              {[
+                ['Difficulty', selectedAssessment.difficulty],
+                ['Duration', `${selectedAssessment.duration_months} month${Number(selectedAssessment.duration_months) === 1 ? '' : 's'}`],
+                ['Candidates', selectedAssessment.enrollments?.length || 0],
+              ].map(([label, value]) => (
+                <div key={label} style={{ padding: 12, borderRadius: 9, background: 'var(--slate-50)' }}>
+                  <div style={{ fontSize: 11, color: 'var(--slate-500)', textTransform: 'uppercase', marginBottom: 4 }}>{label}</div>
+                  <strong style={{ fontSize: 13, color: 'var(--slate-900)', textTransform: label === 'Difficulty' ? 'capitalize' : 'none' }}>{value}</strong>
+                </div>
+              ))}
+            </div>
+            <div>
+              <h3 style={{ fontSize: 13, margin: '0 0 8px', color: 'var(--slate-900)' }}>Sub-topics</h3>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {parseStoredArray(selectedAssessment.sub_topics).map(topic => <span key={topic} style={{ padding: '4px 8px', borderRadius: 999, background: 'var(--brand-50)', color: 'var(--brand-700)', fontSize: 12 }}>{topic}</span>)}
+                {parseStoredArray(selectedAssessment.sub_topics).length === 0 && <span style={{ fontSize: 12, color: 'var(--slate-500)' }}>No sub-topics added.</span>}
+              </div>
+            </div>
+            <div>
+              <h3 style={{ fontSize: 13, margin: '0 0 8px', color: 'var(--slate-900)' }}>JD / study material</h3>
+              <div style={{ maxHeight: 220, overflowY: 'auto', padding: 12, borderRadius: 9, border: '1px solid var(--slate-200)', whiteSpace: 'pre-wrap', fontSize: 12, lineHeight: 1.6, color: 'var(--slate-700)' }}>
+                {selectedAssessment.ai_generated_jd || 'No study material generated.'}
+              </div>
+            </div>
+            <div>
+              <h3 style={{ fontSize: 13, margin: '0 0 8px', color: 'var(--slate-900)' }}>Assigned candidates</h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                {(selectedAssessment.enrollments || []).map(enrollment => (
+                  <div key={enrollment.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '8px 10px', borderRadius: 8, background: 'var(--slate-50)', fontSize: 12 }}>
+                    <strong>{enrollment.first_name} {enrollment.last_name}</strong>
+                    <span style={{ color: 'var(--slate-500)' }}>{enrollment.start_date ? new Date(enrollment.start_date).toLocaleDateString() : 'Date not set'}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   )
 }

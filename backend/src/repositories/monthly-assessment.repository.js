@@ -59,18 +59,27 @@ async function createWithEnrollments(data, teamMemberIds) {
     )
     const assessment = assessments[0]
     const monthProgress = JSON.stringify(new Array(data.durationMonths).fill('pending'))
+    const enrollments = []
 
     for (const teamMemberId of teamMemberIds) {
-      await tx.query(
+      const rows = await tx.query(
         `INSERT INTO monthly_assessment_enrollments
-          (assessment_id, team_member_id, month_progress)
+          (assessment_id, team_member_id, start_date, end_date, month_progress)
          VALUES
-          (@assessmentId, @teamMemberId, @monthProgress)`,
-        { assessmentId: assessment.id, teamMemberId, monthProgress }
+          (@assessmentId, @teamMemberId, @startDate, @endDate, @monthProgress)
+         RETURNING *`,
+        {
+          assessmentId: assessment.id,
+          teamMemberId,
+          startDate: data.startDate,
+          endDate: data.endDate,
+          monthProgress,
+        }
       )
+      enrollments.push(rows[0])
     }
 
-    return assessment
+    return { ...assessment, enrollments }
   })
 }
 
@@ -118,7 +127,8 @@ async function getEnrollmentsByManager(managerId) {
 // Calendar view: all enrollments for a manager with interview status
 async function getCalendarByManager(managerId) {
   return db.query(
-    `SELECT e.*, a.subject_name, a.difficulty,
+    `SELECT e.*, a.subject_name, a.difficulty, a.duration_months,
+            a.created AS assessment_created,
             tm.user_id, u.first_name, u.last_name,
             i.id AS interview_id, i.status AS interview_status, i.result AS interview_result
      FROM monthly_assessment_enrollments e

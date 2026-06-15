@@ -11,14 +11,22 @@ router.use(authMiddleware, requireRole('manager'))
 
 router.post('/', async (req, res) => {
   try {
-    const assessment = await monthlyAssessmentService.createAssessment(req.body, req.user.id)
+    const assessment = await monthlyAssessmentService.createAssessment(
+      req.body,
+      req.user.id,
+      req.user.companyId
+    )
     res.status(201).json({ success: true, data: assessment })
   } catch (err) {
     console.error('POST /monthly-assessments failed:', err)
     if (err.message.startsWith('Forbidden')) {
       return res.status(403).json({ success: false, error: err.message })
     }
-    if (['At least one team member is required', 'Subject is required'].includes(err.message)) {
+    if ([
+      'At least one team member is required',
+      'Subject is required',
+      'Assessment date is invalid',
+    ].includes(err.message)) {
       return res.status(400).json({ success: false, error: err.message })
     }
     res.status(500).json({ success: false, error: 'Could not create assessment' })
@@ -47,11 +55,11 @@ router.get('/calendar', async (req, res) => {
 
 router.post('/generate-subtopics', async (req, res) => {
   try {
-    const { subject, topic, difficulty } = req.body
-    if (!subject || !topic) {
-      return res.status(400).json({ success: false, error: 'subject and topic are required' })
+    const { subject, difficulty } = req.body
+    if (!subject) {
+      return res.status(400).json({ success: false, error: 'subject is required' })
     }
-    const subTopics = await llmService.generateSubtopics(subject, topic, difficulty)
+    const subTopics = await llmService.generateSubtopics(subject, difficulty)
     res.json({ success: true, data: subTopics })
   } catch (err) {
     console.error('POST /generate-subtopics failed:', err)

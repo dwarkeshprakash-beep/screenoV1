@@ -99,6 +99,29 @@ async function getByCompany(companyId) {
   )
 }
 
+async function getByIdForCompany(id, companyId) {
+  const rows = await db.query(
+    `SELECT id, company_id, first_name, last_name, email, role
+     FROM users
+     WHERE id = @id AND company_id = @companyId
+     LIMIT 1`,
+    { id, companyId }
+  )
+  return rows[0] || null
+}
+
+async function getByIdsForCompany(ids, companyId) {
+  if (!Array.isArray(ids) || ids.length === 0) return []
+  return db.query(
+    `SELECT id, company_id, first_name, last_name, email, role
+     FROM users
+     WHERE company_id = @companyId
+       AND id = ANY(@ids)
+     ORDER BY first_name, last_name`,
+    { ids, companyId }
+  )
+}
+
 async function bulkUpsert(rows, companyId, managerId, tempPasswordHash) {
   let inserted = 0
   let updated = 0
@@ -257,6 +280,7 @@ async function createMinimal(companyId, { firstName, lastName, email, passwordHa
 
 module.exports = {
   getByEmail, getByEmailForCompany, getById, getByIdWithPassword, getNotInTeam,
-  getByRole, getByCompany, updateProfile, updatePassword, updateOrgProfile,
+  getByRole, getByCompany, getByIdForCompany, getByIdsForCompany,
+  updateProfile, updatePassword, updateOrgProfile,
   bulkUpsert, createMinimal,
 }

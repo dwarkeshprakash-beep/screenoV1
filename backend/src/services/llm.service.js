@@ -396,15 +396,14 @@ ${cleanText(text, '')}`
 }
 
 /**
- * Generate sub-topics for a given subject + topic at a given difficulty level.
+ * Generate sub-topics for a subject at a given difficulty level.
  * @param {string} subject
- * @param {string} topic
  * @param {string} difficulty - easy|medium|hard
  * @returns {Promise<string[]>}
  */
-async function generateSubtopics(subject, topic, difficulty = 'medium') {
-  const prompt = `You are designing a monthly technical assessment. The subject is "${subject}" and the topic is "${topic}" (difficulty: ${difficulty}).
-Generate 8-12 specific sub-topics a candidate should master for this topic at this difficulty level.
+async function generateSubtopics(subject, difficulty = 'medium') {
+  const prompt = `You are designing a monthly technical assessment for the subject "${subject}" (difficulty: ${difficulty}).
+Generate 8-12 specific sub-topics a candidate should master for this subject at this difficulty level.
 Return ONLY a JSON array of short sub-topic strings.
 Example: ["Hooks (useState, useEffect)", "Context API", "React Router v6"]
 Return only the JSON array, nothing else.`

@@ -446,7 +446,13 @@ function TeamPage() {
       )}
 
       <CompareModal open={compareOpen} onClose={() => setCompareOpen(false)} members={rows.filter(r => selected.has(r.id)).slice(0, 2)} />
-      <ScheduleModal open={scheduleOpen} onClose={() => { setScheduleOpen(false); setScheduleMember(null) }} member={scheduleMember} selectedIds={Array.from(selected)} onDone={loadInternal} />
+      <ScheduleModal
+        open={scheduleOpen}
+        onClose={() => { setScheduleOpen(false); setScheduleMember(null) }}
+        member={scheduleMember}
+        selectedMembers={rows.filter(row => selected.has(row.id))}
+        onDone={loadInternal}
+      />
       <AddCandidateModal open={addOpen} onClose={() => setAddOpen(false)} onDone={loadInternal} />
       <AddExternalModal open={addExternalOpen} onClose={() => setAddExternalOpen(false)} onDone={loadExternal} />
       {editMember && <EditMemberModal open={!!editMember} member={editMember} onClose={() => setEditMember(null)} onDone={loadInternal} />}

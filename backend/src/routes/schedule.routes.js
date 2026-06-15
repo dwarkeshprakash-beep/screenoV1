@@ -59,10 +59,10 @@ router.post('/email-deliveries/:interviewId/resend', async (req, res) => {
 // POST /api/schedule
 router.post('/', async (req, res) => {
   try {
-    const { teamMemberId, candidateId, type, interviewMode } = req.body
+    const { userId, teamMemberId, candidateId, type, interviewMode } = req.body
 
-    if (!teamMemberId && !candidateId) {
-      return res.status(400).json({ success: false, error: 'teamMemberId is required' })
+    if (!userId && !teamMemberId && !candidateId) {
+      return res.status(400).json({ success: false, error: 'userId or candidateId is required' })
     }
     if (!type) return res.status(400).json({ success: false, error: 'type is required' })
     if (!interviewMode) return res.status(400).json({ success: false, error: 'interviewMode is required' })
@@ -71,13 +71,20 @@ router.post('/', async (req, res) => {
     res.status(201).json({ success: true, data: interview })
   } catch (err) {
     console.error('POST /schedule failed:', err)
-    if (['Candidate not found', 'Team member not found'].includes(err.message)) {
+    if ([
+      'Candidate not found',
+      'Team member not found',
+      'Organization member not found',
+      'Manager not found',
+    ].includes(err.message)) {
       return res.status(404).json({ success: false, error: err.message })
     }
     if ([
       'Invalid interview type',
       'Invalid interview mode',
       'Choose either a client template or a monthly assessment',
+      'Question count must be an integer between 1 and 50',
+      'Some report recipients are not in your organization',
     ].includes(err.message)) {
       return res.status(400).json({ success: false, error: err.message })
     }

@@ -1,5 +1,7 @@
 const monthlyAssessmentRepository = require('../repositories/monthly-assessment.repository')
 const teamMemberRepository = require('../repositories/team-member.repository')
+const companyRepository = require('../repositories/company.repository')
+const emailService = require('./email.service')
 
 function parseArray(value) {
   if (Array.isArray(value)) return value
@@ -12,7 +14,22 @@ function parseArray(value) {
   }
 }
 
-async function createAssessment(body, managerId) {
+function addMonths(date, months) {
+  const result = new Date(date)
+  const day = result.getUTCDate()
+  result.setUTCDate(1)
+  result.setUTCMonth(result.getUTCMonth() + months)
+  const lastDay = new Date(Date.UTC(
+    result.getUTCFullYear(),
+    result.getUTCMonth() + 1,
+    0
+  )).getUTCDate()
+  result.setUTCDate(Math.min(day, lastDay))
+  result.setUTCDate(result.getUTCDate() - 1)
+  return result
+}
+
+async function createAssessment(body, managerId, companyId) {
   const teamMemberIds = Array.isArray(body.team_member_ids)
     ? [...new Set(body.team_member_ids.map(Number).filter(Number.isInteger))]
     : []
@@ -27,8 +44,11 @@ async function createAssessment(body, managerId) {
   const subjectName = String(body.subject_name || body.subject || '').trim()
   if (!subjectName) throw new Error('Subject is required')
   const durationMonths = Math.min(12, Math.max(1, Number(body.duration_months) || 1))
+  const startDate = body.assessment_date ? new Date(body.assessment_date) : new Date()
+  if (Number.isNaN(startDate.getTime())) throw new Error('Assessment date is invalid')
+  const endDate = addMonths(startDate, durationMonths)
 
-  return monthlyAssessmentRepository.createWithEnrollments({
+  const assessment = await monthlyAssessmentRepository.createWithEnrollments({
     managerId,
     subjectName,
     difficulty: ['easy', 'medium', 'hard'].includes(body.difficulty) ? body.difficulty : 'medium',
@@ -36,7 +56,36 @@ async function createAssessment(body, managerId) {
     subTopics: parseArray(body.sub_topics),
     jd: String(body.ai_generated_jd || body.jd_text || ''),
     durationMonths,
+    startDate,
+    endDate,
   }, teamMemberIds)
+
+  const membersById = new Map(ownedMembers.map(member => [Number(member.id), member]))
+  const company = await companyRepository.getById(companyId)
+  const invitationResults = await Promise.allSettled(teamMemberIds.map(async teamMemberId => {
+    const member = membersById.get(teamMemberId)
+    if (!member?.email) return
+    try {
+      await emailService.sendMonthlyAssessmentInvite(member.email, {
+        candidateName: `${member.first_name} ${member.last_name}`.trim(),
+        companyName: company?.name || 'Your company',
+        subject: subjectName,
+        assessmentDate: startDate,
+        durationMonths,
+        jdText: String(body.ai_generated_jd || body.jd_text || ''),
+      })
+    } catch (error) {
+      throw error
+    }
+  }))
+
+  return {
+    ...assessment,
+    invitations: {
+      sent: invitationResults.filter(result => result.status === 'fulfilled').length,
+      failed: invitationResults.filter(result => result.status === 'rejected').length,
+    },
+  }
 }
 
 async function getAssessments(managerId) {
@@ -56,4 +105,4 @@ async function getAssessments(managerId) {
   }))
 }
 
-module.exports = { createAssessment, getAssessments, parseArray }
+module.exports = { createAssessment, getAssessments, parseArray, addMonths }

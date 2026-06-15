@@ -4,7 +4,7 @@ const assert = require('node:assert/strict')
 const { hashToken } = require('../src/services/auth.service')
 const { fromUser, assertInterviewScope } = require('../src/services/candidate-identity.service')
 const { publicQuestion } = require('../src/services/exam.service')
-const { parseArray } = require('../src/services/monthly-assessment.service')
+const { parseArray, addMonths } = require('../src/services/monthly-assessment.service')
 const { parseCSV } = require('../src/services/team.service')
 const fetchWithTimeout = require('../src/utils/fetch-with-timeout')
 
@@ -64,6 +64,17 @@ test('parseArray accepts JSON arrays and rejects malformed values', () => {
   assert.deepEqual(parseArray(['SQL']), ['SQL'])
   assert.deepEqual(parseArray('{"not":"an array"}'), [])
   assert.deepEqual(parseArray('not-json'), [])
+})
+
+test('monthly assessment end dates preserve month boundaries', () => {
+  assert.equal(
+    addMonths(new Date('2026-01-31T00:00:00.000Z'), 1).toISOString(),
+    '2026-02-27T00:00:00.000Z'
+  )
+  assert.equal(
+    addMonths(new Date('2026-06-15T00:00:00.000Z'), 3).toISOString(),
+    '2026-09-14T00:00:00.000Z'
+  )
 })
 
 test('parseCSV handles quoted commas, escaped quotes, and CRLF rows', () => {

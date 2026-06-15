@@ -21,6 +21,7 @@ const CHECKS = [
   { id: 'network', label: 'Network', icon: Wifi, detail: 'API connection healthy' },
   { id: 'screen', label: 'Screen environment', icon: Monitor, detail: 'Screen check complete' },
 ]
+const REQUIRED_CHECK_IDS = ['microphone', 'speaker', 'network', 'screen']
 
 function DeviceCheckPage() {
   const { token } = useParams()
@@ -138,7 +139,7 @@ function DeviceCheckPage() {
     )
   }
 
-  const allPassed = CHECKS.every(check => statuses[check.id] === 'pass')
+  const requiredPassed = REQUIRED_CHECK_IDS.every(id => statuses[id] === 'pass')
   const finished = CHECKS
     .filter(check => check.id !== 'speaker')
     .every(check => ['pass', 'fail'].includes(statuses[check.id]))
@@ -149,7 +150,7 @@ function DeviceCheckPage() {
         Check your device
       </h1>
       <p style={{ fontSize: 14, color: 'var(--slate-500)', margin: '0 0 20px' }}>
-        Camera and microphone access are required before the assessment starts.
+        Microphone, speaker, network, and screen checks are required. Camera access is recommended but optional.
       </p>
 
       <video ref={videoRef} muted playsInline style={{ width: '100%', height: 180, objectFit: 'cover', borderRadius: 12, background: 'var(--slate-900)', marginBottom: 14 }} />
@@ -166,7 +167,13 @@ function DeviceCheckPage() {
                   {status === 'idle' && 'Waiting'}
                   {status === 'checking' && 'Checking...'}
                   {status === 'pass' && check.detail}
-                  {status === 'fail' && (check.id === 'screen' ? 'Multiple displays detected' : 'Check browser permissions and retry')}
+                  {status === 'fail' && (
+                    check.id === 'screen'
+                      ? 'Multiple displays detected'
+                      : check.id === 'camera'
+                        ? 'Camera unavailable. You can still continue.'
+                        : 'Check browser permissions and retry'
+                  )}
                 </div>
                 {check.id === 'speaker' && status !== 'pass' && (
                   <div style={{ display: 'flex', gap: 8, marginTop: 7 }}>
@@ -189,7 +196,7 @@ function DeviceCheckPage() {
         })}
       </div>
 
-      {finished && !allPassed && (
+      {finished && !requiredPassed && (
         <button type="button" onClick={runChecks} style={{ width: '100%', marginTop: 14, padding: 10, border: '1px solid var(--slate-300)', borderRadius: 9, background: 'var(--bg-surface)', cursor: 'pointer', fontWeight: 600 }}>
           Retry failed checks
         </button>
@@ -197,9 +204,9 @@ function DeviceCheckPage() {
 
       <button
         type="button"
-        disabled={!allPassed}
+        disabled={!requiredPassed}
         onClick={() => navigate(`/interview/${token}/consent`)}
-        style={{ width: '100%', marginTop: 14, padding: '13px 20px', borderRadius: 10, border: 0, background: allPassed ? 'var(--brand-500)' : 'var(--slate-200)', color: allPassed ? 'white' : 'var(--slate-400)', cursor: allPassed ? 'pointer' : 'not-allowed', fontWeight: 600 }}
+        style={{ width: '100%', marginTop: 14, padding: '13px 20px', borderRadius: 10, border: 0, background: requiredPassed ? 'var(--brand-500)' : 'var(--slate-200)', color: requiredPassed ? 'white' : 'var(--slate-400)', cursor: requiredPassed ? 'pointer' : 'not-allowed', fontWeight: 600 }}
       >
         Continue <ArrowRight size={14} />
       </button>

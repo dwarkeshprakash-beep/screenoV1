@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Check, Code2, Mic } from 'lucide-react'
+import { Check, Code2, Mic, Search, X } from 'lucide-react'
 import Modal from '../shared/Modal'
 import Button from '../shared/Button'
 import Avatar from '../shared/Avatar'
@@ -25,11 +25,24 @@ function candidateKey(candidate) {
   return `${candidate.external ? 'external' : 'internal'}:${candidate.id}`
 }
 
+function matchesUser(user, query) {
+  const normalized = query.trim().toLowerCase()
+  if (!normalized) return true
+  const firstName = String(user.first_name || '')
+  const lastName = String(user.last_name || '')
+  const name = `${firstName} ${lastName}`.trim().toLowerCase()
+  const initials = `${firstName[0] || ''}${lastName[0] || ''}`.toLowerCase()
+  return name.includes(normalized)
+    || String(user.email || '').toLowerCase().includes(normalized)
+    || initials.includes(normalized)
+}
+
 function ScheduleModal({
   open,
   onClose,
   member,
   selectedIds = [],
+  selectedMembers = [],
   template,
   onDone,
 }) {
@@ -39,11 +52,18 @@ function ScheduleModal({
   const [difficulty, setDifficulty] = useState('medium')
   const [questionCount, setQuestionCount] = useState(10)
   const [candidates, setCandidates] = useState([])
+  const [orgUsers, setOrgUsers] = useState([])
+  const [managerId, setManagerId] = useState(null)
   const [selectedKeys, setSelectedKeys] = useState(new Set())
-  const [reportEmails, setReportEmails] = useState('')
+  const [candidateQuery, setCandidateQuery] = useState('')
+  const [reportQuery, setReportQuery] = useState('')
+  const [reportUserIds, setReportUserIds] = useState(new Set())
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const selectedIdsKey = selectedIds.join(',')
+  const selectedMembersKey = selectedMembers
+    .map(selectedMember => selectedMember.user_id || selectedMember.id)
+    .join(',')
 
   const context = useMemo(() => {
     if (!template) return null
@@ -69,16 +89,18 @@ function ScheduleModal({
     setInterviewMode('simple')
     setDifficulty(template?.difficulty || 'medium')
     setQuestionCount(10)
-    setReportEmails('')
+    setCandidateQuery('')
+    setReportQuery('')
     setError(null)
 
     async function loadCandidates() {
       try {
-        const [teamResponse, externalResponse] = await Promise.all([
-          api.getTeam(),
+        const [orgResponse, externalResponse, profileResponse] = await Promise.all([
+          api.getScheduleOrgUsers(),
           api.getExternalCandidates(),
+          api.getProfile(),
         ])
-        const internal = (teamResponse.data || []).map(item => ({
+        const internal = (orgResponse.data || []).map(item => ({
           ...item,
           external: false,
         }))
@@ -87,14 +109,20 @@ function ScheduleModal({
           external: true,
         }))
         const all = [...internal, ...external]
+        const currentManagerId = Number(profileResponse.data?.id)
         setCandidates(all)
+        setOrgUsers(internal)
+        setManagerId(currentManagerId)
+        setReportUserIds(new Set(Number.isInteger(currentManagerId) ? [currentManagerId] : []))
 
         const initial = new Set()
         if (member) {
-          initial.add(candidateKey({
-            ...member,
-            external: Boolean(member.external),
-          }))
+          const initialId = member.external ? member.id : (member.user_id || member.id)
+          initial.add(`${member.external ? 'external' : 'internal'}:${initialId}`)
+        } else if (selectedMembersKey) {
+          for (const userId of selectedMembersKey.split(',').filter(Boolean)) {
+            initial.add(`internal:${userId}`)
+          }
         } else {
           for (const id of selectedIdsKey.split(',').filter(Boolean)) {
             initial.add(`internal:${id}`)
@@ -110,11 +138,16 @@ function ScheduleModal({
     }
 
     loadCandidates()
-  }, [open, member, selectedIdsKey, template])
+  }, [open, member, selectedIdsKey, selectedMembersKey, template])
 
   const selectedCandidates = candidates.filter(candidate =>
     selectedKeys.has(candidateKey(candidate))
   )
+  const visibleCandidates = candidates.filter(candidate => matchesUser(candidate, candidateQuery))
+  const selectedReportUsers = orgUsers.filter(user => reportUserIds.has(Number(user.id)))
+  const reportSuggestions = orgUsers.filter(user =>
+    !reportUserIds.has(Number(user.id)) && matchesUser(user, reportQuery)
+  ).slice(0, 8)
 
   function toggleCandidate(candidate) {
     const key = candidateKey(candidate)
@@ -126,7 +159,25 @@ function ScheduleModal({
     })
   }
 
+  function addReportUser(user) {
+    setReportUserIds(current => new Set([...current, Number(user.id)]))
+    setReportQuery('')
+  }
+
+  function removeReportUser(userId) {
+    if (Number(userId) === managerId) return
+    setReportUserIds(current => {
+      const next = new Set(current)
+      next.delete(Number(userId))
+      return next
+    })
+  }
+
   function nextStep() {
+    if (step === 2 && (!Number.isInteger(questionCount) || questionCount < 1 || questionCount > 50)) {
+      setError('Question count must be between 1 and 50.')
+      return
+    }
     if (step === 3 && selectedCandidates.length === 0) {
       setError('Select at least one candidate.')
       return
@@ -149,12 +200,12 @@ function ScheduleModal({
           interviewMode: type === 'exam' ? 'simple' : interviewMode,
           difficulty,
           questionCount,
-          reportEmails: reportEmails.trim(),
+          reportUserIds: Array.from(reportUserIds),
           clientTemplateId: context?.clientTemplateId,
           monthlyAssessmentId: context?.monthlyAssessmentId,
         }
         if (candidate.external) payload.candidateId = candidate.id
-        else payload.teamMemberId = candidate.id
+        else payload.userId = candidate.id
         return api.createSchedule(payload)
       }))
       await onDone?.()
@@ -254,9 +305,8 @@ function ScheduleModal({
           </div>
           <div>
             <label htmlFor="schedule-question-count" style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--fg-muted)', marginBottom: 8 }}>Question count</label>
-            <select id="schedule-question-count" value={questionCount} onChange={event => setQuestionCount(Number(event.target.value))} style={{ padding: '9px 12px', border: '1px solid var(--border-default)', borderRadius: 8, background: 'var(--bg-surface)', fontFamily: 'inherit' }}>
-              {[5, 8, 10, 15, 20].map(value => <option key={value} value={value}>{value} questions</option>)}
-            </select>
+            <input id="schedule-question-count" type="number" min="1" max="50" value={questionCount} onChange={event => setQuestionCount(Number(event.target.value))} style={{ width: 140, padding: '9px 12px', border: '1px solid var(--border-default)', borderRadius: 8, background: 'var(--bg-surface)', fontFamily: 'inherit' }} />
+            <span style={{ marginLeft: 8, fontSize: 12, color: 'var(--fg-muted)' }}>1-50 questions</span>
           </div>
           <p style={{ margin: 0, fontSize: 12, color: 'var(--fg-muted)' }}>
             Each scheduled interview is a single attempt and generates one report.
@@ -266,10 +316,14 @@ function ScheduleModal({
 
       {step === 3 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, border: '1px solid var(--border-default)', borderRadius: 8, padding: '8px 11px' }}>
+            <Search size={14} color="var(--fg-subtle)" />
+            <input value={candidateQuery} onChange={event => setCandidateQuery(event.target.value)} placeholder="Search anyone in your organization..." style={{ flex: 1, border: 0, outline: 0, background: 'transparent', fontFamily: 'inherit', fontSize: 13 }} />
+          </div>
           <div style={{ maxHeight: 280, overflowY: 'auto', border: '1px solid var(--border-default)', borderRadius: 10 }}>
-            {candidates.length === 0 ? (
+            {visibleCandidates.length === 0 ? (
               <div style={{ padding: 24, textAlign: 'center', color: 'var(--fg-muted)', fontSize: 13 }}>No candidates available.</div>
-            ) : candidates.map(candidate => {
+            ) : visibleCandidates.map(candidate => {
               const name = `${candidate.first_name || ''} ${candidate.last_name || ''}`.trim() || candidate.email
               const checked = selectedKeys.has(candidateKey(candidate))
               return (
@@ -288,10 +342,36 @@ function ScheduleModal({
             })}
           </div>
           <div>
-            <label htmlFor="schedule-report-emails" style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--fg-muted)', marginBottom: 6 }}>
-              Additional report emails
+            <label htmlFor="schedule-report-users" style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--fg-muted)', marginBottom: 6 }}>
+              Report recipients
             </label>
-            <input id="schedule-report-emails" value={reportEmails} onChange={event => setReportEmails(event.target.value)} placeholder="hr@example.com, lead@example.com" style={{ width: '100%', boxSizing: 'border-box', padding: '9px 12px', border: '1px solid var(--border-default)', borderRadius: 8, fontFamily: 'inherit' }} />
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+              {selectedReportUsers.map(user => {
+                const locked = Number(user.id) === managerId
+                return (
+                  <span key={user.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 8px', borderRadius: 999, background: locked ? 'var(--brand-50)' : 'var(--bg-surface-alt)', color: locked ? 'var(--brand-700)' : 'var(--fg-body)', fontSize: 12, fontWeight: 600 }}>
+                    {user.first_name} {user.last_name}{locked ? ' (you)' : ''}
+                    {!locked && <button type="button" onClick={() => removeReportUser(user.id)} aria-label={`Remove ${user.first_name}`} style={{ border: 0, background: 'transparent', padding: 0, display: 'inline-flex', cursor: 'pointer', color: 'inherit' }}><X size={12} /></button>}
+                  </span>
+                )
+              })}
+            </div>
+            <div style={{ position: 'relative' }}>
+              <input id="schedule-report-users" value={reportQuery} onChange={event => setReportQuery(event.target.value)} placeholder="Type initials, name, or email..." style={{ width: '100%', boxSizing: 'border-box', padding: '9px 12px', border: '1px solid var(--border-default)', borderRadius: 8, fontFamily: 'inherit' }} />
+              {reportQuery.trim() && (
+                <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 20, maxHeight: 180, overflowY: 'auto', background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderRadius: 8, boxShadow: '0 10px 24px rgba(15,23,42,0.12)' }}>
+                  {reportSuggestions.length === 0 ? (
+                    <div style={{ padding: 10, fontSize: 12, color: 'var(--fg-muted)' }}>No organization members found.</div>
+                  ) : reportSuggestions.map(user => (
+                    <button key={user.id} type="button" onClick={() => addReportUser(user)} style={{ width: '100%', display: 'flex', justifyContent: 'space-between', gap: 10, padding: '9px 11px', border: 0, borderBottom: '1px solid var(--border-default)', background: 'var(--bg-surface)', cursor: 'pointer', textAlign: 'left' }}>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg-primary)' }}>{user.first_name} {user.last_name}</span>
+                      <span style={{ fontSize: 11, color: 'var(--fg-muted)' }}>{user.email}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <p style={{ margin: '6px 0 0', fontSize: 11, color: 'var(--fg-muted)' }}>You are always included and cannot be removed.</p>
           </div>
         </div>
       )}
