@@ -100,22 +100,20 @@ function LoginPage() {
         </div>
 
         <div style={{ background: '#1E293B', border: '1px solid #334155', borderRadius: '1rem', padding: '1.75rem' }}>
-          {import.meta.env.DEV && (
-            <>
-              <p style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--slate-400)', letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: '1.125rem' }}>Development Account</p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem', marginBottom: '1.25rem' }}>
-                {DEMO_ACCOUNTS.map(account => (
-                  <DemoButton key={account.email} account={account} onSelect={selectDemo} />
-                ))}
-              </div>
+          <>
+            <p style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--slate-400)', letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: '1.125rem' }}>Development Account</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem', marginBottom: '1.25rem' }}>
+              {DEMO_ACCOUNTS.map(account => (
+                <DemoButton key={account.email} account={account} onSelect={selectDemo} />
+              ))}
+            </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.25rem' }}>
-                <div style={{ flex: 1, height: 1, background: '#334155' }} />
-                <span style={{ color: '#475569', fontSize: '0.75rem' }}>or sign in with email</span>
-                <div style={{ flex: 1, height: 1, background: '#334155' }} />
-              </div>
-            </>
-          )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.25rem' }}>
+              <div style={{ flex: 1, height: 1, background: '#334155' }} />
+              <span style={{ color: '#475569', fontSize: '0.75rem' }}>or sign in with email</span>
+              <div style={{ flex: 1, height: 1, background: '#334155' }} />
+            </div>
+          </>
 
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             <div>
