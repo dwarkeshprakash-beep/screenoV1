@@ -59,6 +59,7 @@ async function startInterview(interviewId, identity) {
     ]),
     currentIndex: history.length,
     mode: interview.interview_mode,
+    questionCount: interview.question_count,
     transcriptionMode: 'api',
   }
 }

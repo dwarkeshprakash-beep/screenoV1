@@ -3,8 +3,8 @@ const express = require('express')
 const authMiddleware = require('../middleware/auth')
 const requireRole = require('../middleware/role')
 const clientTemplateRepo = require('../repositories/client-template.repository')
-const teamMemberRepository = require('../repositories/team-member.repository')
 const userRepository = require('../repositories/user.repository')
+const interviewRepository = require('../repositories/interview.repository')
 const emailService = require('../services/email.service')
 const llmService = require('../services/llm.service')
 
@@ -81,14 +81,24 @@ router.get('/:id/matches', async (req, res) => {
 
     let templateTags = []
     try { templateTags = JSON.parse(template.tags || '[]').map(t => t.toLowerCase()) } catch { templateTags = [] }
-    const members = await teamMemberRepository.getByManager(req.user.id)
+    const members = (await userRepository.getByCompany(req.user.companyId))
+      .filter(member => member.role !== 'manager')
 
     const matches = members.map(m => {
       let memberTags = []
       try { memberTags = JSON.parse(m.tags || '[]').map(t => t.toLowerCase()) } catch { memberTags = [] }
       const overlap = templateTags.filter(t => memberTags.includes(t))
-      return { ...m, match_score: overlap.length, matched_tags: overlap }
-    }).filter(m => m.match_score > 0).sort((a, b) => b.match_score - a.match_score)
+      return {
+        ...m,
+        user_id: m.id,
+        match_score: overlap.length,
+        matched_tags: overlap,
+        recommended: overlap.length > 0,
+      }
+    }).sort((a, b) =>
+      b.match_score - a.match_score
+      || String(a.first_name || '').localeCompare(String(b.first_name || ''))
+    )
 
     res.json({ success: true, data: matches })
   } catch (err) {
@@ -114,13 +124,17 @@ router.post('/:id/send-jd', async (req, res) => {
     }
 
     // Fetch all company members first — prevents cross-company email exfiltration
-    const companyMembers = await teamMemberRepository.getByManager(req.user.id)
-    const validUserIds = new Set(companyMembers.map(m => m.user_id))
+    const companyMembers = await userRepository.getByIdsForCompany(
+      [...new Set(userIds.map(Number).filter(Number.isInteger))],
+      req.user.companyId
+    )
+    const companyMembersById = new Map(
+      companyMembers.map(member => [Number(member.id), member])
+    )
 
     const results = await Promise.all(
       userIds.map(async uid => {
-        if (!validUserIds.has(uid)) return { uid, ok: false }
-        const user = await userRepository.getById(uid)
+        const user = companyMembersById.get(Number(uid))
         if (!user) return { uid, ok: false }
         try {
           await emailService.sendJDForResumeUpdate(user.email, {
@@ -142,6 +156,47 @@ router.post('/:id/send-jd', async (req, res) => {
   } catch (err) {
     console.error('POST /client-templates/:id/send-jd failed:', err)
     res.status(500).json({ success: false, error: 'Could not send JD emails' })
+  }
+})
+
+router.get('/:id/assignments', async (req, res) => {
+  try {
+    const templateId = parseInt(req.params.id, 10)
+    const template = await clientTemplateRepo.getById(templateId, req.user.id)
+    if (!template) return res.status(404).json({ success: false, error: 'Template not found' })
+    const assignments = await interviewRepository.getByClientTemplateForManager(
+      templateId,
+      req.user.id
+    )
+    res.json({ success: true, data: assignments })
+  } catch (err) {
+    console.error('GET /client-templates/:id/assignments failed:', err)
+    res.status(500).json({ success: false, error: 'Could not load client assignments' })
+  }
+})
+
+router.delete('/:id/assignments/:interviewId', async (req, res) => {
+  try {
+    const templateId = parseInt(req.params.id, 10)
+    const interviewId = parseInt(req.params.interviewId, 10)
+    const template = await clientTemplateRepo.getById(templateId, req.user.id)
+    if (!template) return res.status(404).json({ success: false, error: 'Template not found' })
+
+    const cancelled = await interviewRepository.cancelScheduledClientInterview(
+      interviewId,
+      templateId,
+      req.user.id
+    )
+    if (!cancelled) {
+      return res.status(409).json({
+        success: false,
+        error: 'Only scheduled client interviews can be cancelled',
+      })
+    }
+    res.json({ success: true, data: cancelled })
+  } catch (err) {
+    console.error('DELETE /client-templates/:id/assignments/:interviewId failed:', err)
+    res.status(500).json({ success: false, error: 'Could not cancel client assignment' })
   }
 })
 

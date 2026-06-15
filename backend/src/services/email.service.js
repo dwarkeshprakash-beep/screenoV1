@@ -204,38 +204,112 @@ async function sendMonthlyAssessmentInvite(to, {
   companyName,
   subject,
   assessmentDate,
+  assessmentEndDate,
   durationMonths,
   jdText,
 }) {
-  const dateText = new Date(assessmentDate).toLocaleDateString('en-IN', {
-    dateStyle: 'long',
-  })
+  const dateText = new Date(assessmentDate).toLocaleDateString('en-IN', { dateStyle: 'long' })
+  const endDate = (() => {
+    const d = assessmentEndDate ? new Date(assessmentEndDate) : new Date(assessmentDate)
+    if (assessmentEndDate) {
+      return d.toLocaleDateString('en-IN', { dateStyle: 'long' })
+    }
+    d.setMonth(d.getMonth() + Number(durationMonths || 1))
+    d.setDate(d.getDate() - 1)
+    return d.toLocaleDateString('en-IN', { dateStyle: 'long' })
+  })()
   const details = String(jdText || '').trim()
+
   await sendMail({
     to,
-    subject: `Monthly assessment scheduled - ${subject}`,
+    subject: `[${companyName}] Monthly Assessment Assigned — ${subject}`,
     text: [
-      `Hi ${candidateName},`,
+      `Dear ${candidateName},`,
       '',
-      `${companyName} has assigned you the monthly assessment "${subject}".`,
-      `Start date: ${dateText}`,
-      `Duration: ${durationMonths} month${durationMonths === 1 ? '' : 's'}`,
+      `We are pleased to inform you that ${companyName} has assigned you a monthly assessment.`,
       '',
-      details ? `JD / study material:\n${details}` : '',
+      `Subject     : ${subject}`,
+      `Start Date  : ${dateText}`,
+      `End Date    : ${endDate}`,
+      `Duration    : ${durationMonths} month${durationMonths === 1 ? '' : 's'}`,
       '',
-      'Your manager will send the interview link through Screeno.',
-      'This is an automated email from Praskesh Infotech. Please do not reply.',
-    ].filter(Boolean).join('\n'),
+      details ? `Study Material / JD:\n${'─'.repeat(40)}\n${details}\n${'─'.repeat(40)}` : '',
+      '',
+      'Your interview link will be sent to you separately by your manager via Screeno.',
+      'Please ensure you complete the assessment within the scheduled period.',
+      '',
+      'Should you have any questions, please reach out to your manager.',
+      '',
+      `Best regards,`,
+      `${companyName} — Screeno Platform`,
+      '',
+      '──────────────────────────────────────',
+      'This is an automated notification. Please do not reply to this email.',
+    ].filter(l => l !== null).join('\n'),
     html: `
-      <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px">
-        <h2 style="color:#0F172A">Monthly assessment assigned</h2>
-        <p>Hi <strong>${escapeHtml(candidateName)}</strong>,</p>
-        <p><strong>${escapeHtml(companyName)}</strong> has assigned you <strong>${escapeHtml(subject)}</strong>.</p>
-        <p><strong>Start date:</strong> ${escapeHtml(dateText)}<br />
-        <strong>Duration:</strong> ${durationMonths} month${durationMonths === 1 ? '' : 's'}</p>
-        ${details ? `<div style="background:#F8FAFC;border-left:4px solid #5B4FE9;padding:16px;margin:16px 0;font-size:14px;color:#374151;white-space:pre-line">${escapeHtml(details).slice(0, 5000)}</div>` : ''}
-        <p>Your manager will send the interview link through Screeno.</p>
-        <p style="color:#94A3B8;font-size:12px">This is an automated email from Praskesh Infotech. Please do not reply.</p>
+      <div style="font-family:'Segoe UI',Arial,sans-serif;max-width:560px;margin:0 auto;background:#ffffff;border:1px solid #E2E8F0;border-radius:12px;overflow:hidden">
+        <!-- header -->
+        <div style="background:linear-gradient(135deg,#5B4FE9,#4A3FCE);padding:28px 32px">
+          <div style="font-size:20px;font-weight:700;color:#ffffff;letter-spacing:-0.02em">Screeno</div>
+          <div style="font-size:13px;color:rgba(255,255,255,0.7);margin-top:2px">${escapeHtml(companyName)}</div>
+        </div>
+
+        <!-- body -->
+        <div style="padding:32px">
+          <h2 style="margin:0 0 6px;font-size:20px;color:#0F172A;font-weight:700">Monthly Assessment Assigned</h2>
+          <p style="margin:0 0 24px;font-size:14px;color:#64748B">You have a new assessment scheduled for the upcoming period.</p>
+
+          <p style="margin:0 0 20px;font-size:15px;color:#1E293B">Dear <strong>${escapeHtml(candidateName)}</strong>,</p>
+          <p style="margin:0 0 24px;font-size:14px;color:#374151;line-height:1.7">
+            ${escapeHtml(companyName)} has assigned you a monthly assessment. Please review the details below and prepare accordingly.
+          </p>
+
+          <!-- details card -->
+          <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:20px;margin-bottom:24px">
+            <table style="width:100%;border-collapse:collapse;font-size:14px">
+              <tr>
+                <td style="padding:6px 0;color:#64748B;width:110px;vertical-align:top">Subject</td>
+                <td style="padding:6px 0;color:#0F172A;font-weight:600">${escapeHtml(subject)}</td>
+              </tr>
+              <tr>
+                <td style="padding:6px 0;color:#64748B;vertical-align:top">Start Date</td>
+                <td style="padding:6px 0;color:#0F172A;font-weight:600">${escapeHtml(dateText)}</td>
+              </tr>
+              <tr>
+                <td style="padding:6px 0;color:#64748B;vertical-align:top">End Date</td>
+                <td style="padding:6px 0;color:#0F172A;font-weight:600">${escapeHtml(endDate)}</td>
+              </tr>
+              <tr>
+                <td style="padding:6px 0;color:#64748B;vertical-align:top">Duration</td>
+                <td style="padding:6px 0;color:#0F172A;font-weight:600">${durationMonths} month${durationMonths === 1 ? '' : 's'}</td>
+              </tr>
+            </table>
+          </div>
+
+          ${details ? `
+          <div style="margin-bottom:24px">
+            <div style="font-size:12px;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px">Study Material</div>
+            <div style="background:#FAFAFE;border-left:4px solid #5B4FE9;border-radius:0 8px 8px 0;padding:16px;font-size:13px;color:#374151;white-space:pre-line;line-height:1.7">${escapeHtml(details).slice(0, 5000)}</div>
+          </div>
+          ` : ''}
+
+          <div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px;padding:14px 16px;margin-bottom:24px">
+            <p style="margin:0;font-size:13px;color:#1E40AF;line-height:1.6">
+              <strong>Next step:</strong> Your manager will send you the interview link separately through Screeno. Please ensure you complete the assessment within the scheduled period.
+            </p>
+          </div>
+
+          <p style="margin:0;font-size:14px;color:#374151;line-height:1.7">
+            If you have any questions, please reach out to your manager directly.
+          </p>
+        </div>
+
+        <!-- footer -->
+        <div style="padding:16px 32px;border-top:1px solid #E2E8F0;background:#F8FAFC;text-align:center">
+          <p style="margin:0;font-size:12px;color:#94A3B8">
+            This is an automated notification from ${escapeHtml(companyName)} via Screeno. Please do not reply to this email.
+          </p>
+        </div>
       </div>
     `,
   })

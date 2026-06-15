@@ -183,6 +183,8 @@ export const assignMonthlyAssessment = (id, data) =>
     method: 'POST',
     body: JSON.stringify(data),
   })
+export const cancelMonthlyEnrollment = id =>
+  request(`/api/assessments/monthly/enrollments/${id}`, { method: 'DELETE' })
 export const generateSubtopics = data =>
   request('/api/assessments/monthly/generate-subtopics', {
     method: 'POST',
@@ -209,6 +211,10 @@ export const extractTemplateTags = text =>
   })
 export const getTemplateMatches = id =>
   request(`/api/templates/client/${id}/matches`)
+export const getTemplateAssignments = id =>
+  request(`/api/templates/client/${id}/assignments`)
+export const cancelTemplateAssignment = (id, interviewId) =>
+  request(`/api/templates/client/${id}/assignments/${interviewId}`, { method: 'DELETE' })
 export const sendJDToTeam = (id, data) =>
   request(`/api/templates/client/${id}/send-jd`, {
     method: 'POST',

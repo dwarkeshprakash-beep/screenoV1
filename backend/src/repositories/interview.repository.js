@@ -84,6 +84,34 @@ async function getByManager(managerId) {
   )
 }
 
+async function getByClientTemplateForManager(clientTemplateId, managerId) {
+  return db.query(
+    `SELECT i.id, i.internal_user_id, i.external_candidate_id, i.status, i.result,
+            i.interview_mode, i.difficulty, i.question_count, i.created,
+            ${INTERVIEW_COLS}
+     FROM interviews i
+     ${INTERVIEW_JOINS}
+     WHERE i.client_template_id = @clientTemplateId
+       AND i.manager_id = @managerId
+     ORDER BY i.created DESC`,
+    { clientTemplateId, managerId }
+  )
+}
+
+async function cancelScheduledClientInterview(interviewId, clientTemplateId, managerId) {
+  const rows = await db.query(
+    `UPDATE interviews
+     SET status = 'cancelled', result = 'cancelled'
+     WHERE id = @interviewId
+       AND client_template_id = @clientTemplateId
+       AND manager_id = @managerId
+       AND status = 'scheduled'
+     RETURNING id, status, result`,
+    { interviewId, clientTemplateId, managerId }
+  )
+  return rows[0] || null
+}
+
 async function getByInternalUser(userId) {
   return db.query(
     `SELECT i.*, ${INTERVIEW_COLS}, sc.overall AS overall_score
@@ -209,6 +237,8 @@ module.exports = {
   getById,
   getByToken,
   getByManager,
+  getByClientTemplateForManager,
+  cancelScheduledClientInterview,
   getByInternalUser,
   getByInternalUserId,
   getByInternalUserForManager,

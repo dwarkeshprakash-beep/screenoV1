@@ -84,13 +84,36 @@ router.post('/:id/assign', async (req, res) => {
     if (err.message === 'Monthly assessment not found') {
       return res.status(404).json({ success: false, error: err.message })
     }
+    if (err.code === 'MONTHLY_ASSESSMENT_CONFLICT') {
+      return res.status(409).json({
+        success: false,
+        error: err.message,
+        data: { conflict: err.conflict },
+      })
+    }
     if ([
       'At least one team member is required',
       'Assessment date is invalid',
-    ].includes(err.message) || err.message.includes('already has this assessment')) {
+    ].includes(err.message)) {
       return res.status(400).json({ success: false, error: err.message })
     }
     res.status(500).json({ success: false, error: 'Could not assign assessment' })
+  }
+})
+
+router.delete('/enrollments/:id', async (req, res) => {
+  try {
+    const enrollment = await monthlyAssessmentService.cancelEnrollment(
+      Number(req.params.id),
+      req.user.id
+    )
+    res.json({ success: true, data: enrollment })
+  } catch (err) {
+    console.error('DELETE /monthly-assessments/enrollments/:id failed:', err)
+    if (err.message === 'Monthly enrollment not found') {
+      return res.status(404).json({ success: false, error: err.message })
+    }
+    res.status(500).json({ success: false, error: 'Could not cancel monthly assessment' })
   }
 })
 

@@ -77,6 +77,7 @@ async function sendAssignmentInvitations({
   members,
   companyId,
   startDate,
+  endDate,
 }) {
   const company = await companyRepository.getById(companyId)
   const recipients = members.filter(member => member?.email)
@@ -86,6 +87,7 @@ async function sendAssignmentInvitations({
       companyName: company?.name || 'Your company',
       subject: assessment.subject_name,
       assessmentDate: startDate,
+      assessmentEndDate: endDate,
       durationMonths: assessment.duration_months,
       jdText: assessment.ai_generated_jd || '',
     })
@@ -130,6 +132,7 @@ async function assignCandidates(assessmentId, body, managerId, companyId) {
     members: ownedMembers,
     companyId,
     startDate,
+    endDate,
   })
 
   return {
@@ -175,6 +178,7 @@ async function getMonthPlan(managerId, monthValue) {
     teamMemberRepository.getByManager(managerId),
   ])
   const activeEnrollments = enrollments.filter(enrollment => {
+    if (enrollment.status === 'cancelled') return false
     const index = monthIndexForDate(enrollment.start_date, year, monthIndex)
     const progress = parseArray(enrollment.month_progress)
     const assessment = assessments.find(item => item.id === enrollment.assessment_id)
@@ -203,11 +207,21 @@ async function getMonthPlan(managerId, monthValue) {
   }
 }
 
+async function cancelEnrollment(enrollmentId, managerId) {
+  const enrollment = await monthlyAssessmentRepository.cancelEnrollment(
+    Number(enrollmentId),
+    managerId
+  )
+  if (!enrollment) throw new Error('Monthly enrollment not found')
+  return enrollment
+}
+
 module.exports = {
   createAssessment,
   assignCandidates,
   getAssessments,
   getMonthPlan,
+  cancelEnrollment,
   parseArray,
   addMonths,
   monthIndexForDate,

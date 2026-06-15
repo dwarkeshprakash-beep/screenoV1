@@ -184,6 +184,16 @@ async function run() {
   ))[0]
   state.userIds.push(organizationOnlyUser.id)
 
+  const employeeLogin = await api('/api/auth/login', {
+    method: 'POST',
+    body: {
+      email: `organization-only-${stamp}@example.test`,
+      password: primary.password,
+    },
+  })
+  assert.equal(employeeLogin.status, 200)
+  assert.equal(employeeLogin.payload.data.user.role, 'candidate')
+
   const orgUsers = await api('/api/schedule/org-users', { token: managerToken })
   assert.equal(orgUsers.status, 200)
   assert.ok(orgUsers.payload.data.some(user => user.id === organizationOnlyUser.id))
@@ -246,6 +256,18 @@ async function run() {
   assert.equal(template.status, 201)
   state.templateIds.push(template.payload.data.id)
 
+  const clientCandidates = await api(
+    `/api/templates/client/${template.payload.data.id}/matches`,
+    { token: managerToken }
+  )
+  assert.equal(clientCandidates.status, 200)
+  const organizationCandidate = clientCandidates.payload.data.find(
+    user => user.id === organizationOnlyUser.id
+  )
+  assert.ok(organizationCandidate)
+  assert.equal(organizationCandidate.match_score, 0)
+  assert.equal(organizationCandidate.recommended, false)
+
   const assessment = await api('/api/assessments/monthly', {
     method: 'POST',
     token: managerToken,
@@ -291,6 +313,20 @@ async function run() {
   assert.deepEqual(reusableTemplate.payload.data.enrollments, [])
   state.assessmentIds.push(reusableTemplate.payload.data.id)
 
+  const crossSubjectConflict = await api(
+    `/api/assessments/monthly/${reusableTemplate.payload.data.id}/assign`,
+    {
+      method: 'POST',
+      token: managerToken,
+      body: {
+        assessment_date: '2026-07-20',
+        team_member_ids: [primary.teamMember.id],
+      },
+    }
+  )
+  assert.equal(crossSubjectConflict.status, 409)
+  assert.match(crossSubjectConflict.payload.error, /Backend Engineering/)
+
   const reusableAssignment = await api(
     `/api/assessments/monthly/${reusableTemplate.payload.data.id}/assign`,
     {
@@ -316,8 +352,8 @@ async function run() {
       },
     }
   )
-  assert.equal(duplicateAssignment.status, 400)
-  assert.match(duplicateAssignment.payload.error, /already has this assessment/)
+  assert.equal(duplicateAssignment.status, 409)
+  assert.match(duplicateAssignment.payload.error, /Cloud Fundamentals/)
 
   const octoberPlan = await api('/api/assessments/monthly/plan?month=2026-10', {
     token: managerToken,
@@ -328,6 +364,22 @@ async function run() {
       && subject.candidates.some(candidate => candidate.team_member_id === addedMember.payload.data.id)
   ))
   assert.ok(octoberPlan.payload.data.unassigned.some(member => member.id === primary.teamMember.id))
+
+  const cancelledEnrollment = await api(
+    `/api/assessments/monthly/enrollments/${reusableAssignment.payload.data.enrollments[0].id}`,
+    { method: 'DELETE', token: managerToken }
+  )
+  assert.equal(cancelledEnrollment.status, 200)
+  assert.equal(cancelledEnrollment.payload.data.status, 'cancelled')
+
+  const octoberPlanAfterCancellation = await api(
+    '/api/assessments/monthly/plan?month=2026-10',
+    { token: managerToken }
+  )
+  assert.equal(octoberPlanAfterCancellation.status, 200)
+  assert.ok(octoberPlanAfterCancellation.payload.data.unassigned.some(
+    member => member.id === addedMember.payload.data.id
+  ))
 
   const invalidPlanMonth = await api('/api/assessments/monthly/plan?month=October-2026', {
     token: managerToken,
@@ -394,6 +446,37 @@ async function run() {
     new RegExp(`candidate-${stamp}@example\\.test`)
   )
   state.interviewIds.push(organizationSchedule.payload.data.id)
+
+  const cancellableClientSchedule = await api('/api/schedule', {
+    method: 'POST',
+    token: managerToken,
+    body: {
+      userId: organizationOnlyUser.id,
+      type: 'ai_voice',
+      interviewMode: 'simple',
+      difficulty: 'medium',
+      questionCount: 6,
+      clientTemplateId: template.payload.data.id,
+    },
+  })
+  assert.equal(cancellableClientSchedule.status, 201)
+  state.interviewIds.push(cancellableClientSchedule.payload.data.id)
+
+  const clientAssignments = await api(
+    `/api/templates/client/${template.payload.data.id}/assignments`,
+    { token: managerToken }
+  )
+  assert.equal(clientAssignments.status, 200)
+  assert.ok(clientAssignments.payload.data.some(
+    assignment => assignment.id === cancellableClientSchedule.payload.data.id
+  ))
+
+  const cancelledClientAssignment = await api(
+    `/api/templates/client/${template.payload.data.id}/assignments/${cancellableClientSchedule.payload.data.id}`,
+    { method: 'DELETE', token: managerToken }
+  )
+  assert.equal(cancelledClientAssignment.status, 200)
+  assert.equal(cancelledClientAssignment.payload.data.status, 'cancelled')
 
   const foreignRecipientSchedule = await api('/api/schedule', {
     method: 'POST',

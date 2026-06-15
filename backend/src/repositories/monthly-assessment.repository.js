@@ -109,12 +109,16 @@ async function createEnrollments(assessmentId, teamMemberIds, data) {
     const enrollments = []
     for (const teamMemberId of teamMemberIds) {
       const overlapping = await tx.query(
-        `SELECT id
-         FROM monthly_assessment_enrollments
-         WHERE assessment_id = @assessmentId
-           AND team_member_id = @teamMemberId
-           AND start_date < @endDate
-           AND end_date >= @startDate
+        `SELECT e.id, e.assessment_id, e.start_date, e.end_date,
+                a.subject_name, a.duration_months
+         FROM monthly_assessment_enrollments e
+         JOIN monthly_assessments a ON a.id = e.assessment_id
+         JOIN monthly_assessments selected ON selected.id = @assessmentId
+         WHERE e.team_member_id = @teamMemberId
+           AND a.manager_id = selected.manager_id
+           AND COALESCE(e.status, 'pending') != 'cancelled'
+           AND e.start_date <= @endDate
+           AND e.end_date >= @startDate
          LIMIT 1`,
         {
           assessmentId,
@@ -124,7 +128,15 @@ async function createEnrollments(assessmentId, teamMemberIds, data) {
         }
       )
       if (overlapping[0]) {
-        throw new Error(`Team member ${teamMemberId} already has this assessment in the selected period`)
+        const conflict = overlapping[0]
+        const error = new Error(
+          `Candidate already has "${conflict.subject_name}" scheduled from `
+          + `${new Date(conflict.start_date).toISOString().slice(0, 10)} to `
+          + `${new Date(conflict.end_date).toISOString().slice(0, 10)}`
+        )
+        error.code = 'MONTHLY_ASSESSMENT_CONFLICT'
+        error.conflict = conflict
+        throw error
       }
 
       const rows = await tx.query(
@@ -216,9 +228,46 @@ async function updateEnrollmentInterview(enrollmentId, interviewId) {
   )
 }
 
+async function cancelEnrollment(enrollmentId, managerId) {
+  return db.transaction(async tx => {
+    const rows = await tx.query(
+      `SELECT e.*, a.subject_name
+       FROM monthly_assessment_enrollments e
+       JOIN monthly_assessments a ON a.id = e.assessment_id
+       WHERE e.id = @enrollmentId
+         AND a.manager_id = @managerId
+       LIMIT 1`,
+      { enrollmentId, managerId }
+    )
+    const enrollment = rows[0]
+    if (!enrollment) return null
+    if (enrollment.status === 'cancelled') return enrollment
+
+    const updated = await tx.query(
+      `UPDATE monthly_assessment_enrollments
+       SET status = 'cancelled'
+       WHERE id = @enrollmentId
+       RETURNING *`,
+      { enrollmentId }
+    )
+
+    if (enrollment.interview_id) {
+      await tx.query(
+        `UPDATE interviews
+         SET status = 'cancelled', result = 'cancelled'
+         WHERE id = @interviewId
+           AND status = 'scheduled'`,
+        { interviewId: enrollment.interview_id }
+      )
+    }
+
+    return { ...updated[0], subject_name: enrollment.subject_name }
+  })
+}
+
 module.exports = {
   create, createEnrollment, createWithEnrollments, createTemplate, createEnrollments,
   getByManager, getByIdForManager,
   getEnrollmentsByAssessment, getEnrollmentsByManager,
-  getCalendarByManager, updateEnrollmentInterview,
+  getCalendarByManager, updateEnrollmentInterview, cancelEnrollment,
 }

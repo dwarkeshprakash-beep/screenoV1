@@ -17,14 +17,15 @@ function AIInterviewPage() {
   const { interviewId, mode, transcriptionMode } = session
 
   const {
-    phase, currentQuestion, transcript, liveTranscript, currentIndex,
+    phase, currentQuestion, transcript, liveTranscript, currentIndex, totalQuestions,
     error: interviewError, startInterview, startRecording, stopRecording, pause, resume, interviewMode,
-    finishInterview, submitManualAnswer, manualRetry,
+    finishInterview, submitManualAnswer, manualRetry, muteRecording, unmuteRecording,
   } = useInterview(interviewId, mode, transcriptionMode)
 
   const [violation, setViolation] = useState(null)
   const [endConfirmOpen, setEndConfirmOpen] = useState(false)
   const [muted, setMuted]         = useState(false)
+  const [recordingMuted, setRecordingMuted] = useState(false)
   const [manualText, setManualText] = useState('')
   const [remaining, setRemaining] = useState(25 * 60)
   const [recElapsed, setRecEl]    = useState(0)
@@ -81,12 +82,16 @@ function AIInterviewPage() {
   }, [phase, violation])
 
   useEffect(() => {
+    if (phase !== 'recording') setRecordingMuted(false)
+  }, [phase])
+
+  useEffect(() => {
     if (phase !== 'listening' || violation || muted) return
     const t = setTimeout(() => startRecording(), 600)
     return () => clearTimeout(t)
   }, [phase, violation, muted, startRecording])
 
-  useEffect(() => { if (txRef.current) txRef.current.scrollTop = txRef.current.scrollHeight }, [transcript, phase])
+  useEffect(() => { if (txRef.current) txRef.current.scrollTop = txRef.current.scrollHeight }, [transcript, liveTranscript, phase])
 
   if (!interviewId) return <div style={{ padding: 40, textAlign: 'center', color: '#EF4444' }}>No interview session found. Please use your magic link.</div>
   if (interviewError && phase === 'error') return <div style={{ padding: 40, textAlign: 'center', color: '#EF4444' }}>{interviewError}</div>
@@ -96,13 +101,14 @@ function AIInterviewPage() {
   const isDone       = phase === 'ended'
   const isListening  = phase === 'listening'
   const canStartAnswer = (isListening || phase === 'ai_speaking') && !muted && !manualRetry
+  const questionCount = totalQuestions || 0
   const modeLabel = interviewMode === 'adaptive'
     ? 'Adaptive AI · dynamic questions'
-    : 'Fixed AI · 10 questions'
+    : `Fixed AI · ${questionCount} question${questionCount !== 1 ? 's' : ''}`
   const questionNumber = currentQuestion?.order_num || (currentIndex || 0) + 1
   const questionProgress = interviewMode === 'adaptive'
     ? `Adaptive · Question ${questionNumber}`
-    : `Question ${questionNumber} of 10`
+    : `Question ${questionNumber} of ${questionCount || '…'}`
 
   const aiState = isRecording ? 'listening' : isListening ? 'ready' : isProcessing ? 'thinking' : 'speaking'
   const orbConfig = {
@@ -116,7 +122,13 @@ function AIInterviewPage() {
 
   async function handleMicToggle() {
     if (isRecording) {
-      await stopRecording()
+      if (recordingMuted) {
+        unmuteRecording()
+        setRecordingMuted(false)
+      } else {
+        muteRecording()
+        setRecordingMuted(true)
+      }
       return
     }
     if (isListening) {
@@ -216,9 +228,8 @@ function AIInterviewPage() {
         </div>
 
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-          <button onClick={handleMicToggle} title={muted ? 'Microphone muted' : 'Microphone available'} style={{ width: 52, height: 52, borderRadius: 9999, background: isRecording || muted ? '#FEF2F2' : 'var(--bg-surface)', border: `1px solid ${isRecording || muted ? '#FECACA' : 'var(--slate-300)'}`, color: isRecording || muted ? '#EF4444' : 'var(--slate-900)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 120ms' }}>
-
-            {muted ? <MicOff size={20} /> : <Mic size={20} />}
+          <button onClick={handleMicToggle} title={recordingMuted ? 'Unmute microphone' : muted ? 'Microphone muted' : isRecording ? 'Mute microphone' : 'Microphone available'} style={{ width: 52, height: 52, borderRadius: 9999, background: recordingMuted || muted ? '#FEF2F2' : 'var(--bg-surface)', border: `1px solid ${recordingMuted || muted ? '#FECACA' : 'var(--slate-300)'}`, color: recordingMuted || muted ? '#EF4444' : 'var(--slate-900)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all 120ms' }}>
+            {recordingMuted || muted ? <MicOff size={20} /> : <Mic size={20} />}
           </button>
 
           {canStartAnswer && (

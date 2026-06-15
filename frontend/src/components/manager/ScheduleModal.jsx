@@ -100,10 +100,13 @@ function ScheduleModal({
           api.getExternalCandidates(),
           api.getProfile(),
         ])
-        const internal = (orgResponse.data || []).map(item => ({
+        const organizationUsers = orgResponse.data || []
+        const internal = organizationUsers
+          .filter(item => item.role !== 'manager')
+          .map(item => ({
           ...item,
           external: false,
-        }))
+          }))
         const external = (externalResponse.data || []).map(item => ({
           ...item,
           external: true,
@@ -111,7 +114,7 @@ function ScheduleModal({
         const all = [...internal, ...external]
         const currentManagerId = Number(profileResponse.data?.id)
         setCandidates(all)
-        setOrgUsers(internal)
+        setOrgUsers(organizationUsers)
         setManagerId(currentManagerId)
         setReportUserIds(new Set(Number.isInteger(currentManagerId) ? [currentManagerId] : []))
 

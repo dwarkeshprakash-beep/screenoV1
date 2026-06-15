@@ -8,6 +8,7 @@ function useInterview(interviewId, mode, transcriptionMode = 'api') {
   const [transcript, setTranscript] = useState([])
   const [liveTranscript, setLiveTranscript] = useState('')
   const [interviewMode, setInterviewMode] = useState(mode || 'simple')
+  const [questionCount, setQuestionCount] = useState(0)
   const [error, setError] = useState(null)
   const [manualRetry, setManualRetry] = useState(null)
 
@@ -45,13 +46,15 @@ function useInterview(interviewId, mode, transcriptionMode = 'api') {
     speechRecognitionRef.current = null
   }
 
-  function startLiveRecognition() {
+  function startLiveRecognition(resetTranscript = true) {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
     if (!SpeechRecognition) return
 
     stopLiveRecognition()
-    liveFinalTranscriptRef.current = ''
-    setLiveTranscriptValue('')
+    if (resetTranscript) {
+      liveFinalTranscriptRef.current = ''
+      setLiveTranscriptValue('')
+    }
 
     const recognition = new SpeechRecognition()
     recognition.continuous = true
@@ -143,6 +146,7 @@ function useInterview(interviewId, mode, transcriptionMode = 'api') {
       setQuestions(data.questions)
       setCurrentIndex(resumeIndex)
       setInterviewMode(data.mode || mode || 'simple')
+      setQuestionCount(Number(data.questionCount) || data.questions.length)
       setTranscript(data.transcript || [])
       logInterviewDebug('Interview started', {
         interviewId,
@@ -340,12 +344,22 @@ function useInterview(interviewId, mode, transcriptionMode = 'api') {
     setPhase(prevPhaseRef.current || 'listening')
   }
 
+  function muteRecording() {
+    recorderRef.current?.stream?.getAudioTracks().forEach(t => { t.enabled = false })
+    stopLiveRecognition()
+  }
+
+  function unmuteRecording() {
+    recorderRef.current?.stream?.getAudioTracks().forEach(t => { t.enabled = true })
+    startLiveRecognition(false)
+  }
+
   return {
     phase,
     currentQuestion: questions[currentIndex] || null,
     transcript,
     liveTranscript,
-    totalQuestions: questions.length,
+    totalQuestions: questionCount || questions.length,
     currentIndex,
     interviewMode,
     error,
@@ -358,6 +372,8 @@ function useInterview(interviewId, mode, transcriptionMode = 'api') {
     resume,
     finishInterview,
     submitManualAnswer,
+    muteRecording,
+    unmuteRecording,
   }
 }
 

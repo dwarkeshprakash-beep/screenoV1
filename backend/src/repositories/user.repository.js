@@ -91,10 +91,14 @@ async function getByRole(companyId, role) {
 
 async function getByCompany(companyId) {
   return db.query(
-    `SELECT id, first_name, last_name, email, role
-     FROM users
-     WHERE company_id = @companyId
-     ORDER BY first_name`,
+    `SELECT u.id, u.company_id, u.first_name, u.last_name, u.email, u.role,
+            u.emp_number AS employee_id, u.job_title AS current_position,
+            u.location, u.availability, u.tags, u.resume_url, u.resume_updated,
+            d.name AS department
+     FROM users u
+     LEFT JOIN departments d ON d.id = u.department_id
+     WHERE u.company_id = @companyId
+     ORDER BY u.first_name, u.last_name`,
     { companyId }
   )
 }
@@ -113,11 +117,15 @@ async function getByIdForCompany(id, companyId) {
 async function getByIdsForCompany(ids, companyId) {
   if (!Array.isArray(ids) || ids.length === 0) return []
   return db.query(
-    `SELECT id, company_id, first_name, last_name, email, role
-     FROM users
-     WHERE company_id = @companyId
-       AND id = ANY(@ids)
-     ORDER BY first_name, last_name`,
+    `SELECT u.id, u.company_id, u.first_name, u.last_name, u.email, u.role,
+            u.emp_number AS employee_id, u.job_title AS current_position,
+            u.location, u.availability, u.tags, u.resume_url, u.resume_updated,
+            d.name AS department
+     FROM users u
+     LEFT JOIN departments d ON d.id = u.department_id
+     WHERE u.company_id = @companyId
+       AND u.id = ANY(@ids)
+     ORDER BY u.first_name, u.last_name`,
     { ids, companyId }
   )
 }

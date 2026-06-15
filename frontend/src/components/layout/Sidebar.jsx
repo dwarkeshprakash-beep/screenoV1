@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from 'react-router-dom'
-import { LayoutDashboard, Users, ScanSearch, Calendar, BarChart3, Settings, CheckSquare, CalendarRange } from 'lucide-react'
+import { LayoutDashboard, Users, ScanSearch, Calendar, BarChart3, Settings, CheckSquare } from 'lucide-react'
 
 const MANAGER_NAV = [
   {
@@ -12,8 +12,7 @@ const MANAGER_NAV = [
   {
     section: 'ASSESSMENTS',
     items: [
-      { to: '/manager/monthly',         icon: CheckSquare,     label: 'Monthly Templates', exact: true },
-      { to: '/manager/monthly/plan',    icon: CalendarRange,   label: 'Monthly Plan' },
+      { to: '/manager/monthly',         icon: CheckSquare,     label: 'Monthly Assessment' },
       { to: '/manager/clients',         icon: Users,           label: 'Client Mandates' },
     ],
   },

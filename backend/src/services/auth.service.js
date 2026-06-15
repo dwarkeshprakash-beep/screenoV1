@@ -11,11 +11,15 @@ function hashToken(token) {
   return crypto.createHash('sha256').update(token).digest('hex')
 }
 
+function applicationRole(user) {
+  return user.role === 'employee' ? 'candidate' : user.role
+}
+
 function signAccessToken(user) {
   return jwt.sign(
     {
       id: user.id,
-      role: user.role,
+      role: applicationRole(user),
       companyId: user.company_id,
       name: `${user.first_name} ${user.last_name}`,
     },
@@ -51,7 +55,7 @@ function candidateInterviewSummary(interview) {
 function publicUser(user) {
   return {
     id: user.id,
-    role: user.role,
+    role: applicationRole(user),
     companyId: user.company_id,
     first_name: user.first_name,
     last_name: user.last_name,

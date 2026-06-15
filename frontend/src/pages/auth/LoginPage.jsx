@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Eye, EyeOff } from 'lucide-react'
 import * as api from '../../services/api'
 
 const DEMO_ACCOUNTS = [
@@ -15,6 +16,18 @@ const DEMO_ACCOUNTS = [
     email: 'kiran.oza@prakashinfotech.com',
     password: 'Test@1234',
   },
+  {
+    role: 'candidate',
+    name: 'Dwarkesh Vajjala',
+    sub: 'Candidate - Prakash Infotech',
+    initials: 'DV',
+    bgColor: '#ECFDF5',
+    fgColor: '#065F46',
+    badgeBg: '#047857',
+    badgeFg: '#A7F3D0',
+    email: 'dwarkesh.vajjala@prakashinfotech.com',
+    password: 'Test@1234',
+  },
 ]
 
 function roleRedirect(role) {
@@ -27,6 +40,7 @@ function LoginPage() {
   const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
 
@@ -110,7 +124,17 @@ function LoginPage() {
             </div>
             <div>
               <label style={{ color: 'var(--slate-400)', fontSize: '0.8125rem', fontWeight: 500, display: 'block', marginBottom: '0.375rem' }}>Password</label>
-              <input type="password" placeholder="Password" value={password} onChange={event => setPassword(event.target.value)} required style={inputStyle} />
+              <div style={{ position: 'relative' }}>
+                <input type={showPassword ? 'text' : 'password'} placeholder="Password" value={password} onChange={event => setPassword(event.target.value)} required style={{ ...inputStyle, paddingRight: '2.75rem' }} />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(p => !p)}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 0, cursor: 'pointer', color: '#64748B', display: 'inline-flex', padding: 0 }}
+                >
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
             </div>
 
             {error && <p role="alert" style={{ fontSize: '0.8125rem', color: '#EF4444' }}>{error}</p>}

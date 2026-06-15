@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Plus, LayoutTemplate, Sparkles, X, Download, Send, Calendar, Upload } from 'lucide-react'
+import { Plus, LayoutTemplate, Sparkles, X, Download, Send, Calendar, Upload, Search, Trash2 } from 'lucide-react'
 import Modal from '../../components/shared/Modal'
 import Button from '../../components/shared/Button'
 import Spinner from '../../components/shared/Spinner'
@@ -116,7 +116,7 @@ function WizardModal({ open, onClose, onCreated }) {
               </div>
             </div>
             <div>
-              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--fg-body)', marginBottom: 4 }}>Role Required</label>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--fg-body)', marginBottom: 4 }}>Subject / Role Required</label>
               <input value={requirements} onChange={e => setRequirements(e.target.value)} placeholder="e.g. Senior React Developer" style={inp} />
             </div>
             <div>
@@ -175,7 +175,7 @@ function WizardModal({ open, onClose, onCreated }) {
 }
 
 // ── Send Interview Invites Modal ──────────────────────────────
-function SendInviteModal({ open, onClose, template, candidateIds, members }) {
+function SendInviteModal({ open, onClose, onDone, template, candidateIds, members }) {
   const [interviewMode, setMode]        = useState('simple')
   const [difficulty, setDifficulty]     = useState('medium')
   const [questionCount, setQCount]      = useState(10)
@@ -211,6 +211,7 @@ function SendInviteModal({ open, onClose, template, candidateIds, members }) {
           clientTemplateId: template.id,
         })
       }))
+      await onDone?.()
       setDone(true)
       setTimeout(() => { reset(); onClose() }, 1400)
     } catch (err) {
@@ -297,24 +298,53 @@ function DetailView({ template: initialTemplate, onBack }) {
   const [extractingEditJd, setExtractingEditJd] = useState(false)
   const [editJdFileName, setEditJdFileName] = useState('')
   const [reports, setReports]               = useState([])
+  const [assignments, setAssignments]       = useState([])
+  const [candidateQuery, setCandidateQuery] = useState('')
+  const [cancellingId, setCancellingId]     = useState(null)
 
   const tags = (() => { try { return typeof template.tags === 'string' ? JSON.parse(template.tags) : (template.tags || []) } catch { return [] } })()
 
   useEffect(() => {
     if (tab !== 'candidates') return
     setMatchLoading(true)
-    async function loadMatches() {
+    async function loadCandidates() {
       try {
-        const r = await api.getTemplateMatches(template.id)
-        setMatches(r.data || [])
+        const [matchResponse, assignmentResponse] = await Promise.all([
+          api.getTemplateMatches(template.id),
+          api.getTemplateAssignments(template.id),
+        ])
+        setMatches(matchResponse.data || [])
+        setAssignments(assignmentResponse.data || [])
       } catch {
         setMatches([])
+        setAssignments([])
       } finally {
         setMatchLoading(false)
       }
     }
-    loadMatches()
+    loadCandidates()
   }, [tab, template.id])
+
+  async function refreshAssignments() {
+    const response = await api.getTemplateAssignments(template.id)
+    setAssignments(response.data || [])
+  }
+
+  async function cancelAssignment(assignment) {
+    const name = `${assignment.candidate_first || ''} ${assignment.candidate_last || ''}`.trim()
+    if (!window.confirm(`Cancel the scheduled interview for ${name}?`)) return
+    setCancellingId(assignment.id)
+    setJdSentMsg(null)
+    try {
+      await api.cancelTemplateAssignment(template.id, assignment.id)
+      await refreshAssignments()
+      setJdSentMsg(`Scheduled interview for ${name} was cancelled.`)
+    } catch (cancelError) {
+      setJdSentMsg(cancelError.message || 'Could not cancel the scheduled interview.')
+    } finally {
+      setCancellingId(null)
+    }
+  }
 
   useEffect(() => {
     if (tab !== 'reports') return
@@ -384,14 +414,24 @@ function DetailView({ template: initialTemplate, onBack }) {
   })
 
   const inp = { padding: '8px 12px', border: '1px solid var(--border-default)', borderRadius: 8, fontSize: 13, width: '100%', boxSizing: 'border-box', fontFamily: 'inherit' }
+  const normalizedCandidateQuery = candidateQuery.trim().toLowerCase()
+  const visibleMatches = matches.filter(member => {
+    if (!normalizedCandidateQuery) return true
+    const name = `${member.first_name || ''} ${member.last_name || ''}`.toLowerCase()
+    return name.includes(normalizedCandidateQuery)
+      || String(member.email || '').toLowerCase().includes(normalizedCandidateQuery)
+      || String(member.current_position || '').toLowerCase().includes(normalizedCandidateQuery)
+  })
+  const recommendedCount = visibleMatches.filter(member => member.recommended).length
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div style={{ display: 'flex', gap: 10, alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', color: 'var(--fg-muted)', fontWeight: 600, fontSize: 13 }}>← Back</button>
-          <h2 style={{ fontSize: 20, margin: 0, color: 'var(--fg-primary)', fontWeight: 700 }}>{template.client_name}</h2>
-          <span style={{ fontSize: 13, color: 'var(--fg-muted)' }}>— {template.requirements}</span>
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center', justifyContent: 'space-between', padding: '10px 16px', background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderRadius: 10 }}>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', minWidth: 0 }}>
+          <button onClick={onBack} style={{ background: 'transparent', border: 0, cursor: 'pointer', color: 'var(--fg-muted)', fontWeight: 600, fontSize: 13, flexShrink: 0 }}>← Mandates</button>
+          <span style={{ color: 'var(--border-strong)', fontSize: 13 }}>/</span>
+          <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--fg-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{template.client_name}</span>
+          <span style={{ fontSize: 12, color: 'var(--fg-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flexShrink: 1 }}>{template.requirements}</span>
         </div>
         <Button variant="secondary" onClick={() => { setEditData({ client_name: template.client_name, client_email: template.client_email || '', requirements: template.requirements, headcount: template.headcount, jd_text: template.jd_text || '', custom_info: template.custom_info || '' }); setEditJdFileName(''); setEditing(true) }}>
           Edit
@@ -414,7 +454,7 @@ function DetailView({ template: initialTemplate, onBack }) {
                 { label: 'Client',     value: template.client_name },
                 { label: 'Email',      value: template.client_email || '—' },
                 { label: 'Headcount',  value: template.headcount },
-                { label: 'Role',       value: template.requirements },
+                { label: 'Subject / Role', value: template.requirements },
                 { label: 'Created',    value: formatDate(template.created) },
               ].map(f => (
                 <div key={f.label}>
@@ -466,11 +506,59 @@ function DetailView({ template: initialTemplate, onBack }) {
                 </div>
               )}
 
-              {matches.length === 0 ? (
-                <EmptyState message="No team members match the template tags yet. Upload resumes to generate skill tags." />
+              {assignments.length > 0 && (
+                <section style={{ marginBottom: 20 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 9 }}>
+                    <h3 style={{ margin: 0, fontSize: 14, color: 'var(--fg-primary)' }}>Assigned interviews</h3>
+                    <span style={{ fontSize: 11, color: 'var(--fg-muted)' }}>Completed interviews are retained as history</span>
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+                    {assignments.map(assignment => {
+                      const name = `${assignment.candidate_first || ''} ${assignment.candidate_last || ''}`.trim()
+                      const canCancel = assignment.status === 'scheduled'
+                      return (
+                        <div key={assignment.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', border: '1px solid var(--border-default)', borderRadius: 9, background: 'var(--bg-surface-alt)' }}>
+                          <Avatar name={name} size="sm" />
+                          <div style={{ flex: 1 }}>
+                            <strong style={{ display: 'block', fontSize: 13, color: 'var(--fg-primary)' }}>{name}</strong>
+                            <span style={{ fontSize: 11, color: 'var(--fg-muted)' }}>
+                              {assignment.candidate_email} | {assignment.question_count} questions | {formatDate(assignment.created)}
+                            </span>
+                          </div>
+                          <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', color: assignment.status === 'completed' ? 'var(--success-600)' : assignment.status === 'cancelled' ? 'var(--danger-600)' : 'var(--brand-600)' }}>
+                            {assignment.status}
+                          </span>
+                          {canCancel && (
+                            <button
+                              type="button"
+                              disabled={cancellingId === assignment.id}
+                              onClick={() => cancelAssignment(assignment)}
+                              title="Cancel scheduled interview"
+                              style={{ border: 0, background: 'transparent', color: 'var(--danger-600)', cursor: cancellingId === assignment.id ? 'wait' : 'pointer', padding: 5, display: 'inline-flex' }}
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </section>
+              )}
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 11px', border: '1px solid var(--border-default)', borderRadius: 8, marginBottom: 10 }}>
+                <Search size={14} color="var(--fg-subtle)" />
+                <input value={candidateQuery} onChange={event => setCandidateQuery(event.target.value)} placeholder="Search anyone in the organization..." style={{ flex: 1, border: 0, outline: 0, background: 'transparent', fontFamily: 'inherit', fontSize: 13 }} />
+              </div>
+              <div style={{ marginBottom: 10, fontSize: 12, color: 'var(--fg-muted)' }}>
+                {recommendedCount} recommended by tags | {visibleMatches.length} organization member{visibleMatches.length === 1 ? '' : 's'} available
+              </div>
+
+              {visibleMatches.length === 0 ? (
+                <EmptyState message="No organization members match this search." />
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {matches.map(m => {
+                  {visibleMatches.map(m => {
                     const name = `${m.first_name || ''} ${m.last_name || ''}`.trim()
                     const checked = selectedIds.includes(m.id)
                     return (
@@ -479,14 +567,16 @@ function DetailView({ template: initialTemplate, onBack }) {
                         <Avatar name={name} size="sm" />
                         <div style={{ flex: 1 }}>
                           <p style={{ fontSize: 14, fontWeight: 600, color: 'var(--fg-primary)', margin: 0 }}>{name}</p>
-                          {m.current_position && <p style={{ fontSize: 12, color: 'var(--fg-muted)', margin: '2px 0 0' }}>{m.current_position}</p>}
+                          <p style={{ fontSize: 12, color: 'var(--fg-muted)', margin: '2px 0 0' }}>{m.current_position || m.email}</p>
                           <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 5 }}>
                             {(m.matched_tags || []).map(t => <span key={t} style={{ fontSize: 11, background: 'var(--success-50)', color: 'var(--success-700)', padding: '2px 6px', borderRadius: 4, fontWeight: 600 }}>{t}</span>)}
+                            {!m.recommended && <span style={{ fontSize: 11, color: 'var(--fg-muted)' }}>Manual selection available</span>}
                           </div>
                         </div>
                         <div style={{ textAlign: 'right' }}>
-                          <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--brand-500)' }}>{m.match_score}</span>
-                          <p style={{ fontSize: 11, color: 'var(--fg-muted)', margin: '2px 0 0' }}>match{m.match_score !== 1 ? 'es' : ''}</p>
+                          <span style={{ display: 'inline-flex', padding: '3px 7px', borderRadius: 999, background: m.recommended ? 'var(--success-50)' : 'var(--bg-surface-alt)', color: m.recommended ? 'var(--success-700)' : 'var(--fg-muted)', fontSize: 10, fontWeight: 700 }}>
+                            {m.recommended ? `${m.match_score} TAG MATCH${m.match_score === 1 ? '' : 'ES'}` : 'ORG MEMBER'}
+                          </span>
                         </div>
                       </div>
                     )
@@ -526,7 +616,7 @@ function DetailView({ template: initialTemplate, onBack }) {
           {[
             { key: 'client_name', label: 'Client Name', type: 'text' },
             { key: 'client_email', label: 'Client Email', type: 'email' },
-            { key: 'requirements', label: 'Role Required', type: 'text' },
+            { key: 'requirements', label: 'Subject / Role Required', type: 'text' },
             { key: 'headcount', label: 'Headcount', type: 'number' },
           ].map(f => (
             <div key={f.key}>
@@ -567,6 +657,7 @@ function DetailView({ template: initialTemplate, onBack }) {
       <SendInviteModal
         open={inviteOpen}
         onClose={() => setInviteOpen(false)}
+        onDone={refreshAssignments}
         template={template}
         candidateIds={selectedIds}
         members={matches}
@@ -582,6 +673,7 @@ function ClientInterviewsPage() {
   const [templates, setTemplates]                 = useState([])
   const [loading, setLoading]                     = useState(true)
   const [error, setError]                         = useState(null)
+  const [query, setQuery]                         = useState('')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -598,13 +690,25 @@ function ClientInterviewsPage() {
 
   useEffect(() => { load() }, [load])
 
+  const normalizedQuery = query.trim().toLowerCase()
+  const visibleTemplates = templates.filter(template => {
+    if (!normalizedQuery) return true
+    return String(template.client_name || '').toLowerCase().includes(normalizedQuery)
+      || String(template.requirements || '').toLowerCase().includes(normalizedQuery)
+      || String(template.client_email || '').toLowerCase().includes(normalizedQuery)
+  })
+
   if (selectedTemplate) {
     return <DetailView template={selectedTemplate} onBack={() => { setSelectedTemplate(null); load() }} />
   }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, width: 'min(420px, 100%)', padding: '8px 11px', border: '1px solid var(--border-default)', borderRadius: 8, background: 'var(--bg-surface)' }}>
+          <Search size={14} color="var(--fg-subtle)" />
+          <input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search client or subject..." style={{ flex: 1, border: 0, outline: 0, background: 'transparent', fontFamily: 'inherit', fontSize: 13 }} />
+        </div>
         <Button onClick={() => setWizardOpen(true)}><Plus size={13} style={{ marginRight: 6 }} /> New Mandate</Button>
       </div>
 
@@ -613,9 +717,12 @@ function ClientInterviewsPage() {
       {!loading && !error && templates.length === 0 && (
         <EmptyState message="No client mandates yet. Create one to start matching team members to client requirements." />
       )}
-      {!loading && !error && templates.length > 0 && (
+      {!loading && !error && templates.length > 0 && visibleTemplates.length === 0 && (
+        <EmptyState message="No client mandates match this client or subject." />
+      )}
+      {!loading && !error && visibleTemplates.length > 0 && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(18rem, 1fr))', gap: '1rem' }}>
-          {templates.map(t => {
+          {visibleTemplates.map(t => {
             const tags = (() => { try { return typeof t.tags === 'string' ? JSON.parse(t.tags) : (t.tags || []) } catch { return [] } })()
             return (
               <div key={t.id} onClick={() => setSelectedTemplate(t)}
@@ -631,6 +738,7 @@ function ClientInterviewsPage() {
                     {t.headcount} needed
                   </span>
                 </div>
+                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--fg-subtle)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>Subject / Role</div>
                 <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--fg-primary)', margin: '0 0 3px' }}>{t.requirements || '—'}</h3>
                 <p style={{ fontSize: 13, color: 'var(--fg-muted)', margin: '0 0 12px', fontWeight: 600 }}>{t.client_name}</p>
                 {t.client_email && <p style={{ fontSize: 12, color: 'var(--fg-subtle)', margin: '0 0 10px' }}>{t.client_email}</p>}

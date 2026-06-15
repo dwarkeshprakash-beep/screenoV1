@@ -24,6 +24,7 @@ function MonthlyAssessmentAssignModal({
   const [selectedIds, setSelectedIds] = useState(new Set())
   const [assessmentDate, setAssessmentDate] = useState(defaultDate || nextWeekDate())
   const [query, setQuery] = useState('')
+  const [conflicts, setConflicts] = useState(new Map())
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
@@ -44,6 +45,35 @@ function MonthlyAssessmentAssignModal({
       .finally(() => setLoading(false))
   }, [open, defaultDate])
 
+  useEffect(() => {
+    if (!open || !assessmentDate) return
+    let active = true
+    const month = assessmentDate.slice(0, 7)
+    api.getMonthlyAssessmentPlan(month)
+      .then(response => {
+        if (!active) return
+        const next = new Map()
+        for (const subject of response.data?.subjects || []) {
+          for (const candidate of subject.candidates || []) {
+            next.set(Number(candidate.team_member_id), {
+              subject: subject.subject_name,
+              startDate: candidate.start_date,
+              endDate: candidate.end_date,
+              durationMonths: subject.duration_months,
+            })
+          }
+        }
+        setConflicts(next)
+        setSelectedIds(current => new Set(
+          [...current].filter(id => !next.has(Number(id)))
+        ))
+      })
+      .catch(() => {
+        if (active) setConflicts(new Map())
+      })
+    return () => { active = false }
+  }, [open, assessmentDate])
+
   const visibleTeam = useMemo(() => {
     const normalized = query.trim().toLowerCase()
     if (!normalized) return team
@@ -56,6 +86,7 @@ function MonthlyAssessmentAssignModal({
   }, [query, team])
 
   function toggleMember(memberId) {
+    if (conflicts.has(Number(memberId))) return
     setSelectedIds(current => {
       const next = new Set(current)
       if (next.has(memberId)) next.delete(memberId)
@@ -114,13 +145,20 @@ function MonthlyAssessmentAssignModal({
             <div style={{ padding: 22, textAlign: 'center', fontSize: 12, color: 'var(--fg-muted)' }}>No team members found.</div>
           ) : visibleTeam.map(member => {
             const name = `${member.first_name || ''} ${member.last_name || ''}`.trim()
+            const conflict = conflicts.get(Number(member.id))
             return (
-              <label key={member.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderBottom: '1px solid var(--border-default)', cursor: 'pointer' }}>
-                <input type="checkbox" checked={selectedIds.has(member.id)} onChange={() => toggleMember(member.id)} style={{ accentColor: 'var(--brand-500)' }} />
+              <label key={member.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderBottom: '1px solid var(--border-default)', cursor: conflict ? 'not-allowed' : 'pointer', opacity: conflict ? 0.72 : 1 }}>
+                <input type="checkbox" disabled={Boolean(conflict)} checked={selectedIds.has(member.id)} onChange={() => toggleMember(member.id)} style={{ accentColor: 'var(--brand-500)' }} />
                 <Avatar name={name} size={28} />
                 <span style={{ flex: 1 }}>
                   <strong style={{ display: 'block', fontSize: 13, color: 'var(--fg-primary)' }}>{name}</strong>
-                  <span style={{ fontSize: 11, color: 'var(--fg-muted)' }}>{member.email}</span>
+                  {conflict ? (
+                    <span style={{ display: 'block', fontSize: 11, color: 'var(--danger-600)', marginTop: 2 }}>
+                      Already assigned: {conflict.subject} | {new Date(conflict.startDate).toLocaleDateString()} - {new Date(conflict.endDate).toLocaleDateString()} | {conflict.durationMonths} month{Number(conflict.durationMonths) === 1 ? '' : 's'}
+                    </span>
+                  ) : (
+                    <span style={{ fontSize: 11, color: 'var(--fg-muted)' }}>{member.email}</span>
+                  )}
                 </span>
               </label>
             )
