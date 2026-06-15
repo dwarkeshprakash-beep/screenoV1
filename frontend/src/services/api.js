@@ -176,6 +176,13 @@ export const createMonthlyAssessment = data =>
   request('/api/assessments/monthly', { method: 'POST', body: JSON.stringify(data) })
 export const getMonthlyAssessmentCalendar = () =>
   request('/api/assessments/monthly/calendar')
+export const getMonthlyAssessmentPlan = month =>
+  request(`/api/assessments/monthly/plan?month=${encodeURIComponent(month)}`)
+export const assignMonthlyAssessment = (id, data) =>
+  request(`/api/assessments/monthly/${id}/assign`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  })
 export const generateSubtopics = data =>
   request('/api/assessments/monthly/generate-subtopics', {
     method: 'POST',

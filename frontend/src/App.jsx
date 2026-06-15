@@ -10,6 +10,7 @@ import ReportsPage from './pages/manager/ReportsPage'
 import ManagerProfilePage from './pages/manager/ManagerProfilePage'
 import ResumeAnalyzerPage from './pages/manager/ResumeAnalyzerPage'
 import MonthlyAssessmentPage from './pages/manager/MonthlyAssessmentPage'
+import MonthlyAssessmentPlanPage from './pages/manager/MonthlyAssessmentPlanPage'
 import ClientInterviewsPage from './pages/manager/ClientInterviewsPage'
 import InterviewLandingPage from './pages/candidate/InterviewLandingPage'
 import DeviceCheckPage from './pages/candidate/DeviceCheckPage'
@@ -50,6 +51,7 @@ function App() {
         <Route path="team" element={<TeamPage />} />
         <Route path="team/:id" element={<MemberProfilePage />} />
         <Route path="monthly" element={<MonthlyAssessmentPage />} />
+        <Route path="monthly/plan" element={<MonthlyAssessmentPlanPage />} />
         <Route path="clients" element={<ClientInterviewsPage />} />
         <Route path="schedule" element={<SchedulePage />} />
         <Route path="reports" element={<ReportsPage />} />

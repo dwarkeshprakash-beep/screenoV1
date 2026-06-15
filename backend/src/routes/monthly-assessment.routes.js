@@ -53,6 +53,47 @@ router.get('/calendar', async (req, res) => {
   }
 })
 
+router.get('/plan', async (req, res) => {
+  try {
+    const month = req.query.month || new Date().toISOString().slice(0, 7)
+    const plan = await monthlyAssessmentService.getMonthPlan(req.user.id, month)
+    res.json({ success: true, data: plan })
+  } catch (err) {
+    console.error('GET /monthly-assessments/plan failed:', err)
+    if (err.message === 'Month must use YYYY-MM format') {
+      return res.status(400).json({ success: false, error: err.message })
+    }
+    res.status(500).json({ success: false, error: 'Could not load monthly plan' })
+  }
+})
+
+router.post('/:id/assign', async (req, res) => {
+  try {
+    const assignment = await monthlyAssessmentService.assignCandidates(
+      Number(req.params.id),
+      req.body,
+      req.user.id,
+      req.user.companyId
+    )
+    res.status(201).json({ success: true, data: assignment })
+  } catch (err) {
+    console.error('POST /monthly-assessments/:id/assign failed:', err)
+    if (err.message.startsWith('Forbidden')) {
+      return res.status(403).json({ success: false, error: err.message })
+    }
+    if (err.message === 'Monthly assessment not found') {
+      return res.status(404).json({ success: false, error: err.message })
+    }
+    if ([
+      'At least one team member is required',
+      'Assessment date is invalid',
+    ].includes(err.message) || err.message.includes('already has this assessment')) {
+      return res.status(400).json({ success: false, error: err.message })
+    }
+    res.status(500).json({ success: false, error: 'Could not assign assessment' })
+  }
+})
+
 router.post('/generate-subtopics', async (req, res) => {
   try {
     const { subject, difficulty } = req.body

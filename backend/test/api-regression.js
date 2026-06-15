@@ -264,6 +264,76 @@ async function run() {
   assert.equal(assessment.payload.data.enrollments.length, 1)
   assert.ok(String(assessment.payload.data.enrollments[0].start_date).startsWith('2026-07-15'))
 
+  const julyPlan = await api('/api/assessments/monthly/plan?month=2026-07', {
+    token: managerToken,
+  })
+  assert.equal(julyPlan.status, 200)
+  assert.equal(julyPlan.payload.data.teamCount, 2)
+  assert.equal(julyPlan.payload.data.assignedCount, 1)
+  assert.ok(julyPlan.payload.data.subjects.some(subject =>
+    subject.id === assessment.payload.data.id
+      && subject.candidates.some(candidate => candidate.team_member_id === primary.teamMember.id)
+  ))
+  assert.ok(julyPlan.payload.data.unassigned.some(member => member.id === addedMember.payload.data.id))
+
+  const reusableTemplate = await api('/api/assessments/monthly', {
+    method: 'POST',
+    token: managerToken,
+    body: {
+      subject: 'Cloud Fundamentals',
+      difficulty: 'easy',
+      duration_months: 1,
+      sub_topics: ['AWS', 'Networking'],
+      jd_text: 'Cloud fundamentals study material',
+    },
+  })
+  assert.equal(reusableTemplate.status, 201)
+  assert.deepEqual(reusableTemplate.payload.data.enrollments, [])
+  state.assessmentIds.push(reusableTemplate.payload.data.id)
+
+  const reusableAssignment = await api(
+    `/api/assessments/monthly/${reusableTemplate.payload.data.id}/assign`,
+    {
+      method: 'POST',
+      token: managerToken,
+      body: {
+        assessment_date: '2026-10-05',
+        team_member_ids: [addedMember.payload.data.id],
+      },
+    }
+  )
+  assert.equal(reusableAssignment.status, 201)
+  assert.equal(reusableAssignment.payload.data.enrollments.length, 1)
+
+  const duplicateAssignment = await api(
+    `/api/assessments/monthly/${reusableTemplate.payload.data.id}/assign`,
+    {
+      method: 'POST',
+      token: managerToken,
+      body: {
+        assessment_date: '2026-10-10',
+        team_member_ids: [addedMember.payload.data.id],
+      },
+    }
+  )
+  assert.equal(duplicateAssignment.status, 400)
+  assert.match(duplicateAssignment.payload.error, /already has this assessment/)
+
+  const octoberPlan = await api('/api/assessments/monthly/plan?month=2026-10', {
+    token: managerToken,
+  })
+  assert.equal(octoberPlan.status, 200)
+  assert.ok(octoberPlan.payload.data.subjects.some(subject =>
+    subject.id === reusableTemplate.payload.data.id
+      && subject.candidates.some(candidate => candidate.team_member_id === addedMember.payload.data.id)
+  ))
+  assert.ok(octoberPlan.payload.data.unassigned.some(member => member.id === primary.teamMember.id))
+
+  const invalidPlanMonth = await api('/api/assessments/monthly/plan?month=October-2026', {
+    token: managerToken,
+  })
+  assert.equal(invalidPlanMonth.status, 400)
+
   const monthlyCalendar = await api('/api/assessments/monthly/calendar', {
     token: managerToken,
   })

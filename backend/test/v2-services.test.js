@@ -4,7 +4,11 @@ const assert = require('node:assert/strict')
 const { hashToken } = require('../src/services/auth.service')
 const { fromUser, assertInterviewScope } = require('../src/services/candidate-identity.service')
 const { publicQuestion } = require('../src/services/exam.service')
-const { parseArray, addMonths } = require('../src/services/monthly-assessment.service')
+const {
+  parseArray,
+  addMonths,
+  monthIndexForDate,
+} = require('../src/services/monthly-assessment.service')
 const { parseCSV } = require('../src/services/team.service')
 const fetchWithTimeout = require('../src/utils/fetch-with-timeout')
 
@@ -75,6 +79,12 @@ test('monthly assessment end dates preserve month boundaries', () => {
     addMonths(new Date('2026-06-15T00:00:00.000Z'), 3).toISOString(),
     '2026-09-14T00:00:00.000Z'
   )
+})
+
+test('monthly assessment month index spans years and rejects invalid dates', () => {
+  assert.equal(monthIndexForDate('2026-11-15T00:00:00.000Z', 2026, 10), 0)
+  assert.equal(monthIndexForDate('2026-11-15T00:00:00.000Z', 2027, 0), 2)
+  assert.equal(monthIndexForDate('invalid', 2027, 0), -1)
 })
 
 test('parseCSV handles quoted commas, escaped quotes, and CRLF rows', () => {

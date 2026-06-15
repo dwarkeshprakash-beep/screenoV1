@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from 'react-router-dom'
-import { LayoutDashboard, Users, ScanSearch, Calendar, BarChart3, Settings, CheckSquare } from 'lucide-react'
+import { LayoutDashboard, Users, ScanSearch, Calendar, BarChart3, Settings, CheckSquare, CalendarRange } from 'lucide-react'
 
 const MANAGER_NAV = [
   {
@@ -12,7 +12,8 @@ const MANAGER_NAV = [
   {
     section: 'ASSESSMENTS',
     items: [
-      { to: '/manager/monthly',         icon: CheckSquare,     label: 'Monthly Assessment' },
+      { to: '/manager/monthly',         icon: CheckSquare,     label: 'Monthly Templates', exact: true },
+      { to: '/manager/monthly/plan',    icon: CalendarRange,   label: 'Monthly Plan' },
       { to: '/manager/clients',         icon: Users,           label: 'Client Mandates' },
     ],
   },
@@ -71,8 +72,11 @@ function Sidebar() {
             <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: '#64748B', padding: '14px 10px 6px' }}>
               {sec.section}
             </div>
-            {sec.items.map(({ to, icon: Icon, label }) => {
-              const isActive = to !== '#' && (location.pathname === to || (to.length > 10 && location.pathname.startsWith(to)))
+            {sec.items.map(({ to, icon: Icon, label, exact }) => {
+              const isActive = to !== '#' && (
+                location.pathname === to
+                || (!exact && to.length > 10 && location.pathname.startsWith(to))
+              )
               return (
                 <div
                   key={to + label}

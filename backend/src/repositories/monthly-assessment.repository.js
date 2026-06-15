@@ -83,6 +83,70 @@ async function createWithEnrollments(data, teamMemberIds) {
   })
 }
 
+async function createTemplate(data) {
+  const rows = await db.query(
+    `INSERT INTO monthly_assessments
+      (manager_id, subject_name, difficulty, topics, sub_topics, ai_generated_jd, duration_months)
+     VALUES
+      (@managerId, @subjectName, @difficulty, @topics, @subTopics, @jd, @durationMonths)
+     RETURNING *`,
+    {
+      managerId: data.managerId,
+      subjectName: data.subjectName,
+      difficulty: data.difficulty,
+      topics: JSON.stringify(data.topics),
+      subTopics: JSON.stringify(data.subTopics),
+      jd: data.jd,
+      durationMonths: data.durationMonths,
+    }
+  )
+  return rows[0]
+}
+
+async function createEnrollments(assessmentId, teamMemberIds, data) {
+  return db.transaction(async (tx) => {
+    const monthProgress = JSON.stringify(new Array(data.durationMonths).fill('pending'))
+    const enrollments = []
+    for (const teamMemberId of teamMemberIds) {
+      const overlapping = await tx.query(
+        `SELECT id
+         FROM monthly_assessment_enrollments
+         WHERE assessment_id = @assessmentId
+           AND team_member_id = @teamMemberId
+           AND start_date < @endDate
+           AND end_date >= @startDate
+         LIMIT 1`,
+        {
+          assessmentId,
+          teamMemberId,
+          startDate: data.startDate,
+          endDate: data.endDate,
+        }
+      )
+      if (overlapping[0]) {
+        throw new Error(`Team member ${teamMemberId} already has this assessment in the selected period`)
+      }
+
+      const rows = await tx.query(
+        `INSERT INTO monthly_assessment_enrollments
+          (assessment_id, team_member_id, start_date, end_date, month_progress)
+         VALUES
+          (@assessmentId, @teamMemberId, @startDate, @endDate, @monthProgress)
+         RETURNING *`,
+        {
+          assessmentId,
+          teamMemberId,
+          startDate: data.startDate,
+          endDate: data.endDate,
+          monthProgress,
+        }
+      )
+      enrollments.push(rows[0])
+    }
+    return enrollments
+  })
+}
+
 async function getByManager(managerId) {
   return db.query(
     `SELECT * FROM monthly_assessments WHERE manager_id = @managerId ORDER BY created DESC`,
@@ -153,7 +217,8 @@ async function updateEnrollmentInterview(enrollmentId, interviewId) {
 }
 
 module.exports = {
-  create, createEnrollment, createWithEnrollments, getByManager, getByIdForManager,
+  create, createEnrollment, createWithEnrollments, createTemplate, createEnrollments,
+  getByManager, getByIdForManager,
   getEnrollmentsByAssessment, getEnrollmentsByManager,
   getCalendarByManager, updateEnrollmentInterview,
 }
