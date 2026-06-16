@@ -36,7 +36,7 @@ The active schema has 15 tables:
 Important choices:
 
 - Resume URL, resume update time, and tags belong to internal `users`.
-- External candidates retain their own resume fields because they do not have a `users` row.
+- External candidates retain their own resume fields and AI tags because they do not have a `users` row.
 - `team_members` is a manager-to-user relationship and no longer duplicates `company_id`.
 - `interviews` stores the candidate reference, manager, type, lifecycle status, token hash/expiry, and final result.
 - Transcript rows store one question and answer per interview.
@@ -54,7 +54,7 @@ Important choices:
 - JWT access token plus rotated HttpOnly refresh-token cookie.
 - Single-use, time-bounded, hashed candidate magic links.
 - Automatic frontend refresh and one retry after an expired access token.
-- Development account shortcut is only rendered by the Vite development build.
+- Configured test-account shortcuts are hidden unless `VITE_SHOW_DEMO_ACCOUNTS=true` is provided.
 
 ### Manager
 
@@ -123,7 +123,7 @@ The API regression suite creates uniquely named fixtures and removes them in a t
 Verified in the in-app browser against frontend `http://127.0.0.1:5173` and backend `http://localhost:4010`:
 
 - Invalid manager credentials show an inline error.
-- Development manager shortcut signs in with the current test credential.
+- Configured test-account shortcuts sign in only when local environment variables provide those accounts.
 - Dashboard loads live statistics.
 - Internal team list and organization-member modal load.
 - External candidates tab loads and exposes scheduling.

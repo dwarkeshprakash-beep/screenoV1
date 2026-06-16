@@ -5,7 +5,7 @@
 //   1. Brevo HTTP API  (if BREVO_API_KEY is set) — works from any host (HTTPS port 443)
 //   2. Brevo SMTP      (nodemailer, ports 587 → 465 fallback) — works from local dev
 //
-// All paths enforce static-only delivery — no real candidate/manager addresses are ever used.
+// EMAIL_REDIRECT_TO can be used in test environments to redirect outbound mail.
 
 const nodemailer = require('nodemailer')
 
@@ -65,6 +65,10 @@ function getRecipients(originalTo) {
 
 function getDeliveredRecipients(originalTo) {
   return getRecipients(originalTo)
+}
+
+function senderLabel(companyName) {
+  return companyName || FROM_NAME || 'Screeno'
 }
 
 // ── Send via Brevo HTTP API (works from Render / any cloud host) ──────────────
@@ -154,6 +158,7 @@ async function sendMagicLink(to, {
   details,
 }) {
   const link = `${process.env.FRONTEND_URL}/interview/${interviewToken}`
+  const sender = senderLabel(companyName)
   const dateText = assessmentDate
     ? new Date(assessmentDate).toLocaleString('en-IN', {
       dateStyle: 'long',
@@ -174,7 +179,7 @@ async function sendMagicLink(to, {
       `Interview link: ${link}`,
       '',
       `This link is valid for ${windowDays || 7} days.`,
-      'This is an automated email from Praskesh Infotech. Please do not reply to this email.',
+      `This is an automated email from ${sender}. Please do not reply to this email.`,
     ].join('\n'),
     html: `
       <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px">
@@ -193,7 +198,7 @@ async function sendMagicLink(to, {
         </p>
         <p style="color:#6B7280;font-size:14px">This link is valid for ${windowDays || 7} days. You can return to it at any time.</p>
         <hr style="border:none;border-top:1px solid #E2E8F0;margin:24px 0" />
-        <p style="color:#94A3B8;font-size:12px">This is an automated email from Praskesh Infotech. Please do not reply to this email.</p>
+        <p style="color:#94A3B8;font-size:12px">This is an automated email from ${escapeHtml(sender)}. Please do not reply to this email.</p>
       </div>
     `,
   })
@@ -317,6 +322,7 @@ async function sendMonthlyAssessmentInvite(to, {
 
 async function sendReportReady(to, { candidate, interviewId, companyName }) {
   const link = `${process.env.FRONTEND_URL}/manager/reports?interview=${interviewId}`
+  const sender = senderLabel(companyName)
 
   await sendMail({
     to,
@@ -330,7 +336,7 @@ async function sendReportReady(to, { candidate, interviewId, companyName }) {
             View Report &rarr;
           </a>
         </p>
-        <p style="color:#94A3B8;font-size:12px">This is an automated email from Praskesh Infotech. Please do not reply to this email.</p>
+        <p style="color:#94A3B8;font-size:12px">This is an automated email from ${escapeHtml(sender)}. Please do not reply to this email.</p>
         <p style="color:#94A3B8;font-size:12px">Screeno &middot; ${companyName || ''}</p>
       </div>
     `,
@@ -339,6 +345,7 @@ async function sendReportReady(to, { candidate, interviewId, companyName }) {
 
 async function sendJDForResumeUpdate(to, { candidateName, clientName, jdText, deadline }) {
   const deadlineStr = deadline ? new Date(deadline).toLocaleDateString('en-IN') : 'as soon as possible'
+  const sender = senderLabel()
 
   await sendMail({
     to,
@@ -352,7 +359,7 @@ async function sendJDForResumeUpdate(to, { candidateName, clientName, jdText, de
       jdText ? `Requirement details:\n${jdText}` : '',
       '',
       'Log in to your Screeno account to upload your updated resume.',
-      'This is an automated email from Praskesh Infotech. Please do not reply.',
+      `This is an automated email from ${sender}. Please do not reply.`,
     ].join('\n'),
     html: `
       <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px">
@@ -361,7 +368,7 @@ async function sendJDForResumeUpdate(to, { candidateName, clientName, jdText, de
         <p>Your profile is being considered for a requirement at <strong>${clientName}</strong>.</p>
         <p>Please update your resume to highlight the relevant skills and upload it by <strong>${deadlineStr}</strong>.</p>
         ${jdText ? `<div style="background:#F8FAFC;border-left:4px solid #5B4FE9;padding:16px;margin:16px 0;font-size:14px;color:#374151;white-space:pre-line">${jdText.slice(0, 1500)}</div>` : ''}
-        <p style="color:#94A3B8;font-size:12px">This is an automated email from Praskesh Infotech. Please do not reply.</p>
+        <p style="color:#94A3B8;font-size:12px">This is an automated email from ${escapeHtml(sender)}. Please do not reply.</p>
       </div>
     `,
   })

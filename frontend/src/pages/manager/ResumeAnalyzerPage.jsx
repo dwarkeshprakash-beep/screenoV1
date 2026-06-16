@@ -70,34 +70,6 @@ const SOFT_SKILL_PATTERNS = [
   { label: 'Adaptability',      re: /\badapt/i },
 ]
 
-const JD_SAMPLE = `Senior .NET Developer — Acme Technologies (Bangalore, Hybrid)
-
-We are hiring a Senior .NET Developer to build scalable backend services.
-
-Requirements:
-- 5+ years with C# and .NET / ASP.NET Core
-- Strong experience with Microservices and System Design
-- Hands-on with Azure (App Service, Functions, Service Bus)
-- SQL Server and Entity Framework
-- CI/CD, Docker, Kubernetes
-- REST and gRPC APIs
-- Excellent communication and leadership; mentoring junior engineers`
-
-const RESUME_SAMPLE = `Rahul Sharma — Senior Software Engineer
-rahul.sharma@gmail.com · +91 99887 65432 · Bangalore
-
-SUMMARY
-Backend engineer with 6 years building .NET and C# microservices on Postgres and Docker.
-Strong on REST APIs, async processing with Kafka, and unit testing. Good communication and ownership.
-
-EXPERIENCE
-- Built an order-reconciliation service in .NET consuming Kafka events, writing to Postgres.
-- Designed REST APIs with LINQ and Entity Framework; led a small team using Agile/Scrum.
-- Containerised services with Docker and set up CI/CD pipelines in Git.
-
-SKILLS
-.NET, C#, SQL, Postgres, Docker, Kafka, REST, LINQ, Entity Framework, Unit Testing, Agile`
-
 // ── Helpers ────────────────────────────────────────────────────
 function chip(label, tone) {
   const styles = {
@@ -241,8 +213,8 @@ function ResumeAnalyzerPage() {
   }
 
   const panels = [
-    { title: 'Job Description',  text: jdText,  setText: setJdText,  file: jdFile,  setFile: setJdFile,  ref: jdFileRef,  field: 'jd',     sample: JD_SAMPLE,     ph: 'Paste the job description here, or upload a file…' },
-    { title: 'Candidate Resume', text: resumeText, setText: setResumeText, file: resumeFile, setFile: setResumeFile, ref: resumeFileRef, field: 'resume', sample: RESUME_SAMPLE, ph: 'Paste the resume text here, or upload a file…' },
+    { title: 'Job Description',  text: jdText,  setText: setJdText,  file: jdFile,  setFile: setJdFile,  ref: jdFileRef,  field: 'jd',     ph: 'Paste the job description here, or upload a file…' },
+    { title: 'Candidate Resume', text: resumeText, setText: setResumeText, file: resumeFile, setFile: setResumeFile, ref: resumeFileRef, field: 'resume', ph: 'Paste the resume text here, or upload a file…' },
   ]
 
   return (
@@ -299,24 +271,14 @@ function ResumeAnalyzerPage() {
                 {/* Panel header */}
                 <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--slate-100)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
                   <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--slate-900)', letterSpacing: '-0.01em' }}>{c.title}</span>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <button
-                      onClick={() => c.ref.current?.click()}
-                      style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600, color: 'var(--brand-500)', background: 'var(--brand-50)', border: 'none', borderRadius: 6, padding: '5px 10px', cursor: 'pointer', transition: 'background 120ms' }}
-                      onMouseEnter={e => e.currentTarget.style.background = 'var(--brand-100)'}
-                      onMouseLeave={e => e.currentTarget.style.background = 'var(--brand-50)'}
-                    >
-                      <Upload size={12} /> Upload
-                    </button>
-                    <button
-                      onClick={() => { c.setText(c.sample); c.setFile(null) }}
-                      style={{ fontSize: 12, color: 'var(--slate-500)', fontWeight: 500, background: 'var(--slate-100)', border: 0, borderRadius: 6, padding: '5px 10px', cursor: 'pointer', transition: 'all 120ms' }}
-                      onMouseEnter={e => { e.currentTarget.style.background = 'var(--slate-200)'; e.currentTarget.style.color = 'var(--slate-700)' }}
-                      onMouseLeave={e => { e.currentTarget.style.background = 'var(--slate-100)'; e.currentTarget.style.color = 'var(--slate-500)' }}
-                    >
-                      Sample
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => c.ref.current?.click()}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, fontWeight: 600, color: 'var(--brand-500)', background: 'var(--brand-50)', border: 'none', borderRadius: 6, padding: '5px 10px', cursor: 'pointer', transition: 'background 120ms' }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'var(--brand-100)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'var(--brand-50)'}
+                  >
+                    <Upload size={12} /> Upload
+                  </button>
                   <input ref={c.ref} type="file" accept=".pdf,.doc,.docx,.txt" style={{ display: 'none' }} onChange={e => handleFileSelect(e, c.field)} />
                 </div>
 

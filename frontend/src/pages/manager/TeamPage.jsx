@@ -43,11 +43,19 @@ function AddExternalModal({ open, onClose, onDone }) {
     setSaving(true); setError(null)
     try {
       let resumeUrl = null
+      let tags = []
       if (resumeFile) {
         const res = await api.uploadResume(null, resumeFile)
         resumeUrl = res.data?.resumeUrl
+        tags = Array.isArray(res.data?.tags) ? res.data.tags : []
       }
-      await api.addExternalCandidate({ firstName: firstName.trim(), lastName: lastName.trim(), email: email.trim(), resumeUrl })
+      await api.addExternalCandidate({
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+        email: email.trim(),
+        resumeUrl,
+        tags,
+      })
       reset(); onDone(); onClose()
     } catch (err) {
       setError(err.message || 'Could not add external candidate')
@@ -68,16 +76,16 @@ function AddExternalModal({ open, onClose, onDone }) {
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
             <div>
               <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--fg-body)', marginBottom: 4 }}>First name *</label>
-              <input value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="Rahul" style={inp} />
+              <input value={firstName} onChange={e => setFirstName(e.target.value)} placeholder="First name" style={inp} />
             </div>
             <div>
               <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--fg-body)', marginBottom: 4 }}>Last name</label>
-              <input value={lastName} onChange={e => setLastName(e.target.value)} placeholder="Sharma" style={inp} />
+              <input value={lastName} onChange={e => setLastName(e.target.value)} placeholder="Last name" style={inp} />
             </div>
           </div>
           <div>
             <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--fg-body)', marginBottom: 4 }}>Email *</label>
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="rahul@external.com" style={inp} />
+            <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="name@external.com" style={inp} />
           </div>
           <div>
             <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--fg-body)', marginBottom: 4 }}>Resume (optional)</label>
@@ -204,6 +212,16 @@ function TeamPage() {
     return true
   })
   const rows = filtered
+  const parseCandidateTags = (raw) => {
+    if (Array.isArray(raw)) return raw
+    if (!raw) return []
+    try {
+      const parsed = JSON.parse(raw)
+      return Array.isArray(parsed) ? parsed : []
+    } catch {
+      return []
+    }
+  }
   const overdueCount = members.filter(m => isOverdue(m)).length
   const allSel = rows.length > 0 && selected.size === rows.length
   const hasActiveFilter = filterLocation || filterPosition || filterAvailability
@@ -417,13 +435,22 @@ function TeamPage() {
                 <tbody>
                   {externals.map(c => {
                     const name = `${c.first_name} ${c.last_name}`.trim()
+                    const tags = parseCandidateTags(c.tags)
                     return (
                       <tr key={c.id} style={{ transition: 'background 120ms' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface-alt)'} onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-surface)'}>
                         <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--border-default)' }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                             <div>
                               <div style={{ fontWeight: 600, color: 'var(--fg-primary)' }}>{name}</div>
-                              <div style={{ fontSize: 11, background: 'var(--warning-50)', color: 'var(--warning-600)', padding: '1px 6px', borderRadius: 4, fontWeight: 600, display: 'inline-block', marginTop: 3 }}>External</div>
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 5, marginTop: 4 }}>
+                                <span style={{ fontSize: 11, background: 'var(--warning-50)', color: 'var(--warning-600)', padding: '1px 6px', borderRadius: 4, fontWeight: 600, display: 'inline-block' }}>External</span>
+                                {tags.slice(0, 3).map(tag => (
+                                  <span key={tag} style={{ fontSize: 10, background: 'var(--bg-surface-alt)', color: 'var(--fg-muted)', padding: '1px 5px', borderRadius: 3, fontWeight: 600 }}>{tag}</span>
+                                ))}
+                                {tags.length > 3 && (
+                                  <span style={{ fontSize: 10, background: 'var(--bg-surface-alt)', color: 'var(--fg-muted)', padding: '1px 5px', borderRadius: 3, fontWeight: 600 }}>+{tags.length - 3}</span>
+                                )}
+                              </div>
                             </div>
                           </div>
                         </td>

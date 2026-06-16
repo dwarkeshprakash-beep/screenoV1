@@ -12,12 +12,27 @@ const router = express.Router()
 
 router.use(authMiddleware, requireRole('manager'))
 
+function parseTags(value) {
+  if (Array.isArray(value)) return value
+  if (!value) return []
+  try {
+    const parsed = JSON.parse(value)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
+function hasTags(value) {
+  return parseTags(value).some(tag => String(tag || '').trim())
+}
+
 router.post('/', async (req, res) => {
   try {
     const data = { ...req.body, manager_id: req.user.id }
     
     // Auto-generate tags if a JD is provided and tags are empty
-    if (data.jd_text && (!data.tags || data.tags.length === 0)) {
+    if (data.jd_text && !hasTags(data.tags)) {
       data.tags = await llmService.extractTagsFromText(data.jd_text)
     }
 
@@ -52,7 +67,19 @@ router.get('/:id', async (req, res) => {
 
 router.patch('/:id', async (req, res) => {
   try {
-    const template = await clientTemplateRepo.update(parseInt(req.params.id, 10), req.user.id, req.body)
+    const templateId = parseInt(req.params.id, 10)
+    const existing = await clientTemplateRepo.getById(templateId, req.user.id)
+    if (!existing) return res.status(404).json({ success: false, error: 'Template not found' })
+
+    const data = { ...req.body }
+    const jdChanged = data.jd_text !== undefined
+      && String(data.jd_text || '').trim()
+      && String(data.jd_text || '') !== String(existing.jd_text || '')
+    if (jdChanged && data.tags === undefined) {
+      data.tags = await llmService.extractTagsFromText(data.jd_text)
+    }
+
+    const template = await clientTemplateRepo.update(templateId, req.user.id, data)
     if (!template) return res.status(404).json({ success: false, error: 'Template not found' })
     res.json({ success: true, data: template })
   } catch (err) {

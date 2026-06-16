@@ -11,6 +11,7 @@ const MIGRATIONS = [
   '002_new_feature_tables.sql',
   '003_missing_columns.sql',
   '004_v2_schema_cleanup.sql',
+  '005_external_candidate_tags.sql',
 ]
 
 async function main() {

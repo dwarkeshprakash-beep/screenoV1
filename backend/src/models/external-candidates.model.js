@@ -6,6 +6,7 @@
  * @property {string} last_name
  * @property {string} email
  * @property {string|null} resume_url
+ * @property {string|null} tags
  * @property {Date|null} created
  */
 module.exports = {}

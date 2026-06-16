@@ -495,29 +495,53 @@ function MonthlyAssessmentPage() {
     })
   }, [assessments, query])
 
-  const calendarRows = useMemo(() => calendarData.map(row => {
-    const progress = parseStoredArray(row.month_progress)
-    const duration = Number(row.duration_months) || progress.length || 1
-    const startDate = new Date(row.start_date || row.assessment_created || row.created)
-    if (Number.isNaN(startDate.getTime())) return null
+  const calendarRows = useMemo(() => {
+    const byCandidate = new Map()
 
-    const months = new Array(12).fill(null)
-    for (let index = 0; index < duration; index += 1) {
-      const monthDate = new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth() + index, 1))
-      if (monthDate.getUTCFullYear() === calendarYear) {
-        months[monthDate.getUTCMonth()] = row.status === 'cancelled'
+    for (const row of calendarData) {
+      const progress = parseStoredArray(row.month_progress)
+      const duration = Number(row.duration_months) || progress.length || 1
+      const startDate = new Date(row.start_date || row.assessment_created || row.created)
+      if (Number.isNaN(startDate.getTime())) continue
+
+      const candidateKey = String(row.user_id || row.team_member_id || `${row.first_name || ''}-${row.last_name || ''}`)
+      const name = `${row.first_name || ''} ${row.last_name || ''}`.trim() || 'Candidate'
+      const candidate = byCandidate.get(candidateKey) || {
+        id: candidateKey,
+        name,
+        subjects: new Map(),
+        months: Array.from({ length: 12 }, () => []),
+      }
+
+      if (row.subject_name) candidate.subjects.set(row.assessment_id || row.id, row.subject_name)
+
+      for (let index = 0; index < duration; index += 1) {
+        const monthDate = new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth() + index, 1))
+        if (monthDate.getUTCFullYear() !== calendarYear) continue
+
+        const status = row.status === 'cancelled'
           ? 'cancelled'
           : (progress[index] || row.interview_status || 'pending')
+        candidate.months[monthDate.getUTCMonth()].push({
+          id: `${row.id}-${index}`,
+          subject: row.subject_name || 'Assessment',
+          status,
+          startDate: row.start_date,
+          endDate: row.end_date,
+        })
       }
+
+      byCandidate.set(candidateKey, candidate)
     }
 
-    return {
-      id: row.id,
-      name: `${row.first_name || ''} ${row.last_name || ''}`.trim(),
-      subject: row.subject_name,
-      months,
-    }
-  }).filter(Boolean).filter(row => row.months.some(Boolean)), [calendarData, calendarYear])
+    return [...byCandidate.values()]
+      .map(row => ({
+        ...row,
+        subjects: [...row.subjects.values()],
+      }))
+      .filter(row => row.months.some(monthItems => monthItems.length > 0))
+      .sort((a, b) => a.name.localeCompare(b.name))
+  }, [calendarData, calendarYear])
 
   if (loading) return <Spinner center />
   if (error) return <ErrorMessage message={error} />
@@ -783,8 +807,8 @@ function MonthlyAssessmentPage() {
 
           <div className="calendar-scroll">
             <div className="calendar-grid">
-              <div style={{ display: 'grid', gridTemplateColumns: '190px repeat(12, 1fr)', gap: 0, padding: '18px 0 10px' }}>
-                <div className="workspace-card__eyebrow">Candidate / subject</div>
+              <div className="calendar-grid__header">
+                <div className="workspace-card__eyebrow">Candidate / assessments</div>
                 {['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'].map(label => (
                   <div key={label} style={{ textAlign: 'center', color: 'var(--fg-muted)', fontSize: 11, fontWeight: 700 }}>{label}</div>
                 ))}
@@ -795,33 +819,38 @@ function MonthlyAssessmentPage() {
               ) : calendarRows.map((row, index) => (
                 <div
                   key={`${row.id}-${index}`}
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: '190px repeat(12, 1fr)',
-                    alignItems: 'center',
-                    minHeight: 58,
-                    borderTop: '1px solid var(--border-default)',
-                  }}
+                  className="calendar-grid__row"
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}>
                     <Avatar name={row.name} size={28} />
                     <span style={{ minWidth: 0 }}>
                       <strong style={{ display: 'block', overflow: 'hidden', color: 'var(--fg-primary)', fontSize: 12, textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.name}</strong>
-                      <span style={{ display: 'block', overflow: 'hidden', marginTop: 2, color: 'var(--fg-muted)', fontSize: 10, textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{row.subject}</span>
+                      <span style={{ display: 'block', overflow: 'hidden', marginTop: 2, color: 'var(--fg-muted)', fontSize: 10, textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {row.subjects.length === 1 ? row.subjects[0] : `${row.subjects.length} planned assessments`}
+                      </span>
                     </span>
                   </div>
-                  {row.months.map((status, monthIndex) => (
-                    <div key={monthIndex} style={{ display: 'flex', justifyContent: 'center' }}>
-                      <span
-                        title={status || 'No plan'}
-                        style={{
-                          width: 18,
-                          height: 18,
-                          borderRadius: 5,
-                          border: status ? '1px solid rgba(15,23,42,0.06)' : '1px dashed var(--border-strong)',
-                          background: status ? (statusColors[status] || statusColors.pending) : 'transparent',
-                        }}
-                      />
+                  {row.months.map((monthItems, monthIndex) => (
+                    <div key={monthIndex} className="calendar-cell">
+                      {monthItems.length === 0 ? (
+                        <span className="calendar-empty-slot" title="No plan" />
+                      ) : (
+                        <div className="calendar-cell__stack">
+                          {monthItems.map(item => (
+                            <span
+                              key={item.id}
+                              className="calendar-plan-chip"
+                              title={`${item.subject}: ${item.status}`}
+                            >
+                              <span
+                                className="calendar-plan-chip__dot"
+                                style={{ background: statusColors[item.status] || statusColors.pending }}
+                              />
+                              <span>{item.subject}</span>
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>

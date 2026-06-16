@@ -34,10 +34,11 @@ The pair `(manager_id, user_id)` is unique.
 
 ### `external_candidates`
 
-People who do not have a Screeno user account. `company_id` and `resume_url`
-remain here because no corresponding `users` row exists.
+People who do not have a Screeno user account. `company_id`, `resume_url`,
+and AI tags remain here because no corresponding `users` row exists.
 
-`id`, `company_id`, `first_name`, `last_name`, `email`, `resume_url`, `created`
+`id`, `company_id`, `first_name`, `last_name`, `email`, `resume_url`, `tags`,
+`created`
 
 The pair `(company_id, email)` is unique.
 

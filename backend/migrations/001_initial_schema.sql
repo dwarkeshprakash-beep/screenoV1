@@ -61,6 +61,7 @@ CREATE TABLE external_candidates (
   last_name VARCHAR(100) NOT NULL,
   email VARCHAR(255) NOT NULL,
   resume_url VARCHAR(500),
+  tags TEXT,
   created TIMESTAMPTZ DEFAULT NOW()
 );
 

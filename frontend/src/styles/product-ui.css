@@ -25,7 +25,7 @@
 .app-main {
   flex: 1;
   overflow-y: auto;
-  padding: 28px 32px 40px;
+  padding: 24px 28px 36px;
   background: var(--slate-50);
 }
 
@@ -189,8 +189,8 @@
 
 .workspace-page {
   width: 100%;
-  max-width: 1280px;
-  margin: 0 auto;
+  min-width: 0;
+  margin: 0;
 }
 
 .workspace-stack {
@@ -425,12 +425,12 @@ button.workspace-card:focus-visible {
 
 .workspace-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 290px), 1fr));
   gap: 16px;
 }
 
 .workspace-grid--wide {
-  grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 1fr));
 }
 
 .status-pill {
@@ -665,7 +665,78 @@ button.workspace-card:focus-visible {
   padding: 0 20px 20px;
 }
 
-.calendar-grid { min-width: 920px; }
+.calendar-grid { min-width: 1180px; }
+
+.calendar-grid__header,
+.calendar-grid__row {
+  display: grid;
+  grid-template-columns: 220px repeat(12, minmax(72px, 1fr));
+  gap: 0;
+}
+
+.calendar-grid__header {
+  padding: 18px 0 10px;
+}
+
+.calendar-grid__row {
+  min-height: 66px;
+  align-items: stretch;
+  border-top: 1px solid var(--border-default);
+}
+
+.calendar-cell {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: center;
+  padding: 7px 4px;
+}
+
+.calendar-empty-slot {
+  width: 18px;
+  height: 18px;
+  border: 1px dashed var(--border-strong);
+  border-radius: 5px;
+}
+
+.calendar-cell__stack {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.calendar-plan-chip {
+  display: inline-flex;
+  max-width: 100%;
+  min-height: 22px;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 6px;
+  border: 1px solid var(--border-default);
+  border-radius: 999px;
+  background: var(--bg-surface);
+  color: var(--fg-body);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.calendar-plan-chip > span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.calendar-plan-chip__dot {
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+}
 
 .form-grid {
   display: grid;

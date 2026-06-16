@@ -20,7 +20,7 @@ const SCHEMA = {
   },
   external_candidates: {
     columns: [
-      'id', 'company_id', 'first_name', 'last_name', 'email', 'resume_url', 'created',
+      'id', 'company_id', 'first_name', 'last_name', 'email', 'resume_url', 'tags', 'created',
     ],
   },
   client_templates: {

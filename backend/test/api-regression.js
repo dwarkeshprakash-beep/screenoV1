@@ -37,7 +37,7 @@ async function api(path, { method = 'GET', token, cookie, body, form } = {}) {
 }
 
 async function seedCompany(name, managerEmail, candidateEmail) {
-  const password = 'Test@1234'
+  const password = process.env.API_TEST_PASSWORD || `ApiTest-${stamp}!`
   const passwordHash = await bcrypt.hash(password, 10)
   return db.transaction(async tx => {
     const company = (await tx.query(

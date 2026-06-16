@@ -17,6 +17,7 @@ router.post('/resume', documentUpload.single('resume'), async (req, res) => {
 
     const teamMemberId = req.body.teamMemberId ? parseInt(req.body.teamMemberId, 10) : null
     let url
+    let extractedTags = []
     if (teamMemberId) {
       const member = await teamMemberRepository.getByIdForManager(teamMemberId, req.user.id)
       if (!member) return res.status(404).json({ success: false, error: 'Team member not found' })
@@ -38,7 +39,9 @@ router.post('/resume', documentUpload.single('resume'), async (req, res) => {
           )
           if (text.length < 50) return
           const tags = await llmService.extractTagsFromText(text)
-          if (tags.length > 0) await userRepository.updateProfile(member.user_id, { tags })
+          if (tags.length > 0) {
+            await userRepository.updateProfile(member.user_id, { tags })
+          }
         } catch (err) {
           console.error('auto-tag extraction failed:', err.message)
         }
@@ -51,9 +54,19 @@ router.post('/resume', documentUpload.single('resume'), async (req, res) => {
         req.file
       )
       url = uploaded.url
+      try {
+        const text = await documentTextService.extractTextFromBuffer(
+          req.file.buffer,
+          req.file.mimetype,
+          req.file.originalname
+        )
+        if (text.length >= 50) extractedTags = await llmService.extractTagsFromText(text)
+      } catch (err) {
+        console.error('external resume tag extraction failed:', err.message)
+      }
     }
 
-    res.json({ success: true, data: { resumeUrl: url } })
+    res.json({ success: true, data: { resumeUrl: url, tags: extractedTags } })
   } catch (err) {
     console.error('POST /upload/resume failed:', err)
     res.status(500).json({ success: false, error: 'Upload failed' })

@@ -29,10 +29,13 @@ const newRepos = {
 
 async function create(data) {
   const rows = await db.query(
-    \`INSERT INTO external_candidates (company_id, first_name, last_name, email, resume_url)
-     VALUES (@company_id, @first_name, @last_name, @email, @resume_url)
+    \`INSERT INTO external_candidates (company_id, first_name, last_name, email, resume_url, tags)
+     VALUES (@company_id, @first_name, @last_name, @email, @resume_url, @tags)
      RETURNING *\`,
-    data
+    {
+      ...data,
+      tags: typeof data.tags === 'string' ? data.tags : JSON.stringify(data.tags || []),
+    }
   )
   return rows[0]
 }

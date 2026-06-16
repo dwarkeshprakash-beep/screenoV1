@@ -266,7 +266,7 @@ function AddCandidateModal({ open, onClose, onDone }) {
                 {lbl('First name')}
                 <input
                   type="text"
-                  placeholder="Rahul"
+                  placeholder="First name"
                   value={form.firstName}
                   onChange={e => setF('firstName', e.target.value)}
                   style={inputStyle}
@@ -278,7 +278,7 @@ function AddCandidateModal({ open, onClose, onDone }) {
                 {lbl('Last name', true)}
                 <input
                   type="text"
-                  placeholder="Sharma"
+                  placeholder="Last name"
                   value={form.lastName}
                   onChange={e => setF('lastName', e.target.value)}
                   style={inputStyle}
@@ -292,7 +292,7 @@ function AddCandidateModal({ open, onClose, onDone }) {
               {lbl('Work email')}
               <input
                 type="email"
-                placeholder="rahul@company.com"
+                placeholder="name@company.com"
                 value={form.email}
                 onChange={e => setF('email', e.target.value)}
                 style={inputStyle}
@@ -305,7 +305,7 @@ function AddCandidateModal({ open, onClose, onDone }) {
               {lbl('Phone', true)}
               <input
                 type="tel"
-                placeholder="+91 99887 65432"
+                placeholder="Phone number"
                 value={form.phone}
                 onChange={e => setF('phone', e.target.value)}
                 style={inputStyle}

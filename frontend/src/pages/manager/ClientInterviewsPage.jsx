@@ -171,13 +171,13 @@ function CreateMandateModal({ open, onClose, onCreated }) {
         {step === 1 ? (
           <div className="form-grid">
             <Field label="Client name">
-              <input className="form-input" value={form.clientName} onChange={event => update('clientName', event.target.value)} placeholder="Example: Acme Corporation" />
+              <input className="form-input" value={form.clientName} onChange={event => update('clientName', event.target.value)} placeholder="Client company name" />
             </Field>
             <Field label="Client email" help="Optional contact for the mandate.">
-              <input className="form-input" type="email" value={form.clientEmail} onChange={event => update('clientEmail', event.target.value)} placeholder="hiring@client.com" />
+              <input className="form-input" type="email" value={form.clientEmail} onChange={event => update('clientEmail', event.target.value)} placeholder="contact@client.com" />
             </Field>
             <Field label="Subject or role" full>
-              <input className="form-input" value={form.requirements} onChange={event => update('requirements', event.target.value)} placeholder="Example: Senior React Developer" />
+              <input className="form-input" value={form.requirements} onChange={event => update('requirements', event.target.value)} placeholder="Role or mandate title" />
             </Field>
             <Field label="Required headcount">
               <input className="form-input" type="number" min="1" value={form.headcount} onChange={event => update('headcount', event.target.value)} />
@@ -337,8 +337,11 @@ function ScheduleMandateModal({ open, onClose, onDone, template, candidateIds, m
 
 function EditMandateModal({ open, template, onClose, onSaved }) {
   const [form, setForm] = useState({})
+  const [tags, setTags] = useState([])
+  const [customTag, setCustomTag] = useState('')
   const [saving, setSaving] = useState(false)
   const [readingFile, setReadingFile] = useState(false)
+  const [extractingTags, setExtractingTags] = useState(false)
   const [fileName, setFileName] = useState('')
   const [error, setError] = useState(null)
 
@@ -352,6 +355,8 @@ function EditMandateModal({ open, template, onClose, onSaved }) {
       jd_text: template.jd_text || '',
       custom_info: template.custom_info || '',
     })
+    setTags(parseTags(template.tags))
+    setCustomTag('')
     setFileName('')
     setError(null)
   }, [open, template])
@@ -374,11 +379,40 @@ function EditMandateModal({ open, template, onClose, onSaved }) {
     }
   }
 
+  function addTag() {
+    const nextTag = customTag.trim()
+    if (nextTag && !tags.some(tag => tag.toLowerCase() === nextTag.toLowerCase())) {
+      setTags(current => [...current, nextTag])
+    }
+    setCustomTag('')
+  }
+
+  async function regenerateTags() {
+    const jd = String(form.jd_text || '').trim()
+    if (!jd) {
+      setError('Add a job description before regenerating skills.')
+      return
+    }
+    setExtractingTags(true)
+    setError(null)
+    try {
+      const response = await api.extractTemplateTags(jd)
+      setTags(Array.isArray(response.data) ? response.data : [])
+    } catch (tagError) {
+      setError(tagError.message || 'Could not regenerate matching skills.')
+    } finally {
+      setExtractingTags(false)
+    }
+  }
+
   async function save() {
     setSaving(true)
     setError(null)
     try {
-      const response = await api.updateClientTemplate(template.id, form)
+      const response = await api.updateClientTemplate(template.id, {
+        ...form,
+        tags: JSON.stringify(tags),
+      })
       onSaved(response.data || { ...template, ...form })
     } catch (saveError) {
       setError(saveError.message || 'Could not update the mandate.')
@@ -417,6 +451,44 @@ function EditMandateModal({ open, template, onClose, onSaved }) {
           <Field label="Internal notes" full>
             <textarea className="form-input" rows={4} value={form.custom_info || ''} onChange={event => setForm(current => ({ ...current, custom_info: event.target.value }))} style={{ resize: 'vertical' }} />
           </Field>
+          <div className="form-field form-field--full">
+            <div className="workspace-section-heading" style={{ marginBottom: 8 }}>
+              <div>
+                <h3 style={{ fontSize: 15 }}>Matching skills</h3>
+                <p>Stored on this mandate and used for recommendations.</p>
+              </div>
+              <Button variant="secondary" size="sm" onClick={regenerateTags} loading={extractingTags}>
+                <Sparkles size={13} />
+                Regenerate
+              </Button>
+            </div>
+            <div className="tag-list" style={{ minHeight: 30 }}>
+              {tags.length === 0 && <span className="form-help">No matching skills saved yet.</span>}
+              {tags.map(tag => (
+                <span className="tag" key={tag}>
+                  {tag}
+                  <button type="button" onClick={() => setTags(current => current.filter(item => item !== tag))} style={{ display: 'inline-flex', marginLeft: 5, border: 0, background: 'transparent', color: 'inherit' }}>
+                    <X size={12} />
+                  </button>
+                </span>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+              <input
+                className="form-input"
+                value={customTag}
+                onChange={event => setCustomTag(event.target.value)}
+                onKeyDown={event => {
+                  if (event.key === 'Enter') {
+                    event.preventDefault()
+                    addTag()
+                  }
+                }}
+                placeholder="Add a skill tag"
+              />
+              <Button variant="secondary" onClick={addTag}>Add</Button>
+            </div>
+          </div>
         </div>
         {error && <ErrorMessage message={error} />}
         <div className="form-actions" style={{ justifyContent: 'flex-end' }}>

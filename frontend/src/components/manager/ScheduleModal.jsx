@@ -32,9 +32,16 @@ function matchesUser(user, query) {
   const lastName = String(user.last_name || '')
   const name = `${firstName} ${lastName}`.trim().toLowerCase()
   const initials = `${firstName[0] || ''}${lastName[0] || ''}`.toLowerCase()
+  let tags
+  try {
+    tags = Array.isArray(user.tags) ? user.tags : JSON.parse(user.tags || '[]')
+  } catch {
+    tags = []
+  }
   return name.includes(normalized)
     || String(user.email || '').toLowerCase().includes(normalized)
     || initials.includes(normalized)
+    || tags.join(' ').toLowerCase().includes(normalized)
 }
 
 function ScheduleModal({
