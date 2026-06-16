@@ -3,42 +3,32 @@ import { useNavigate } from 'react-router-dom'
 import { Eye, EyeOff } from 'lucide-react'
 import * as api from '../../services/api'
 
-function initialsFor(account) {
-  const source = account.name || account.email || account.role || 'U'
-  return source
-    .split(/[\s.@_-]+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map(part => part[0])
-    .join('')
-    .toUpperCase()
-}
-
-function parseDemoAccounts() {
-  if (import.meta.env.VITE_SHOW_DEMO_ACCOUNTS !== 'true') return []
-
-  try {
-    const accounts = JSON.parse(import.meta.env.VITE_DEMO_ACCOUNTS || '[]')
-    if (!Array.isArray(accounts)) return []
-
-    return accounts
-      .filter(account => account?.email && account?.password && account?.role)
-      .map(account => ({
-        ...account,
-        name: account.name || account.email,
-        sub: account.sub || account.role,
-        initials: account.initials || initialsFor(account),
-        bgColor: account.bgColor || '#EDE9FE',
-        fgColor: account.fgColor || '#5B21B6',
-        badgeBg: account.badgeBg || '#3730A3',
-        badgeFg: account.badgeFg || '#C7D2FE',
-      }))
-  } catch {
-    return []
-  }
-}
-
-const DEMO_ACCOUNTS = parseDemoAccounts()
+const DEMO_ACCOUNTS = [
+  {
+    role: 'manager',
+    name: 'Kiran Oza',
+    sub: 'Manager - Prakash Infotech',
+    initials: 'KO',
+    bgColor: '#EDE9FE',
+    fgColor: '#5B21B6',
+    badgeBg: '#3730A3',
+    badgeFg: '#C7D2FE',
+    email: 'kiran.oza@prakashinfotech.com',
+    password: 'Test@1234',
+  },
+  {
+    role: 'candidate',
+    name: 'Dwarkesh Vajjala',
+    sub: 'Candidate - Prakash Infotech',
+    initials: 'DV',
+    bgColor: '#ECFDF5',
+    fgColor: '#065F46',
+    badgeBg: '#047857',
+    badgeFg: '#A7F3D0',
+    email: 'dwarkesh.vajjala@prakashinfotech.com',
+    password: 'Test@1234',
+  },
+]
 
 function roleRedirect(role) {
   if (role === 'manager') return '/manager/dashboard'
@@ -110,22 +100,20 @@ function LoginPage() {
         </div>
 
         <div style={{ background: '#1E293B', border: '1px solid #334155', borderRadius: '1rem', padding: '1.75rem' }}>
-          {DEMO_ACCOUNTS.length > 0 && (
-            <>
-              <p style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--slate-400)', letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: '1.125rem' }}>Configured test accounts</p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem', marginBottom: '1.25rem' }}>
-                {DEMO_ACCOUNTS.map(account => (
-                  <DemoButton key={account.email} account={account} onSelect={selectDemo} />
-                ))}
-              </div>
+          <>
+            <p style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--slate-400)', letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: '1.125rem' }}>Demo Accounts</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem', marginBottom: '1.25rem' }}>
+              {DEMO_ACCOUNTS.map(account => (
+                <DemoButton key={account.email} account={account} onSelect={selectDemo} loading={loading} />
+              ))}
+            </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.25rem' }}>
-                <div style={{ flex: 1, height: 1, background: '#334155' }} />
-                <span style={{ color: '#475569', fontSize: '0.75rem' }}>or sign in with email</span>
-                <div style={{ flex: 1, height: 1, background: '#334155' }} />
-              </div>
-            </>
-          )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.25rem' }}>
+              <div style={{ flex: 1, height: 1, background: '#334155' }} />
+              <span style={{ color: '#475569', fontSize: '0.75rem' }}>or sign in with email</span>
+              <div style={{ flex: 1, height: 1, background: '#334155' }} />
+            </div>
+          </>
 
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
             <div>
@@ -158,7 +146,7 @@ function LoginPage() {
   )
 }
 
-function DemoButton({ account, onSelect }) {
+function DemoButton({ account, onSelect, loading }) {
   const [hovered, setHovered] = useState(false)
   return (
     <button
@@ -166,7 +154,8 @@ function DemoButton({ account, onSelect }) {
       onClick={() => onSelect(account)}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      style={{ display: 'flex', alignItems: 'center', gap: '0.875rem', padding: '0.875rem 1rem', background: 'var(--slate-900)', border: `1px solid ${hovered ? 'var(--brand-500)' : '#334155'}`, borderRadius: '0.625rem', cursor: 'pointer', textAlign: 'left', transition: 'border-color 150ms', width: '100%' }}
+      disabled={loading}
+      style={{ display: 'flex', alignItems: 'center', gap: '0.875rem', padding: '0.875rem 1rem', background: 'var(--slate-900)', border: `1px solid ${hovered ? 'var(--brand-500)' : '#334155'}`, borderRadius: '0.625rem', cursor: loading ? 'not-allowed' : 'pointer', textAlign: 'left', transition: 'border-color 150ms', width: '100%', opacity: loading ? 0.6 : 1 }}
     >
       <div style={{ width: '2.5rem', height: '2.5rem', borderRadius: '50%', background: account.bgColor, color: account.fgColor, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '0.875rem', flexShrink: 0 }}>
         {account.initials}
