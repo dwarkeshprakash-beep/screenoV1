@@ -6,7 +6,7 @@ const llmService = require('./llm.service')
 
 function validateInterview(interview) {
   if (!interview || interview.type !== 'exam') throw new Error('Invalid or expired link')
-  if (interview.token_expires && new Date(interview.token_expires) < new Date()) {
+  if (!interview.token_expires || new Date(interview.token_expires) < new Date()) {
     throw new Error('Invalid or expired link')
   }
 }

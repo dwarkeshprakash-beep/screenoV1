@@ -2,29 +2,13 @@
 const db = require('../db/connection')
 
 async function create(interviewId) {
-  const existing = await db.query(
-    `SELECT * FROM report_jobs WHERE interview_id = @interview_id ORDER BY id DESC LIMIT 1`,
-    { interview_id: interviewId }
-  )
-  if (existing[0]) {
-    if (existing[0].status !== 'completed') {
-      const rows = await db.query(
-        `UPDATE report_jobs SET
-           status = 'pending',
-           available_at = NOW(),
-           last_error = NULL
-         WHERE id = @id
-         RETURNING *`,
-        { id: existing[0].id }
-      )
-      return rows[0]
-    }
-    return existing[0]
-  }
-
   const rows = await db.query(
-    `INSERT INTO report_jobs (interview_id, status)
-     VALUES (@interview_id, 'pending')
+    `INSERT INTO report_jobs (interview_id, status, available_at)
+     VALUES (@interview_id, 'pending', NOW())
+     ON CONFLICT (interview_id) DO UPDATE SET
+       status       = CASE WHEN report_jobs.status = 'completed' THEN report_jobs.status       ELSE 'pending' END,
+       available_at = CASE WHEN report_jobs.status = 'completed' THEN report_jobs.available_at ELSE NOW()     END,
+       last_error   = CASE WHEN report_jobs.status = 'completed' THEN report_jobs.last_error   ELSE NULL      END
      RETURNING *`,
     { interview_id: interviewId }
   )
@@ -58,9 +42,10 @@ async function markFailed(id, errorMessage) {
 
 async function getPendingJobs() {
   return db.query(
-    `SELECT * FROM report_jobs 
+    `SELECT * FROM report_jobs
      WHERE status IN ('pending', 'failed') AND attempts < 3 AND available_at <= NOW()
-     ORDER BY available_at ASC`
+     ORDER BY available_at ASC
+     LIMIT 10`
   )
 }
 

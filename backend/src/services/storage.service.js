@@ -45,10 +45,12 @@ async function uploadResume(buffer, candidateId, file = {}) {
  * @returns {Promise<{ url: string, publicId: string }>}
  */
 async function uploadReport(buffer, reportId) {
-  const path = `reports/report_${reportId}_${Date.now()}.pdf`
+  // Stable path + upsert:true ensures retries overwrite rather than accumulate orphaned files
+  const path = `reports/report_${reportId}.pdf`
 
   const { error } = await supabase.storage.from(BUCKET).upload(path, buffer, {
     contentType: 'application/pdf',
+    upsert: true,
   })
   if (error) throw error
 
@@ -61,7 +63,8 @@ async function uploadReport(buffer, reportId) {
  * @param {string} publicId - storage path, e.g. "resumes/resume_candidate_12.pdf"
  */
 async function deleteFile(publicId) {
-  await supabase.storage.from(BUCKET).remove([publicId])
+  const { error } = await supabase.storage.from(BUCKET).remove([publicId])
+  if (error) throw error
 }
 
 module.exports = { uploadResume, uploadReport, deleteFile }
