@@ -2,6 +2,15 @@ import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowRight, Check, Mic, Monitor, Sparkles } from 'lucide-react'
 
+function isTokenExpired(token) {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]))
+    return payload.exp ? Date.now() / 1000 > payload.exp : true
+  } catch {
+    return true
+  }
+}
+
 const CONSENT_ITEMS = [
   {
     icon: Mic,
@@ -24,8 +33,14 @@ function ConsentPage() {
   const { token } = useParams()
   const navigate = useNavigate()
   const [agreed, setAgreed] = useState(false)
+  const [sessionError, setSessionError] = useState(null)
 
   function start() {
+    const accessToken = localStorage.getItem('accessToken')
+    if (!accessToken || isTokenExpired(accessToken)) {
+      setSessionError('Your session has expired. Please use your original magic link to start again.')
+      return
+    }
     let session
     try {
       session = JSON.parse(localStorage.getItem('interviewSession') || '{}')
@@ -62,6 +77,11 @@ function ConsentPage() {
         <span style={{ fontSize: 13, color: 'var(--slate-900)', fontWeight: 500 }}>I understand and consent to this processing.</span>
       </label>
 
+      {sessionError && (
+        <div role="alert" style={{ marginBottom: 12, padding: '12px 14px', background: 'var(--danger-50)', border: '1px solid var(--danger-500)', borderRadius: 8, fontSize: 13, color: 'var(--danger-700)', lineHeight: 1.55 }}>
+          {sessionError}
+        </div>
+      )}
       <button type="button" disabled={!agreed} onClick={start} style={{ width: '100%', padding: '13px 20px', borderRadius: 10, border: 0, background: agreed ? 'var(--brand-500)' : 'var(--slate-200)', color: agreed ? 'white' : 'var(--slate-400)', cursor: agreed ? 'pointer' : 'not-allowed', fontWeight: 600 }}>
         Start assessment <ArrowRight size={14} />
       </button>

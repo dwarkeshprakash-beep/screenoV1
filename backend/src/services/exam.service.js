@@ -50,6 +50,7 @@ async function getExam(token) {
       type: interview.type,
       interviewMode: interview.interview_mode,
       difficulty: interview.difficulty,
+      questionCount: interview.question_count || 10,
     },
     questions: questions.map(publicQuestion),
   }

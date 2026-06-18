@@ -12,6 +12,7 @@ const MIGRATIONS = [
   '003_missing_columns.sql',
   '004_v2_schema_cleanup.sql',
   '005_external_candidate_tags.sql',
+  '006_missing_indexes.sql',
 ]
 
 async function main() {

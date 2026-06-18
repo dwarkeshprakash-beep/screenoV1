@@ -10,7 +10,13 @@ function fromUser(user) {
 }
 
 function assertInterviewScope(identity, interviewId) {
-  if (identity.interviewId && Number(identity.interviewId) !== Number(interviewId)) {
+  // Interview action endpoints (start/answer/complete) must only be called via
+  // a magic-link JWT that is scoped to a specific interview. Dashboard JWTs
+  // (identity.interviewId === null) are not authorised to call these actions.
+  if (!identity.interviewId) {
+    throw new Error('Unauthorized: use your magic link to access this interview')
+  }
+  if (Number(identity.interviewId) !== Number(interviewId)) {
     throw new Error('Unauthorized')
   }
 }

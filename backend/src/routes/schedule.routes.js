@@ -12,6 +12,7 @@ const router = express.Router()
 router.get('/slots/:token', async (req, res) => {
   try {
     const slots = await scheduleService.getAvailableSlots(req.params.token)
+    if (!slots) return res.status(404).json({ success: false, error: 'Invalid or expired scheduling link' })
     res.json({ success: true, data: slots })
   } catch (err) {
     console.error('GET /schedule/slots/:token failed:', err)
@@ -46,7 +47,10 @@ router.get('/email-deliveries/:interviewId', async (req, res) => {
 router.post('/email-deliveries/:interviewId/resend', async (req, res) => {
   try {
     const result = await scheduleService.resendMagicLink(parseInt(req.params.interviewId, 10), req.user.id)
-    res.json({ success: result.status === 'sent', data: result, error: result.status === 'failed' ? result.message : undefined })
+    if (result.status !== 'sent') {
+      return res.status(422).json({ success: false, error: result.message || 'Could not send email' })
+    }
+    res.json({ success: true, data: result })
   } catch (err) {
     console.error('POST /schedule/email-deliveries/:interviewId/resend failed:', err)
     if (['Interview not found', 'Candidate not found'].includes(err.message)) return res.status(404).json({ success: false, error: err.message })

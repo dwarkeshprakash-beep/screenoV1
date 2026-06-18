@@ -7,21 +7,13 @@ const userRepository = require('../repositories/user.repository')
 const interviewRepository = require('../repositories/interview.repository')
 const emailService = require('../services/email.service')
 const llmService = require('../services/llm.service')
+const { parseStoredArray } = require('../utils/parse')
 
 const router = express.Router()
 
 router.use(authMiddleware, requireRole('manager'))
 
-function parseTags(value) {
-  if (Array.isArray(value)) return value
-  if (!value) return []
-  try {
-    const parsed = JSON.parse(value)
-    return Array.isArray(parsed) ? parsed : []
-  } catch {
-    return []
-  }
-}
+const parseTags = parseStoredArray
 
 function hasTags(value) {
   return parseTags(value).some(tag => String(tag || '').trim())
@@ -39,7 +31,7 @@ router.post('/', async (req, res) => {
     const template = await clientTemplateRepo.create(data)
     res.status(201).json({ success: true, data: template })
   } catch (err) {
-    console.error('POST /client-templates failed:', err)
+    console.error('POST /client-templates failed:', err.message)
     res.status(500).json({ success: false, error: 'Could not create template' })
   }
 })
@@ -49,7 +41,7 @@ router.get('/', async (req, res) => {
     const templates = await clientTemplateRepo.getByManager(req.user.id)
     res.json({ success: true, data: templates })
   } catch (err) {
-    console.error('GET /client-templates failed:', err)
+    console.error('GET /client-templates failed:', err.message)
     res.status(500).json({ success: false, error: 'Could not load templates' })
   }
 })
@@ -60,7 +52,7 @@ router.get('/:id', async (req, res) => {
     if (!template) return res.status(404).json({ success: false, error: 'Template not found' })
     res.json({ success: true, data: template })
   } catch (err) {
-    console.error('GET /client-templates/:id failed:', err)
+    console.error('GET /client-templates/:id failed:', err.message)
     res.status(500).json({ success: false, error: 'Could not load template' })
   }
 })
@@ -83,7 +75,7 @@ router.patch('/:id', async (req, res) => {
     if (!template) return res.status(404).json({ success: false, error: 'Template not found' })
     res.json({ success: true, data: template })
   } catch (err) {
-    console.error('PATCH /client-templates/:id failed:', err)
+    console.error('PATCH /client-templates/:id failed:', err.message)
     res.status(500).json({ success: false, error: 'Could not update template' })
   }
 })
@@ -95,7 +87,7 @@ router.post('/extract-tags', async (req, res) => {
     const tags = await llmService.extractTagsFromText(text)
     res.json({ success: true, data: tags })
   } catch (err) {
-    console.error('POST /extract-tags failed:', err)
+    console.error('POST /extract-tags failed:', err.message)
     res.status(500).json({ success: false, error: 'Could not extract tags' })
   }
 })
@@ -129,7 +121,7 @@ router.get('/:id/matches', async (req, res) => {
 
     res.json({ success: true, data: matches })
   } catch (err) {
-    console.error('GET /client-templates/:id/matches failed:', err)
+    console.error('GET /client-templates/:id/matches failed:', err.message)
     res.status(500).json({ success: false, error: 'Could not load matches' })
   }
 })
@@ -181,7 +173,7 @@ router.post('/:id/send-jd', async (req, res) => {
     const failed = results.filter(r => !r.ok).length
     res.json({ success: true, data: { sent, failed } })
   } catch (err) {
-    console.error('POST /client-templates/:id/send-jd failed:', err)
+    console.error('POST /client-templates/:id/send-jd failed:', err.message)
     res.status(500).json({ success: false, error: 'Could not send JD emails' })
   }
 })
@@ -197,7 +189,7 @@ router.get('/:id/assignments', async (req, res) => {
     )
     res.json({ success: true, data: assignments })
   } catch (err) {
-    console.error('GET /client-templates/:id/assignments failed:', err)
+    console.error('GET /client-templates/:id/assignments failed:', err.message)
     res.status(500).json({ success: false, error: 'Could not load client assignments' })
   }
 })
@@ -222,7 +214,7 @@ router.delete('/:id/assignments/:interviewId', async (req, res) => {
     }
     res.json({ success: true, data: cancelled })
   } catch (err) {
-    console.error('DELETE /client-templates/:id/assignments/:interviewId failed:', err)
+    console.error('DELETE /client-templates/:id/assignments/:interviewId failed:', err.message)
     res.status(500).json({ success: false, error: 'Could not cancel client assignment' })
   }
 })

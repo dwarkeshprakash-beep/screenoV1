@@ -93,8 +93,29 @@ function AIInterviewPage() {
 
   useEffect(() => { if (txRef.current) txRef.current.scrollTop = txRef.current.scrollHeight }, [transcript, liveTranscript, phase])
 
-  if (!interviewId) return <div style={{ padding: 40, textAlign: 'center', color: '#EF4444' }}>No interview session found. Please use your magic link.</div>
-  if (interviewError && phase === 'error') return <div style={{ padding: 40, textAlign: 'center', color: '#EF4444' }}>{interviewError}</div>
+  if (!interviewId) return (
+    <div style={{ padding: 40, textAlign: 'center', maxWidth: 480, margin: '0 auto' }}>
+      <p style={{ color: 'var(--danger-700)', fontWeight: 600 }}>No interview session found.</p>
+      <p style={{ color: 'var(--fg-muted)', fontSize: 14, marginTop: 8 }}>Please use the original magic link from your invitation email to start your interview.</p>
+    </div>
+  )
+  if (interviewError && phase === 'error') return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh', padding: 40 }}>
+      <div style={{ maxWidth: 440, textAlign: 'center', background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderRadius: 16, padding: 36 }}>
+        <AlertTriangle size={36} color="var(--danger-500)" style={{ marginBottom: 16 }} />
+        <h2 style={{ fontSize: 20, fontWeight: 700, margin: '0 0 10px' }}>Something went wrong</h2>
+        <p style={{ fontSize: 14, color: 'var(--fg-muted)', margin: '0 0 20px', lineHeight: 1.6 }}>{interviewError}</p>
+        <p style={{ fontSize: 12, color: 'var(--fg-subtle)', margin: '0 0 20px' }}>Your answers up to this point have been saved.</p>
+        <button
+          type="button"
+          onClick={() => window.location.reload()}
+          style={{ width: '100%', padding: '12px 0', borderRadius: 10, border: 0, background: 'var(--brand-500)', color: 'var(--bg-surface)', fontWeight: 600, cursor: 'pointer', fontSize: 14 }}
+        >
+          Try reloading
+        </button>
+      </div>
+    </div>
+  )
 
   const isRecording  = phase === 'recording'
   const isProcessing = phase === 'processing'

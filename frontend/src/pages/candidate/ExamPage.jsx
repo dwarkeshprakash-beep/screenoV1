@@ -30,16 +30,17 @@ function ExamPage() {
   })()
 
   // All hooks must come before any conditional returns
-  const [exam, setExam]             = useState(null)
-  const [loading, setLoading]       = useState(true)
-  const [error, setError]           = useState(null)
-  const [currentIdx, setCurrentIdx] = useState(0)
-  const [answers, setAnswers]       = useState({})
-  const [submitting, setSubmitting] = useState(false)
+  const [exam, setExam]               = useState(null)
+  const [loading, setLoading]         = useState(true)
+  const [error, setError]             = useState(null)
+  const [currentIdx, setCurrentIdx]   = useState(0)
+  const [answers, setAnswers]         = useState({})
+  const [submitting, setSubmitting]   = useState(false)
   const [submitError, setSubmitError] = useState(null)
-  const [timeLeft, setTimeLeft]     = useState(3600)
-  const [violation, setViolation]   = useState(null)
-  const [isMobile]                  = useState(() => typeof window !== 'undefined' && window.innerWidth < 768)
+  const [timeLeft, setTimeLeft]       = useState(3600)
+  const [showConfirm, setShowConfirm] = useState(false)
+  const [violation, setViolation]     = useState(null)
+  const [isMobile]                    = useState(() => typeof window !== 'undefined' && window.innerWidth < 768)
 
   useProctoring(session.interviewId, (type, decision) => {
     if (decision.terminated) {
@@ -57,6 +58,9 @@ function ExamPage() {
       try {
         const r = await api.getExam(token)
         setExam(r.data)
+        // Set timer based on question count: 4 minutes per question, min 15 min, max 90 min
+        const qCount = r.data?.interview?.questionCount || 10
+        setTimeLeft(Math.min(90 * 60, Math.max(15 * 60, qCount * 4 * 60)))
       } catch (err) {
         setError(err.message || 'Could not load exam.')
       } finally {
@@ -66,7 +70,13 @@ function ExamPage() {
     load()
   }, [token, isMobile])
 
+  function requestSubmit() {
+    if (submitting || violation?.terminated) return
+    setShowConfirm(true)
+  }
+
   const handleSubmit = useCallback(async () => {
+    setShowConfirm(false)
     if (submitting || violation?.terminated) return
     setSubmitting(true)
     try {
@@ -174,7 +184,7 @@ function ExamPage() {
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           <button
-            onClick={handleSubmit}
+            onClick={requestSubmit}
             disabled={submitting}
             style={{ padding: '11px 0', borderRadius: 9, background: submitting ? 'var(--slate-400)' : 'var(--brand-500)', color: 'var(--bg-surface)', border: 0, fontWeight: 600, fontSize: 13, cursor: submitting ? 'not-allowed' : 'pointer' }}
           >
@@ -282,7 +292,7 @@ function ExamPage() {
                 </button>
                 {isLast ? (
                   <button
-                    onClick={handleSubmit}
+                    onClick={requestSubmit}
                     disabled={submitting}
                     style={{ padding: '10px 18px', borderRadius: 8, border: 0, background: 'var(--brand-500)', color: 'var(--bg-surface)', fontWeight: 600, fontSize: 13, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 6 }}
                   >
@@ -307,6 +317,40 @@ function ExamPage() {
           </div>
         )}
       </div>
+
+      {/* Submit confirmation modal */}
+      {showConfirm && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.6)', zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20 }}>
+          <div style={{ background: 'var(--bg-surface)', borderRadius: 16, padding: 28, maxWidth: 400, width: '100%', textAlign: 'center' }}>
+            <AlertTriangle size={30} color="var(--warning-500)" style={{ marginBottom: 12 }} />
+            <h2 style={{ fontSize: 20, fontWeight: 700, margin: '0 0 8px' }}>Submit exam?</h2>
+            <p style={{ fontSize: 14, color: 'var(--slate-500)', margin: '0 0 8px', lineHeight: 1.6 }}>
+              You have answered <strong>{answeredCount}</strong> of <strong>{total}</strong> questions.
+            </p>
+            {answeredCount < total && (
+              <p style={{ fontSize: 13, color: 'var(--warning-600)', background: 'var(--warning-50)', border: '1px solid var(--warning-500)', borderRadius: 8, padding: '8px 12px', margin: '0 0 16px' }}>
+                {total - answeredCount} question{total - answeredCount !== 1 ? 's' : ''} left unanswered. This cannot be undone.
+              </p>
+            )}
+            <div style={{ display: 'flex', gap: 10, marginTop: 16 }}>
+              <button
+                type="button"
+                onClick={() => setShowConfirm(false)}
+                style={{ flex: 1, padding: '11px 0', borderRadius: 9, border: '1px solid var(--slate-300)', background: 'var(--bg-surface)', fontWeight: 600, cursor: 'pointer', fontSize: 13 }}
+              >
+                Keep going
+              </button>
+              <button
+                type="button"
+                onClick={handleSubmit}
+                style={{ flex: 1, padding: '11px 0', borderRadius: 9, border: 0, background: 'var(--brand-500)', color: 'var(--bg-surface)', fontWeight: 600, cursor: 'pointer', fontSize: 13 }}
+              >
+                Submit now
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

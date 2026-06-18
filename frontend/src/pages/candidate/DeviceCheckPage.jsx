@@ -169,10 +169,12 @@ function DeviceCheckPage() {
                   {status === 'pass' && check.detail}
                   {status === 'fail' && (
                     check.id === 'screen'
-                      ? 'Multiple displays detected'
+                      ? 'Multiple displays detected — disconnect external monitors and retry'
                       : check.id === 'camera'
                         ? 'Camera unavailable. You can still continue.'
-                        : 'Check browser permissions and retry'
+                        : check.id === 'network'
+                          ? 'API unreachable — check your internet connection and retry'
+                          : 'Blocked — click the camera/lock icon in your browser address bar, allow access, then retry'
                   )}
                 </div>
                 {check.id === 'speaker' && status !== 'pass' && (

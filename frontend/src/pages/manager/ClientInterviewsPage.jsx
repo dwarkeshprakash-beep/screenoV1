@@ -21,18 +21,9 @@ import ErrorMessage from '../../components/shared/ErrorMessage'
 import Modal from '../../components/shared/Modal'
 import Spinner from '../../components/shared/Spinner'
 import * as api from '../../services/api'
-import { formatDate } from '../../utils/helpers'
+import { formatDate, parseStoredArray } from '../../utils/helpers'
 
-function parseTags(value) {
-  if (Array.isArray(value)) return value
-  if (!value) return []
-  try {
-    const parsed = JSON.parse(value)
-    return Array.isArray(parsed) ? parsed : []
-  } catch {
-    return []
-  }
-}
+const parseTags = parseStoredArray
 
 function Field({ label, help, full = false, children }) {
   return (
@@ -540,13 +531,17 @@ function MandateDetail({ initialTemplate, onBack }) {
 
   useEffect(() => {
     if (tab !== 'reports') return
-    api.getTeamReports('client')
-      .then(response => {
+    async function loadReports() {
+      try {
+        const response = await api.getTeamReports('client')
         setReports((response.data?.reports || []).filter(
           report => Number(report.client_template_id) === Number(template.id)
         ))
-      })
-      .catch(() => setReports([]))
+      } catch {
+        setReports([])
+      }
+    }
+    void loadReports()
   }, [tab, template.id])
 
   const visibleMembers = useMemo(() => {
