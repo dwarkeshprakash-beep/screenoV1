@@ -67,4 +67,26 @@ async function deleteFile(publicId) {
   if (error) throw error
 }
 
-module.exports = { uploadResume, uploadReport, deleteFile }
+// Upload a client-specific resume for a candidate (separate from their profile resume)
+async function uploadClientResume(buffer, candidateId, clientTeamId, file = {}) {
+  const extensionByMime = {
+    'application/pdf': 'pdf',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+    'application/msword': 'doc',
+    'text/plain': 'txt',
+  }
+  const extension = extensionByMime[file.mimetype] || 'pdf'
+  const contentType = file.mimetype || 'application/pdf'
+  const path = `resumes/resume_candidate_${candidateId}_client_${clientTeamId}.${extension}`
+
+  const { error } = await supabase.storage.from(BUCKET).upload(path, buffer, {
+    contentType,
+    upsert: true,
+  })
+  if (error) throw error
+
+  const { data } = supabase.storage.from(BUCKET).getPublicUrl(path)
+  return { url: data.publicUrl, publicId: path }
+}
+
+module.exports = { uploadResume, uploadClientResume, uploadReport, deleteFile }

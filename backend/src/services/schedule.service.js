@@ -32,7 +32,7 @@ async function createSchedule(data, managerId, companyId) {
   if (!data.userId && !data.teamMemberId && !data.candidateId) {
     throw new Error('userId or candidateId is required')
   }
-  if (!['ai_voice', 'exam'].includes(data.type)) throw new Error('Invalid interview type')
+  if (!['ai_voice', 'exam', 'human'].includes(data.type)) throw new Error('Invalid interview type')
   if (!['simple', 'adaptive'].includes(data.interviewMode)) {
     throw new Error('Invalid interview mode')
   }

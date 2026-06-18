@@ -17,7 +17,11 @@ import ConsentPage from './pages/candidate/ConsentPage'
 import AIInterviewPage from './pages/candidate/AIInterviewPage'
 import ExamPage from './pages/candidate/ExamPage'
 import DonePage from './pages/candidate/DonePage'
-import CandidateDashboardPage from './pages/candidate/CandidateDashboardPage'
+import CandidateDashboardLayout from './components/layout/CandidateDashboardLayout'
+import CandidateOverviewPage from './pages/candidate/CandidateOverviewPage'
+import CandidateInterviewsPage from './pages/candidate/CandidateInterviewsPage'
+import CandidateProfilePage from './pages/candidate/CandidateProfilePage'
+import CandidateMandatesPage from './pages/candidate/CandidateMandatesPage'
 
 function RequireAuth({ children, role }) {
   const token = localStorage.getItem('accessToken')
@@ -62,8 +66,14 @@ function App() {
         path="/candidate"
         element={<RequireAuth role="candidate"><CandidateLayout /></RequireAuth>}
       >
-        <Route index element={<Navigate to="dashboard" replace />} />
-        <Route path="dashboard" element={<CandidateDashboardPage />} />
+        <Route index element={<Navigate to="overview" replace />} />
+        <Route path="dashboard" element={<Navigate to="/candidate/overview" replace />} />
+        <Route element={<CandidateDashboardLayout />}>
+          <Route path="overview"   element={<CandidateOverviewPage />} />
+          <Route path="interviews" element={<CandidateInterviewsPage />} />
+          <Route path="mandates"   element={<CandidateMandatesPage />} />
+          <Route path="profile"    element={<CandidateProfilePage />} />
+        </Route>
       </Route>
 
       <Route path="/interview/:token" element={<CandidateLayout />}>

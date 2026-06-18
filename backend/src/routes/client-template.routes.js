@@ -1,16 +1,23 @@
 // backend/src/routes/client-template.routes.js
+const crypto = require('crypto')
 const express = require('express')
 const authMiddleware = require('../middleware/auth')
 const requireRole = require('../middleware/role')
 const clientTemplateRepo = require('../repositories/client-template.repository')
+const clientTeamRepo = require('../repositories/client-team.repository')
+const clientRequirementsRepo = require('../repositories/client-mandate-requirements.repository')
+const clientInterviewRecordsRepo = require('../repositories/client-interview-records.repository')
 const userRepository = require('../repositories/user.repository')
 const interviewRepository = require('../repositories/interview.repository')
 const emailService = require('../services/email.service')
+const scheduleService = require('../services/schedule.service')
+const teamsService = require('../services/teams.service')
+const zoomService = require('../services/zoom.service')
+const googleMeetService = require('../services/google-meet.service')
 const llmService = require('../services/llm.service')
 const { parseStoredArray } = require('../utils/parse')
 
 const router = express.Router()
-
 router.use(authMiddleware, requireRole('manager'))
 
 const parseTags = parseStoredArray
@@ -19,15 +26,14 @@ function hasTags(value) {
   return parseTags(value).some(tag => String(tag || '').trim())
 }
 
+// ── Mandate CRUD ──────────────────────────────────────────────────────────────
+
 router.post('/', async (req, res) => {
   try {
     const data = { ...req.body, manager_id: req.user.id }
-    
-    // Auto-generate tags if a JD is provided and tags are empty
     if (data.jd_text && !hasTags(data.tags)) {
       data.tags = await llmService.extractTagsFromText(data.jd_text)
     }
-
     const template = await clientTemplateRepo.create(data)
     res.status(201).json({ success: true, data: template })
   } catch (err) {
@@ -62,7 +68,6 @@ router.patch('/:id', async (req, res) => {
     const templateId = parseInt(req.params.id, 10)
     const existing = await clientTemplateRepo.getById(templateId, req.user.id)
     if (!existing) return res.status(404).json({ success: false, error: 'Template not found' })
-
     const data = { ...req.body }
     const jdChanged = data.jd_text !== undefined
       && String(data.jd_text || '').trim()
@@ -70,7 +75,6 @@ router.patch('/:id', async (req, res) => {
     if (jdChanged && data.tags === undefined) {
       data.tags = await llmService.extractTagsFromText(data.jd_text)
     }
-
     const template = await clientTemplateRepo.update(templateId, req.user.id, data)
     if (!template) return res.status(404).json({ success: false, error: 'Template not found' })
     res.json({ success: true, data: template })
@@ -78,6 +82,18 @@ router.patch('/:id', async (req, res) => {
     console.error('PATCH /client-templates/:id failed:', err.message)
     res.status(500).json({ success: false, error: 'Could not update template' })
   }
+})
+
+// Returns which video meeting platforms are currently configured on this server
+router.get('/video-platforms', (req, res) => {
+  res.json({
+    success: true,
+    data: {
+      zoom:        zoomService.isConfigured(),
+      google_meet: googleMeetService.isConfigured(),
+      teams:       false, // Teams integration disabled — enable when org credentials are ready
+    },
+  })
 })
 
 router.post('/extract-tags', async (req, res) => {
@@ -92,7 +108,69 @@ router.post('/extract-tags', async (req, res) => {
   }
 })
 
-// GET /api/templates/client/:id/matches — team members whose tags overlap with the template tags
+// ── Requirement profiles ──────────────────────────────────────────────────────
+
+router.get('/:id/requirements', async (req, res) => {
+  try {
+    const mandateId = parseInt(req.params.id, 10)
+    const template = await clientTemplateRepo.getById(mandateId, req.user.id)
+    if (!template) return res.status(404).json({ success: false, error: 'Mandate not found' })
+    const requirements = await clientRequirementsRepo.getByMandate(mandateId)
+    res.json({ success: true, data: requirements })
+  } catch (err) {
+    console.error('GET /requirements failed:', err.message)
+    res.status(500).json({ success: false, error: 'Could not load requirements' })
+  }
+})
+
+router.post('/:id/requirements', async (req, res) => {
+  try {
+    const mandateId = parseInt(req.params.id, 10)
+    const template = await clientTemplateRepo.getById(mandateId, req.user.id)
+    if (!template) return res.status(404).json({ success: false, error: 'Mandate not found' })
+    if (!req.body.profile_name) return res.status(400).json({ success: false, error: 'profile_name is required' })
+    const req_ = await clientRequirementsRepo.create(mandateId, req.body)
+    res.status(201).json({ success: true, data: req_ })
+  } catch (err) {
+    console.error('POST /requirements failed:', err.message)
+    res.status(500).json({ success: false, error: 'Could not create requirement' })
+  }
+})
+
+router.patch('/:id/requirements/:rqId', async (req, res) => {
+  try {
+    const mandateId = parseInt(req.params.id, 10)
+    const rqId = parseInt(req.params.rqId, 10)
+    const template = await clientTemplateRepo.getById(mandateId, req.user.id)
+    if (!template) return res.status(404).json({ success: false, error: 'Mandate not found' })
+    const updated = await clientRequirementsRepo.update(rqId, mandateId, req.body)
+    if (!updated) return res.status(404).json({ success: false, error: 'Requirement not found' })
+    res.json({ success: true, data: updated })
+  } catch (err) {
+    console.error('PATCH /requirements/:id failed:', err.message)
+    res.status(500).json({ success: false, error: 'Could not update requirement' })
+  }
+})
+
+router.delete('/:id/requirements/:rqId', async (req, res) => {
+  try {
+    const mandateId = parseInt(req.params.id, 10)
+    const rqId = parseInt(req.params.rqId, 10)
+    const template = await clientTemplateRepo.getById(mandateId, req.user.id)
+    if (!template) return res.status(404).json({ success: false, error: 'Mandate not found' })
+    const deleted = await clientRequirementsRepo.deleteReq(rqId, mandateId)
+    if (!deleted) return res.status(404).json({ success: false, error: 'Requirement not found' })
+    res.json({ success: true })
+  } catch (err) {
+    console.error('DELETE /requirements/:id failed:', err.message)
+    res.status(500).json({ success: false, error: 'Could not delete requirement' })
+  }
+})
+
+// ── Candidate matches (for browsing/adding prospects) ────────────────────────
+// Returns all org members with tag match score and in_team flag.
+// Team members are recommended for AI matching; other members shown on demand.
+
 router.get('/:id/matches', async (req, res) => {
   try {
     const template = await clientTemplateRepo.getById(parseInt(req.params.id, 10), req.user.id)
@@ -100,24 +178,40 @@ router.get('/:id/matches', async (req, res) => {
 
     let templateTags = []
     try { templateTags = JSON.parse(template.tags || '[]').map(t => t.toLowerCase()) } catch { templateTags = [] }
-    const members = (await userRepository.getByCompany(req.user.companyId))
-      .filter(member => member.role !== 'manager')
 
-    const matches = members.map(m => {
-      let memberTags = []
-      try { memberTags = JSON.parse(m.tags || '[]').map(t => t.toLowerCase()) } catch { memberTags = [] }
-      const overlap = templateTags.filter(t => memberTags.includes(t))
-      return {
-        ...m,
-        user_id: m.id,
-        match_score: overlap.length,
-        matched_tags: overlap,
-        recommended: overlap.length > 0,
-      }
-    }).sort((a, b) =>
-      b.match_score - a.match_score
-      || String(a.first_name || '').localeCompare(String(b.first_name || ''))
-    )
+    const [allMembers, teamRows, clientTeamRows] = await Promise.all([
+      userRepository.getByCompany(req.user.companyId),
+      require('../db/connection').query(
+        `SELECT user_id FROM team_members WHERE manager_id = @managerId`,
+        { managerId: req.user.id }
+      ),
+      clientTeamRepo.getByMandate(parseInt(req.params.id, 10)),
+    ])
+
+    const teamUserIds = new Set(teamRows.map(r => r.user_id))
+    const alreadyInClientTeam = new Set(clientTeamRows.map(r => r.user_id))
+
+    const matches = allMembers
+      .filter(member => member.role !== 'manager')
+      .filter(member => !alreadyInClientTeam.has(member.id))
+      .map(m => {
+        let memberTags = []
+        try { memberTags = JSON.parse(m.tags || '[]').map(t => t.toLowerCase()) } catch { memberTags = [] }
+        const overlap = templateTags.filter(t => memberTags.includes(t))
+        return {
+          ...m,
+          user_id: m.id,
+          match_score: overlap.length,
+          matched_tags: overlap,
+          recommended: overlap.length > 0 && teamUserIds.has(m.id),
+          in_team: teamUserIds.has(m.id),
+        }
+      })
+      .sort((a, b) =>
+        (b.in_team ? 1 : 0) - (a.in_team ? 1 : 0)
+        || b.match_score - a.match_score
+        || String(a.first_name || '').localeCompare(String(b.first_name || ''))
+      )
 
     res.json({ success: true, data: matches })
   } catch (err) {
@@ -126,31 +220,294 @@ router.get('/:id/matches', async (req, res) => {
   }
 })
 
-// POST /api/templates/client/:id/send-jd — email JD + resume deadline to selected team members
-router.post('/:id/send-jd', async (req, res) => {
-  try {
-    const template = await clientTemplateRepo.getById(parseInt(req.params.id, 10), req.user.id)
-    if (!template) return res.status(404).json({ success: false, error: 'Template not found' })
+// ── Client team (prospects) ───────────────────────────────────────────────────
 
-    const { userIds, deadline } = req.body
+router.get('/:id/team', async (req, res) => {
+  try {
+    const mandateId = parseInt(req.params.id, 10)
+    const template = await clientTemplateRepo.getById(mandateId, req.user.id)
+    if (!template) return res.status(404).json({ success: false, error: 'Mandate not found' })
+    const team = await clientTeamRepo.getByMandate(mandateId)
+
+    // Attach latest scheduled interview for each team member
+    const interviewMap = {}
+    await Promise.all(team.map(async member => {
+      const rows = await require('../db/connection').query(
+        `SELECT id, type, status, scheduled_at, location, created
+         FROM interviews
+         WHERE client_team_id = @ctId
+         ORDER BY created DESC LIMIT 1`,
+        { ctId: member.id }
+      )
+      if (rows[0]) interviewMap[member.id] = rows[0]
+    }))
+
+    const result = team.map(m => ({ ...m, latest_interview: interviewMap[m.id] || null }))
+    res.json({ success: true, data: result })
+  } catch (err) {
+    console.error('GET /client-templates/:id/team failed:', err.message)
+    res.status(500).json({ success: false, error: 'Could not load client team' })
+  }
+})
+
+router.post('/:id/team', async (req, res) => {
+  try {
+    const mandateId = parseInt(req.params.id, 10)
+    const template = await clientTemplateRepo.getById(mandateId, req.user.id)
+    if (!template) return res.status(404).json({ success: false, error: 'Mandate not found' })
+
+    const { userIds, requirementId } = req.body
     if (!Array.isArray(userIds) || userIds.length === 0) {
       return res.status(400).json({ success: false, error: 'userIds array is required' })
     }
 
-    // Save deadline on the template if provided
-    if (deadline) {
-      await clientTemplateRepo.update(template.id, req.user.id, { resume_deadline: deadline })
-    }
-
-    // Fetch all company members first — prevents cross-company email exfiltration
+    // Verify all users belong to this company
     const companyMembers = await userRepository.getByIdsForCompany(
       [...new Set(userIds.map(Number).filter(Number.isInteger))],
       req.user.companyId
     )
-    const companyMembersById = new Map(
-      companyMembers.map(member => [Number(member.id), member])
+    const validIds = new Set(companyMembers.map(m => m.id))
+
+    const added = await Promise.all(
+      userIds
+        .map(Number)
+        .filter(id => validIds.has(id))
+        .map(uid => clientTeamRepo.add(mandateId, uid, requirementId || null))
     )
 
+    res.status(201).json({ success: true, data: added.filter(Boolean) })
+  } catch (err) {
+    console.error('POST /client-templates/:id/team failed:', err.message)
+    res.status(500).json({ success: false, error: 'Could not add prospects' })
+  }
+})
+
+router.patch('/:id/team/:ctId', async (req, res) => {
+  try {
+    const mandateId = parseInt(req.params.id, 10)
+    const ctId = parseInt(req.params.ctId, 10)
+    const template = await clientTemplateRepo.getById(mandateId, req.user.id)
+    if (!template) return res.status(404).json({ success: false, error: 'Mandate not found' })
+    const updated = await clientTeamRepo.updateStatus(ctId, req.body.status, req.body.notes)
+    if (!updated) return res.status(404).json({ success: false, error: 'Team member not found' })
+    res.json({ success: true, data: updated })
+  } catch (err) {
+    console.error('PATCH /team/:ctId failed:', err.message)
+    res.status(500).json({ success: false, error: 'Could not update team member' })
+  }
+})
+
+router.delete('/:id/team/:ctId', async (req, res) => {
+  try {
+    const mandateId = parseInt(req.params.id, 10)
+    const ctId = parseInt(req.params.ctId, 10)
+    const template = await clientTemplateRepo.getById(mandateId, req.user.id)
+    if (!template) return res.status(404).json({ success: false, error: 'Mandate not found' })
+    const removed = await clientTeamRepo.remove(ctId, mandateId)
+    if (!removed) return res.status(404).json({ success: false, error: 'Team member not found' })
+    res.json({ success: true })
+  } catch (err) {
+    console.error('DELETE /team/:ctId failed:', err.message)
+    res.status(500).json({ success: false, error: 'Could not remove from team' })
+  }
+})
+
+// ── Send JD with custom message to a specific client team member ──────────────
+
+router.post('/:id/team/:ctId/send-jd', async (req, res) => {
+  try {
+    const mandateId = parseInt(req.params.id, 10)
+    const ctId = parseInt(req.params.ctId, 10)
+    const template = await clientTemplateRepo.getById(mandateId, req.user.id)
+    if (!template) return res.status(404).json({ success: false, error: 'Mandate not found' })
+
+    const teamMember = await clientTeamRepo.getById(ctId)
+    if (!teamMember || teamMember.mandate_id !== mandateId) {
+      return res.status(404).json({ success: false, error: 'Team member not found' })
+    }
+
+    const { customMessage } = req.body
+    await emailService.sendClientJDWithMessage(teamMember.email, {
+      candidateName: `${teamMember.first_name} ${teamMember.last_name}`.trim(),
+      clientName:    template.client_name,
+      role:          template.requirements,
+      jdText:        template.jd_text || template.requirements,
+      customMessage: customMessage || '',
+      frontendUrl:   process.env.FRONTEND_URL,
+    })
+    await clientTeamRepo.markJdSent(ctId)
+    res.json({ success: true })
+  } catch (err) {
+    console.error('POST /team/:ctId/send-jd failed:', err.message)
+    res.status(500).json({ success: false, error: 'Could not send JD' })
+  }
+})
+
+// ── Schedule an interview for a client team member (5 types) ─────────────────
+
+router.post('/:id/team/:ctId/schedule', async (req, res) => {
+  try {
+    const mandateId = parseInt(req.params.id, 10)
+    const ctId = parseInt(req.params.ctId, 10)
+    const template = await clientTemplateRepo.getById(mandateId, req.user.id)
+    if (!template) return res.status(404).json({ success: false, error: 'Mandate not found' })
+
+    const teamMember = await clientTeamRepo.getById(ctId)
+    if (!teamMember || teamMember.mandate_id !== mandateId) {
+      return res.status(404).json({ success: false, error: 'Team member not found' })
+    }
+
+    const { type, videoPlatform, scheduledAt, location, notes, mode, difficulty, questionCount } = req.body
+    const validTypes = ['ai_voice', 'exam', 'human', 'offline', 'client']
+    if (!validTypes.includes(type)) {
+      return res.status(400).json({ success: false, error: 'Invalid interview type' })
+    }
+
+    // "client" type → creates a client_interview_records entry, no interview row
+    if (type === 'client') {
+      const record = await clientInterviewRecordsRepo.create({
+        mandate_id:     mandateId,
+        client_team_id: ctId,
+        interview_date: scheduledAt ? scheduledAt.split('T')[0] : null,
+        notes:          notes || null,
+      })
+      return res.status(201).json({ success: true, data: record })
+    }
+
+    // "offline" type → interview row + email (no magic link needed)
+    if (type === 'offline') {
+      const rawToken = crypto.randomBytes(32).toString('hex')
+      const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex')
+      const tokenExpires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+
+      const interview = await require('../db/connection').query(
+        `INSERT INTO interviews
+           (manager_id, internal_user_id, type, interview_mode, difficulty, question_count,
+            token, token_expires, client_template_id, client_team_id, scheduled_at, location, status)
+         VALUES
+           (@managerId, @userId, 'offline', 'simple', 'medium', 1,
+            @token, @tokenExpires, @mandateId, @ctId, @scheduledAt, @location, 'scheduled')
+         RETURNING *`,
+        { managerId: req.user.id, userId: teamMember.user_id, token: tokenHash, tokenExpires, mandateId, ctId, scheduledAt: scheduledAt || null, location: location || null }
+      )
+
+      emailService.sendOfflineInterviewInvite(teamMember.email, {
+        candidateName: `${teamMember.first_name} ${teamMember.last_name}`.trim(),
+        clientName: template.client_name,
+        role: template.requirements,
+        scheduledAt, location, notes,
+      }).catch(err => console.error('[email] offline invite failed:', err.message))
+
+      return res.status(201).json({ success: true, data: interview[0] })
+    }
+
+    // ai_voice / exam / human → use schedule service
+    // For human interviews, optionally create a video meeting link
+    let videoLink = null
+    if (type === 'human' && scheduledAt && videoPlatform) {
+      const endAt = new Date(new Date(scheduledAt).getTime() + 60 * 60 * 1000).toISOString()
+      const meetingTopic = `Interview — ${template.requirements} @ ${template.client_name}`
+
+      if (videoPlatform === 'zoom' && zoomService.isConfigured()) {
+        const meeting = await zoomService.createMeeting({ topic: meetingTopic, startAt: scheduledAt, durationMinutes: 60 })
+        if (meeting) videoLink = meeting.joinUrl
+      } else if (videoPlatform === 'google_meet' && googleMeetService.isConfigured()) {
+        const meeting = await googleMeetService.createMeeting({
+          summary: meetingTopic,
+          startAt: scheduledAt,
+          endAt,
+          attendeeEmails: [teamMember.email],
+        })
+        if (meeting) videoLink = meeting.joinUrl
+      }
+      // 'teams' → disabled, skip
+    }
+
+    const interview = await scheduleService.createSchedule(
+      {
+        userId:           teamMember.user_id,
+        type,
+        interviewMode:    mode || 'simple',
+        difficulty:       difficulty || 'medium',
+        questionCount:    questionCount || 10,
+        clientTemplateId: mandateId,
+      },
+      req.user.id,
+      req.user.companyId
+    )
+
+    // Link interview back to the client team row and store scheduled time + video link
+    if (interview?.id) {
+      await require('../db/connection').query(
+        `UPDATE interviews SET client_team_id = @ctId, scheduled_at = @scheduledAt, location = @location WHERE id = @id`,
+        { id: interview.id, ctId, scheduledAt: scheduledAt || null, location: videoLink || location || null }
+      )
+    }
+
+    res.status(201).json({ success: true, data: interview, videoLink })
+  } catch (err) {
+    console.error('POST /team/:ctId/schedule failed:', err.message)
+    res.status(500).json({ success: false, error: err.message || 'Could not schedule interview' })
+  }
+})
+
+// ── Client interview records (real client-side interview outcome) ──────────────
+
+router.get('/:id/team/:ctId/client-interview', async (req, res) => {
+  try {
+    const mandateId = parseInt(req.params.id, 10)
+    const ctId = parseInt(req.params.ctId, 10)
+    const template = await clientTemplateRepo.getById(mandateId, req.user.id)
+    if (!template) return res.status(404).json({ success: false, error: 'Mandate not found' })
+    const record = await clientInterviewRecordsRepo.getByClientTeamId(ctId)
+    res.json({ success: true, data: record || null })
+  } catch (err) {
+    console.error('GET /team/:ctId/client-interview failed:', err.message)
+    res.status(500).json({ success: false, error: 'Could not load client interview record' })
+  }
+})
+
+router.post('/:id/team/:ctId/client-interview', async (req, res) => {
+  try {
+    const mandateId = parseInt(req.params.id, 10)
+    const ctId = parseInt(req.params.ctId, 10)
+    const template = await clientTemplateRepo.getById(mandateId, req.user.id)
+    if (!template) return res.status(404).json({ success: false, error: 'Mandate not found' })
+
+    const existing = await clientInterviewRecordsRepo.getByClientTeamId(ctId)
+    let record
+    if (existing) {
+      record = await clientInterviewRecordsRepo.update(existing.id, req.body)
+    } else {
+      record = await clientInterviewRecordsRepo.create({
+        mandate_id:     mandateId,
+        client_team_id: ctId,
+        ...req.body,
+      })
+    }
+    res.json({ success: true, data: record })
+  } catch (err) {
+    console.error('POST /team/:ctId/client-interview failed:', err.message)
+    res.status(500).json({ success: false, error: 'Could not save client interview record' })
+  }
+})
+
+// ── Legacy: send JD to multiple org members ───────────────────────────────────
+
+router.post('/:id/send-jd', async (req, res) => {
+  try {
+    const template = await clientTemplateRepo.getById(parseInt(req.params.id, 10), req.user.id)
+    if (!template) return res.status(404).json({ success: false, error: 'Template not found' })
+    const { userIds, deadline } = req.body
+    if (!Array.isArray(userIds) || userIds.length === 0) {
+      return res.status(400).json({ success: false, error: 'userIds array is required' })
+    }
+    if (deadline) await clientTemplateRepo.update(template.id, req.user.id, { resume_deadline: deadline })
+    const companyMembers = await userRepository.getByIdsForCompany(
+      [...new Set(userIds.map(Number).filter(Number.isInteger))],
+      req.user.companyId
+    )
+    const companyMembersById = new Map(companyMembers.map(member => [Number(member.id), member]))
     const results = await Promise.all(
       userIds.map(async uid => {
         const user = companyMembersById.get(Number(uid))
@@ -163,33 +520,27 @@ router.post('/:id/send-jd', async (req, res) => {
             deadline: deadline || template.resume_deadline,
           })
           return { uid, ok: true }
-        } catch {
-          return { uid, ok: false }
-        }
+        } catch { return { uid, ok: false } }
       })
     )
-
-    const sent = results.filter(r => r.ok).length
-    const failed = results.filter(r => !r.ok).length
-    res.json({ success: true, data: { sent, failed } })
+    res.json({ success: true, data: { sent: results.filter(r => r.ok).length, failed: results.filter(r => !r.ok).length } })
   } catch (err) {
-    console.error('POST /client-templates/:id/send-jd failed:', err.message)
+    console.error('POST /send-jd failed:', err.message)
     res.status(500).json({ success: false, error: 'Could not send JD emails' })
   }
 })
+
+// ── Assignments (legacy schedule view) ────────────────────────────────────────
 
 router.get('/:id/assignments', async (req, res) => {
   try {
     const templateId = parseInt(req.params.id, 10)
     const template = await clientTemplateRepo.getById(templateId, req.user.id)
     if (!template) return res.status(404).json({ success: false, error: 'Template not found' })
-    const assignments = await interviewRepository.getByClientTemplateForManager(
-      templateId,
-      req.user.id
-    )
+    const assignments = await interviewRepository.getByClientTemplateForManager(templateId, req.user.id)
     res.json({ success: true, data: assignments })
   } catch (err) {
-    console.error('GET /client-templates/:id/assignments failed:', err.message)
+    console.error('GET /assignments failed:', err.message)
     res.status(500).json({ success: false, error: 'Could not load client assignments' })
   }
 })
@@ -200,21 +551,11 @@ router.delete('/:id/assignments/:interviewId', async (req, res) => {
     const interviewId = parseInt(req.params.interviewId, 10)
     const template = await clientTemplateRepo.getById(templateId, req.user.id)
     if (!template) return res.status(404).json({ success: false, error: 'Template not found' })
-
-    const cancelled = await interviewRepository.cancelScheduledClientInterview(
-      interviewId,
-      templateId,
-      req.user.id
-    )
-    if (!cancelled) {
-      return res.status(409).json({
-        success: false,
-        error: 'Only scheduled client interviews can be cancelled',
-      })
-    }
+    const cancelled = await interviewRepository.cancelScheduledClientInterview(interviewId, templateId, req.user.id)
+    if (!cancelled) return res.status(409).json({ success: false, error: 'Only scheduled client interviews can be cancelled' })
     res.json({ success: true, data: cancelled })
   } catch (err) {
-    console.error('DELETE /client-templates/:id/assignments/:interviewId failed:', err.message)
+    console.error('DELETE /assignments/:interviewId failed:', err.message)
     res.status(500).json({ success: false, error: 'Could not cancel client assignment' })
   }
 })

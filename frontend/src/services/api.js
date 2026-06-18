@@ -200,23 +200,52 @@ export const getClientTemplates = () => request('/api/templates/client')
 export const createClientTemplate = data =>
   request('/api/templates/client', { method: 'POST', body: JSON.stringify(data) })
 export const updateClientTemplate = (id, data) =>
-  request(`/api/templates/client/${id}`, {
-    method: 'PATCH',
-    body: JSON.stringify(data),
-  })
+  request(`/api/templates/client/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
 export const extractTemplateTags = text =>
-  request('/api/templates/client/extract-tags', {
-    method: 'POST',
-    body: JSON.stringify({ text }),
-  })
-export const getTemplateMatches = id =>
-  request(`/api/templates/client/${id}/matches`)
-export const getTemplateAssignments = id =>
-  request(`/api/templates/client/${id}/assignments`)
+  request('/api/templates/client/extract-tags', { method: 'POST', body: JSON.stringify({ text }) })
+export const getTemplateMatches = id => request(`/api/templates/client/${id}/matches`)
+export const getTemplateAssignments = id => request(`/api/templates/client/${id}/assignments`)
 export const cancelTemplateAssignment = (id, interviewId) =>
   request(`/api/templates/client/${id}/assignments/${interviewId}`, { method: 'DELETE' })
 export const sendJDToTeam = (id, data) =>
-  request(`/api/templates/client/${id}/send-jd`, {
+  request(`/api/templates/client/${id}/send-jd`, { method: 'POST', body: JSON.stringify(data) })
+
+// Mandate requirement profiles
+export const getMandateRequirements = id => request(`/api/templates/client/${id}/requirements`)
+export const createMandateRequirement = (id, data) =>
+  request(`/api/templates/client/${id}/requirements`, { method: 'POST', body: JSON.stringify(data) })
+export const updateMandateRequirement = (id, rqId, data) =>
+  request(`/api/templates/client/${id}/requirements/${rqId}`, { method: 'PATCH', body: JSON.stringify(data) })
+export const deleteMandateRequirement = (id, rqId) =>
+  request(`/api/templates/client/${id}/requirements/${rqId}`, { method: 'DELETE' })
+
+// Client team (prospects)
+export const getClientTeam = id => request(`/api/templates/client/${id}/team`)
+export const addProspects = (id, data) =>
+  request(`/api/templates/client/${id}/team`, { method: 'POST', body: JSON.stringify(data) })
+export const updateClientTeamMember = (id, ctId, data) =>
+  request(`/api/templates/client/${id}/team/${ctId}`, { method: 'PATCH', body: JSON.stringify(data) })
+export const removeFromClientTeam = (id, ctId) =>
+  request(`/api/templates/client/${id}/team/${ctId}`, { method: 'DELETE' })
+export const sendClientJD = (id, ctId, data) =>
+  request(`/api/templates/client/${id}/team/${ctId}/send-jd`, { method: 'POST', body: JSON.stringify(data) })
+export const scheduleClientTeamInterview = (id, ctId, data) =>
+  request(`/api/templates/client/${id}/team/${ctId}/schedule`, { method: 'POST', body: JSON.stringify(data) })
+export const getClientInterviewRecord = (id, ctId) =>
+  request(`/api/templates/client/${id}/team/${ctId}/client-interview`)
+export const saveClientInterviewRecord = (id, ctId, data) =>
+  request(`/api/templates/client/${id}/team/${ctId}/client-interview`, { method: 'POST', body: JSON.stringify(data) })
+export const getVideoPlatforms = () => request('/api/templates/client/video-platforms')
+
+// Candidate: client mandates they've been added to
+export const getCandidateClientMandates = () => request('/api/candidate/client-mandates')
+export const submitClientResume = (ctId, file) => {
+  const formData = new FormData()
+  formData.append('resume', file)
+  return request(`/api/candidate/client-mandates/${ctId}/resume`, { method: 'POST', body: formData })
+}
+export const useExistingResumeForClient = ctId =>
+  request(`/api/candidate/client-mandates/${ctId}/resume`, {
     method: 'POST',
-    body: JSON.stringify(data),
+    body: JSON.stringify({ useExisting: true }),
   })

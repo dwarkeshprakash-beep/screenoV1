@@ -374,11 +374,117 @@ async function sendJDForResumeUpdate(to, { candidateName, clientName, jdText, de
   })
 }
 
+// JD email with a custom manager message included above the JD text
+async function sendClientJDWithMessage(to, { candidateName, clientName, role, jdText, customMessage, frontendUrl }) {
+  const portalLink = `${frontendUrl || process.env.FRONTEND_URL}/candidate/dashboard`
+  await sendMail({
+    to,
+    subject: `[${clientName}] Job opportunity — ${role || 'see details below'}`,
+    text: [
+      `Hi ${candidateName},`,
+      '',
+      customMessage ? customMessage : `Your profile is being considered for a client requirement at ${clientName}.`,
+      '',
+      jdText ? `Job details:\n${'─'.repeat(40)}\n${jdText}\n${'─'.repeat(40)}` : '',
+      '',
+      'Log in to your Screeno portal to submit your resume for this opportunity:',
+      portalLink,
+      '',
+      'This is an automated message. Please do not reply.',
+    ].join('\n'),
+    html: `
+      <div style="font-family:'Segoe UI',Arial,sans-serif;max-width:560px;margin:0 auto;background:#ffffff;border:1px solid #E2E8F0;border-radius:12px;overflow:hidden">
+        <div style="background:linear-gradient(135deg,#5B4FE9,#4A3FCE);padding:28px 32px">
+          <div style="font-size:20px;font-weight:700;color:#ffffff">Screeno</div>
+          <div style="font-size:13px;color:rgba(255,255,255,0.75);margin-top:2px">${escapeHtml(clientName)}</div>
+        </div>
+        <div style="padding:32px">
+          <h2 style="margin:0 0 6px;font-size:20px;color:#0F172A;font-weight:700">Client Opportunity</h2>
+          <p style="margin:0 0 20px;font-size:13px;color:#64748B">${escapeHtml(role || '')}</p>
+          <p style="font-size:15px;color:#1E293B">Dear <strong>${escapeHtml(candidateName)}</strong>,</p>
+          ${customMessage
+            ? `<div style="background:#F8FAFC;border-left:4px solid #5B4FE9;border-radius:0 8px 8px 0;padding:16px;margin:16px 0;font-size:14px;color:#374151;white-space:pre-line;line-height:1.7">${escapeHtml(customMessage)}</div>`
+            : `<p style="font-size:14px;color:#374151">Your profile is being considered for a client requirement at <strong>${escapeHtml(clientName)}</strong>.</p>`
+          }
+          ${jdText ? `
+          <div style="margin:20px 0">
+            <div style="font-size:12px;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px">Job Description</div>
+            <div style="background:#FAFAFE;border-left:4px solid #5B4FE9;border-radius:0 8px 8px 0;padding:16px;font-size:13px;color:#374151;white-space:pre-line;line-height:1.7">${escapeHtml(jdText).slice(0, 4000)}</div>
+          </div>` : ''}
+          <div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px;padding:14px 16px;margin:20px 0">
+            <p style="margin:0;font-size:13px;color:#1E40AF"><strong>Action required:</strong> Log in to your Screeno portal to submit your resume for this opportunity.</p>
+          </div>
+          <p style="margin:24px 0">
+            <a href="${portalLink}" style="background:#5B4FE9;color:#fff;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:600">Go to Screeno Portal &rarr;</a>
+          </p>
+        </div>
+        <div style="padding:16px 32px;border-top:1px solid #E2E8F0;background:#F8FAFC;text-align:center">
+          <p style="margin:0;font-size:12px;color:#94A3B8">Automated notification via Screeno. Please do not reply to this email.</p>
+        </div>
+      </div>
+    `,
+  })
+}
+
+// Notification email for an offline (in-person) interview
+async function sendOfflineInterviewInvite(to, { candidateName, clientName, role, scheduledAt, location, notes }) {
+  const dateStr = scheduledAt
+    ? new Date(scheduledAt).toLocaleString('en-IN', { dateStyle: 'long', timeStyle: 'short' })
+    : 'Date to be confirmed'
+  await sendMail({
+    to,
+    subject: `[${clientName}] Offline interview scheduled — ${role || ''}`,
+    text: [
+      `Hi ${candidateName},`,
+      '',
+      `An offline interview has been scheduled for you at ${clientName}.`,
+      '',
+      `Date & Time : ${dateStr}`,
+      location ? `Location    : ${location}` : '',
+      notes    ? `Notes       : ${notes}`    : '',
+      '',
+      'Please log in to your Screeno portal to view the full details.',
+      '',
+      'This is an automated message. Please do not reply.',
+    ].join('\n'),
+    html: `
+      <div style="font-family:'Segoe UI',Arial,sans-serif;max-width:560px;margin:0 auto;background:#ffffff;border:1px solid #E2E8F0;border-radius:12px;overflow:hidden">
+        <div style="background:linear-gradient(135deg,#5B4FE9,#4A3FCE);padding:28px 32px">
+          <div style="font-size:20px;font-weight:700;color:#ffffff">Screeno</div>
+          <div style="font-size:13px;color:rgba(255,255,255,0.75);margin-top:2px">${escapeHtml(clientName)}</div>
+        </div>
+        <div style="padding:32px">
+          <h2 style="margin:0 0 6px;font-size:20px;color:#0F172A;font-weight:700">Offline Interview Scheduled</h2>
+          <p style="margin:0 0 20px;font-size:13px;color:#64748B">${escapeHtml(role || '')}</p>
+          <p style="font-size:15px;color:#1E293B">Dear <strong>${escapeHtml(candidateName)}</strong>,</p>
+          <p style="font-size:14px;color:#374151">An in-person interview has been scheduled for you at <strong>${escapeHtml(clientName)}</strong>. Please find the details below.</p>
+          <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:20px;margin:20px 0">
+            <table style="width:100%;border-collapse:collapse;font-size:14px">
+              <tr>
+                <td style="padding:6px 0;color:#64748B;width:110px">Date &amp; Time</td>
+                <td style="padding:6px 0;color:#0F172A;font-weight:600">${escapeHtml(dateStr)}</td>
+              </tr>
+              ${location ? `<tr><td style="padding:6px 0;color:#64748B">Location</td><td style="padding:6px 0;color:#0F172A;font-weight:600">${escapeHtml(location)}</td></tr>` : ''}
+              ${notes    ? `<tr><td style="padding:6px 0;color:#64748B;vertical-align:top">Notes</td><td style="padding:6px 0;color:#374151">${escapeHtml(notes)}</td></tr>` : ''}
+            </table>
+          </div>
+          <p style="font-size:13px;color:#374151">Please ensure you are present on time. If you have any questions, reach out to your manager directly.</p>
+        </div>
+        <div style="padding:16px 32px;border-top:1px solid #E2E8F0;background:#F8FAFC;text-align:center">
+          <p style="margin:0;font-size:12px;color:#94A3B8">Automated notification via Screeno. Please do not reply to this email.</p>
+        </div>
+      </div>
+    `,
+  })
+}
+
 module.exports = {
   sendMail,
   sendMagicLink,
   sendMonthlyAssessmentInvite,
   sendReportReady,
   sendJDForResumeUpdate,
+  sendClientJDWithMessage,
+  sendOfflineInterviewInvite,
   getDeliveredRecipients,
 }
