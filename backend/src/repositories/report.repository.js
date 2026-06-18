@@ -1,31 +1,16 @@
 const db = require('../db/connection')
 
 async function upsertGenerating({ interviewId, scorecardId, summary, strengths }) {
-  const existing = await getByInterview(interviewId)
-  if (existing) {
-    const rows = await db.query(
-      `UPDATE reports SET
-         scorecard_id = @scorecardId,
-         summary = @summary,
-         strengths = @strengths,
-         status = 'generating'
-       WHERE id = @id
-       RETURNING *`,
-      {
-        id: existing.id,
-        scorecardId,
-        summary,
-        strengths: JSON.stringify(strengths || []),
-      }
-    )
-    return rows[0]
-  }
-
   const rows = await db.query(
     `INSERT INTO reports
        (interview_id, scorecard_id, summary, strengths, status)
      VALUES
        (@interviewId, @scorecardId, @summary, @strengths, 'generating')
+     ON CONFLICT (interview_id) DO UPDATE SET
+       scorecard_id = EXCLUDED.scorecard_id,
+       summary      = EXCLUDED.summary,
+       strengths    = EXCLUDED.strengths,
+       status       = 'generating'
      RETURNING *`,
     {
       interviewId,

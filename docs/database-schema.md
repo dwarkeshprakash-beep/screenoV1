@@ -135,3 +135,15 @@ Hashed, rotating refresh tokens used for seven-day sessions and revocation.
 
 Removing this table would remove server-side logout, rotation, and session
 revocation. Access JWTs remain short-lived.
+
+## Indexes (migration 006, added 2026-06-18)
+
+In addition to the unique indexes in migration 004, these performance indexes
+exist on high-traffic lookup columns:
+
+- `idx_users_email` on `users(email)` — login + token refresh hot path
+- `idx_users_company_id` on `users(company_id)` — team list load
+- `idx_refresh_tokens_hash` on `refresh_tokens(token_hash)` — every authenticated request
+- `idx_transcripts_interview_id` on `transcripts(interview_id)` — interview session reads/writes
+
+To apply to an existing database: `node backend/run-migration-006.js`

@@ -35,22 +35,28 @@ function MonthlyAssessmentAssignModal({
     setAssessmentDate(defaultDate || nextWeekDate())
     setQuery('')
     setError(null)
-    setLoading(true)
-    api.getTeam()
-      .then(response => setTeam(response.data || []))
-      .catch(() => {
+    async function loadTeam() {
+      setLoading(true)
+      try {
+        const response = await api.getTeam()
+        setTeam(response.data || [])
+      } catch {
         setTeam([])
         setError('Could not load team members.')
-      })
-      .finally(() => setLoading(false))
+      } finally {
+        setLoading(false)
+      }
+    }
+    void loadTeam()
   }, [open, defaultDate])
 
   useEffect(() => {
     if (!open || !assessmentDate) return
     let active = true
     const month = assessmentDate.slice(0, 7)
-    api.getMonthlyAssessmentPlan(month)
-      .then(response => {
+    async function loadConflicts() {
+      try {
+        const response = await api.getMonthlyAssessmentPlan(month)
         if (!active) return
         const next = new Map()
         for (const subject of response.data?.subjects || []) {
@@ -67,10 +73,11 @@ function MonthlyAssessmentAssignModal({
         setSelectedIds(current => new Set(
           [...current].filter(id => !next.has(Number(id)))
         ))
-      })
-      .catch(() => {
+      } catch {
         if (active) setConflicts(new Map())
-      })
+      }
+    }
+    void loadConflicts()
     return () => { active = false }
   }, [open, assessmentDate])
 

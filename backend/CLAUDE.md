@@ -89,34 +89,34 @@ backend/
 │   │   └── judge.service.js        ← runs candidate code via the free Piston API (no key/SDK — plain fetch)
 │   ├── repositories/     ← SQL queries only — no business logic here
 │   │   ├── user.repository.js
-│   │   ├── candidate.repository.js
 │   │   ├── interview.repository.js
-│   │   ├── question.repository.js
-│   │   ├── answer.repository.js
-│   │   ├── attempt.repository.js
+│   │   ├── team-member.repository.js
+│   │   ├── external-candidate.repository.js
 │   │   ├── scorecard.repository.js
-│   │   ├── proctoring.repository.js
-│   │   ├── notes.repository.js
-│   │   ├── interview-note.repository.js
-│   │   ├── schedule-record.repository.js
+│   │   ├── transcript.repository.js
 │   │   ├── email-delivery.repository.js
 │   │   ├── refresh-token.repository.js
 │   │   ├── report.repository.js
 │   │   ├── report-job.repository.js
 │   │   ├── client-template.repository.js
 │   │   ├── monthly-assessment.repository.js
-│   │   └── external-candidate.repository.js
+│   │   ├── exam.repository.js
+│   │   ├── company.repository.js
+│   │   └── department.repository.js
 │   ├── middleware/
 │   │   ├── auth.js         ← validate JWT access token
 │   │   ├── role.js         ← requireRole('manager'|'candidate'|'interviewer')
 │   │   ├── upload.js       ← multer config (memory storage) for file uploads
 │   │   └── rate-limit.js   ← in-memory rate limiter (auth + write limiters in server.js)
+│   ├── utils/
+│   │   ├── fetch-with-timeout.js   ← AbortSignal.timeout wrapper for all external API calls
+│   │   └── parse.js                ← parseStoredArray() — shared JSON→array parser
 │   └── db/
 │       ├── connection.js           ← factory (import this everywhere)
 │       ├── supabase.connection.js  ← PostgreSQL
 │       └── sqlserver.connection.js ← SQL Server
-├── migrations/   ← paired NNN_name.sql (Postgres, ADD COLUMN IF NOT EXISTS) +
-│                    NNN_name_sqlserver.sql (SSMS, IF NOT EXISTS sys.columns check)
+├── migrations/   ← 001–006 numbered SQL files; apply via setup-db.js (new DBs) or
+│                    run-migration-NNN.js scripts (existing DBs)
 ├── server.js   ← mounts routes, security headers, CORS, rate limits, starts report-job worker
 ├── package.json
 └── .env

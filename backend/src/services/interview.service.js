@@ -236,15 +236,18 @@ async function generateReport(interviewId) {
     throw new Error(`No transcripts found for interview ${interviewId}`)
   }
 
-  const qaText = transcripts.map(item => {
+  // Cap each entry to keep the combined prompt within LLM context limits
+  const qaText = transcripts.slice(0, 30).map(item => {
+    const q = String(item.question || '').slice(0, 500)
+    const a = String(item.answer || '').slice(0, 800)
     const expected = interview.type === 'exam'
       ? item.question_type === 'mcq'
         ? `\nExpected option index: ${item.correct_answer}`
         : item.reference_solution
-          ? `\nReference solution: ${item.reference_solution}`
+          ? `\nReference solution: ${String(item.reference_solution).slice(0, 300)}`
           : ''
       : ''
-    return `Q: ${item.question}${expected}\nA: ${item.answer}`
+    return `Q: ${q}${expected}\nA: ${a}`
   }).join('\n\n')
   const reportData = await llmService.generateReport(
     `Candidate: ${interview.candidate_first} ${interview.candidate_last}\nInterview Q&A:\n${qaText}`

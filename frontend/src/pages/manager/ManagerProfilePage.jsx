@@ -42,7 +42,7 @@ function ManagerProfilePage() {
     } catch {
       localStorage.removeItem('managerNotifs')
     }
-    return { notifyEmail: true, notifyInApp: true, notifyResults: false, notifyReminders: true, twoFactor: false }
+    return { notifyEmail: true, notifyInApp: true, notifyResults: false, notifyReminders: true }
   })
 
   useEffect(() => {
@@ -209,14 +209,7 @@ function ManagerProfilePage() {
 
           <div style={cardStyle}>
             <div style={eyebrowStyle}>Security</div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 0' }}>
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--slate-900)' }}>Two-factor authentication</div>
-                <div style={{ fontSize: 12, color: 'var(--slate-500)', marginTop: 1 }}>Require a code at sign-in</div>
-              </div>
-              <Toggle on={notifs.twoFactor} onClick={() => setNotifs(prev => ({ ...prev, twoFactor: !prev.twoFactor }))} />
-            </div>
-            <div style={{ paddingTop: 12, borderTop: '1px solid var(--slate-100)' }}>
+            <div style={{ paddingTop: 4 }}>
               <form onSubmit={handleChangePassword}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 12 }}>
                   {[

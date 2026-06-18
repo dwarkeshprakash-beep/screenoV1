@@ -34,14 +34,16 @@ frontend/
 │   │   │   ├── Sidebar.jsx
 │   │   │   ├── TopBar.jsx
 │   │   │   └── CandidateLayout.jsx ← minimal layout for candidate/interview screens
-│   │   └── manager/                ← AddCandidateModal, CompareModal, EditMemberModal, ScheduleModal
+│   │   └── manager/                ← AddCandidateModal, CompareModal, EditMemberModal,
+│   │                                  ScheduleModal, MonthlyAssessmentAssignModal
 │   ├── pages/
 │   │   ├── auth/LoginPage.jsx
 │   │   ├── manager/      DashboardPage, TeamPage, MemberProfilePage, SchedulePage, ReportsPage,
-│   │   │                 TemplatesPage, ManagerProfilePage, ResumeAnalyzerPage
+│   │   │                 ClientInterviewsPage, MonthlyAssessmentPage, ManagerProfilePage,
+│   │   │                 ResumeAnalyzerPage
 │   │   ├── candidate/    InterviewLandingPage, DeviceCheckPage, ConsentPage, AIInterviewPage,
-│   │   │                 ExamPage, HumanInterviewPage, DonePage, CandidateDashboardPage
-│   │   └── interviewer/  InterviewerDashboard, LiveRoomPage, ScorecardPage, InterviewerProfilePage
+│   │   │                 ExamPage, DonePage, CandidateDashboardPage
+│   │   └── interviewer/  (paused in V2 — pages exist but are NOT in App.jsx route tree)
 │   ├── hooks/
 │   │   ├── useAuth.js
 │   │   ├── useInterview.js   ← AI-interview state machine (phases: loading|ai_speaking|listening|
@@ -226,9 +228,10 @@ if (window.innerWidth < 768) {
 /manager/dashboard              → DashboardPage
 /manager/team                   → TeamPage
 /manager/team/:id               → MemberProfilePage
+/manager/monthly                → MonthlyAssessmentPage
+/manager/clients                → ClientInterviewsPage
 /manager/schedule               → SchedulePage
 /manager/reports                → ReportsPage
-/manager/templates              → TemplatesPage
 /manager/resume-analyzer        → ResumeAnalyzerPage
 /manager/profile                → ManagerProfilePage
 
@@ -236,13 +239,7 @@ if (window.innerWidth < 768) {
 /candidate                      → redirect to dashboard
 /candidate/dashboard            → CandidateDashboardPage
 
-// Interviewer — AppLayout, RequireAuth role="interviewer"
-/interviewer                    → redirect to dashboard
-/interviewer/dashboard          → InterviewerDashboard
-/interviewer/scorecard          → InterviewerDashboard
-/interviewer/scorecard/:id      → ScorecardPage
-/interviewer/profile            → InterviewerProfilePage
-/interviewer/live/:id           → LiveRoomPage              (full-screen, no sidebar)
+// Interviewer routes — PAUSED in V2, not in active App.jsx route tree
 
 // Candidate interview flow — CandidateLayout, no auth (magic-link token validates on landing)
 /interview/:token               → InterviewLandingPage

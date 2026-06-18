@@ -1,6 +1,6 @@
 # Screeno V2 Second Brain
 
-Last updated: 2026-06-12
+Last updated: 2026-06-18
 
 ## What Screeno Is
 
@@ -35,7 +35,7 @@ V2 intentionally supports only manager and candidate roles. Human interviews, in
 An internal candidate is a `users` row. A `team_members` row links that user to a manager. The same organization user may belong to more than one manager's team.
 
 - Manager navigation uses `team_members.id`.
-- Interview identity uses `interviews.candidate_id`, which points to `users.id`.
+- Interview identity uses `interviews.internal_user_id`, which points to `users.id`.
 - Resume and tags belong to `users`.
 
 ### External Candidate
@@ -134,3 +134,8 @@ The canonical acceptance record is `docs/AUDIT-AND-TESTING.md`. The database-bac
 - Camera, microphone, speaker, and speech-recognition behavior still needs real-device coverage across supported browsers.
 - Consent copy requires product/legal approval before public launch.
 - Production deployment requires valid SMTP, AI, storage, database, and JWT secrets.
+- No dedicated report detail route (`/manager/reports/:id`) exists; external-candidate reports cannot be fully viewed from the reports list (managers see "External" label with no link).
+- No password reset (forgot password) flow exists; locked-out accounts require manual DB intervention.
+- Notification preferences (email/in-app) are stored in `localStorage` only; they are not persisted to the backend and reset when browser data is cleared.
+- The reports list (`ReportsPage`) does not link to a full report detail page for any candidate type; managers must navigate to the member profile page to see full scorecard detail.
+- Migration 006 (missing indexes) must be run manually on any existing database: `node backend/run-migration-006.js`.

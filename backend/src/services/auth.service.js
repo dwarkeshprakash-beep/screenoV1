@@ -48,6 +48,7 @@ function candidateInterviewSummary(interview) {
     interviewMode: interview.interview_mode,
     difficulty: interview.difficulty,
     candidateName: `${interview.candidate_first} ${interview.candidate_last}`.trim(),
+    contextTitle: interview.context_title || null,
     status: interview.status,
   }
 }
@@ -130,13 +131,16 @@ async function validateMagicLink(token) {
 
   if (!interview) throw new Error('Invalid link')
 
-  if (interview.token_expires && new Date() > new Date(interview.token_expires)) {
+  if (!interview.token_expires || new Date() > new Date(interview.token_expires)) {
     throw new Error('Link has expired')
   }
 
   if (interview.status === 'completed') {
     throw new Error('Interview already completed')
   }
+
+  // Consume the token immediately so it cannot be replayed
+  await interviewRepository.updateTokenHash(interview.id, null, null)
 
   return {
     sessionToken: signCandidateSession(interview),

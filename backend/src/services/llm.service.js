@@ -291,8 +291,10 @@ Based on the conversation so far, decide the single best next move:
 Do not stay on the same thread for more than 2-3 exchanges in a row — alternate between digging deeper and opening new ground so the interview covers multiple areas instead of tunnelling into one branch.
 Respond with ONLY the next question text (no quotes, no JSON, no preamble), or exactly INTERVIEW_COMPLETE.`
 
-  const historyText = conversationHistory
-    .map((h, i) => `Q${i + 1}: ${h.question}\nA${i + 1}: ${h.answer}`)
+  // Keep the last 12 exchanges max (~6000 chars) to stay within model context limits
+  const recentHistory = conversationHistory.slice(-12)
+  const historyText = recentHistory
+    .map((h, i) => `Q${i + 1}: ${cleanText(h.question, '')}\nA${i + 1}: ${cleanText(h.answer, '')}`)
     .join('\n\n')
 
   let response
@@ -337,7 +339,21 @@ Return ONLY the JSON object, no other text.`
     text = await callGroq(systemPrompt, prompt)
   } catch (err) {
     console.error('Groq generateReport failed, trying Gemini:', err.message)
-    text = await callGemini(`${systemPrompt}\n\n${prompt}`)
+    try {
+      text = await callGemini(`${systemPrompt}\n\n${prompt}`)
+    } catch (geminiErr) {
+      console.error('Gemini generateReport also failed:', geminiErr.message)
+      text = null
+    }
+  }
+
+  if (!text) {
+    return {
+      overall_score: 5, confidence: 5, tech_knowledge: 5,
+      communication: 5, problem_solving: 5, decision: 'borderline',
+      summary: 'Report generation encountered an issue. Manual review recommended.',
+      strengths: [],
+    }
   }
 
   try {
@@ -345,12 +361,8 @@ Return ONLY the JSON object, no other text.`
   } catch (err) {
     console.error('Failed to parse report JSON:', err.message)
     return {
-      overall_score: 5,
-      confidence: 5,
-      tech_knowledge: 5,
-      communication: 5,
-      problem_solving: 5,
-      decision: 'borderline',
+      overall_score: 5, confidence: 5, tech_knowledge: 5,
+      communication: 5, problem_solving: 5, decision: 'borderline',
       summary: 'Report generation encountered an issue. Manual review recommended.',
       strengths: [],
     }
@@ -389,8 +401,8 @@ ${cleanText(text, '')}`
     raw = await callRaw(prompt)
     const tags = parseJSON(raw)
     if (Array.isArray(tags)) return tags.map(t => String(t).trim()).filter(Boolean).slice(0, 12)
-  } catch {
-    // fallback: return empty array rather than crashing
+  } catch (err) {
+    console.error('extractTagsFromText failed:', err.message)
   }
   return []
 }
@@ -412,7 +424,9 @@ Return only the JSON array, nothing else.`
     const raw = await callRaw(prompt)
     const list = parseJSON(raw)
     if (Array.isArray(list)) return list.map(t => String(t).trim()).filter(Boolean).slice(0, 12)
-  } catch {}
+  } catch (err) {
+    console.error('generateSubtopics failed:', err.message)
+  }
   return []
 }
 

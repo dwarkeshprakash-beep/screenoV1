@@ -63,7 +63,10 @@ function ReportTable({ reports, navigate, btnSecondary, thStyle }) {
               </td>
               <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--border-default)' }}><DecisionBadge decision={r.decision} /></td>
               <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--border-default)' }}>
-                <button type="button" onClick={() => { if (r.team_member_id) navigate(`/manager/team/${r.team_member_id}`) }} style={btnSecondary}>View</button>
+                {r.team_member_id
+                  ? <button type="button" onClick={() => navigate(`/manager/team/${r.team_member_id}`)} style={btnSecondary}>View</button>
+                  : <span style={{ fontSize: 11, color: 'var(--fg-subtle)', fontStyle: 'italic' }}>External</span>
+                }
               </td>
             </tr>
           )

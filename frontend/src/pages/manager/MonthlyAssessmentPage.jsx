@@ -23,17 +23,7 @@ import ErrorMessage from '../../components/shared/ErrorMessage'
 import Modal from '../../components/shared/Modal'
 import Spinner from '../../components/shared/Spinner'
 import * as api from '../../services/api'
-
-function parseStoredArray(value) {
-  if (Array.isArray(value)) return value
-  if (!value) return []
-  try {
-    const parsed = JSON.parse(value)
-    return Array.isArray(parsed) ? parsed : []
-  } catch {
-    return []
-  }
-}
+import { parseStoredArray } from '../../utils/helpers'
 
 function currentMonth() {
   const date = new Date()

@@ -27,9 +27,10 @@ function DonePage() {
           </div>
         ))}
       </div>
-      <button type="button" onClick={() => window.close()} style={{ padding: '11px 20px', border: '1px solid var(--slate-300)', borderRadius: 10, background: 'var(--bg-surface)', fontSize: 14, fontWeight: 600, color: 'var(--slate-700)', cursor: 'pointer' }}>
-        Close window
+      <button type="button" onClick={() => { try { window.close() } catch {} }} style={{ padding: '11px 20px', border: '1px solid var(--slate-300)', borderRadius: 10, background: 'var(--bg-surface)', fontSize: 14, fontWeight: 600, color: 'var(--slate-700)', cursor: 'pointer' }}>
+        Close this tab
       </button>
+      <p style={{ marginTop: 10, fontSize: 12, color: 'var(--slate-400)' }}>If the tab doesn't close, you can safely close it manually.</p>
     </div>
   )
 }

@@ -17,11 +17,13 @@ screeno/
 │   │   │   ├── shared/               ← CHECK HERE FIRST: Avatar, Badge, Button, Card, EmptyState,
 │   │   │   │                            ErrorBoundary, ErrorMessage, Input, Modal, Spinner
 │   │   │   ├── layout/               ← AppLayout, Sidebar, TopBar, CandidateLayout
-│   │   │   └── manager/              ← AddCandidateModal, CompareModal, EditMemberModal, ScheduleModal
+│   │   │   └── manager/              ← AddCandidateModal, CompareModal, EditMemberModal,
+│   │   │                                ScheduleModal, MonthlyAssessmentAssignModal
 │   │   ├── pages/
 │   │   │   ├── auth/                 ← LoginPage
 │   │   │   ├── manager/              ← Dashboard, Team, MemberProfile, Schedule, Reports,
-│   │   │   │                            Templates, ManagerProfile, ResumeAnalyzer
+│   │   │   │                            ManagerProfile, ResumeAnalyzer, ClientInterviews,
+│   │   │   │                            MonthlyAssessment
 │   │   │   ├── candidate/            ← InterviewLanding, DeviceCheck, Consent, AIInterview,
 │   │   │   │                            Exam, HumanInterview, Done, CandidateDashboard
 │   │   │   └── interviewer/          ← InterviewerDashboard, LiveRoom, Scorecard, InterviewerProfile
@@ -29,7 +31,8 @@ screeno/
 │   │   │    not imported by App.jsx; reference only, see frontend/CLAUDE.md)
 │   │   ├── hooks/                    ← useAuth, useInterview (state-machine), useProctoring
 │   │   ├── services/api.js           ← ALL backend calls (fetch-based client w/ JWT refresh)
-│   │   ├── utils/helpers.js
+│   │   ├── utils/helpers.js          ← formatDate, formatDateTime, truncate, statusVariant,
+│   │   │                                parseStoredArray (shared JSON array parser)
 │   │   ├── App.jsx                   ← real role-based router + RequireAuth guard
 │   │   └── main.jsx
 │   ├── package.json
@@ -41,25 +44,29 @@ screeno/
 │   │   ├── routes/        ← HTTP only: auth, team, interview, interviewer, candidate,
 │   │   │                     report, schedule, template, exam, upload, profile
 │   │   ├── services/      ← business logic: auth, team, interview, schedule, llm,
-│   │   │                     transcription, report-job, pdf, email, storage, judge (Piston code execution)
-│   │   ├── repositories/  ← SQL only: user, candidate, interview, question, answer, attempt,
-│   │   │                     scorecard, proctoring, notes, interview-note, schedule-record,
-│   │   │                     email-delivery, refresh-token, report, report-job
+│   │   │                     transcription, report-job, pdf, email, storage, judge, exam,
+│   │   │                     candidate-identity, monthly-assessment, document-text
+│   │   ├── repositories/  ← SQL only: user, interview, team-member, external-candidate,
+│   │   │                     scorecard, transcript, email-delivery, refresh-token, report,
+│   │   │                     report-job, client-template, monthly-assessment, exam, company, department
 │   │   ├── middleware/    ← auth, role, upload (multer), rate-limit
+│   │   ├── utils/         ← fetch-with-timeout.js, parse.js (parseStoredArray shared util)
 │   │   └── db/            ← connection.js factory + supabase/sqlserver connection files
-│   ├── migrations/        ← paired NNN_name.sql (Postgres) + NNN_name_sqlserver.sql (SSMS),
-│   │                          applied via setup-db.js's idempotent ALTER ... IF NOT EXISTS sections
+│   ├── migrations/        ← 001–006 numbered SQL files; apply via setup-db.js (new DBs) or
+│   │                          run-migration-NNN.js (existing DBs); source of truth for schema
 │   ├── server.js          ← mounts routes, security headers, CORS, rate limits, report-job worker
 │   ├── package.json
-│   └── .env
+│   ├── .env               ← actual secrets — gitignored, never committed
+│   └── .env.example       ← template documenting all required vars (safe to commit)
 │
 ├── .claude/
 │   ├── settings.json
 │   └── skills/                       ← db-access.md and other action skills (see docs/INDEX.md)
 │
 ├── docs/                             ← see docs/INDEX.md for the full list + what each covers
-│   ├── PRD.md, frontend-prompt.md, backend-prompt.md, database-schema.md,
-│   │   folder-structure.md (this file), tech-stack.md, discussion.md, AUDIT-BACKLOG.md
+│   ├── PRD.md, database-schema.md, folder-structure.md (this file), tech-stack.md,
+│   │   open-issues.md, AUDIT-AND-TESTING.md, AUDIT-FIXES-PROGRESS.md,
+│   │   frontend-guide.md, backend-guide.md, testing.md, INDEX.md
 │
 ├── skills/                           ← coding-standards.md, token-saving.md, git-standards.md,
 │                                          naming-conventions.md, vibe-coding.md, rules.md

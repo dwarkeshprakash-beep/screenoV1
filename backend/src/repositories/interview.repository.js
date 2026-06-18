@@ -12,7 +12,8 @@ const INTERVIEW_COLS = `
   COALESCE(iu.last_name, ec.last_name) AS candidate_last,
   COALESCE(iu.email, ec.email) AS candidate_email,
   COALESCE(ct.jd_text, ma.ai_generated_jd) AS context_text,
-  COALESCE(ct.tags, ma.sub_topics) AS context_focus_areas`
+  COALESCE(ct.tags, ma.sub_topics) AS context_focus_areas,
+  COALESCE(ct.client_name, ma.subject_name) AS context_title`
 
 async function create(data) {
   const rows = await db.query(

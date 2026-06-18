@@ -23,7 +23,7 @@ function InterviewLandingPage() {
         interviewId: data.interview.id,
         token,
         type: data.interview.type,
-        jobTitle: data.interview.interviewMode === 'client_mock' ? 'Client Mock Interview' : 'Monthly Assessment',
+        jobTitle: data.interview.contextTitle || (data.interview.type === 'exam' ? 'Technical Assessment' : 'AI Voice Interview'),
         companyName: data.interview.company_name || data.interview.companyName || 'Your Company',
         mode: data.interview.interviewMode,
         transcriptionMode: data.interview.transcriptionMode,

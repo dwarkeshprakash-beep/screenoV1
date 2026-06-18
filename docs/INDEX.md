@@ -86,8 +86,9 @@ token-saving.md         Model selection and prompt patterns
 ### docs/ — Reference documentation
 ```
 INDEX.md                THIS FILE
-open-issues.md          All open bugs + 100%-mock pages — prioritized, with exact code fixes
+open-issues.md          All open bugs — prioritized, with exact code fixes; fixed items marked with date
 AUDIT-AND-TESTING.md    Full audit: bug status (✅/⚠️/❌), gated test runner, workflow map, test credentials
+AUDIT-FIXES-PROGRESS.md  2026-06-18 audit batch progress — completed fixes, remaining work, file list
 PRD.md                  Product requirements — what and why
 frontend-guide.md       How the built frontend works — patterns, hooks, how to add pages
 backend-guide.md        How the built backend works — MVC layers, how to add endpoints
@@ -104,10 +105,12 @@ prompts-guide.md        Effective Claude prompts — keywords, templates, one-li
 
 ### backend/migrations/ — Source of truth for DB schema
 ```
-001_initial_schema.sql  Core tables — DO NOT DELETE, required to recreate the DB
-002_new_feature_tables.sql
-003_missing_columns.sql
-(+ any subsequent migration files)
+001_initial_schema.sql       Core tables — DO NOT DELETE, required to recreate the DB
+002_new_feature_tables.sql   Client templates, monthly assessments, enrollments
+003_missing_columns.sql      Missing columns backfill
+004_v2_schema_cleanup.sql    V2 schema align: drop legacy tables, add unique indexes
+005_external_candidate_tags.sql  Tags column on external_candidates
+006_missing_indexes.sql      Performance indexes: users.email, company_id, token_hash, transcripts
 ```
 
 ---

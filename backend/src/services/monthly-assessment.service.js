@@ -2,17 +2,9 @@ const monthlyAssessmentRepository = require('../repositories/monthly-assessment.
 const teamMemberRepository = require('../repositories/team-member.repository')
 const companyRepository = require('../repositories/company.repository')
 const emailService = require('./email.service')
+const { parseStoredArray } = require('../utils/parse')
 
-function parseArray(value) {
-  if (Array.isArray(value)) return value
-  if (typeof value !== 'string' || !value.trim()) return []
-  try {
-    const parsed = JSON.parse(value)
-    return Array.isArray(parsed) ? parsed : []
-  } catch {
-    return []
-  }
-}
+const parseArray = parseStoredArray
 
 function addMonths(date, months) {
   const result = new Date(date)

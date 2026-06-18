@@ -55,7 +55,8 @@ router.get('/report', async (req, res) => {
       identity,
       identity.interviewId
     )
-    res.json({ success: true, data: report || null })
+    if (!report) return res.status(404).json({ success: false, error: 'No report available yet' })
+    res.json({ success: true, data: report })
   } catch (err) {
     console.error('GET /candidate/report failed:', err)
     res.status(500).json({ success: false, error: 'Could not load report' })
