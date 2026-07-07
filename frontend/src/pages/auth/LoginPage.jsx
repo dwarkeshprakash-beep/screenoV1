@@ -3,6 +3,33 @@ import { useNavigate } from 'react-router-dom'
 import { Eye, EyeOff } from 'lucide-react'
 import * as api from '../../services/api'
 
+const DEFAULT_DEMO_ACCOUNTS = [
+  {
+    role: 'manager',
+    name: 'Kiran Oza',
+    sub: 'Manager - Prakash Infotech',
+    initials: 'KO',
+    bgColor: '#EDE9FE',
+    fgColor: '#5B21B6',
+    badgeBg: '#3730A3',
+    badgeFg: '#C7D2FE',
+    email: 'kiran.oza@prakashinfotech.com',
+    password: 'Test@1234',
+  },
+  {
+    role: 'candidate',
+    name: 'Dwarkesh Vajjala',
+    sub: 'Candidate - Prakash Infotech',
+    initials: 'DV',
+    bgColor: '#ECFDF5',
+    fgColor: '#065F46',
+    badgeBg: '#047857',
+    badgeFg: '#A7F3D0',
+    email: 'dwarkesh.vajjala@prakashinfotech.com',
+    password: 'Test@1234',
+  },
+]
+
 function initialsFor(account) {
   const source = account.name || account.email || account.role || 'U'
   return source
@@ -15,8 +42,6 @@ function initialsFor(account) {
 }
 
 function parseDemoAccounts() {
-  if (import.meta.env.VITE_SHOW_DEMO_ACCOUNTS !== 'true') return []
-
   try {
     const accounts = JSON.parse(import.meta.env.VITE_DEMO_ACCOUNTS || '[]')
     if (!Array.isArray(accounts)) return []
@@ -38,7 +63,8 @@ function parseDemoAccounts() {
   }
 }
 
-const DEMO_ACCOUNTS = parseDemoAccounts()
+const configuredDemoAccounts = parseDemoAccounts()
+const DEMO_ACCOUNTS = configuredDemoAccounts.length > 0 ? configuredDemoAccounts : DEFAULT_DEMO_ACCOUNTS
 
 function roleRedirect(role) {
   if (role === 'manager') return '/manager/dashboard'
