@@ -12,7 +12,7 @@ const SCHEMA = {
     columns: [
       'id', 'emp_number', 'first_name', 'last_name', 'email', 'department_id',
       'job_title', 'location', 'role', 'password', 'company_id', 'resume_url',
-      'resume_updated', 'tags', 'availability', 'created',
+      'resume_text', 'resume_updated', 'tags', 'availability', 'created',
     ],
   },
   team_members: {
@@ -20,7 +20,8 @@ const SCHEMA = {
   },
   external_candidates: {
     columns: [
-      'id', 'company_id', 'first_name', 'last_name', 'email', 'resume_url', 'tags', 'created',
+      'id', 'company_id', 'first_name', 'last_name', 'email', 'resume_url',
+      'resume_text', 'tags', 'created',
     ],
   },
   client_templates: {
@@ -46,7 +47,8 @@ const SCHEMA = {
       'id', 'manager_id', 'internal_user_id', 'external_candidate_id', 'type',
       'interview_mode', 'difficulty', 'status', 'result', 'token',
       'token_expires', 'question_count', 'client_template_id',
-      'monthly_assessment_id', 'report_emails', 'started_at', 'ended_at', 'created',
+      'monthly_assessment_id', 'report_emails', 'scheduled_at',
+      'duration_minutes', 'started_at', 'ended_at', 'created',
     ],
   },
   transcripts: {
@@ -78,6 +80,9 @@ const SCHEMA = {
   },
   refresh_tokens: {
     columns: ['id', 'user_id', 'token_hash', 'expires', 'revoked', 'created'],
+  },
+  password_reset_tokens: {
+    columns: ['id', 'user_id', 'token_hash', 'expires', 'used', 'created'],
   },
 }
 

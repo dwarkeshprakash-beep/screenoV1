@@ -13,6 +13,8 @@ const MIGRATIONS = [
   '004_v2_schema_cleanup.sql',
   '005_external_candidate_tags.sql',
   '006_missing_indexes.sql',
+  '007_client_teams.sql',
+  '008_state_flow_fixes.sql',
 ]
 
 async function main() {

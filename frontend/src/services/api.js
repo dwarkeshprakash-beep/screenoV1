@@ -6,6 +6,15 @@ function clearSession() {
   localStorage.removeItem('user')
 }
 
+function getInterviewAccessToken() {
+  try {
+    const session = JSON.parse(localStorage.getItem('interviewSession') || '{}')
+    return localStorage.getItem('interviewAccessToken') || session.sessionToken || null
+  } catch {
+    return localStorage.getItem('interviewAccessToken')
+  }
+}
+
 async function runFetch(endpoint, options, token) {
   return fetch(`${BASE_URL}${endpoint}`, {
     ...options,
@@ -40,15 +49,29 @@ async function refreshAccessToken() {
 }
 
 async function request(endpoint, options = {}) {
-  const { skipAuthRedirect = false, ...fetchOptions } = options
+  const {
+    skipAuthRedirect = false,
+    authToken,
+    useInterviewAuth = false,
+    omitAuth = false,
+    ...fetchOptions
+  } = options
+  const requestToken = omitAuth
+    ? null
+    : authToken !== undefined
+      ? authToken
+      : useInterviewAuth
+        ? getInterviewAccessToken()
+        : localStorage.getItem('accessToken')
   let response = await runFetch(
     endpoint,
     fetchOptions,
-    localStorage.getItem('accessToken')
+    requestToken
   )
 
   const isAuthEndpoint = endpoint.startsWith('/api/auth/')
-  if (response.status === 401 && !skipAuthRedirect && !isAuthEndpoint) {
+  const canRefresh = !skipAuthRedirect && !isAuthEndpoint && !omitAuth && !useInterviewAuth && authToken === undefined
+  if (response.status === 401 && canRefresh) {
     try {
       response = await runFetch(endpoint, fetchOptions, await refreshAccessToken())
     } catch {
@@ -71,10 +94,24 @@ export const login = (email, password) =>
     body: JSON.stringify({ email, password }),
     skipAuthRedirect: true,
   })
+export const forgotPassword = email =>
+  request('/api/auth/forgot-password', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+    skipAuthRedirect: true,
+    omitAuth: true,
+  })
+export const resetPassword = (token, newPassword) =>
+  request('/api/auth/reset-password', {
+    method: 'POST',
+    body: JSON.stringify({ token, newPassword }),
+    skipAuthRedirect: true,
+    omitAuth: true,
+  })
 export const logout = () => request('/api/auth/logout', { method: 'POST' })
 export const validateMagicLink = token =>
-  request(`/api/auth/magic-link/${token}`, { method: 'POST', skipAuthRedirect: true })
-export const getHealth = () => request('/health', { skipAuthRedirect: true })
+  request(`/api/auth/magic-link/${token}`, { method: 'POST', skipAuthRedirect: true, omitAuth: true })
+export const getHealth = () => request('/health', { skipAuthRedirect: true, omitAuth: true })
 
 export const getTeam = (filter = 'all') => request(`/api/team?filter=${filter}`)
 export const getOrgUsersNotInTeam = () => request('/api/team/not-in-team')
@@ -102,28 +139,36 @@ export const getCalendarEvents = week =>
 
 export const getTeamReports = source =>
   request(`/api/reports/team${source ? `?source=${source}` : ''}`)
+export const getReportDetail = id => request(`/api/reports/detail/${id}`)
+export const getReportByInterview = id => request(`/api/reports/interview/${id}`)
 export const getCandidateReport = id => request(`/api/reports/candidate/${id}`)
 export const getCandidateReportHistory = id =>
   request(`/api/reports/candidate/${id}/history`)
 
 export const startInterview = id =>
-  request(`/api/interviews/${id}/start`, { method: 'POST' })
+  request(`/api/interviews/${id}/start`, { method: 'POST', useInterviewAuth: true, skipAuthRedirect: true })
 export const completeInterview = (id, status = 'completed') =>
   request(`/api/interviews/${id}/complete`, {
     method: 'POST',
     body: JSON.stringify({ status }),
+    useInterviewAuth: true,
+    skipAuthRedirect: true,
   })
 export const logProctoringEvent = (id, data) =>
   request(`/api/interviews/${id}/proctoring`, {
     method: 'POST',
     body: JSON.stringify(data),
+    useInterviewAuth: true,
+    skipAuthRedirect: true,
   })
 export const saveAnswer = (id, formData) =>
-  request(`/api/interviews/${id}/answer`, { method: 'POST', body: formData })
+  request(`/api/interviews/${id}/answer`, { method: 'POST', body: formData, useInterviewAuth: true, skipAuthRedirect: true })
 export const saveTextAnswer = (id, data) =>
   request(`/api/interviews/${id}/answer`, {
     method: 'POST',
     body: JSON.stringify(data),
+    useInterviewAuth: true,
+    skipAuthRedirect: true,
   })
 export const getInterviewTranscript = id =>
   request(`/api/interviews/${id}/transcript`)
@@ -131,16 +176,20 @@ export const getInterviewTranscript = id =>
 export const getCandidateInterviews = () => request('/api/candidate/interviews')
 export const launchCandidateInterview = id =>
   request(`/api/candidate/interviews/${id}/launch`, { method: 'POST' })
-export const getCandidateOwnReport = () =>
-  request('/api/candidate/report', { skipAuthRedirect: true })
+export const getCandidateOwnReport = (interviewScoped = false) =>
+  request('/api/candidate/report', {
+    skipAuthRedirect: interviewScoped,
+    useInterviewAuth: interviewScoped,
+  })
 
 export const getExam = token =>
-  request(`/api/exam/${token}`, { skipAuthRedirect: true })
-export const submitExam = (token, answers) =>
+  request(`/api/exam/${token}`, { skipAuthRedirect: true, omitAuth: true })
+export const submitExam = (token, answers, metadata = {}) =>
   request(`/api/exam/${token}/submit`, {
     method: 'POST',
-    body: JSON.stringify({ answers }),
+    body: JSON.stringify({ answers, ...metadata }),
     skipAuthRedirect: true,
+    omitAuth: true,
   })
 
 export const uploadResume = (teamMemberId, file) => {

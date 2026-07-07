@@ -25,7 +25,7 @@ const CONSENT_ITEMS = [
   {
     icon: Sparkles,
     title: 'AI evaluation',
-    body: 'Your question-and-answer transcript is analyzed to create a scorecard and report.',
+    body: 'Your question-and-answer transcript is analyzed to create a feedback report.',
   },
 ]
 
@@ -36,7 +36,7 @@ function ConsentPage() {
   const [sessionError, setSessionError] = useState(null)
 
   function start() {
-    const accessToken = localStorage.getItem('accessToken')
+    const accessToken = localStorage.getItem('interviewAccessToken')
     if (!accessToken || isTokenExpired(accessToken)) {
       setSessionError('Your session has expired. Please use your original magic link to start again.')
       return
@@ -47,7 +47,7 @@ function ConsentPage() {
     } catch {
       session = {}
     }
-    navigate(`/interview/${token}/${session.type === 'exam' ? 'exam' : 'ai'}`)
+    navigate(`/interview/${session.token || token}/${session.type === 'exam' ? 'exam' : 'ai'}`)
   }
 
   return (

@@ -1,18 +1,12 @@
-import { useState, useEffect, useCallback } from 'react'
+import { lazy, Suspense, useState, useEffect, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { AlertTriangle, ArrowRight, Clock } from 'lucide-react'
-import CodeMirror from '@uiw/react-codemirror'
-import { javascript } from '@codemirror/lang-javascript'
-import { python } from '@codemirror/lang-python'
 import * as api from '../../services/api'
 import Spinner from '../../components/shared/Spinner'
 import ErrorMessage from '../../components/shared/ErrorMessage'
 import useProctoring from '../../hooks/useProctoring'
 
-const LANGUAGE_EXTENSIONS = {
-  javascript: [javascript()],
-  python: [python()],
-}
+const CodeAnswerEditor = lazy(() => import('../../components/candidate/CodeAnswerEditor'))
 
 function clk(s) {
   return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
@@ -28,13 +22,21 @@ function ExamPage() {
       return {}
     }
   })()
+  const examToken = session.token || token
+  const storageKey = `examAnswers:${session.interviewId || examToken}`
 
   // All hooks must come before any conditional returns
   const [exam, setExam]               = useState(null)
   const [loading, setLoading]         = useState(true)
   const [error, setError]             = useState(null)
   const [currentIdx, setCurrentIdx]   = useState(0)
-  const [answers, setAnswers]         = useState({})
+  const [answers, setAnswers]         = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem(storageKey) || '{}')
+    } catch {
+      return {}
+    }
+  })
   const [submitting, setSubmitting]   = useState(false)
   const [submitError, setSubmitError] = useState(null)
   const [timeLeft, setTimeLeft]       = useState(3600)
@@ -56,11 +58,15 @@ function ExamPage() {
     if (isMobile) return
     async function load() {
       try {
-        const r = await api.getExam(token)
+        const r = await api.getExam(examToken)
         setExam(r.data)
-        // Set timer based on question count: 4 minutes per question, min 15 min, max 90 min
-        const qCount = r.data?.interview?.questionCount || 10
-        setTimeLeft(Math.min(90 * 60, Math.max(15 * 60, qCount * 4 * 60)))
+        const durationMinutes = Number(r.data?.interview?.durationMinutes)
+        if (Number.isFinite(durationMinutes) && durationMinutes > 0) {
+          setTimeLeft(durationMinutes * 60)
+        } else {
+          const qCount = r.data?.interview?.questionCount || 10
+          setTimeLeft(Math.min(90 * 60, Math.max(15 * 60, qCount * 4 * 60)))
+        }
       } catch (err) {
         setError(err.message || 'Could not load exam.')
       } finally {
@@ -68,14 +74,18 @@ function ExamPage() {
       }
     }
     load()
-  }, [token, isMobile])
+  }, [examToken, isMobile])
+
+  useEffect(() => {
+    localStorage.setItem(storageKey, JSON.stringify(answers))
+  }, [answers, storageKey])
 
   function requestSubmit() {
     if (submitting || violation?.terminated) return
     setShowConfirm(true)
   }
 
-  const handleSubmit = useCallback(async () => {
+  const handleSubmit = useCallback(async (options = {}) => {
     setShowConfirm(false)
     if (submitting || violation?.terminated) return
     setSubmitting(true)
@@ -86,19 +96,20 @@ function ExamPage() {
         answerText: a.answerText || '',
         code: a.code || '',
       }))
-      await api.submitExam(token, answerList)
-      navigate(`/interview/${token}/done`)
+      await api.submitExam(examToken, answerList, { timedOut: options.timedOut === true })
+      localStorage.removeItem(storageKey)
+      navigate(`/interview/${examToken}/done`)
     } catch (err) {
       setSubmitError(err.message || 'Could not submit exam. Please try again.')
       setSubmitting(false)
     }
-  }, [submitting, answers, token, navigate, violation])
+  }, [submitting, answers, examToken, navigate, violation, storageKey])
 
   useEffect(() => {
     if (!exam) return
     const interval = setInterval(() => {
       setTimeLeft(t => {
-        if (t <= 1) { clearInterval(interval); handleSubmit(); return 0 }
+        if (t <= 1) { clearInterval(interval); handleSubmit({ timedOut: true }); return 0 }
         return t - 1
       })
     }, 1000)
@@ -142,7 +153,7 @@ function ExamPage() {
             <button
               type="button"
               onClick={() => {
-                if (violation.terminated) navigate(`/interview/${token}/done`)
+                if (violation.terminated) navigate(`/interview/${examToken}/done`)
                 else setViolation(null)
               }}
               style={{ width: '100%', padding: 11, border: 0, borderRadius: 9, background: 'var(--brand-500)', color: 'white', fontWeight: 600, cursor: 'pointer' }}
@@ -241,12 +252,13 @@ function ExamPage() {
                     <span style={{ fontSize: 11, color: 'var(--slate-400)' }}>Reads from stdin, writes to stdout</span>
                   </div>
                   <div style={{ border: '1px solid var(--slate-300)', borderRadius: 8, overflow: 'hidden' }}>
-                    <CodeMirror
-                      value={answers[current.id]?.code ?? current.starter_code ?? ''}
-                      height="320px"
-                      extensions={LANGUAGE_EXTENSIONS[current.language] || LANGUAGE_EXTENSIONS.javascript}
-                      onChange={value => setAnswers(a => ({ ...a, [current.id]: { code: value } }))}
-                    />
+                    <Suspense fallback={<div style={{ height: 320, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Spinner /></div>}>
+                      <CodeAnswerEditor
+                        value={answers[current.id]?.code ?? current.starter_code ?? ''}
+                        language={current.language}
+                        onChange={value => setAnswers(a => ({ ...a, [current.id]: { code: value } }))}
+                      />
+                    </Suspense>
                   </div>
 
                   {current.test_cases && current.test_cases.length > 0 && (

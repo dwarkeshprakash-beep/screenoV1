@@ -3,7 +3,6 @@ const express = require('express')
 const authMiddleware = require('../middleware/auth')
 const requireRole = require('../middleware/role')
 const reportRepository = require('../repositories/report.repository')
-const interviewRepository = require('../repositories/interview.repository')
 
 const router = express.Router()
 
@@ -28,14 +27,24 @@ router.get('/team', async (req, res) => {
 router.get('/interview/:id', async (req, res) => {
   try {
     const interviewId = parseInt(req.params.id, 10)
-    const interview = await interviewRepository.getById(interviewId)
-    if (!interview || interview.manager_id !== req.user.id) {
-      return res.status(403).json({ success: false, error: 'Unauthorized' })
-    }
-    const report = await reportRepository.getByInterview(interviewId)
+    const report = await reportRepository.getDetailByInterviewForManager(interviewId, req.user.id)
+    if (!report) return res.status(404).json({ success: false, error: 'Report not found' })
     res.json({ success: true, data: report })
   } catch (err) {
     console.error('GET /reports/interview/:id failed:', err)
+    res.status(500).json({ success: false, error: 'Could not load report' })
+  }
+})
+
+// GET /api/reports/detail/:id — full report detail by report ID
+router.get('/detail/:id', async (req, res) => {
+  try {
+    const reportId = parseInt(req.params.id, 10)
+    const report = await reportRepository.getDetailByIdForManager(reportId, req.user.id)
+    if (!report) return res.status(404).json({ success: false, error: 'Report not found' })
+    res.json({ success: true, data: report })
+  } catch (err) {
+    console.error('GET /reports/detail/:id failed:', err)
     res.status(500).json({ success: false, error: 'Could not load report' })
   }
 })

@@ -18,6 +18,7 @@ router.post('/resume', documentUpload.single('resume'), async (req, res) => {
     const teamMemberId = req.body.teamMemberId ? parseInt(req.body.teamMemberId, 10) : null
     let url
     let extractedTags = []
+    let extractedText = ''
     if (teamMemberId) {
       const member = await teamMemberRepository.getByIdForManager(teamMemberId, req.user.id)
       if (!member) return res.status(404).json({ success: false, error: 'Team member not found' })
@@ -37,11 +38,12 @@ router.post('/resume', documentUpload.single('resume'), async (req, res) => {
             req.file.mimetype,
             req.file.originalname
           )
-          if (text.length < 50) return
-          const tags = await llmService.extractTagsFromText(text)
-          if (tags.length > 0) {
-            await userRepository.updateProfile(member.user_id, { tags })
+          if (text.length < 50) {
+            await userRepository.updateProfile(member.user_id, { resumeText: text })
+            return
           }
+          const tags = await llmService.extractTagsFromText(text)
+          await userRepository.updateProfile(member.user_id, { resumeText: text, tags })
         } catch (err) {
           console.error('auto-tag extraction failed:', err.message)
         }
@@ -60,13 +62,21 @@ router.post('/resume', documentUpload.single('resume'), async (req, res) => {
           req.file.mimetype,
           req.file.originalname
         )
+        extractedText = text
         if (text.length >= 50) extractedTags = await llmService.extractTagsFromText(text)
       } catch (err) {
         console.error('external resume tag extraction failed:', err.message)
       }
     }
 
-    res.json({ success: true, data: { resumeUrl: url, tags: extractedTags } })
+    res.json({
+      success: true,
+      data: {
+        resumeUrl: url,
+        resumeText: extractedText,
+        tags: extractedTags,
+      },
+    })
   } catch (err) {
     console.error('POST /upload/resume failed:', err)
     res.status(500).json({ success: false, error: 'Upload failed' })

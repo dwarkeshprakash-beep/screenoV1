@@ -1,6 +1,6 @@
 # Screeno V2 Second Brain
 
-Last updated: 2026-06-18
+Last updated: 2026-07-07
 
 ## What Screeno Is
 
@@ -15,9 +15,9 @@ V2 intentionally supports only manager and candidate roles. Human interviews, in
 - Password login using JWT access tokens and a rotated refresh-token cookie.
 - Manage internal team members and company-owned external candidates.
 - Store internal resume URL, resume update time, tags, availability, employee ID, department, position, and location.
-- Schedule AI voice interviews or AI exams.
+- Schedule AI voice interviews, AI exams, and Google Meet-backed human interviews.
 - Create client mandates and monthly assessments.
-- View calendar events, reports, transcripts, scorecards, and candidate history.
+- View calendar events, report details, transcripts, scorecards, and candidate history.
 - Update profile and password.
 
 ### Candidate
@@ -26,7 +26,7 @@ V2 intentionally supports only manager and candidate roles. Human interviews, in
 - Single-use magic-link launch for a specific interview.
 - Device checks, consent, AI voice interview, or AI exam.
 - The first tab switch warns; the second completes the interview as a cheating attempt.
-- Candidate completion UI does not expose manager-only scores or hiring decisions.
+- Candidate dashboard and completion UI expose feedback/tips only, not manager-only scores or hiring decisions.
 
 ## Identity Relationships
 
@@ -50,7 +50,7 @@ An external candidate is an `external_candidates` row owned by a company and doe
 
 ## Active Schema
 
-The V2 schema contains 15 tables:
+The active schema includes the V2 core tables plus client mandate workflow tables and password reset token storage:
 
 - `companies`
 - `users`
@@ -67,6 +67,10 @@ The V2 schema contains 15 tables:
 - `client_templates`
 - `monthly_assessments`
 - `monthly_assessment_enrollments`
+- `client_mandate_requirements`
+- `client_teams`
+- `client_interview_records`
+- `password_reset_tokens`
 
 `backend/migrations/004_v2_schema_cleanup.sql` is the cleanup migration. `backend/src/db/schema.js`, `backend/schema.json`, and generated model references must agree with it.
 
@@ -100,8 +104,9 @@ The V2 schema contains 15 tables:
 1. Questions are generated and normalized.
 2. Public responses remove MCQ answer keys, reference solutions, and hidden expected outputs.
 3. Coding reference solutions are validated with Piston before use.
-4. Submitted answers are stored in transcript rows.
-5. Completion queues report generation.
+4. Submitted coding answers run visible and hidden cases through the server-side judge.
+5. Submitted answers are stored in transcript rows.
+6. Completion queues report generation. Blank timed-out exams complete cleanly with a ready failure report.
 
 ### Report Pipeline
 
@@ -130,12 +135,8 @@ The canonical acceptance record is `docs/AUDIT-AND-TESTING.md`. The database-bac
 
 ## Current Non-Blocking Gaps
 
-- Frontend production output has one large JavaScript chunk; route-level lazy loading is recommended before significant UI growth.
 - Camera, microphone, speaker, and speech-recognition behavior still needs real-device coverage across supported browsers.
 - Consent copy requires product/legal approval before public launch.
 - Production deployment requires valid SMTP, AI, storage, database, and JWT secrets.
-- No dedicated report detail route (`/manager/reports/:id`) exists; external-candidate reports cannot be fully viewed from the reports list (managers see "External" label with no link).
-- No password reset (forgot password) flow exists; locked-out accounts require manual DB intervention.
 - Notification preferences (email/in-app) are stored in `localStorage` only; they are not persisted to the backend and reset when browser data is cleared.
-- The reports list (`ReportsPage`) does not link to a full report detail page for any candidate type; managers must navigate to the member profile page to see full scorecard detail.
-- Migration 006 (missing indexes) must be run manually on any existing database: `node backend/run-migration-006.js`.
+- Migrations 006-008 must be applied on existing databases.

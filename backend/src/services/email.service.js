@@ -148,6 +148,43 @@ function escapeHtml(value) {
     .replaceAll("'", '&#039;')
 }
 
+async function sendPasswordReset(to, { name, token, expiresMinutes = 60 }) {
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173'
+  const link = `${frontendUrl}/login?reset=${encodeURIComponent(token)}`
+  const safeName = escapeHtml(name || 'there')
+
+  await sendMail({
+    to,
+    subject: 'Reset your Screeno password',
+    text: [
+      `Hi ${name || 'there'},`,
+      '',
+      'We received a request to reset your Screeno password.',
+      `Reset link: ${link}`,
+      '',
+      `This link expires in ${expiresMinutes} minutes.`,
+      'If you did not request this, you can ignore this email.',
+    ].join('\n'),
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px">
+        <h2 style="color:#0F172A">Reset your password</h2>
+        <p>Hi ${safeName},</p>
+        <p>We received a request to reset your Screeno password.</p>
+        <p style="margin:24px 0">
+          <a href="${link}" style="background:#5B4FE9;color:#fff;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:600">
+            Reset Password
+          </a>
+        </p>
+        <p style="color:#475569;font-size:14px;line-height:1.6">
+          This link expires in ${expiresMinutes} minutes. If the button does not work, copy and paste this link:<br />
+          <a href="${link}" style="color:#5B4FE9;word-break:break-all">${link}</a>
+        </p>
+        <p style="color:#94A3B8;font-size:12px">If you did not request this, you can ignore this email.</p>
+      </div>
+    `,
+  })
+}
+
 async function sendMagicLink(to, {
   candidateName,
   interviewToken,
@@ -480,6 +517,7 @@ async function sendOfflineInterviewInvite(to, { candidateName, clientName, role,
 
 module.exports = {
   sendMail,
+  sendPasswordReset,
   sendMagicLink,
   sendMonthlyAssessmentInvite,
   sendReportReady,

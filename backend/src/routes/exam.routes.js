@@ -21,7 +21,9 @@ router.get('/:token', async (req, res) => {
 
 router.post('/:token/submit', async (req, res) => {
   try {
-    const result = await examService.submitExam(req.params.token, req.body.answers)
+    const result = await examService.submitExam(req.params.token, req.body.answers, {
+      timedOut: req.body.timedOut === true,
+    })
     res.json({ success: true, data: result })
   } catch (err) {
     console.error('POST /exam/:token/submit failed:', err)

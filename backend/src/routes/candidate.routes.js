@@ -17,7 +17,11 @@ router.get('/interviews', async (req, res) => {
   try {
     const identity = candidateIdentityService.fromUser(req.user)
     const interviews = await interviewRepository.getByCandidateIdentity(identity)
-    const safeInterviews = interviews.map(({ token, ...interview }) => interview)
+    const safeInterviews = interviews.map(({
+      token,
+      overall_score,
+      ...interview
+    }) => interview)
     res.json({ success: true, data: safeInterviews })
   } catch (err) {
     console.error('GET /candidate/interviews failed:', err)
@@ -49,7 +53,16 @@ router.get('/report', async (req, res) => {
     const identity = candidateIdentityService.fromUser(req.user)
     const report = await reportRepository.getLatestByCandidateIdentity(identity, identity.interviewId)
     if (!report) return res.status(404).json({ success: false, error: 'No report available yet' })
-    res.json({ success: true, data: report })
+    res.json({
+      success: true,
+      data: {
+        id: report.id,
+        interview_id: report.interview_id,
+        status: report.status,
+        strengths: report.strengths,
+        created: report.created,
+      },
+    })
   } catch (err) {
     console.error('GET /candidate/report failed:', err)
     res.status(500).json({ success: false, error: 'Could not load report' })

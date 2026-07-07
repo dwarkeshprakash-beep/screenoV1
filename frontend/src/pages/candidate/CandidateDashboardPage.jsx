@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   BriefcaseBusiness, Calendar, CheckCircle2, ChevronDown, ChevronUp,
-  Clock, FileText, TrendingUp, UploadCloud, XCircle, AlertTriangle,
+  Clock, FileText, Lightbulb, UploadCloud, XCircle, AlertTriangle,
   Play, MapPin, Zap,
 } from 'lucide-react'
 import Spinner from '../../components/shared/Spinner'
@@ -150,15 +150,16 @@ function CandidateDashboardPage() {
     try {
       const response = await api.launchCandidateInterview(interview.id)
       const launch = response.data
-      localStorage.setItem('accessToken', launch.sessionToken)
+      localStorage.setItem('interviewAccessToken', launch.sessionToken)
       localStorage.setItem('interviewSession', JSON.stringify({
         interviewId: launch.interview.id,
         token: launch.launchToken,
         type: launch.interview.type,
         mode: launch.interview.interviewMode,
         candidateName: launch.interview.candidateName,
+        sessionToken: launch.sessionToken,
       }))
-      navigate(`/interview/${launch.launchToken}`)
+      navigate(`/interview/${launch.launchToken}/device-check`)
     } catch (err) { setError(err.message || 'Could not launch this interview.') }
     finally { setLaunchingId(null) }
   }
@@ -166,9 +167,6 @@ function CandidateDashboardPage() {
   const upcoming = interviews.filter(i => ['scheduled', 'in_progress'].includes(i.status) && i.type !== 'offline' && i.type !== 'client')
   const offlineInterviews = interviews.filter(i => i.type === 'offline')
   const completed = interviews.filter(i => i.status === 'completed')
-  const avgScore = completed.length
-    ? (completed.reduce((s, c) => s + (Number(c.overall_score) || 0), 0) / completed.length).toFixed(1)
-    : 'N/A'
   const firstName = user.first_name || user.name?.split(' ')[0] || 'there'
   const initials = [user.first_name, user.last_name].filter(Boolean).map(n => n[0]?.toUpperCase()).join('') || firstName[0]?.toUpperCase() || '?'
   const nextLaunchable = upcoming.find(i => i.type === 'ai_voice' || i.type === 'exam')
@@ -224,7 +222,7 @@ function CandidateDashboardPage() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(12rem, 1fr))', gap: '0.875rem', marginBottom: '1.75rem' }}>
         <StatCard icon={Calendar}          label="Upcoming"  value={upcoming.length}        sub="Scheduled interviews"  accentBg="var(--brand-50)"   accentColor="var(--brand-500)" />
         <StatCard icon={CheckCircle2}      label="Completed" value={completed.length}        sub="Interviews finished"   accentBg="var(--success-50)" accentColor="var(--success-500)" />
-        <StatCard icon={TrendingUp}        label="Avg Score" value={avgScore}                sub="Your performance"      accentBg="var(--warning-50)" accentColor="var(--warning-500)" />
+        <StatCard icon={Lightbulb}         label="Feedback"  value={completed.length > 0 ? 'Ready' : 'Pending'} sub="Improvement tips" accentBg="var(--warning-50)" accentColor="var(--warning-500)" />
         <StatCard icon={BriefcaseBusiness} label="Mandates"  value={clientMandates.length}  sub="Client opportunities"  accentBg="var(--info-50)"    accentColor="var(--info-500)" />
       </div>
 
@@ -312,38 +310,26 @@ function CandidateDashboardPage() {
             </div>
           )}
 
-          {/* Recent performance */}
+          {/* Recent feedback */}
           <div>
-            <SectionHeading title="Recent Performance" />
+            <SectionHeading title="Recent Feedback" />
             <Card>
               {completed.length === 0 ? (
                 <div style={{ padding: '28px 20px', textAlign: 'center' }}>
-                  <TrendingUp size={20} color="var(--fg-subtle)" style={{ marginBottom: 8 }} />
+                  <Lightbulb size={20} color="var(--fg-subtle)" style={{ marginBottom: 8 }} />
                   <p style={{ fontSize: 13, color: 'var(--fg-subtle)', margin: 0 }}>No completed interviews yet</p>
                 </div>
-              ) : completed.map((c, i) => {
-                const score = Number(c.overall_score) || 0
-                const passed = score >= 5.5
-                const scoreColor = passed ? 'var(--success-500)' : 'var(--warning-500)'
-                const scoreBg = passed ? 'var(--success-50)' : 'var(--warning-50)'
-                const barWidth = `${Math.min((score / 10) * 100, 100)}%`
-                return (
-                  <div key={i} style={{ padding: '12px 16px', borderBottom: i < completed.length - 1 ? '1px solid var(--border-default)' : 0, display: 'flex', alignItems: 'center', gap: 14 }}>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg-primary)', margin: '0 0 2px' }}>{INTERVIEW_TYPE_LABEL[c.type] || c.type}</p>
-                      <p style={{ fontSize: 11, color: 'var(--fg-subtle)', margin: '0 0 8px' }}>{formatDate(c.created)}</p>
-                      <div style={{ height: 4, borderRadius: 2, background: 'var(--bg-surface-alt)', overflow: 'hidden' }}>
-                        <div style={{ width: barWidth, height: '100%', background: scoreColor, borderRadius: 2 }} />
-                      </div>
-                    </div>
-                    <div style={{ width: 44, height: 44, borderRadius: 10, background: scoreBg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <span style={{ fontSize: 14, fontWeight: 700, color: scoreColor, letterSpacing: '-0.02em' }}>
-                        {c.overall_score != null ? Number(c.overall_score).toFixed(1) : '—'}
-                      </span>
-                    </div>
+              ) : completed.map((c, i) => (
+                <div key={i} style={{ padding: '12px 16px', borderBottom: i < completed.length - 1 ? '1px solid var(--border-default)' : 0, display: 'flex', alignItems: 'center', gap: 14 }}>
+                  <div style={{ width: 36, height: 36, borderRadius: 9, background: 'var(--warning-50)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Lightbulb size={15} color="var(--warning-500)" />
                   </div>
-                )
-              })}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg-primary)', margin: '0 0 2px' }}>{INTERVIEW_TYPE_LABEL[c.type] || c.type}</p>
+                      <p style={{ fontSize: 11, color: 'var(--fg-subtle)', margin: 0 }}>{formatDate(c.created)} · Improvement tips are shown when the report is ready.</p>
+                  </div>
+                </div>
+              ))}
             </Card>
           </div>
         </div>

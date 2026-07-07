@@ -4,6 +4,8 @@ const db = require('../db/connection')
 const INTERVIEW_JOINS = `
   LEFT JOIN users iu ON iu.id = i.internal_user_id
   LEFT JOIN external_candidates ec ON ec.id = i.external_candidate_id
+  LEFT JOIN users mu ON mu.id = i.manager_id
+  LEFT JOIN companies co ON co.id = mu.company_id
   LEFT JOIN client_templates ct ON ct.id = i.client_template_id
   LEFT JOIN monthly_assessments ma ON ma.id = i.monthly_assessment_id`
 
@@ -11,6 +13,10 @@ const INTERVIEW_COLS = `
   COALESCE(iu.first_name, ec.first_name) AS candidate_first,
   COALESCE(iu.last_name, ec.last_name) AS candidate_last,
   COALESCE(iu.email, ec.email) AS candidate_email,
+  COALESCE(iu.resume_url, ec.resume_url) AS candidate_resume_url,
+  COALESCE(iu.resume_text, ec.resume_text) AS candidate_resume_text,
+  COALESCE(iu.tags, ec.tags) AS candidate_tags,
+  co.name AS company_name,
   COALESCE(ct.jd_text, ma.ai_generated_jd) AS context_text,
   COALESCE(ct.tags, ma.sub_topics) AS context_focus_areas,
   COALESCE(ct.client_name, ma.subject_name) AS context_title`
@@ -18,16 +24,16 @@ const INTERVIEW_COLS = `
 async function create(data) {
   const rows = await db.query(
     `INSERT INTO interviews
-       (manager_id, internal_user_id, external_candidate_id, type, interview_mode,
-        difficulty, question_count, token, token_expires, client_template_id,
-        monthly_assessment_id, report_emails)
+     (manager_id, internal_user_id, external_candidate_id, type, interview_mode,
+        difficulty, question_count, duration_minutes, token, token_expires,
+        client_template_id, monthly_assessment_id, report_emails, scheduled_at)
      VALUES
        (@managerId, @internalUserId, @externalCandidateId, @type, @interviewMode,
-        @difficulty, @questionCount, @tokenHash, @tokenExpires, @clientTemplateId,
-        @monthlyAssessmentId, @reportEmails)
+        @difficulty, @questionCount, @durationMinutes, @tokenHash, @tokenExpires,
+        @clientTemplateId, @monthlyAssessmentId, @reportEmails, @scheduledAt)
      RETURNING id, manager_id, internal_user_id, external_candidate_id, type,
-       interview_mode, difficulty, question_count, token_expires, status,
-       client_template_id, monthly_assessment_id, report_emails, created`,
+       interview_mode, difficulty, question_count, duration_minutes, token_expires, status,
+       client_template_id, monthly_assessment_id, report_emails, scheduled_at, created`,
     {
       managerId: data.managerId,
       internalUserId: data.internalUserId || null,
@@ -36,11 +42,13 @@ async function create(data) {
       interviewMode: data.interviewMode || 'simple',
       difficulty: data.difficulty || 'medium',
       questionCount: Math.min(50, Math.max(1, Number(data.questionCount) || 10)),
+      durationMinutes: data.durationMinutes || null,
       tokenHash: data.tokenHash,
       tokenExpires: data.tokenExpires,
       clientTemplateId: data.clientTemplateId || null,
       monthlyAssessmentId: data.monthlyAssessmentId || null,
       reportEmails: data.reportEmails || null,
+      scheduledAt: data.scheduledAt || null,
     }
   )
   return rows[0]
@@ -51,7 +59,6 @@ async function getById(id) {
     `SELECT i.*, ${INTERVIEW_COLS}, mu.email AS manager_email, mu.company_id AS company_id
      FROM interviews i
      ${INTERVIEW_JOINS}
-     LEFT JOIN users mu ON mu.id = i.manager_id
      WHERE i.id = @id`,
     { id }
   )
@@ -145,7 +152,6 @@ async function getByCompany(companyId) {
     `SELECT i.*, ${INTERVIEW_COLS}
      FROM interviews i
      ${INTERVIEW_JOINS}
-     LEFT JOIN users mu ON mu.id = i.manager_id
      WHERE mu.company_id = @companyId
      ORDER BY i.created DESC`,
     { companyId }
@@ -159,10 +165,9 @@ async function getByCandidateIdentity({ internalUserId = null, externalCandidate
       ? { sql: 'i.external_candidate_id = @candidateId', candidateId: externalCandidateId }
       : { sql: '1 = 0', candidateId: null }
   return db.query(
-    `SELECT i.*, ${INTERVIEW_COLS}, sc.overall AS overall_score
+    `SELECT i.*, ${INTERVIEW_COLS}
      FROM interviews i
      ${INTERVIEW_JOINS}
-     LEFT JOIN scorecards sc ON sc.interview_id = i.id
      WHERE ${predicate.sql}
      ORDER BY i.created DESC`,
     predicate.candidateId === null ? {} : { candidateId: predicate.candidateId }

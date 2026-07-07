@@ -2,11 +2,19 @@ import { Outlet, useNavigate } from 'react-router-dom'
 
 function CandidateLayout() {
   const navigate = useNavigate()
+  const canOpenCandidateDashboard = (() => {
+    if (!localStorage.getItem('accessToken')) return false
+    try {
+      return JSON.parse(localStorage.getItem('user') || '{}').role === 'candidate'
+    } catch {
+      return false
+    }
+  })()
 
   // Only logged-in candidates have a dashboard to return to — magic-link
   // interview sessions have no authenticated user, so the logo stays static there.
   function handleLogoClick() {
-    if (localStorage.getItem('accessToken')) navigate('/candidate/dashboard')
+    if (canOpenCandidateDashboard) navigate('/candidate/dashboard')
   }
 
   return (
@@ -26,7 +34,7 @@ function CandidateLayout() {
           role="button"
           tabIndex={0}
           onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') handleLogoClick() }}
-          style={{ display: 'inline-flex', alignItems: 'center', gap: 8, cursor: localStorage.getItem('accessToken') ? 'pointer' : 'default' }}
+          style={{ display: 'inline-flex', alignItems: 'center', gap: 8, cursor: canOpenCandidateDashboard ? 'pointer' : 'default' }}
         >
           <div style={{
             width: '1.75rem',

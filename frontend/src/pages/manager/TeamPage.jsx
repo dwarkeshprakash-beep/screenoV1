@@ -43,10 +43,12 @@ function AddExternalModal({ open, onClose, onDone }) {
     setSaving(true); setError(null)
     try {
       let resumeUrl = null
+      let resumeText = null
       let tags = []
       if (resumeFile) {
         const res = await api.uploadResume(null, resumeFile)
         resumeUrl = res.data?.resumeUrl
+        resumeText = res.data?.resumeText || null
         tags = Array.isArray(res.data?.tags) ? res.data.tags : []
       }
       await api.addExternalCandidate({
@@ -54,6 +56,7 @@ function AddExternalModal({ open, onClose, onDone }) {
         lastName: lastName.trim(),
         email: email.trim(),
         resumeUrl,
+        resumeText,
         tags,
       })
       reset(); onDone(); onClose()

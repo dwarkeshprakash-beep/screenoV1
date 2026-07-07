@@ -42,6 +42,57 @@ async function getByInterview(interviewId) {
   return rows[0] || null
 }
 
+const REPORT_DETAIL_SELECT = `
+  SELECT r.*,
+         i.id AS interview_id,
+         i.type AS interview_type,
+         i.status AS interview_status,
+         i.result AS interview_result,
+         i.created AS interview_date,
+         i.scheduled_at,
+         COALESCE(iu.first_name, ec.first_name) AS candidate_first,
+         COALESCE(iu.last_name, ec.last_name) AS candidate_last,
+         COALESCE(iu.email, ec.email) AS candidate_email,
+         tm.id AS team_member_id,
+         sc.overall AS overall_score,
+         sc.confidence,
+         sc.tech_knowledge,
+         sc.communication,
+         sc.problem_solving,
+         sc.decision,
+         sc.reason,
+         ct.client_name,
+         ma.subject_name AS assessment_subject
+  FROM reports r
+  JOIN interviews i ON i.id = r.interview_id
+  LEFT JOIN users iu ON iu.id = i.internal_user_id
+  LEFT JOIN external_candidates ec ON ec.id = i.external_candidate_id
+  LEFT JOIN team_members tm ON tm.user_id = i.internal_user_id AND tm.manager_id = i.manager_id
+  LEFT JOIN scorecards sc ON sc.interview_id = r.interview_id
+  LEFT JOIN client_templates ct ON ct.id = i.client_template_id
+  LEFT JOIN monthly_assessments ma ON ma.id = i.monthly_assessment_id`
+
+async function getDetailByIdForManager(reportId, managerId) {
+  const rows = await db.query(`
+    ${REPORT_DETAIL_SELECT}
+    WHERE r.id = @reportId
+      AND i.manager_id = @managerId
+    LIMIT 1
+  `, { reportId, managerId })
+  return rows[0] || null
+}
+
+async function getDetailByInterviewForManager(interviewId, managerId) {
+  const rows = await db.query(`
+    ${REPORT_DETAIL_SELECT}
+    WHERE i.id = @interviewId
+      AND i.manager_id = @managerId
+    ORDER BY r.created DESC
+    LIMIT 1
+  `, { interviewId, managerId })
+  return rows[0] || null
+}
+
 async function getReportsByManager(managerId, source = null) {
   const sourceFilter = source === 'client' ? 'AND i.client_template_id IS NOT NULL'
     : source === 'monthly' ? 'AND i.monthly_assessment_id IS NOT NULL'
@@ -141,6 +192,8 @@ module.exports = {
   upsertGenerating,
   updateStatus,
   getByInterview,
+  getDetailByIdForManager,
+  getDetailByInterviewForManager,
   getReportsByManager,
   getStatsByManager,
   getLatestByCandidateIdentity,

@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { Calendar, CheckCircle2, TrendingUp, BriefcaseBusiness, Clock, Play, ArrowRight } from 'lucide-react'
+import { Calendar, CheckCircle2, BriefcaseBusiness, Clock, Play, ArrowRight, Lightbulb } from 'lucide-react'
 import Spinner from '../../components/shared/Spinner'
 import * as api from '../../services/api'
-import { formatDate } from '../../utils/helpers'
+import { formatDate, parseStoredArray } from '../../utils/helpers'
 
 const INTERVIEW_TYPE_LABEL = {
   ai_voice: 'AI Voice', exam: 'Coding Exam', human: 'Video Interview',
@@ -34,6 +34,7 @@ function CandidateOverviewPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [launchingId, setLaunchingId] = useState(null)
+  const [latestReport, setLatestReport] = useState(null)
 
   const user = (() => { try { return JSON.parse(localStorage.getItem('user') || '{}') } catch { return {} } })()
 
@@ -41,13 +42,15 @@ function CandidateOverviewPage() {
     setLoading(true)
     setError(null)
     try {
-      const [interviewRes, profileRes, mandateRes] = await Promise.all([
+      const [interviewRes, profileRes, mandateRes, reportRes] = await Promise.all([
         api.getCandidateInterviews(),
         api.getProfile(),
         api.getCandidateClientMandates().catch(() => ({ data: [] })),
+        api.getCandidateOwnReport().catch(() => ({ data: null })),
       ])
       setInterviews(interviewRes.data || [])
       setClientMandates(mandateRes.data || [])
+      setLatestReport(reportRes.data || null)
       const profile = profileRes.data || {}
       let stored = {}
       try { stored = JSON.parse(localStorage.getItem('user') || '{}') } catch { stored = {} }
@@ -63,24 +66,23 @@ function CandidateOverviewPage() {
     try {
       const response = await api.launchCandidateInterview(interview.id)
       const launch = response.data
-      localStorage.setItem('accessToken', launch.sessionToken)
+      localStorage.setItem('interviewAccessToken', launch.sessionToken)
       localStorage.setItem('interviewSession', JSON.stringify({
         interviewId: launch.interview.id,
         token: launch.launchToken,
         type: launch.interview.type,
         mode: launch.interview.interviewMode,
         candidateName: launch.interview.candidateName,
+        sessionToken: launch.sessionToken,
       }))
-      navigate(`/interview/${launch.launchToken}`)
+      navigate(`/interview/${launch.launchToken}/device-check`)
     } catch (err) { setError(err.message || 'Could not launch this interview.') }
     finally { setLaunchingId(null) }
   }
 
   const upcoming = interviews.filter(i => ['scheduled', 'in_progress'].includes(i.status) && i.type !== 'offline' && i.type !== 'client')
   const completed = interviews.filter(i => i.status === 'completed')
-  const avgScore = completed.length
-    ? (completed.reduce((s, c) => s + (Number(c.overall_score) || 0), 0) / completed.length).toFixed(1)
-    : 'N/A'
+  const feedbackTips = parseStoredArray(latestReport?.strengths)
   const firstName = user.first_name || user.name?.split(' ')[0] || 'there'
   const initials = [user.first_name, user.last_name].filter(Boolean).map(n => n[0]?.toUpperCase()).join('') || firstName[0]?.toUpperCase() || '?'
   const nextLaunchable = upcoming.find(i => i.type === 'ai_voice' || i.type === 'exam')
@@ -133,9 +135,30 @@ function CandidateOverviewPage() {
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(12rem, 1fr))', gap: '0.875rem', marginBottom: '1.75rem' }}>
         <StatCard icon={Calendar}          label="Upcoming"  value={upcoming.length}       sub="Scheduled interviews"  accentBg="var(--brand-50)"   accentColor="var(--brand-500)" />
         <StatCard icon={CheckCircle2}      label="Completed" value={completed.length}       sub="Interviews finished"   accentBg="var(--success-50)" accentColor="var(--success-500)" />
-        <StatCard icon={TrendingUp}        label="Avg Score" value={avgScore}               sub="Your performance"      accentBg="var(--warning-50)" accentColor="var(--warning-500)" />
+        <StatCard icon={Lightbulb}         label="Feedback"  value={latestReport ? 'Ready' : 'Pending'} sub="Improvement tips" accentBg="var(--warning-50)" accentColor="var(--warning-500)" />
         <StatCard icon={BriefcaseBusiness} label="Mandates"  value={clientMandates.length} sub="Client opportunities"  accentBg="var(--info-50)"    accentColor="var(--info-500)" />
       </div>
+
+      {latestReport && (
+        <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderRadius: 10, padding: '16px 18px', marginBottom: '1.75rem', boxShadow: 'var(--shadow-xs)' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 9, marginBottom: 8 }}>
+            <Lightbulb size={15} color="var(--warning-500)" />
+            <h2 style={{ fontSize: 14, fontWeight: 700, color: 'var(--fg-primary)', margin: 0 }}>Latest Feedback</h2>
+          </div>
+          {latestReport.summary && (
+            <p style={{ fontSize: 13, color: 'var(--fg-body)', lineHeight: 1.6, margin: '0 0 10px' }}>{latestReport.summary}</p>
+          )}
+          {feedbackTips.length > 0 && (
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              {feedbackTips.slice(0, 5).map(tip => (
+                <span key={tip} style={{ fontSize: 12, padding: '4px 8px', borderRadius: 999, background: 'var(--warning-50)', color: 'var(--warning-700)', fontWeight: 600 }}>
+                  {tip}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Upcoming preview */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>

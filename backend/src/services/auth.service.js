@@ -5,7 +5,9 @@ const jwt = require('jsonwebtoken')
 
 const userRepository = require('../repositories/user.repository')
 const refreshTokenRepository = require('../repositories/refresh-token.repository')
+const passwordResetRepository = require('../repositories/password-reset.repository')
 const interviewRepository = require('../repositories/interview.repository')
+const emailService = require('./email.service')
 
 function hashToken(token) {
   return crypto.createHash('sha256').update(token).digest('hex')
@@ -48,8 +50,26 @@ function candidateInterviewSummary(interview) {
     interviewMode: interview.interview_mode,
     difficulty: interview.difficulty,
     candidateName: `${interview.candidate_first} ${interview.candidate_last}`.trim(),
+    companyName: interview.company_name || null,
+    company_name: interview.company_name || null,
     contextTitle: interview.context_title || null,
     status: interview.status,
+  }
+}
+
+async function createLaunchPayload(interview) {
+  const launchToken = crypto.randomBytes(32).toString('hex')
+  const tokenExpires = new Date(Date.now() + 4 * 60 * 60 * 1000)
+  await interviewRepository.updateTokenHash(
+    interview.id,
+    hashToken(launchToken),
+    tokenExpires
+  )
+
+  return {
+    launchToken,
+    sessionToken: signCandidateSession(interview),
+    interview: candidateInterviewSummary(interview),
   }
 }
 
@@ -126,6 +146,41 @@ async function logout(rawRefreshToken) {
   }
 }
 
+async function requestPasswordReset(email) {
+  const cleanEmail = String(email || '').trim().toLowerCase()
+  if (!cleanEmail) return
+
+  const user = await userRepository.getByEmail(cleanEmail)
+  if (!user) return
+
+  const rawToken = crypto.randomBytes(32).toString('hex')
+  const expiresMinutes = 60
+  await passwordResetRepository.create(
+    user.id,
+    hashToken(rawToken),
+    new Date(Date.now() + expiresMinutes * 60 * 1000)
+  )
+
+  await emailService.sendPasswordReset(user.email, {
+    name: `${user.first_name || ''} ${user.last_name || ''}`.trim(),
+    token: rawToken,
+    expiresMinutes,
+  })
+}
+
+async function resetPassword(token, newPassword) {
+  if (!token) throw new Error('Reset token is required')
+  if (!newPassword || String(newPassword).length < 8) {
+    throw new Error('Password must be at least 8 characters')
+  }
+
+  const stored = await passwordResetRepository.getValidByHash(hashToken(token))
+  if (!stored) throw new Error('Reset link is invalid or expired')
+
+  await userRepository.updatePassword(stored.user_id, await bcrypt.hash(String(newPassword), 10))
+  await passwordResetRepository.markUsed(stored.id)
+}
+
 async function validateMagicLink(token) {
   const interview = await interviewRepository.getByToken(token)
 
@@ -139,38 +194,24 @@ async function validateMagicLink(token) {
     throw new Error('Interview already completed')
   }
 
-  // Consume the token immediately so it cannot be replayed
-  await interviewRepository.updateTokenHash(interview.id, null, null)
-
-  return {
-    sessionToken: signCandidateSession(interview),
-    interview: candidateInterviewSummary(interview),
-  }
+  // Replace the email token with a short-lived launch token. The original
+  // magic link cannot be replayed, while exam routes still get a valid token.
+  return createLaunchPayload(interview)
 }
 
 async function createCandidateLaunch(interview) {
   if (!interview) throw new Error('Interview not found')
   if (interview.status === 'completed') throw new Error('Interview already completed')
 
-  const launchToken = crypto.randomBytes(32).toString('hex')
-  const tokenExpires = new Date(Date.now() + 4 * 60 * 60 * 1000)
-  await interviewRepository.updateTokenHash(
-    interview.id,
-    hashToken(launchToken),
-    tokenExpires
-  )
-
-  return {
-    launchToken,
-    sessionToken: signCandidateSession(interview),
-    interview: candidateInterviewSummary(interview),
-  }
+  return createLaunchPayload(interview)
 }
 
 module.exports = {
   login,
   refresh,
   logout,
+  requestPasswordReset,
+  resetPassword,
   validateMagicLink,
   createCandidateLaunch,
   hashToken,

@@ -2,8 +2,10 @@ const db = require('../db/connection')
 
 async function create(data) {
   const rows = await db.query(
-    `INSERT INTO external_candidates (company_id, first_name, last_name, email, resume_url, tags)
-     VALUES (@company_id, @first_name, @last_name, @email, @resume_url, @tags)
+    `INSERT INTO external_candidates
+       (company_id, first_name, last_name, email, resume_url, resume_text, tags)
+     VALUES
+       (@company_id, @first_name, @last_name, @email, @resume_url, @resume_text, @tags)
      RETURNING *`,
     {
       company_id: data.company_id,
@@ -11,6 +13,7 @@ async function create(data) {
       last_name:  data.last_name  || '',
       email:      data.email,
       resume_url: data.resume_url || null,
+      resume_text: data.resume_text ? String(data.resume_text).slice(0, 12000) : null,
       tags:       typeof data.tags === 'string' ? data.tags : JSON.stringify(data.tags || []),
     }
   )

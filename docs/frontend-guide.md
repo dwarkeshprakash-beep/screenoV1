@@ -12,11 +12,11 @@ Three role areas, one router. `App.jsx` is the entire route tree — everything 
 ```
 /login                          → LoginPage (auth)
 /manager/*                      → RequireAuth(role=manager) → AppLayout → manager pages
-/candidate/*                    → magic-link guard → CandidateLayout → candidate pages
-/interviewer/*                  → RequireAuth(role=interviewer) → AppLayout → interviewer pages
+/candidate/*                    → RequireAuth(role=candidate) → CandidateLayout → candidate dashboard
+/interview/:token/*             → magic-link interview flow → CandidateLayout → landing/device/consent/AI/exam/done
 ```
 
-`RequireAuth` reads the JWT from `localStorage`, checks the role claim, redirects to `/login` if invalid. The magic-link flow for candidates skips login — the token is in the URL query param.
+`RequireAuth` reads the JWT from `localStorage`, checks the role claim, redirects to `/login` if invalid. The magic-link interview flow validates `/interview/:token`, swaps it for a short-lived interview-scoped session token, and skips normal dashboard login.
 
 ---
 
@@ -97,8 +97,9 @@ loading → ai_speaking → listening → recording → processing → (repeat) 
 
 - Coding questions use `@uiw/react-codemirror` editor with JS/Python syntax highlighting
 - Test cases panel shows visible cases; hidden cases run server-side on submit
-- Submit hits `POST /api/exam/:attemptId/submit` — grading happens in the backend judge service
+- Submit hits `POST /api/exam/:token/submit` — grading happens in the backend judge service
 - All question types feed into the same LLM report-scoring pipeline
+- Answers auto-save locally during the exam; the backend stores the configured duration per interview
 
 ---
 

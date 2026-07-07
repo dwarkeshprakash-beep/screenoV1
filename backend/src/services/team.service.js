@@ -229,6 +229,7 @@ async function addExternalCandidate(data, companyId) {
     last_name: String(data.lastName || '').trim(),
     email,
     resume_url: data.resumeUrl || null,
+    resume_text: data.resumeText || data.resume_text || null,
     tags: Array.isArray(data.tags) || typeof data.tags === 'string' ? data.tags : [],
   })
 }

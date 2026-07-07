@@ -58,6 +58,8 @@ function ScheduleModal({
   const [interviewMode, setInterviewMode] = useState('simple')
   const [difficulty, setDifficulty] = useState('medium')
   const [questionCount, setQuestionCount] = useState(10)
+  const [durationMinutes, setDurationMinutes] = useState(60)
+  const [scheduledAt, setScheduledAt] = useState('')
   const [candidates, setCandidates] = useState([])
   const [orgUsers, setOrgUsers] = useState([])
   const [managerId, setManagerId] = useState(null)
@@ -96,6 +98,8 @@ function ScheduleModal({
     setInterviewMode('simple')
     setDifficulty(template?.difficulty || 'medium')
     setQuestionCount(10)
+    setDurationMinutes(60)
+    setScheduledAt('')
     setCandidateQuery('')
     setReportQuery('')
     setError(null)
@@ -184,8 +188,16 @@ function ScheduleModal({
   }
 
   function nextStep() {
+    if (step === 2 && !scheduledAt) {
+      setError('Choose the scheduled date and time.')
+      return
+    }
     if (step === 2 && (!Number.isInteger(questionCount) || questionCount < 1 || questionCount > 50)) {
       setError('Question count must be between 1 and 50.')
+      return
+    }
+    if (step === 2 && type === 'exam' && (!Number.isInteger(durationMinutes) || durationMinutes < 15 || durationMinutes > 180)) {
+      setError('Exam duration must be between 15 and 180 minutes.')
       return
     }
     if (step === 3 && selectedCandidates.length === 0) {
@@ -210,6 +222,9 @@ function ScheduleModal({
           interviewMode: type === 'exam' ? 'simple' : interviewMode,
           difficulty,
           questionCount,
+          durationMinutes: type === 'exam' ? durationMinutes : null,
+          scheduledAt,
+          assessmentDate: scheduledAt,
           reportUserIds: Array.from(reportUserIds),
           clientTemplateId: context?.clientTemplateId,
           monthlyAssessmentId: context?.monthlyAssessmentId,
@@ -314,10 +329,21 @@ function ScheduleModal({
             </div>
           </div>
           <div>
+            <label htmlFor="schedule-at" style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--fg-muted)', marginBottom: 8 }}>Date and time</label>
+            <input id="schedule-at" type="datetime-local" value={scheduledAt} onChange={event => setScheduledAt(event.target.value)} style={{ width: 220, padding: '9px 12px', border: '1px solid var(--border-default)', borderRadius: 8, background: 'var(--bg-surface)', fontFamily: 'inherit' }} />
+          </div>
+          <div>
             <label htmlFor="schedule-question-count" style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--fg-muted)', marginBottom: 8 }}>Question count</label>
             <input id="schedule-question-count" type="number" min="1" max="50" value={questionCount} onChange={event => setQuestionCount(Number(event.target.value))} style={{ width: 140, padding: '9px 12px', border: '1px solid var(--border-default)', borderRadius: 8, background: 'var(--bg-surface)', fontFamily: 'inherit' }} />
             <span style={{ marginLeft: 8, fontSize: 12, color: 'var(--fg-muted)' }}>1-50 questions</span>
           </div>
+          {type === 'exam' && (
+            <div>
+              <label htmlFor="schedule-duration" style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--fg-muted)', marginBottom: 8 }}>Duration</label>
+              <input id="schedule-duration" type="number" min="15" max="180" value={durationMinutes} onChange={event => setDurationMinutes(Number(event.target.value))} style={{ width: 140, padding: '9px 12px', border: '1px solid var(--border-default)', borderRadius: 8, background: 'var(--bg-surface)', fontFamily: 'inherit' }} />
+              <span style={{ marginLeft: 8, fontSize: 12, color: 'var(--fg-muted)' }}>15-180 minutes</span>
+            </div>
+          )}
           <p style={{ margin: 0, fontSize: 12, color: 'var(--fg-muted)' }}>
             Each scheduled interview is a single attempt and generates one report.
           </p>
@@ -392,7 +418,9 @@ function ScheduleModal({
             ['Type', TYPES.find(option => option.id === type)?.label],
             ['Mode', type === 'exam' ? 'Fixed assessment' : interviewMode],
             ['Difficulty', difficulty],
+            ['Date', scheduledAt ? new Date(scheduledAt).toLocaleString() : 'Not selected'],
             ['Questions', questionCount],
+            ...(type === 'exam' ? [['Duration', `${durationMinutes} minutes`]] : []),
             ['Candidates', selectedCandidates.length],
             ['Context', context?.label || 'General assessment'],
           ].map(([label, value]) => (

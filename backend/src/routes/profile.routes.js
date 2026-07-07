@@ -71,9 +71,12 @@ router.post('/resume', documentUpload.single('resume'), async (req, res) => {
           req.file.mimetype,
           req.file.originalname
         )
-        if (text.length < 50) return
+        if (text.length < 50) {
+          await userRepository.updateProfile(req.user.id, { resumeText: text })
+          return
+        }
         const tags = await llmService.extractTagsFromText(text)
-        if (tags.length > 0) await userRepository.updateProfile(req.user.id, { tags })
+        await userRepository.updateProfile(req.user.id, { resumeText: text, tags })
       } catch (err) {
         console.error('profile resume tag extraction failed:', err.message)
       }

@@ -1,12 +1,13 @@
 import { useEffect, useState, useCallback } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useLocation } from 'react-router-dom'
 import { Download, Filter, FileText, TrendingUp, Star, Clock } from 'lucide-react'
 import Spinner from '../../components/shared/Spinner'
 import ErrorMessage from '../../components/shared/ErrorMessage'
 import EmptyState from '../../components/shared/EmptyState'
 import Avatar from '../../components/shared/Avatar'
+import Modal from '../../components/shared/Modal'
 import * as api from '../../services/api'
-import { formatDate } from '../../utils/helpers'
+import { formatDate, parseStoredArray } from '../../utils/helpers'
 
 function DecisionBadge({ decision }) {
   const map = {
@@ -19,7 +20,7 @@ function DecisionBadge({ decision }) {
   return <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 9999, background: d.bg, color: d.fg }}>{d.label}</span>
 }
 
-function ReportTable({ reports, navigate, btnSecondary, thStyle }) {
+function ReportTable({ reports, onOpenReport, btnSecondary, thStyle }) {
   if (reports.length === 0) return <EmptyState message="No reports yet. Reports are generated after interviews complete." />
   return (
     <div style={{ overflowX: 'auto' }}>
@@ -35,7 +36,7 @@ function ReportTable({ reports, navigate, btnSecondary, thStyle }) {
           const overall = r.overall_score != null ? Number(r.overall_score) : null
           const source = r.client_name ? r.client_name : r.assessment_subject ? r.assessment_subject : '—'
           return (
-            <tr key={r.id || i} style={{ cursor: 'pointer', transition: 'background 120ms' }}
+            <tr key={r.id || i} onClick={() => onOpenReport(r)} style={{ cursor: 'pointer', transition: 'background 120ms' }}
               onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface-alt)'}
               onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-surface)'}>
               <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--border-default)' }}>
@@ -63,10 +64,7 @@ function ReportTable({ reports, navigate, btnSecondary, thStyle }) {
               </td>
               <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--border-default)' }}><DecisionBadge decision={r.decision} /></td>
               <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--border-default)' }}>
-                {r.team_member_id
-                  ? <button type="button" onClick={() => navigate(`/manager/team/${r.team_member_id}`)} style={btnSecondary}>View</button>
-                  : <span style={{ fontSize: 11, color: 'var(--fg-subtle)', fontStyle: 'italic' }}>External</span>
-                }
+                <button type="button" onClick={event => { event.stopPropagation(); onOpenReport(r) }} style={btnSecondary}>View</button>
               </td>
             </tr>
           )
@@ -77,14 +75,94 @@ function ReportTable({ reports, navigate, btnSecondary, thStyle }) {
   )
 }
 
+function ScoreMetric({ label, value }) {
+  const score = value == null ? null : Number(value)
+  return (
+    <div style={{ padding: '10px 12px', border: '1px solid var(--border-default)', borderRadius: 8, background: 'var(--bg-surface-alt)' }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--fg-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>{label}</div>
+      <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--fg-primary)' }}>{score == null || Number.isNaN(score) ? '—' : score.toFixed(1)}</div>
+    </div>
+  )
+}
+
+function ReportDetailModal({ report, loading, error, onClose }) {
+  const strengths = parseStoredArray(report?.strengths)
+  const candidateName = report
+    ? `${report.candidate_first || ''} ${report.candidate_last || ''}`.trim() || 'Candidate'
+    : 'Candidate'
+  const source = report?.client_name || report?.assessment_subject || 'General assessment'
+
+  return (
+    <Modal open={!!report} onClose={onClose} title="Report Detail" size="lg">
+      {loading ? <Spinner center /> : error ? <ErrorMessage message={error} /> : report && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+            <div>
+              <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--fg-primary)', margin: '0 0 4px' }}>{candidateName}</h3>
+              <p style={{ fontSize: 13, color: 'var(--fg-muted)', margin: 0 }}>{report.candidate_email || 'No email'} · {source}</p>
+              <p style={{ fontSize: 12, color: 'var(--fg-subtle)', margin: '4px 0 0' }}>{report.interview_type || 'Interview'} · {formatDate(report.interview_date || report.created)}</p>
+            </div>
+            <DecisionBadge decision={report.decision} />
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(8.5rem, 1fr))', gap: 10 }}>
+            <ScoreMetric label="Overall" value={report.overall_score} />
+            <ScoreMetric label="Confidence" value={report.confidence} />
+            <ScoreMetric label="Technical" value={report.tech_knowledge} />
+            <ScoreMetric label="Communication" value={report.communication} />
+            <ScoreMetric label="Problem solving" value={report.problem_solving} />
+          </div>
+
+          {report.summary && (
+            <div>
+              <h4 style={{ fontSize: 12, fontWeight: 700, color: 'var(--fg-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 8px' }}>Summary</h4>
+              <p style={{ fontSize: 14, lineHeight: 1.7, color: 'var(--fg-body)', margin: 0 }}>{report.summary}</p>
+            </div>
+          )}
+
+          {strengths.length > 0 && (
+            <div>
+              <h4 style={{ fontSize: 12, fontWeight: 700, color: 'var(--fg-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 8px' }}>Highlights</h4>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {strengths.map(item => (
+                  <span key={item} style={{ fontSize: 12, padding: '4px 8px', borderRadius: 999, background: 'var(--brand-50)', color: 'var(--brand-700)', fontWeight: 600 }}>{item}</span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {report.reason && (
+            <div>
+              <h4 style={{ fontSize: 12, fontWeight: 700, color: 'var(--fg-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', margin: '0 0 8px' }}>Decision reason</h4>
+              <p style={{ fontSize: 14, lineHeight: 1.7, color: 'var(--fg-body)', margin: 0 }}>{report.reason}</p>
+            </div>
+          )}
+
+          {report.pdf_url && (
+            <div>
+              <a href={report.pdf_url} target="_blank" rel="noreferrer" style={{ fontSize: 13, fontWeight: 700, color: 'var(--brand-500)', textDecoration: 'none' }}>
+                Open PDF report
+              </a>
+            </div>
+          )}
+        </div>
+      )}
+    </Modal>
+  )
+}
+
 function ReportsPage() {
-  const navigate = useNavigate()
+  const location = useLocation()
   const [mainTab, setMainTab]         = useState('all')
   const [reports, setReports]         = useState([])
   const [decisionFilter, setDecision] = useState('all')
   const [templateFilter, setTemplate] = useState('all')
   const [loading, setLoading]         = useState(true)
   const [error, setError]             = useState(null)
+  const [selectedReport, setSelectedReport] = useState(null)
+  const [detailLoading, setDetailLoading] = useState(false)
+  const [detailError, setDetailError] = useState(null)
+  const [queryHandled, setQueryHandled] = useState(false)
 
   const load = useCallback(async (tab) => {
     setLoading(true)
@@ -102,6 +180,33 @@ function ReportsPage() {
   }, [])
 
   useEffect(() => { load(mainTab) }, [mainTab, load])
+
+  const openReport = useCallback(async (report) => {
+    setSelectedReport(report)
+    setDetailLoading(true)
+    setDetailError(null)
+    try {
+      const res = report.interview_id
+        ? await api.getReportByInterview(report.interview_id)
+        : await api.getReportDetail(report.id)
+      setSelectedReport({ ...report, ...(res.data || {}) })
+    } catch (err) {
+      setDetailError(err.message || 'Could not load report detail.')
+    } finally {
+      setDetailLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    setQueryHandled(false)
+  }, [location.search])
+
+  useEffect(() => {
+    const interviewId = new URLSearchParams(location.search).get('interview')
+    if (!interviewId || queryHandled || loading) return
+    setQueryHandled(true)
+    void openReport({ interview_id: interviewId })
+  }, [location.search, queryHandled, loading, openReport])
 
   function handleTabChange(t) { setMainTab(t); setDecision('all'); setTemplate('all') }
 
@@ -206,9 +311,15 @@ function ReportsPage() {
         </div>
 
         {loading ? <Spinner center /> : error ? <ErrorMessage message={error} /> : (
-          <ReportTable reports={visible} navigate={navigate} btnSecondary={btnSecondary} thStyle={thStyle} />
+          <ReportTable reports={visible} onOpenReport={openReport} btnSecondary={btnSecondary} thStyle={thStyle} />
         )}
       </div>
+      <ReportDetailModal
+        report={selectedReport}
+        loading={detailLoading}
+        error={detailError}
+        onClose={() => { setSelectedReport(null); setDetailError(null) }}
+      />
     </div>
   )
 }

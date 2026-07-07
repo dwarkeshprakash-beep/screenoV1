@@ -12,10 +12,10 @@ An AI-powered interview platform. Managers use it to assess their team members b
 
 ## Phase 1 scope — what we are building
 
-Three roles:
+Two active roles:
 1. **Manager** — schedule interviews, view team, read reports
-2. **Candidate** — take AI interview or exam via magic link (no login needed)
-3. **Interviewer** — conduct live human video interviews, fill scorecards
+2. **Candidate** — take AI interview or exam via magic link or candidate dashboard
+Human video interviews are manager-scheduled in Phase 1 with Google Meet support. Microsoft Teams is shown as an organization-setup option but cannot be submitted until that setup exists.
 
 ---
 
@@ -49,17 +49,9 @@ Managers currently send team members to client interviews without knowing how re
 - I do a device check before my interview (camera, mic, network)
 - I give consent before recording starts
 - I take an AI voice interview: AI asks questions aloud, I answer, AI follows up
-- I take a coding exam: MCQ, written answers
+- I take a coding exam: MCQ, written answers, and coding questions
 - After completing, I see improvement tips (no scores)
 - I can use any modern browser on my desktop or laptop
-
-**Interviewer**
-- I see my scheduled interviews for today
-- I can view the candidate's CV and past interview notes before the call
-- During the call, I see a question bank panel, notes panel, and AI suggestions
-- After the call, I fill a scorecard (AI pre-fills it, I review and submit)
-
----
 
 ## Interview types
 
@@ -75,13 +67,13 @@ Managers currently send team members to client interviews without knowing how re
 **Exam**
 - MCQ questions
 - Written answer questions
-- Section-based, timed
-- Auto-saves every question answered
+- Coding questions with visible and hidden test cases run server-side by the judge on submit
+- Timed by backend-configured duration
+- Auto-saves answers locally while the candidate works
 
 **Human Video Interview**
-- LiveKit video call in browser
-- Interviewer side panel with questions, notes, AI suggestions
-- AI-generated scorecard after interview
+- Google Meet link can be created and sent for scheduled human interviews
+- Microsoft Teams requires organization setup and is blocked from submit until configured
 
 ---
 
@@ -114,7 +106,7 @@ What the candidate sees:
 - HR role (Phase 2)
 - Super Admin role (Phase 2)
 - Mobile interviews (desktop only — mobile shows a blocker)
-- Code execution in exam (LLM grades code, doesn't run it)
+- Live interviewer console and LiveKit rooms
 - Dark mode
 - AI video avatar
 - ATS integrations

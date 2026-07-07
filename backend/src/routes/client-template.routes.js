@@ -11,8 +11,6 @@ const userRepository = require('../repositories/user.repository')
 const interviewRepository = require('../repositories/interview.repository')
 const emailService = require('../services/email.service')
 const scheduleService = require('../services/schedule.service')
-const teamsService = require('../services/teams.service')
-const zoomService = require('../services/zoom.service')
 const googleMeetService = require('../services/google-meet.service')
 const llmService = require('../services/llm.service')
 const { parseStoredArray } = require('../utils/parse')
@@ -52,6 +50,18 @@ router.get('/', async (req, res) => {
   }
 })
 
+// Returns which video meeting platforms are currently configured on this server.
+// Keep this before /:id so Express does not treat "video-platforms" as a mandate id.
+router.get('/video-platforms', (req, res) => {
+  res.json({
+    success: true,
+    data: {
+      google_meet: googleMeetService.isConfigured(),
+      teams: false,
+    },
+  })
+})
+
 router.get('/:id', async (req, res) => {
   try {
     const template = await clientTemplateRepo.getById(parseInt(req.params.id, 10), req.user.id)
@@ -82,18 +92,6 @@ router.patch('/:id', async (req, res) => {
     console.error('PATCH /client-templates/:id failed:', err.message)
     res.status(500).json({ success: false, error: 'Could not update template' })
   }
-})
-
-// Returns which video meeting platforms are currently configured on this server
-router.get('/video-platforms', (req, res) => {
-  res.json({
-    success: true,
-    data: {
-      zoom:        zoomService.isConfigured(),
-      google_meet: googleMeetService.isConfigured(),
-      teams:       false, // Teams integration disabled — enable when org credentials are ready
-    },
-  })
 })
 
 router.post('/extract-tags', async (req, res) => {
@@ -403,15 +401,33 @@ router.post('/:id/team/:ctId/schedule', async (req, res) => {
 
     // ai_voice / exam / human → use schedule service
     // For human interviews, optionally create a video meeting link
+    if (type === 'human') {
+      if (!scheduledAt) {
+        return res.status(400).json({ success: false, error: 'Date and time are required for human interviews' })
+      }
+      if (!['google_meet', 'teams'].includes(videoPlatform)) {
+        return res.status(400).json({ success: false, error: 'Choose Google Meet or Microsoft Teams for human interviews' })
+      }
+      if (videoPlatform === 'teams') {
+        return res.status(400).json({
+          success: false,
+          error: 'Microsoft Teams scheduling needs organization setup before it can be used.',
+        })
+      }
+      if (!googleMeetService.isConfigured()) {
+        return res.status(400).json({
+          success: false,
+          error: 'Google Meet is not configured yet. Add the Google Calendar service-account settings first.',
+        })
+      }
+    }
+
     let videoLink = null
     if (type === 'human' && scheduledAt && videoPlatform) {
       const endAt = new Date(new Date(scheduledAt).getTime() + 60 * 60 * 1000).toISOString()
       const meetingTopic = `Interview — ${template.requirements} @ ${template.client_name}`
 
-      if (videoPlatform === 'zoom' && zoomService.isConfigured()) {
-        const meeting = await zoomService.createMeeting({ topic: meetingTopic, startAt: scheduledAt, durationMinutes: 60 })
-        if (meeting) videoLink = meeting.joinUrl
-      } else if (videoPlatform === 'google_meet' && googleMeetService.isConfigured()) {
+      if (videoPlatform === 'google_meet' && googleMeetService.isConfigured()) {
         const meeting = await googleMeetService.createMeeting({
           summary: meetingTopic,
           startAt: scheduledAt,
@@ -423,6 +439,13 @@ router.post('/:id/team/:ctId/schedule', async (req, res) => {
       // 'teams' → disabled, skip
     }
 
+    if (type === 'human' && !videoLink) {
+      return res.status(502).json({
+        success: false,
+        error: 'Could not create the Google Meet link. Check the Google Calendar setup.',
+      })
+    }
+
     const interview = await scheduleService.createSchedule(
       {
         userId:           teamMember.user_id,
@@ -431,6 +454,9 @@ router.post('/:id/team/:ctId/schedule', async (req, res) => {
         difficulty:       difficulty || 'medium',
         questionCount:    questionCount || 10,
         clientTemplateId: mandateId,
+        scheduledAt:      scheduledAt || null,
+        assessmentDate:   scheduledAt || null,
+        details:          videoLink ? `Google Meet: ${videoLink}` : notes || null,
       },
       req.user.id,
       req.user.companyId

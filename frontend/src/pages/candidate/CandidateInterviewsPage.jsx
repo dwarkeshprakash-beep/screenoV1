@@ -12,13 +12,10 @@ const INTERVIEW_TYPE_LABEL = {
 const TYPE_COLOR = { ai_voice: 'var(--brand-500)', exam: 'var(--info-500)', human: 'var(--success-500)', offline: 'var(--warning-500)' }
 const TYPE_BG    = { ai_voice: 'var(--brand-50)',  exam: 'var(--info-50)',  human: 'var(--success-50)', offline: 'var(--warning-50)' }
 
-function InterviewCard({ iv, onLaunch, launchingId, showScore }) {
+function InterviewCard({ iv, onLaunch, launchingId }) {
   const tColor = TYPE_COLOR[iv.type] || 'var(--border-strong)'
   const tBg    = TYPE_BG[iv.type]    || 'var(--bg-surface-alt)'
   const canLaunch = (iv.type === 'ai_voice' || iv.type === 'exam') && ['scheduled', 'in_progress'].includes(iv.status)
-  const score = showScore && iv.overall_score != null ? Number(iv.overall_score) : null
-  const scoreColor = score != null ? (score >= 5.5 ? 'var(--success-500)' : 'var(--warning-500)') : null
-  const scoreBg    = score != null ? (score >= 5.5 ? 'var(--success-50)'  : 'var(--warning-50)')  : null
 
   return (
     <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderLeft: `3px solid ${tColor}`, borderRadius: 10, boxShadow: 'var(--shadow-xs)' }}>
@@ -31,18 +28,13 @@ function InterviewCard({ iv, onLaunch, launchingId, showScore }) {
             {iv.company_name && <p style={{ fontSize: 12, color: 'var(--fg-muted)', margin: '2px 0 0' }}>{iv.company_name}</p>}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-            {score != null && (
-              <div style={{ width: 42, height: 42, borderRadius: 10, background: scoreBg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <span style={{ fontSize: 14, fontWeight: 700, color: scoreColor }}>{score.toFixed(1)}</span>
-              </div>
-            )}
             <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 6, background: tBg, color: tColor }}>
               {INTERVIEW_TYPE_LABEL[iv.type] || iv.type}
             </span>
           </div>
         </div>
 
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: canLaunch || showScore ? 12 : 0 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: canLaunch ? 12 : 0 }}>
           <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--fg-muted)' }}>
             <Clock size={11} />{formatDate(iv.scheduled_at || iv.created)}
           </span>
@@ -68,12 +60,6 @@ function InterviewCard({ iv, onLaunch, launchingId, showScore }) {
           <p style={{ fontSize: 12, color: 'var(--fg-muted)', margin: 0, display: 'flex', alignItems: 'center', gap: 4 }}>
             <Clock size={11} />Your interviewer will share the video link via email.
           </p>
-        )}
-
-        {showScore && iv.overall_score != null && (
-          <div style={{ marginTop: score != null ? 0 : 0, height: 4, borderRadius: 2, background: 'var(--bg-surface-alt)', overflow: 'hidden' }}>
-            <div style={{ width: `${Math.min((Number(iv.overall_score) / 10) * 100, 100)}%`, height: '100%', background: scoreColor || 'var(--fg-muted)', borderRadius: 2 }} />
-          </div>
         )}
       </div>
     </div>
@@ -105,15 +91,16 @@ function CandidateInterviewsPage() {
     try {
       const response = await api.launchCandidateInterview(interview.id)
       const launch = response.data
-      localStorage.setItem('accessToken', launch.sessionToken)
+      localStorage.setItem('interviewAccessToken', launch.sessionToken)
       localStorage.setItem('interviewSession', JSON.stringify({
         interviewId: launch.interview.id,
         token: launch.launchToken,
         type: launch.interview.type,
         mode: launch.interview.interviewMode,
         candidateName: launch.interview.candidateName,
+        sessionToken: launch.sessionToken,
       }))
-      navigate(`/interview/${launch.launchToken}`)
+      navigate(`/interview/${launch.launchToken}/device-check`)
     } catch (err) { setError(err.message || 'Could not launch interview.') }
     finally { setLaunchingId(null) }
   }
@@ -129,11 +116,9 @@ function CandidateInterviewsPage() {
   ]
 
   const activeList = tab === 'upcoming' ? upcoming : tab === 'completed' ? completed : inPerson
-  const showScore  = tab === 'completed'
-
   const EMPTY_MESSAGES = {
     upcoming:  { title: 'No upcoming interviews', sub: 'Your manager will schedule interviews and they\'ll appear here.' },
-    completed: { title: 'No completed interviews yet', sub: 'Finished interviews will show up here with your scores.' },
+    completed: { title: 'No completed interviews yet', sub: 'Finished interviews will show up here with feedback status.' },
     inperson:  { title: 'No in-person interviews', sub: 'Offline interviews scheduled for you will appear here.' },
   }
 
@@ -176,7 +161,7 @@ function CandidateInterviewsPage() {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {activeList.map(iv => (
-            <InterviewCard key={iv.id} iv={iv} onLaunch={launchInterview} launchingId={launchingId} showScore={showScore} />
+            <InterviewCard key={iv.id} iv={iv} onLaunch={launchInterview} launchingId={launchingId} />
           ))}
         </div>
       )}

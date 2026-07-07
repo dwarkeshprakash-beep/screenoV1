@@ -70,6 +70,9 @@ router.post('/', async (req, res) => {
     }
     if (!type) return res.status(400).json({ success: false, error: 'type is required' })
     if (!interviewMode) return res.status(400).json({ success: false, error: 'interviewMode is required' })
+    if (!req.body.scheduledAt) {
+      return res.status(400).json({ success: false, error: 'scheduledAt is required' })
+    }
 
     const interview = await scheduleService.createSchedule(req.body, req.user.id, req.user.companyId)
     res.status(201).json({ success: true, data: interview })
@@ -88,6 +91,8 @@ router.post('/', async (req, res) => {
       'Invalid interview mode',
       'Choose either a client template or a monthly assessment',
       'Question count must be an integer between 1 and 50',
+      'Duration must be an integer between 15 and 180 minutes',
+      'Invalid scheduled date and time',
       'Some report recipients are not in your organization',
     ].includes(err.message)) {
       return res.status(400).json({ success: false, error: err.message })

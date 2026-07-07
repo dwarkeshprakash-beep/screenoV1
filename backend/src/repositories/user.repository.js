@@ -3,7 +3,8 @@ const db = require('../db/connection')
 
 async function getByEmail(email) {
   const rows = await db.query(
-    `SELECT id, company_id, first_name, last_name, email, password, role, resume_url, tags, availability
+    `SELECT id, company_id, first_name, last_name, email, password, role,
+            resume_url, resume_text, tags, availability
      FROM users
      WHERE email = @email`,
     { email }
@@ -13,7 +14,8 @@ async function getByEmail(email) {
 
 async function getById(id) {
   const rows = await db.query(
-    `SELECT id, company_id, first_name, last_name, email, role, resume_url, tags, availability
+    `SELECT id, company_id, first_name, last_name, email, role,
+            resume_url, resume_text, tags, availability
      FROM users
      WHERE id = @id`,
     { id }
@@ -21,13 +23,21 @@ async function getById(id) {
   return rows[0] || null
 }
 
-async function updateProfile(id, { firstName, lastName, resumeUrl, tags, availability }) {
+async function updateProfile(id, {
+  firstName,
+  lastName,
+  resumeUrl,
+  resumeText,
+  tags,
+  availability,
+}) {
   const rows = await db.query(
     `UPDATE users
      SET
        first_name   = COALESCE(@first_name,   first_name),
        last_name    = COALESCE(@last_name,    last_name),
        resume_url   = COALESCE(@resume_url,   resume_url),
+       resume_text  = COALESCE(@resume_text,  resume_text),
        tags         = COALESCE(@tags,         tags),
        availability = COALESCE(@availability, availability)
      WHERE id = @id
@@ -37,6 +47,7 @@ async function updateProfile(id, { firstName, lastName, resumeUrl, tags, availab
       first_name:   firstName    || null,
       last_name:    lastName     || null,
       resume_url:   resumeUrl    || null,
+      resume_text:  resumeText ? String(resumeText).slice(0, 12000) : null,
       tags:         tags ? (typeof tags === 'string' ? tags : JSON.stringify(tags)) : null,
       availability: availability || null,
     }
@@ -93,7 +104,7 @@ async function getByCompany(companyId) {
   return db.query(
     `SELECT u.id, u.company_id, u.first_name, u.last_name, u.email, u.role,
             u.emp_number AS employee_id, u.job_title AS current_position,
-            u.location, u.availability, u.tags, u.resume_url, u.resume_updated,
+            u.location, u.availability, u.tags, u.resume_url, u.resume_text, u.resume_updated,
             d.name AS department
      FROM users u
      LEFT JOIN departments d ON d.id = u.department_id
@@ -119,7 +130,7 @@ async function getByIdsForCompany(ids, companyId) {
   return db.query(
     `SELECT u.id, u.company_id, u.first_name, u.last_name, u.email, u.role,
             u.emp_number AS employee_id, u.job_title AS current_position,
-            u.location, u.availability, u.tags, u.resume_url, u.resume_updated,
+            u.location, u.availability, u.tags, u.resume_url, u.resume_text, u.resume_updated,
             d.name AS department
      FROM users u
      LEFT JOIN departments d ON d.id = u.department_id

@@ -71,6 +71,43 @@ router.post('/logout', authMiddleware, async (req, res) => {
   }
 })
 
+// POST /api/auth/forgot-password
+router.post('/forgot-password', async (req, res) => {
+  try {
+    if (!req.body.email) {
+      return res.status(400).json({ success: false, error: 'Email is required' })
+    }
+    await authService.requestPasswordReset(req.body.email)
+    res.json({
+      success: true,
+      data: {
+        message: 'If that email exists, a password reset link has been sent.',
+      },
+    })
+  } catch (err) {
+    console.error('POST /auth/forgot-password failed:', err)
+    res.status(500).json({ success: false, error: 'Could not request password reset' })
+  }
+})
+
+// POST /api/auth/reset-password
+router.post('/reset-password', async (req, res) => {
+  try {
+    await authService.resetPassword(req.body.token, req.body.newPassword)
+    res.json({ success: true, data: { message: 'Password updated. Please sign in.' } })
+  } catch (err) {
+    console.error('POST /auth/reset-password failed:', err)
+    if ([
+      'Reset token is required',
+      'Password must be at least 8 characters',
+      'Reset link is invalid or expired',
+    ].includes(err.message)) {
+      return res.status(400).json({ success: false, error: err.message })
+    }
+    res.status(500).json({ success: false, error: 'Could not reset password' })
+  }
+})
+
 // POST /api/auth/magic-link/:token
 router.post('/magic-link/:token', async (req, res) => {
   try {

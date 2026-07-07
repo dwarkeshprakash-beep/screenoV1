@@ -40,6 +40,18 @@ async function createSchedule(data, managerId, companyId) {
   if (!Number.isInteger(questionCount) || questionCount < 1 || questionCount > 50) {
     throw new Error('Question count must be an integer between 1 and 50')
   }
+  const requestedDuration = data.durationMinutes == null || data.durationMinutes === ''
+    ? null
+    : Number(data.durationMinutes)
+  if (requestedDuration !== null && (
+    !Number.isInteger(requestedDuration) || requestedDuration < 15 || requestedDuration > 180
+  )) {
+    throw new Error('Duration must be an integer between 15 and 180 minutes')
+  }
+  const scheduledAt = data.scheduledAt ? new Date(data.scheduledAt) : null
+  if (data.scheduledAt && Number.isNaN(scheduledAt.getTime())) {
+    throw new Error('Invalid scheduled date and time')
+  }
   await validateContext(data, managerId)
 
   let candidateName = ''
@@ -103,8 +115,12 @@ async function createSchedule(data, managerId, companyId) {
     interviewMode: data.type === 'exam' ? 'simple' : data.interviewMode,
     difficulty: data.difficulty || 'medium',
     questionCount,
+    durationMinutes: data.type === 'exam'
+      ? (requestedDuration || Math.min(90, Math.max(15, questionCount * 4)))
+      : null,
     tokenHash,
     tokenExpires,
+    scheduledAt: scheduledAt ? scheduledAt.toISOString() : null,
     clientTemplateId: data.clientTemplateId || null,
     monthlyAssessmentId: data.monthlyAssessmentId || null,
     reportEmails: reportEmails.join(',') || null,
@@ -171,6 +187,8 @@ async function getCalendarEvents(managerId) {
     candidateName: `${interview.candidate_first || ''} ${interview.candidate_last || ''}`.trim(),
     status: interview.status,
     result: interview.result,
+    start: interview.scheduled_at || interview.created,
+    scheduledAt: interview.scheduled_at || null,
     created: interview.created,
     teamMemberId: interview.team_member_id || null,
   }))

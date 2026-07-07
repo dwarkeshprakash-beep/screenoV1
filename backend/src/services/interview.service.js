@@ -10,6 +10,22 @@ const transcriptionService = require('./transcription.service')
 const emailService = require('./email.service')
 const pdfService = require('./pdf.service')
 const storageService = require('./storage.service')
+const { parseStoredArray } = require('../utils/parse')
+
+function buildResumeContext(interview) {
+  const parts = []
+  if (interview.candidate_resume_text) {
+    parts.push(`Resume text:\n${String(interview.candidate_resume_text).slice(0, 4000)}`)
+  }
+  if (interview.candidate_resume_url) {
+    parts.push(`Resume file URL: ${interview.candidate_resume_url}`)
+  }
+  const tags = parseStoredArray(interview.candidate_tags)
+  if (tags.length > 0) {
+    parts.push(`Candidate resume/profile tags: ${tags.join(', ')}`)
+  }
+  return parts.join('\n') || null
+}
 
 async function getCandidateInterview(interviewId, identity) {
   candidateIdentityService.assertInterviewScope(identity, interviewId)
@@ -28,7 +44,7 @@ async function getOrCreateQuestions(interview) {
   const count = interview.interview_mode === 'adaptive' ? 1 : interview.question_count
   const generated = await llmService.generateQuestions({
     candidateName: interview.candidate_first,
-    resume: null,
+    resume: buildResumeContext(interview),
     jd: interview.context_text,
     focusAreas: interview.context_focus_areas,
     difficulty: interview.difficulty,
@@ -162,7 +178,7 @@ async function logProctoringEvent(data) {
 
   if (interview.result === 'proctoring_warning') {
     await interviewRepository.markCompleted(data.interviewId, 'cheating_attempt')
-    await scorecardRepository.upsert({
+    const scorecard = await scorecardRepository.upsert({
       interviewId: data.interviewId,
       overall: 0,
       confidence: 0,
@@ -172,6 +188,15 @@ async function logProctoringEvent(data) {
       decision: 'fail',
       reason: 'Interview terminated after a repeated proctoring violation.',
     })
+    const report = await reportRepository.upsertGenerating({
+      interviewId: data.interviewId,
+      scorecardId: scorecard.id,
+      summary: 'Interview terminated after a repeated proctoring violation.',
+      strengths: [],
+    })
+    await reportRepository.updateStatus(report.id, 'ready')
+    const job = await reportJobRepository.create(data.interviewId)
+    await reportJobRepository.markCompleted(job.id)
     return { warning: false, terminated: true }
   }
 

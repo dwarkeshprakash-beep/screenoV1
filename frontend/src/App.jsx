@@ -1,27 +1,30 @@
+import { lazy, Suspense } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import AppLayout from './components/layout/AppLayout'
 import CandidateLayout from './components/layout/CandidateLayout'
-import LoginPage from './pages/auth/LoginPage'
-import DashboardPage from './pages/manager/DashboardPage'
-import TeamPage from './pages/manager/TeamPage'
-import MemberProfilePage from './pages/manager/MemberProfilePage'
-import SchedulePage from './pages/manager/SchedulePage'
-import ReportsPage from './pages/manager/ReportsPage'
-import ManagerProfilePage from './pages/manager/ManagerProfilePage'
-import ResumeAnalyzerPage from './pages/manager/ResumeAnalyzerPage'
-import MonthlyAssessmentPage from './pages/manager/MonthlyAssessmentPage'
-import ClientInterviewsPage from './pages/manager/ClientInterviewsPage'
-import InterviewLandingPage from './pages/candidate/InterviewLandingPage'
-import DeviceCheckPage from './pages/candidate/DeviceCheckPage'
-import ConsentPage from './pages/candidate/ConsentPage'
-import AIInterviewPage from './pages/candidate/AIInterviewPage'
-import ExamPage from './pages/candidate/ExamPage'
-import DonePage from './pages/candidate/DonePage'
 import CandidateDashboardLayout from './components/layout/CandidateDashboardLayout'
-import CandidateOverviewPage from './pages/candidate/CandidateOverviewPage'
-import CandidateInterviewsPage from './pages/candidate/CandidateInterviewsPage'
-import CandidateProfilePage from './pages/candidate/CandidateProfilePage'
-import CandidateMandatesPage from './pages/candidate/CandidateMandatesPage'
+import Spinner from './components/shared/Spinner'
+
+const LoginPage = lazy(() => import('./pages/auth/LoginPage'))
+const DashboardPage = lazy(() => import('./pages/manager/DashboardPage'))
+const TeamPage = lazy(() => import('./pages/manager/TeamPage'))
+const MemberProfilePage = lazy(() => import('./pages/manager/MemberProfilePage'))
+const SchedulePage = lazy(() => import('./pages/manager/SchedulePage'))
+const ReportsPage = lazy(() => import('./pages/manager/ReportsPage'))
+const ManagerProfilePage = lazy(() => import('./pages/manager/ManagerProfilePage'))
+const ResumeAnalyzerPage = lazy(() => import('./pages/manager/ResumeAnalyzerPage'))
+const MonthlyAssessmentPage = lazy(() => import('./pages/manager/MonthlyAssessmentPage'))
+const ClientInterviewsPage = lazy(() => import('./pages/manager/ClientInterviewsPage'))
+const InterviewLandingPage = lazy(() => import('./pages/candidate/InterviewLandingPage'))
+const DeviceCheckPage = lazy(() => import('./pages/candidate/DeviceCheckPage'))
+const ConsentPage = lazy(() => import('./pages/candidate/ConsentPage'))
+const AIInterviewPage = lazy(() => import('./pages/candidate/AIInterviewPage'))
+const ExamPage = lazy(() => import('./pages/candidate/ExamPage'))
+const DonePage = lazy(() => import('./pages/candidate/DonePage'))
+const CandidateOverviewPage = lazy(() => import('./pages/candidate/CandidateOverviewPage'))
+const CandidateInterviewsPage = lazy(() => import('./pages/candidate/CandidateInterviewsPage'))
+const CandidateProfilePage = lazy(() => import('./pages/candidate/CandidateProfilePage'))
+const CandidateMandatesPage = lazy(() => import('./pages/candidate/CandidateMandatesPage'))
 
 function RequireAuth({ children, role }) {
   const token = localStorage.getItem('accessToken')
@@ -42,8 +45,9 @@ function RequireAuth({ children, role }) {
 
 function App() {
   return (
-    <Routes>
-      <Route path="/login" element={<LoginPage />} />
+    <Suspense fallback={<Spinner center />}>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
 
       <Route
         path="/manager"
@@ -86,8 +90,9 @@ function App() {
       </Route>
 
       <Route path="/" element={<Navigate to="/login" replace />} />
-      <Route path="*" element={<Navigate to="/login" replace />} />
-    </Routes>
+        <Route path="*" element={<Navigate to="/login" replace />} />
+      </Routes>
+    </Suspense>
   )
 }
 

@@ -1,6 +1,6 @@
 # Screeno V2 Open Issues
 
-Last reviewed: 2026-06-18
+Last reviewed: 2026-07-07
 
 All blocking items from the V2 database and workflow audit are implemented and covered by `docs/AUDIT-AND-TESTING.md`.
 
@@ -24,52 +24,24 @@ Deploy to a staging environment using production-equivalent database, SMTP/Brevo
 Acceptance:
 
 - A real candidate receives a magic link.
-- ✓ Fixed 2026-06-18: Magic link is now truly single-use — token hash is nullified in DB on first validation (`auth.service.js`). Exam token expiry is now mandatory (null `token_expires` is rejected).
+- Fixed: Magic link validation now swaps the emailed token for a short-lived launch token, so the original email link cannot be replayed. Exam token expiry is mandatory.
 - ✓ Fixed 2026-06-18: Completing an interview now creates exactly one scorecard, one report, and one report job (all three upserts converted to `INSERT … ON CONFLICT DO UPDATE`).
 - Failed email and report jobs are visible and retryable.
 
-### Run migration 006 on existing databases
+### Run migrations 006-008 on existing databases
 
-Migration `006_missing_indexes.sql` adds four indexes identified during the 2026-06-18 audit as causing sequential scans on hot paths (`users.email`, `users.company_id`, `refresh_tokens.token_hash`, `transcripts.interview_id`).
-
-Acceptance:
-
-- `node backend/run-migration-006.js` runs without error.
-- Output confirms 4/4 indexes verified.
-- New databases created via `setup-db.js` already include the indexes.
-
-### External candidate report detail page
-
-Managers can see external-candidate reports in the reports list but cannot view the full scorecard (no `team_member_id` → no link to a member profile page). There is also no `/manager/reports/:id` detail route for any report type.
+Migrations `006_missing_indexes.sql`, `007_client_teams.sql`, and `008_state_flow_fixes.sql` add the current indexes, client-team tables, password reset token storage, exam duration, and resume text fields.
 
 Acceptance:
 
-- A dedicated report detail page or slide-over shows scorecard, summary, strengths, and PDF link.
-- The "View" action on `ReportsPage` works for both internal and external candidates.
-
-### Password reset flow
-
-No self-service password reset exists. Locked-out accounts require direct DB access.
-
-Acceptance:
-
-- A "Forgot password?" link on the login page triggers an email with a time-bounded reset link.
-- The reset link is single-use and hashed at rest (same pattern as magic links).
+- Pending migrations run without error.
+- New databases created via `setup-db.js` already include migrations 001-008.
 
 ### Consent and AI policy review
 
 Product/legal must approve the consent wording, recording/transcription notice, data retention expectations, and the statement that AI output is advisory.
 
 ## P2 - Performance and Automation
-
-### Frontend route-level code splitting
-
-The production bundle is approximately 1 MB before gzip and triggers Vite's 500 kB chunk advisory.
-
-Acceptance:
-
-- Manager and candidate route groups are lazy-loaded.
-- Initial bundle no longer triggers the chunk warning, or the remaining warning is documented with measured justification.
 
 ### Browser regression automation
 
@@ -97,6 +69,12 @@ Acceptance:
 - Compact 15-table schema and migration verification.
 - Manager/candidate-only role surface.
 - LiveKit and interviewer route/page/package removal.
+- Report detail modal for internal and external candidates.
+- Report-ready email query handling for `/manager/reports?interview=...`.
+- Forgot-password and reset-password flow with hashed single-use reset tokens.
+- Candidate feedback/tips views without candidate-visible scores.
+- Exam autosave, backend-configured duration, blank-timeout completion, and server-side coding judge submission.
+- Route-level lazy loading.
 - Internal and external candidate identity handling.
 - Resume URL/update time and tags on internal users.
 - Ownership checks for monthly assessments and delivery history.

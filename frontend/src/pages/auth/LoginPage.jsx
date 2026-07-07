@@ -74,14 +74,22 @@ function roleRedirect(role) {
 
 function LoginPage() {
   const navigate = useNavigate()
+  const initialResetToken = (() => {
+    try { return new URLSearchParams(window.location.search).get('reset') || '' } catch { return '' }
+  })()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [mode, setMode] = useState(initialResetToken ? 'reset' : 'login')
+  const [resetToken, setResetToken] = useState(initialResetToken)
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
+  const [message, setMessage] = useState(null)
 
   async function signIn(loginEmail, loginPassword) {
     setError(null)
+    setMessage(null)
     setLoading(true)
     try {
       const result = await api.login(loginEmail, loginPassword)
@@ -101,6 +109,48 @@ function LoginPage() {
   async function handleSubmit(event) {
     event.preventDefault()
     await signIn(email, password)
+  }
+
+  async function handleForgotSubmit(event) {
+    event.preventDefault()
+    setError(null)
+    setMessage(null)
+    setLoading(true)
+    try {
+      await api.forgotPassword(email)
+      setMessage('If that email exists, a password reset link has been sent.')
+    } catch (err) {
+      setError(err.message || 'Could not request password reset.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function handleResetSubmit(event) {
+    event.preventDefault()
+    setError(null)
+    setMessage(null)
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters.')
+      return
+    }
+    if (password !== confirmPassword) {
+      setError('Passwords do not match.')
+      return
+    }
+    setLoading(true)
+    try {
+      await api.resetPassword(resetToken, password)
+      setPassword('')
+      setConfirmPassword('')
+      setResetToken('')
+      setMode('login')
+      setMessage('Password updated. Please sign in.')
+    } catch (err) {
+      setError(err.message || 'Could not reset password.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   async function selectDemo(account) {
@@ -136,7 +186,7 @@ function LoginPage() {
         </div>
 
         <div style={{ background: '#1E293B', border: '1px solid #334155', borderRadius: '1rem', padding: '1.75rem' }}>
-          {DEMO_ACCOUNTS.length > 0 && (
+          {mode === 'login' && DEMO_ACCOUNTS.length > 0 && (
             <>
               <p style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--slate-400)', letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: '1.125rem' }}>Demo Accounts</p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem', marginBottom: '1.25rem' }}>
@@ -153,31 +203,75 @@ function LoginPage() {
             </>
           )}
 
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            <div>
-              <label style={{ color: 'var(--slate-400)', fontSize: '0.8125rem', fontWeight: 500, display: 'block', marginBottom: '0.375rem' }}>Email</label>
-              <input type="email" placeholder="you@company.com" value={email} onChange={event => setEmail(event.target.value)} required style={inputStyle} />
-            </div>
-            <div>
-              <label style={{ color: 'var(--slate-400)', fontSize: '0.8125rem', fontWeight: 500, display: 'block', marginBottom: '0.375rem' }}>Password</label>
-              <div style={{ position: 'relative' }}>
-                <input type={showPassword ? 'text' : 'password'} placeholder="Password" value={password} onChange={event => setPassword(event.target.value)} required style={{ ...inputStyle, paddingRight: '2.75rem' }} />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(p => !p)}
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
-                  style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 0, cursor: 'pointer', color: '#64748B', display: 'inline-flex', padding: 0 }}
-                >
-                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
+          {mode === 'login' && (
+            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <div>
+                <label style={{ color: 'var(--slate-400)', fontSize: '0.8125rem', fontWeight: 500, display: 'block', marginBottom: '0.375rem' }}>Email</label>
+                <input type="email" placeholder="you@company.com" value={email} onChange={event => setEmail(event.target.value)} required style={inputStyle} />
               </div>
-            </div>
+              <div>
+                <label style={{ color: 'var(--slate-400)', fontSize: '0.8125rem', fontWeight: 500, display: 'block', marginBottom: '0.375rem' }}>Password</label>
+                <div style={{ position: 'relative' }}>
+                  <input type={showPassword ? 'text' : 'password'} placeholder="Password" value={password} onChange={event => setPassword(event.target.value)} required style={{ ...inputStyle, paddingRight: '2.75rem' }} />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(p => !p)}
+                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', background: 'none', border: 0, cursor: 'pointer', color: '#64748B', display: 'inline-flex', padding: 0 }}
+                  >
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+              </div>
 
-            {error && <p role="alert" style={{ fontSize: '0.8125rem', color: '#EF4444' }}>{error}</p>}
-            <button type="submit" disabled={loading} style={{ width: '100%', padding: '0.75rem', background: 'var(--brand-500)', color: 'var(--bg-surface)', border: 'none', borderRadius: '0.5rem', fontSize: '0.875rem', fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1, marginTop: '0.25rem' }}>
-              {loading ? 'Signing in...' : 'Sign in'}
-            </button>
-          </form>
+              {error && <p role="alert" style={{ fontSize: '0.8125rem', color: '#EF4444' }}>{error}</p>}
+              {message && <p role="status" style={{ fontSize: '0.8125rem', color: '#86EFAC' }}>{message}</p>}
+              <button type="submit" disabled={loading} style={{ width: '100%', padding: '0.75rem', background: 'var(--brand-500)', color: 'var(--bg-surface)', border: 'none', borderRadius: '0.5rem', fontSize: '0.875rem', fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1, marginTop: '0.25rem' }}>
+                {loading ? 'Signing in...' : 'Sign in'}
+              </button>
+              <button type="button" onClick={() => { setMode('forgot'); setError(null); setMessage(null) }} style={{ background: 'transparent', border: 0, color: '#94A3B8', fontSize: '0.8125rem', cursor: 'pointer', padding: '0.25rem' }}>
+                Forgot password?
+              </button>
+            </form>
+          )}
+
+          {mode === 'forgot' && (
+            <form onSubmit={handleForgotSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <div>
+                <label style={{ color: 'var(--slate-400)', fontSize: '0.8125rem', fontWeight: 500, display: 'block', marginBottom: '0.375rem' }}>Email</label>
+                <input type="email" placeholder="you@company.com" value={email} onChange={event => setEmail(event.target.value)} required style={inputStyle} />
+              </div>
+              {error && <p role="alert" style={{ fontSize: '0.8125rem', color: '#EF4444' }}>{error}</p>}
+              {message && <p role="status" style={{ fontSize: '0.8125rem', color: '#86EFAC' }}>{message}</p>}
+              <button type="submit" disabled={loading} style={{ width: '100%', padding: '0.75rem', background: 'var(--brand-500)', color: 'var(--bg-surface)', border: 'none', borderRadius: '0.5rem', fontSize: '0.875rem', fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1, marginTop: '0.25rem' }}>
+                {loading ? 'Sending...' : 'Send reset link'}
+              </button>
+              <button type="button" onClick={() => { setMode('login'); setError(null); setMessage(null) }} style={{ background: 'transparent', border: 0, color: '#94A3B8', fontSize: '0.8125rem', cursor: 'pointer', padding: '0.25rem' }}>
+                Back to sign in
+              </button>
+            </form>
+          )}
+
+          {mode === 'reset' && (
+            <form onSubmit={handleResetSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <div>
+                <label style={{ color: 'var(--slate-400)', fontSize: '0.8125rem', fontWeight: 500, display: 'block', marginBottom: '0.375rem' }}>New password</label>
+                <input type={showPassword ? 'text' : 'password'} placeholder="New password" value={password} onChange={event => setPassword(event.target.value)} required style={inputStyle} />
+              </div>
+              <div>
+                <label style={{ color: 'var(--slate-400)', fontSize: '0.8125rem', fontWeight: 500, display: 'block', marginBottom: '0.375rem' }}>Confirm password</label>
+                <input type={showPassword ? 'text' : 'password'} placeholder="Confirm password" value={confirmPassword} onChange={event => setConfirmPassword(event.target.value)} required style={inputStyle} />
+              </div>
+              <button type="button" onClick={() => setShowPassword(p => !p)} style={{ background: 'transparent', border: 0, color: '#94A3B8', fontSize: '0.8125rem', cursor: 'pointer', padding: '0.25rem', alignSelf: 'flex-start' }}>
+                {showPassword ? 'Hide password' : 'Show password'}
+              </button>
+              {error && <p role="alert" style={{ fontSize: '0.8125rem', color: '#EF4444' }}>{error}</p>}
+              {message && <p role="status" style={{ fontSize: '0.8125rem', color: '#86EFAC' }}>{message}</p>}
+              <button type="submit" disabled={loading} style={{ width: '100%', padding: '0.75rem', background: 'var(--brand-500)', color: 'var(--bg-surface)', border: 'none', borderRadius: '0.5rem', fontSize: '0.875rem', fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1, marginTop: '0.25rem' }}>
+                {loading ? 'Updating...' : 'Update password'}
+              </button>
+            </form>
+          )}
         </div>
       </div>
     </div>

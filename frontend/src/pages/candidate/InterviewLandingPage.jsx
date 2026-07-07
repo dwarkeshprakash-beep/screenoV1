@@ -21,16 +21,18 @@ function InterviewLandingPage() {
 
       localStorage.setItem('interviewSession', JSON.stringify({
         interviewId: data.interview.id,
-        token,
+        token: data.launchToken || token,
+        emailToken: token,
         type: data.interview.type,
         jobTitle: data.interview.contextTitle || (data.interview.type === 'exam' ? 'Technical Assessment' : 'AI Voice Interview'),
         companyName: data.interview.company_name || data.interview.companyName || 'Your Company',
         mode: data.interview.interviewMode,
         transcriptionMode: data.interview.transcriptionMode,
         candidateName: data.interview.candidateName,
+        sessionToken: data.sessionToken,
       }))
-      localStorage.setItem('accessToken', data.sessionToken)
-      setInterview(data.interview)
+      localStorage.setItem('interviewAccessToken', data.sessionToken)
+      setInterview({ ...data.interview, launchToken: data.launchToken || token })
     } catch (err) {
       setError(err.message || 'Could not validate this link.')
     } finally {
@@ -62,6 +64,7 @@ function InterviewLandingPage() {
     ? interview.interviewMode === 'adaptive' ? 'Adaptive AI Voice Interview' : 'AI Voice Interview'
     : ['exam', 'ai_exam'].includes(interview.type) ? 'Assessment Exam' : 'Interview'
   const companyName = interview.companyName || 'Your Company'
+  const launchToken = interview.launchToken || token
 
   return (
     <div style={{ minHeight: 'calc(100vh - 132px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 24px' }}>
@@ -95,7 +98,7 @@ function InterviewLandingPage() {
         </div>
 
         <button
-          onClick={() => navigate(`/interview/${token}/device-check`)}
+          onClick={() => navigate(`/interview/${launchToken}/device-check`)}
           onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-1px)'}
           onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
           style={{ width: '100%', padding: '14px 24px', borderRadius: 12, background: 'linear-gradient(135deg,var(--brand-500),var(--brand-600))', color: 'var(--bg-surface)', border: 0, fontSize: 15, fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, boxShadow: '0 8px 24px rgba(91,79,233,0.3)', transition: 'all 120ms' }}
