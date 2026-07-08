@@ -5,12 +5,25 @@ import Button from '../shared/Button'
 import Avatar from '../shared/Avatar'
 import * as api from '../../services/api'
 
-function nextWeekDate() {
-  const date = new Date()
-  date.setDate(date.getDate() + 7)
+function toDateTimeLocalValue(date) {
+  const year = date.getFullYear()
   const month = String(date.getMonth() + 1).padStart(2, '0')
   const day = String(date.getDate()).padStart(2, '0')
-  return `${date.getFullYear()}-${month}-${day}`
+  const hours = String(date.getHours()).padStart(2, '0')
+  const minutes = String(date.getMinutes()).padStart(2, '0')
+  return `${year}-${month}-${day}T${hours}:${minutes}`
+}
+
+function nextWeekDateTime() {
+  const date = new Date()
+  date.setDate(date.getDate() + 7)
+  date.setHours(10, 0, 0, 0)
+  return toDateTimeLocalValue(date)
+}
+
+function initialAssessmentDate(defaultDate) {
+  if (!defaultDate) return nextWeekDateTime()
+  return String(defaultDate).includes('T') ? defaultDate : `${defaultDate}T10:00`
 }
 
 function MonthlyAssessmentAssignModal({
@@ -22,7 +35,9 @@ function MonthlyAssessmentAssignModal({
 }) {
   const [team, setTeam] = useState([])
   const [selectedIds, setSelectedIds] = useState(new Set())
-  const [assessmentDate, setAssessmentDate] = useState(defaultDate || nextWeekDate())
+  const [assessmentDate, setAssessmentDate] = useState(initialAssessmentDate(defaultDate))
+  const [questionCount, setQuestionCount] = useState(10)
+  const [durationMinutes, setDurationMinutes] = useState(60)
   const [query, setQuery] = useState('')
   const [conflicts, setConflicts] = useState(new Map())
   const [loading, setLoading] = useState(false)
@@ -32,7 +47,9 @@ function MonthlyAssessmentAssignModal({
   useEffect(() => {
     if (!open) return
     setSelectedIds(new Set())
-    setAssessmentDate(defaultDate || nextWeekDate())
+    setAssessmentDate(initialAssessmentDate(defaultDate))
+    setQuestionCount(10)
+    setDurationMinutes(60)
     setQuery('')
     setError(null)
     async function loadTeam() {
@@ -111,11 +128,21 @@ function MonthlyAssessmentAssignModal({
       setError('Select at least one candidate.')
       return
     }
+    if (!Number.isInteger(Number(questionCount)) || Number(questionCount) < 1 || Number(questionCount) > 50) {
+      setError('Question count must be between 1 and 50.')
+      return
+    }
+    if (!Number.isInteger(Number(durationMinutes)) || Number(durationMinutes) < 15 || Number(durationMinutes) > 180) {
+      setError('Exam duration must be between 15 and 180 minutes.')
+      return
+    }
     setSaving(true)
     setError(null)
     try {
       await api.assignMonthlyAssessment(assessment.id, {
         assessment_date: assessmentDate,
+        question_count: Number(questionCount),
+        duration_minutes: Number(durationMinutes),
         team_member_ids: Array.from(selectedIds),
       })
       await onDone?.()
@@ -133,13 +160,27 @@ function MonthlyAssessmentAssignModal({
     <Modal open={open} onClose={saving ? () => {} : onClose} title={`Assign ${assessment.subject_name}`} size="md">
       <div style={{ display: 'flex', flexDirection: 'column', gap: 15 }}>
         <div style={{ padding: '10px 12px', borderRadius: 8, background: 'var(--brand-50)', color: 'var(--brand-700)', fontSize: 12 }}>
-          This reuses the existing subject, sub-topics, difficulty, and study material. Candidates receive the assignment email for the selected date.
+          This reuses the existing subject, sub-topics, difficulty, and study material. Candidates receive a secure assessment link for the selected time.
         </div>
         <div>
           <label htmlFor="monthly-assessment-date" style={{ display: 'block', marginBottom: 5, fontSize: 12, fontWeight: 600, color: 'var(--fg-body)' }}>
-            Assessment start date
+            Assessment date and time
           </label>
-          <input id="monthly-assessment-date" type="date" value={assessmentDate} onChange={event => setAssessmentDate(event.target.value)} style={{ width: '100%', boxSizing: 'border-box', padding: '9px 11px', border: '1px solid var(--border-default)', borderRadius: 8, fontFamily: 'inherit' }} />
+          <input id="monthly-assessment-date" type="datetime-local" value={assessmentDate} onChange={event => setAssessmentDate(event.target.value)} style={{ width: '100%', boxSizing: 'border-box', padding: '9px 11px', border: '1px solid var(--border-default)', borderRadius: 8, fontFamily: 'inherit' }} />
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+          <div>
+            <label htmlFor="monthly-question-count" style={{ display: 'block', marginBottom: 5, fontSize: 12, fontWeight: 600, color: 'var(--fg-body)' }}>
+              Questions
+            </label>
+            <input id="monthly-question-count" type="number" min="1" max="50" value={questionCount} onChange={event => setQuestionCount(event.target.value)} style={{ width: '100%', boxSizing: 'border-box', padding: '9px 11px', border: '1px solid var(--border-default)', borderRadius: 8, fontFamily: 'inherit' }} />
+          </div>
+          <div>
+            <label htmlFor="monthly-duration" style={{ display: 'block', marginBottom: 5, fontSize: 12, fontWeight: 600, color: 'var(--fg-body)' }}>
+              Duration minutes
+            </label>
+            <input id="monthly-duration" type="number" min="15" max="180" value={durationMinutes} onChange={event => setDurationMinutes(event.target.value)} style={{ width: '100%', boxSizing: 'border-box', padding: '9px 11px', border: '1px solid var(--border-default)', borderRadius: 8, fontFamily: 'inherit' }} />
+          </div>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', border: '1px solid var(--border-default)', borderRadius: 8 }}>
           <Search size={14} color="var(--fg-subtle)" />

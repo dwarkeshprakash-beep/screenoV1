@@ -30,6 +30,24 @@ const SCHEMA = {
       'requirements', 'jd_text', 'custom_info', 'tags', 'resume_deadline', 'created',
     ],
   },
+  client_mandate_requirements: {
+    columns: [
+      'id', 'mandate_id', 'profile_name', 'years_min', 'years_max',
+      'headcount', 'notes', 'created',
+    ],
+  },
+  client_teams: {
+    columns: [
+      'id', 'mandate_id', 'user_id', 'requirement_id', 'status', 'notes',
+      'jd_sent', 'jd_sent_at', 'client_resume_url', 'resume_updated_at', 'created',
+    ],
+  },
+  client_interview_records: {
+    columns: [
+      'id', 'mandate_id', 'client_team_id', 'interview_date', 'outcome',
+      'feedback', 'notes', 'created', 'updated',
+    ],
+  },
   monthly_assessments: {
     columns: [
       'id', 'manager_id', 'subject_name', 'difficulty', 'topics', 'sub_topics',

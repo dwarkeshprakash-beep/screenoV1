@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom'
 import { Calendar, CheckCircle2, BriefcaseBusiness, Clock, Play, ArrowRight, Lightbulb } from 'lucide-react'
 import Spinner from '../../components/shared/Spinner'
 import * as api from '../../services/api'
-import { formatDate, parseStoredArray } from '../../utils/helpers'
+import { formatDate, formatDateTime, parseStoredArray } from '../../utils/helpers'
 
 const INTERVIEW_TYPE_LABEL = {
   ai_voice: 'AI Voice', exam: 'Coding Exam', human: 'Video Interview',
@@ -120,7 +120,7 @@ function CandidateOverviewPage() {
               <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--brand-600)', margin: '0 0 3px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Ready to Start</p>
               <p style={{ fontSize: 15, fontWeight: 700, color: 'var(--fg-primary)', margin: 0 }}>{nextLaunchable.context_title || nextLaunchable.job_title || 'Interview'}</p>
               <p style={{ fontSize: 12, color: 'var(--fg-muted)', margin: '2px 0 0' }}>
-                {INTERVIEW_TYPE_LABEL[nextLaunchable.type]} · {formatDate(nextLaunchable.scheduled_at || nextLaunchable.created)}
+                {INTERVIEW_TYPE_LABEL[nextLaunchable.type]} · {nextLaunchable.scheduled_at ? formatDateTime(nextLaunchable.scheduled_at) : formatDate(nextLaunchable.created)}
               </p>
             </div>
           </div>
@@ -197,7 +197,7 @@ function CandidateOverviewPage() {
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: canLaunch ? 12 : 0 }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--fg-muted)' }}>
-                      <Clock size={11} />{formatDate(u.scheduled_at || u.created)}
+                      <Clock size={11} />{u.scheduled_at ? formatDateTime(u.scheduled_at) : formatDate(u.created)}
                     </span>
                     {u.difficulty && (
                       <span style={{ fontSize: 11, padding: '2px 7px', borderRadius: 5, background: 'var(--bg-surface-alt)', color: 'var(--fg-muted)', fontWeight: 500, textTransform: 'capitalize' }}>

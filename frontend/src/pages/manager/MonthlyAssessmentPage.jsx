@@ -52,6 +52,13 @@ function formatDate(value) {
   return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
+function formatDateTime(value) {
+  if (!value) return 'Not set'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return 'Not set'
+  return date.toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' })
+}
+
 function WizardModal({ open, onClose, onDone }) {
   const [step, setStep] = useState(1)
   const [subject, setSubject] = useState('')
@@ -381,7 +388,7 @@ function SubjectDetailModal({ assessment, open, onClose, onAssign }) {
                     <Avatar name={name} size={30} />
                     <div className="assignment-row__content">
                       <strong>{name}</strong>
-                      <span>{formatDate(enrollment.start_date)} - {formatDate(enrollment.end_date)}</span>
+                      <span>{formatDateTime(enrollment.start_date)} - {formatDate(enrollment.end_date)}</span>
                     </div>
                     <span className={`status-pill${enrollment.status === 'cancelled' ? ' status-pill--danger' : ' status-pill--brand'}`}>
                       {enrollment.status || 'pending'}
@@ -511,7 +518,7 @@ function MonthlyAssessmentPage() {
 
         const status = row.status === 'cancelled'
           ? 'cancelled'
-          : (progress[index] || row.interview_status || 'pending')
+          : (row.interview_status || row.status || progress[index] || 'pending')
         candidate.months[monthDate.getUTCMonth()].push({
           id: `${row.id}-${index}`,
           subject: row.subject_name || 'Assessment',
@@ -719,7 +726,7 @@ function MonthlyAssessmentPage() {
                                   <Avatar name={name} size={28} />
                                   <div className="assignment-row__content">
                                     <strong>{name}</strong>
-                                    <span>{formatDate(candidate.start_date)} - {formatDate(candidate.end_date)}</span>
+                                    <span>{formatDateTime(candidate.start_date)} - {formatDate(candidate.end_date)}</span>
                                   </div>
                                   <button
                                     type="button"

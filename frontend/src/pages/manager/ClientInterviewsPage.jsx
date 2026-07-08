@@ -11,7 +11,7 @@ import ErrorMessage from '../../components/shared/ErrorMessage'
 import Modal from '../../components/shared/Modal'
 import Spinner from '../../components/shared/Spinner'
 import * as api from '../../services/api'
-import { formatDate, parseStoredArray } from '../../utils/helpers'
+import { formatDate, formatDateTime, parseStoredArray } from '../../utils/helpers'
 
 const parseTags = parseStoredArray
 
@@ -23,6 +23,17 @@ function Field({ label, help, full = false, children }) {
       {help && <span className="form-help">{help}</span>}
     </div>
   )
+}
+
+function requirementMeta(item) {
+  if (!item) return ''
+  const yearsMin = item.requirement_years_min ?? item.years_min
+  const yearsMax = item.requirement_years_max ?? item.years_max
+  const headcount = item.requirement_headcount ?? item.headcount
+  const parts = []
+  if (yearsMin != null) parts.push(`${yearsMin}-${yearsMax ?? '+'} yrs`)
+  if (headcount) parts.push(`${headcount} role${Number(headcount) === 1 ? '' : 's'}`)
+  return parts.join(' | ')
 }
 
 // ── Mandate creation wizard ───────────────────────────────────────────────────
@@ -68,7 +79,7 @@ function CreateMandateModal({ open, onClose, onCreated }) {
 
   async function continueToTags() {
     if (!form.clientName.trim()) { setError('Client name is required.'); return }
-    if (!form.requirements.trim()) { setError('Subject or role is required.'); return }
+    if (!form.requirements.trim()) { setError('Mandate title or default role is required.'); return }
     setExtractingTags(true)
     setError(null)
     try {
@@ -126,7 +137,7 @@ function CreateMandateModal({ open, onClose, onCreated }) {
             <Field label="Client email" help="Optional contact for the mandate.">
               <input className="form-input" type="email" value={form.clientEmail} onChange={e => update('clientEmail', e.target.value)} placeholder="contact@client.com" />
             </Field>
-            <Field label="Role / mandate title" full>
+            <Field label="Mandate title / default role" full>
               <input className="form-input" value={form.requirements} onChange={e => update('requirements', e.target.value)} placeholder="e.g. Senior Backend Engineer" />
             </Field>
             <Field label="Required headcount">
@@ -251,7 +262,7 @@ function EditMandateModal({ open, template, onClose, onSaved }) {
         <div className="form-grid">
           <Field label="Client name"><input className="form-input" value={form.client_name || ''} onChange={e => setForm(c => ({ ...c, client_name: e.target.value }))} /></Field>
           <Field label="Client email"><input className="form-input" type="email" value={form.client_email || ''} onChange={e => setForm(c => ({ ...c, client_email: e.target.value }))} /></Field>
-          <Field label="Subject or role" full><input className="form-input" value={form.requirements || ''} onChange={e => setForm(c => ({ ...c, requirements: e.target.value }))} /></Field>
+          <Field label="Mandate title / default role" full><input className="form-input" value={form.requirements || ''} onChange={e => setForm(c => ({ ...c, requirements: e.target.value }))} /></Field>
           <Field label="Headcount"><input className="form-input" type="number" min="1" value={form.headcount || 1} onChange={e => setForm(c => ({ ...c, headcount: Number(e.target.value) }))} /></Field>
           <Field label="Replace JD from file">
             <input id="edit-jd-file" type="file" accept=".pdf,.doc,.docx,.txt" onChange={readFile} style={{ display: 'none' }} />
@@ -454,6 +465,15 @@ function AddProspectsModal({ open, onClose, onAdded, mandateId, requirements }) 
                         {m.matched_tags.slice(0, 3).map(tag => <span className="tag" key={tag}>{tag}</span>)}
                       </div>
                     )}
+                    {(m.matching_requirements || []).length > 0 && (
+                      <div className="tag-list" style={{ marginTop: 8 }}>
+                        {m.matching_requirements.slice(0, 2).map(req => (
+                          <span className="tag" key={req.id}>
+                            {req.profile_name}{requirementMeta(req) ? ` | ${requirementMeta(req)}` : ''}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </button>
               )
@@ -541,7 +561,6 @@ const INTERVIEW_TYPES = [
   { value: 'exam',     label: 'Coding Exam',         desc: 'Coding or multiple-choice assessment' },
   { value: 'human',   label: 'Human Video Interview', desc: 'Live video interview with a managed meeting link' },
   { value: 'offline', label: 'Offline Interview',     desc: 'In-person interview — sends email with date and location' },
-  { value: 'client',  label: 'Client Interview',      desc: 'Log a real client-side interview and track its outcome' },
 ]
 
 const HUMAN_VIDEO_PLATFORMS = [
@@ -580,11 +599,11 @@ function ScheduleClientTeamModal({ open, onClose, onScheduled, member, template 
   }, [open])
 
   async function schedule() {
+    if (!scheduledAt) {
+      setError('Choose the scheduled date and time.')
+      return
+    }
     if (type === 'human') {
-      if (!scheduledAt) {
-        setError('Choose a date and time for the human interview.')
-        return
-      }
       if (videoPlatform === 'teams') {
         setError('Microsoft Teams scheduling needs organization setup before it can be used.')
         return
@@ -603,7 +622,7 @@ function ScheduleClientTeamModal({ open, onClose, onScheduled, member, template 
         mode,
         difficulty,
         questionCount: Number(questionCount),
-        scheduledAt:   scheduledAt || null,
+        scheduledAt,
         location:      location.trim() || null,
         notes:         notes.trim() || null,
       })
@@ -675,11 +694,9 @@ function ScheduleClientTeamModal({ open, onClose, onScheduled, member, template 
           </div>
         )}
 
-        {(type === 'human' || type === 'offline' || type === 'client') && (
-          <Field label={type === 'client' ? 'Scheduled interview date' : 'Date & time'}>
-            <input className="form-input" type="datetime-local" value={scheduledAt} onChange={e => setScheduledAt(e.target.value)} />
-          </Field>
-        )}
+        <Field label="Date & time">
+          <input className="form-input" type="datetime-local" value={scheduledAt} onChange={e => setScheduledAt(e.target.value)} />
+        </Field>
 
         {/* Video platform selector — only for human interviews */}
         {type === 'human' && (
@@ -727,7 +744,7 @@ function ScheduleClientTeamModal({ open, onClose, onScheduled, member, template 
           </Field>
         )}
 
-        {(type === 'offline' || type === 'client') && (
+        {type === 'offline' && (
           <Field label="Notes" full>
             <textarea className="form-input" rows={3} value={notes} onChange={e => setNotes(e.target.value)} placeholder="Any additional details..." style={{ resize: 'vertical' }} />
           </Field>
@@ -738,7 +755,7 @@ function ScheduleClientTeamModal({ open, onClose, onScheduled, member, template 
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
           <Button onClick={schedule} loading={scheduling} disabled={humanScheduleBlocked}>
             <Calendar size={14} />
-            {type === 'client' ? 'Log client interview' : `Schedule ${selectedTypeInfo?.label || ''}`}
+            {`Schedule ${selectedTypeInfo?.label || ''}`}
           </Button>
         </div>
       </div>
@@ -1134,7 +1151,11 @@ function MandateDetail({ initialTemplate, onBack }) {
                           <div style={{ flex: 1, minWidth: 160 }}>
                             <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg-primary)' }}>{name}</div>
                             <div style={{ fontSize: 11, color: 'var(--fg-muted)', marginTop: 2 }}>{member.email}</div>
-                            {member.requirement_name && <span className="tag" style={{ marginTop: 4, display: 'inline-block' }}>{member.requirement_name}</span>}
+                            {member.requirement_name && (
+                              <span className="tag" style={{ marginTop: 4, display: 'inline-block' }}>
+                                {member.requirement_name}{requirementMeta(member) ? ` | ${requirementMeta(member)}` : ''}
+                              </span>
+                            )}
                           </div>
 
                           <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
@@ -1154,7 +1175,7 @@ function MandateDetail({ initialTemplate, onBack }) {
                           <div style={{ display: 'flex', gap: 6 }}>
                             <Button size="sm" variant="secondary" onClick={() => setSendJdTarget(member)}><Mail size={12} />Send JD</Button>
                             <Button size="sm" variant="secondary" onClick={() => setScheduleTarget(member)}><Calendar size={12} />Schedule</Button>
-                            <Button size="sm" variant="secondary" onClick={() => openOutcomeModal(member)}><AlertCircle size={12} />Outcome</Button>
+                            <Button size="sm" variant="secondary" onClick={() => openOutcomeModal(member)}><AlertCircle size={12} />Client outcome</Button>
                             <button type="button" className="danger-icon-button" disabled={removingId === member.id}
                               onClick={() => removeFromTeam(member)} style={{ padding: '5px 8px' }}>
                               <Trash2 size={13} />
@@ -1164,7 +1185,7 @@ function MandateDetail({ initialTemplate, onBack }) {
                         {interview?.scheduled_at && (
                           <div style={{ paddingLeft: 46, marginTop: 6, fontSize: 11, color: 'var(--fg-muted)' }}>
                             <Clock size={11} style={{ verticalAlign: 'middle', marginRight: 4 }} />
-                            {formatDate(interview.scheduled_at)}{interview.location ? ` · ${interview.location}` : ''}
+                            {formatDateTime(interview.scheduled_at)}{interview.location ? ` | ${interview.location}` : ''}
                           </div>
                         )}
                       </div>

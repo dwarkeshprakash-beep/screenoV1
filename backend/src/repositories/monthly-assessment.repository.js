@@ -220,12 +220,14 @@ async function getCalendarByManager(managerId) {
 
 // Called when a month-end interview is created from an enrollment
 async function updateEnrollmentInterview(enrollmentId, interviewId) {
-  await db.query(
+  const rows = await db.query(
     `UPDATE monthly_assessment_enrollments
      SET interview_id = @interviewId, status = 'scheduled'
-     WHERE id = @id`,
+     WHERE id = @id
+     RETURNING *`,
     { id: enrollmentId, interviewId }
   )
+  return rows[0] || null
 }
 
 async function cancelEnrollment(enrollmentId, managerId) {

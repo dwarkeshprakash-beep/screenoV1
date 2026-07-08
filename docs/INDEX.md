@@ -111,6 +111,8 @@ prompts-guide.md        Effective Claude prompts — keywords, templates, one-li
 004_v2_schema_cleanup.sql    V2 schema align: drop legacy tables, add unique indexes
 005_external_candidate_tags.sql  Tags column on external_candidates
 006_missing_indexes.sql      Performance indexes: users.email, company_id, token_hash, transcripts
+007_client_teams.sql         Client requirement profiles, client teams, client interview records
+008_state_flow_fixes.sql     Resume text, password reset tokens, exam duration
 ```
 
 ---

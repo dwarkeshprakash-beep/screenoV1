@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { CheckCircle2, XCircle, FileText, AlertTriangle, UploadCloud, ChevronDown, ChevronUp, Clock, MapPin, BriefcaseBusiness } from 'lucide-react'
 import Spinner from '../../components/shared/Spinner'
 import * as api from '../../services/api'
-import { formatDate } from '../../utils/helpers'
+import { formatDate, formatDateTime, parseStoredArray } from '../../utils/helpers'
 
 const INTERVIEW_TYPE_LABEL = {
   ai_voice: 'AI Voice', exam: 'Coding Exam', human: 'Video Interview',
@@ -16,6 +16,17 @@ const OUTCOME_CONFIG = {
   failed:  { label: 'Did not clear', color: 'var(--danger-600)',  bg: 'var(--danger-50)',  border: 'var(--danger-100)' },
   on_hold: { label: 'On hold',       color: 'var(--warning-600)', bg: 'var(--warning-50)', border: 'var(--warning-100)' },
   pending: { label: 'Pending',       color: 'var(--fg-muted)',    bg: 'var(--bg-surface-alt)', border: 'var(--border-default)' },
+}
+
+function requirementMeta(mandate) {
+  const parts = []
+  if (mandate.requirement_years_min != null) {
+    parts.push(`${mandate.requirement_years_min}-${mandate.requirement_years_max ?? '+'} yrs`)
+  }
+  if (mandate.requirement_headcount) {
+    parts.push(`${mandate.requirement_headcount} role${Number(mandate.requirement_headcount) === 1 ? '' : 's'}`)
+  }
+  return parts.join(' | ')
 }
 
 function CandidateMandatesPage() {
@@ -87,6 +98,8 @@ function CandidateMandatesPage() {
             const outcome = clientRecord?.outcome
             const outcomeConf = OUTCOME_CONFIG[outcome] || OUTCOME_CONFIG.pending
             const needsAction = !mandate.client_resume_url && mandate.jd_sent
+            const profileMeta = requirementMeta(mandate)
+            const mandateTags = parseStoredArray(mandate.mandate_tags)
 
             return (
               <div key={mandate.id} style={{ background: 'var(--bg-surface)', border: `1px solid ${needsAction ? 'var(--warning-500)' : 'var(--border-default)'}`, borderRadius: 12, overflow: 'hidden', boxShadow: 'var(--shadow-sm)' }}>
@@ -101,7 +114,7 @@ function CandidateMandatesPage() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                       {mandate.requirement_name && (
                         <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 6, background: 'var(--brand-50)', color: 'var(--brand-600)', fontWeight: 600 }}>
-                          {mandate.requirement_name}
+                          {mandate.requirement_name}{profileMeta ? ` | ${profileMeta}` : ''}
                         </span>
                       )}
                       <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 6, background: 'var(--bg-surface-alt)', color: 'var(--fg-muted)', fontWeight: 500, textTransform: 'capitalize' }}>
@@ -126,6 +139,26 @@ function CandidateMandatesPage() {
                       </span>
                     )}
                   </div>
+
+                  {(mandate.jd_text || mandateTags.length > 0) && (
+                    <details style={{ marginBottom: 14, border: '1px solid var(--border-default)', borderRadius: 8, background: 'var(--bg-surface-alt)', overflow: 'hidden' }}>
+                      <summary style={{ padding: '10px 12px', cursor: 'pointer', fontSize: 12, fontWeight: 700, color: 'var(--fg-primary)' }}>
+                        Job description and focus areas
+                      </summary>
+                      <div style={{ padding: '0 12px 12px', fontSize: 12, color: 'var(--fg-body)', lineHeight: 1.65 }}>
+                        {mandateTags.length > 0 && (
+                          <div className="tag-list" style={{ marginBottom: mandate.jd_text ? 10 : 0 }}>
+                            {mandateTags.map(tag => <span className="tag" key={tag}>{tag}</span>)}
+                          </div>
+                        )}
+                        {mandate.jd_text && (
+                          <div style={{ whiteSpace: 'pre-wrap', maxHeight: 260, overflowY: 'auto' }}>
+                            {mandate.jd_text}
+                          </div>
+                        )}
+                      </div>
+                    </details>
+                  )}
 
                   {/* Client interview outcome */}
                   {clientRecord && outcome !== 'pending' && (
@@ -180,7 +213,7 @@ function CandidateMandatesPage() {
                         </span>
                         {iv.scheduled_at && (
                           <span style={{ color: 'var(--fg-muted)', display: 'flex', alignItems: 'center', gap: 3 }}>
-                            <Clock size={10} />{formatDate(iv.scheduled_at)}
+                            <Clock size={10} />{formatDateTime(iv.scheduled_at)}
                           </span>
                         )}
                         {iv.location && (

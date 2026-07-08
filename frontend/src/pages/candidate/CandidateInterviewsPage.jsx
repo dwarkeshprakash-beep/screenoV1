@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Calendar, Clock, MapPin } from 'lucide-react'
 import Spinner from '../../components/shared/Spinner'
 import * as api from '../../services/api'
-import { formatDate } from '../../utils/helpers'
+import { formatDate, formatDateTime } from '../../utils/helpers'
 
 const INTERVIEW_TYPE_LABEL = {
   ai_voice: 'AI Voice', exam: 'Coding Exam', human: 'Video Interview',
@@ -36,7 +36,7 @@ function InterviewCard({ iv, onLaunch, launchingId }) {
 
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: canLaunch ? 12 : 0 }}>
           <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--fg-muted)' }}>
-            <Clock size={11} />{formatDate(iv.scheduled_at || iv.created)}
+            <Clock size={11} />{iv.scheduled_at ? formatDateTime(iv.scheduled_at) : formatDate(iv.created)}
           </span>
           {iv.location && (
             <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--fg-muted)' }}>

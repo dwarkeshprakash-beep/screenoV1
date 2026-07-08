@@ -250,7 +250,7 @@ async function sendMonthlyAssessmentInvite(to, {
   durationMonths,
   jdText,
 }) {
-  const dateText = new Date(assessmentDate).toLocaleDateString('en-IN', { dateStyle: 'long' })
+  const dateText = new Date(assessmentDate).toLocaleString('en-IN', { dateStyle: 'long', timeStyle: 'short' })
   const endDate = (() => {
     const d = assessmentEndDate ? new Date(assessmentEndDate) : new Date(assessmentDate)
     if (assessmentEndDate) {
@@ -277,7 +277,7 @@ async function sendMonthlyAssessmentInvite(to, {
       '',
       details ? `Study Material / JD:\n${'─'.repeat(40)}\n${details}\n${'─'.repeat(40)}` : '',
       '',
-      'Your interview link will be sent to you separately by your manager via Screeno.',
+      'Use the secure Screeno assessment link sent for this scheduled assessment.',
       'Please ensure you complete the assessment within the scheduled period.',
       '',
       'Should you have any questions, please reach out to your manager.',
@@ -337,7 +337,7 @@ async function sendMonthlyAssessmentInvite(to, {
 
           <div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px;padding:14px 16px;margin-bottom:24px">
             <p style="margin:0;font-size:13px;color:#1E40AF;line-height:1.6">
-              <strong>Next step:</strong> Your manager will send you the interview link separately through Screeno. Please ensure you complete the assessment within the scheduled period.
+              <strong>Next step:</strong> Use the secure Screeno assessment link sent for this scheduled assessment. Please ensure you complete the assessment within the scheduled period.
             </p>
           </div>
 

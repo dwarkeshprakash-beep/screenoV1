@@ -24,6 +24,37 @@ function hasTags(value) {
   return parseTags(value).some(tag => String(tag || '').trim())
 }
 
+function extractExperienceYears(member) {
+  const text = [
+    member.current_position,
+    member.job_title,
+    member.resume_text,
+    parseTags(member.tags).join(' '),
+  ].filter(Boolean).join(' ')
+  const matches = [...text.matchAll(/(\d{1,2})\s*\+?\s*(?:years?|yrs?|yoe|experience)/gi)]
+    .map(match => Number(match[1]))
+    .filter(Number.isFinite)
+  return matches.length ? Math.max(...matches) : null
+}
+
+function requirementMatchesExperience(requirement, years) {
+  const min = requirement.years_min == null ? null : Number(requirement.years_min)
+  const max = requirement.years_max == null ? null : Number(requirement.years_max)
+  if (min == null && max == null) return true
+  if (years == null) return false
+  if (min != null && years < min) return false
+  if (max != null && years > max) return false
+  return true
+}
+
+function requirementDisplay(teamMember, fallbackRole) {
+  const name = teamMember?.requirement_name || fallbackRole || ''
+  const min = teamMember?.requirement_years_min
+  const max = teamMember?.requirement_years_max
+  if (min == null) return name
+  return `${name} (${min}-${max ?? '+'} yrs)`
+}
+
 // ── Mandate CRUD ──────────────────────────────────────────────────────────────
 
 router.post('/', async (req, res) => {
@@ -177,17 +208,25 @@ router.get('/:id/matches', async (req, res) => {
     let templateTags = []
     try { templateTags = JSON.parse(template.tags || '[]').map(t => t.toLowerCase()) } catch { templateTags = [] }
 
-    const [allMembers, teamRows, clientTeamRows] = await Promise.all([
+    const [allMembers, teamRows, clientTeamRows, requirements] = await Promise.all([
       userRepository.getByCompany(req.user.companyId),
       require('../db/connection').query(
         `SELECT user_id FROM team_members WHERE manager_id = @managerId`,
         { managerId: req.user.id }
       ),
       clientTeamRepo.getByMandate(parseInt(req.params.id, 10)),
+      clientRequirementsRepo.getByMandate(template.id),
     ])
 
     const teamUserIds = new Set(teamRows.map(r => r.user_id))
     const alreadyInClientTeam = new Set(clientTeamRows.map(r => r.user_id))
+    const filledByRequirement = clientTeamRows.reduce((counts, row) => {
+      if (row.requirement_id) counts.set(row.requirement_id, (counts.get(row.requirement_id) || 0) + 1)
+      return counts
+    }, new Map())
+    const openRequirements = requirements.filter(requirement =>
+      Number(filledByRequirement.get(requirement.id) || 0) < Number(requirement.headcount || 1)
+    )
 
     const matches = allMembers
       .filter(member => member.role !== 'manager')
@@ -196,12 +235,25 @@ router.get('/:id/matches', async (req, res) => {
         let memberTags = []
         try { memberTags = JSON.parse(m.tags || '[]').map(t => t.toLowerCase()) } catch { memberTags = [] }
         const overlap = templateTags.filter(t => memberTags.includes(t))
+        const experienceYears = extractExperienceYears(m)
+        const matchingRequirements = openRequirements.filter(requirement =>
+          requirementMatchesExperience(requirement, experienceYears)
+        )
+        const profileScore = requirements.length > 0 ? matchingRequirements.length : 0
         return {
           ...m,
           user_id: m.id,
-          match_score: overlap.length,
+          match_score: overlap.length + profileScore,
           matched_tags: overlap,
-          recommended: overlap.length > 0 && teamUserIds.has(m.id),
+          experience_years: experienceYears,
+          matching_requirements: matchingRequirements.map(requirement => ({
+            id: requirement.id,
+            profile_name: requirement.profile_name,
+            years_min: requirement.years_min,
+            years_max: requirement.years_max,
+            headcount: requirement.headcount,
+          })),
+          recommended: (overlap.length > 0 || profileScore > 0) && teamUserIds.has(m.id),
           in_team: teamUserIds.has(m.id),
         }
       })
@@ -325,10 +377,11 @@ router.post('/:id/team/:ctId/send-jd', async (req, res) => {
     }
 
     const { customMessage } = req.body
+    const roleLabel = requirementDisplay(teamMember, template.requirements)
     await emailService.sendClientJDWithMessage(teamMember.email, {
       candidateName: `${teamMember.first_name} ${teamMember.last_name}`.trim(),
       clientName:    template.client_name,
-      role:          template.requirements,
+      role:          roleLabel,
       jdText:        template.jd_text || template.requirements,
       customMessage: customMessage || '',
       frontendUrl:   process.env.FRONTEND_URL,
@@ -341,7 +394,7 @@ router.post('/:id/team/:ctId/send-jd', async (req, res) => {
   }
 })
 
-// ── Schedule an interview for a client team member (5 types) ─────────────────
+// ── Schedule an interview for a client team member ───────────────────────────
 
 router.post('/:id/team/:ctId/schedule', async (req, res) => {
   try {
@@ -356,20 +409,16 @@ router.post('/:id/team/:ctId/schedule', async (req, res) => {
     }
 
     const { type, videoPlatform, scheduledAt, location, notes, mode, difficulty, questionCount } = req.body
-    const validTypes = ['ai_voice', 'exam', 'human', 'offline', 'client']
+    const validTypes = ['ai_voice', 'exam', 'human', 'offline']
     if (!validTypes.includes(type)) {
       return res.status(400).json({ success: false, error: 'Invalid interview type' })
     }
-
-    // "client" type → creates a client_interview_records entry, no interview row
-    if (type === 'client') {
-      const record = await clientInterviewRecordsRepo.create({
-        mandate_id:     mandateId,
-        client_team_id: ctId,
-        interview_date: scheduledAt ? scheduledAt.split('T')[0] : null,
-        notes:          notes || null,
-      })
-      return res.status(201).json({ success: true, data: record })
+    if (!scheduledAt) {
+      return res.status(400).json({ success: false, error: 'scheduledAt is required' })
+    }
+    const scheduledDate = new Date(scheduledAt)
+    if (Number.isNaN(scheduledDate.getTime())) {
+      return res.status(400).json({ success: false, error: 'Invalid scheduled date and time' })
     }
 
     // "offline" type → interview row + email (no magic link needed)
@@ -386,13 +435,13 @@ router.post('/:id/team/:ctId/schedule', async (req, res) => {
            (@managerId, @userId, 'offline', 'simple', 'medium', 1,
             @token, @tokenExpires, @mandateId, @ctId, @scheduledAt, @location, 'scheduled')
          RETURNING *`,
-        { managerId: req.user.id, userId: teamMember.user_id, token: tokenHash, tokenExpires, mandateId, ctId, scheduledAt: scheduledAt || null, location: location || null }
+        { managerId: req.user.id, userId: teamMember.user_id, token: tokenHash, tokenExpires, mandateId, ctId, scheduledAt, location: location || null }
       )
 
       emailService.sendOfflineInterviewInvite(teamMember.email, {
         candidateName: `${teamMember.first_name} ${teamMember.last_name}`.trim(),
         clientName: template.client_name,
-        role: template.requirements,
+        role: requirementDisplay(teamMember, template.requirements),
         scheduledAt, location, notes,
       }).catch(err => console.error('[email] offline invite failed:', err.message))
 
@@ -402,9 +451,6 @@ router.post('/:id/team/:ctId/schedule', async (req, res) => {
     // ai_voice / exam / human → use schedule service
     // For human interviews, optionally create a video meeting link
     if (type === 'human') {
-      if (!scheduledAt) {
-        return res.status(400).json({ success: false, error: 'Date and time are required for human interviews' })
-      }
       if (!['google_meet', 'teams'].includes(videoPlatform)) {
         return res.status(400).json({ success: false, error: 'Choose Google Meet or Microsoft Teams for human interviews' })
       }
@@ -425,7 +471,7 @@ router.post('/:id/team/:ctId/schedule', async (req, res) => {
     let videoLink = null
     if (type === 'human' && scheduledAt && videoPlatform) {
       const endAt = new Date(new Date(scheduledAt).getTime() + 60 * 60 * 1000).toISOString()
-      const meetingTopic = `Interview — ${template.requirements} @ ${template.client_name}`
+      const meetingTopic = `Interview - ${requirementDisplay(teamMember, template.requirements)} @ ${template.client_name}`
 
       if (videoPlatform === 'google_meet' && googleMeetService.isConfigured()) {
         const meeting = await googleMeetService.createMeeting({
@@ -454,8 +500,8 @@ router.post('/:id/team/:ctId/schedule', async (req, res) => {
         difficulty:       difficulty || 'medium',
         questionCount:    questionCount || 10,
         clientTemplateId: mandateId,
-        scheduledAt:      scheduledAt || null,
-        assessmentDate:   scheduledAt || null,
+        scheduledAt,
+        assessmentDate:   scheduledAt,
         details:          videoLink ? `Google Meet: ${videoLink}` : notes || null,
       },
       req.user.id,
@@ -466,7 +512,7 @@ router.post('/:id/team/:ctId/schedule', async (req, res) => {
     if (interview?.id) {
       await require('../db/connection').query(
         `UPDATE interviews SET client_team_id = @ctId, scheduled_at = @scheduledAt, location = @location WHERE id = @id`,
-        { id: interview.id, ctId, scheduledAt: scheduledAt || null, location: videoLink || location || null }
+        { id: interview.id, ctId, scheduledAt, location: videoLink || location || null }
       )
     }
 

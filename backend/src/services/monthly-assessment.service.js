@@ -2,6 +2,7 @@ const monthlyAssessmentRepository = require('../repositories/monthly-assessment.
 const teamMemberRepository = require('../repositories/team-member.repository')
 const companyRepository = require('../repositories/company.repository')
 const emailService = require('./email.service')
+const scheduleService = require('./schedule.service')
 const { parseStoredArray } = require('../utils/parse')
 
 const parseArray = parseStoredArray
@@ -107,8 +108,18 @@ async function assignCandidates(assessmentId, body, managerId, companyId) {
     throw new Error('Forbidden: some team members do not belong to you')
   }
 
-  const startDate = body.assessment_date ? new Date(body.assessment_date) : new Date()
+  const scheduledValue = String(body.assessment_date || body.scheduledAt || '').trim()
+  if (!scheduledValue) throw new Error('Assessment date is required')
+  const startDate = new Date(scheduledValue)
   if (Number.isNaN(startDate.getTime())) throw new Error('Assessment date is invalid')
+  const questionCount = Number(body.question_count || body.questionCount || 10)
+  if (!Number.isInteger(questionCount) || questionCount < 1 || questionCount > 50) {
+    throw new Error('Question count must be an integer between 1 and 50')
+  }
+  const durationMinutes = Number(body.duration_minutes || body.durationMinutes || 60)
+  if (!Number.isInteger(durationMinutes) || durationMinutes < 15 || durationMinutes > 180) {
+    throw new Error('Duration must be an integer between 15 and 180 minutes')
+  }
   const endDate = addMonths(startDate, Number(assessment.duration_months) || 1)
   const enrollments = await monthlyAssessmentRepository.createEnrollments(
     assessment.id,
@@ -119,6 +130,37 @@ async function assignCandidates(assessmentId, body, managerId, companyId) {
       durationMonths: Number(assessment.duration_months) || 1,
     }
   )
+  const company = await companyRepository.getById(companyId)
+  const memberByTeamMemberId = new Map(ownedMembers.map(member => [Number(member.id), member]))
+  const scheduledEnrollments = []
+  for (const enrollment of enrollments) {
+    const member = memberByTeamMemberId.get(Number(enrollment.team_member_id))
+    const interview = await scheduleService.createSchedule(
+      {
+        teamMemberId: enrollment.team_member_id,
+        type: 'exam',
+        interviewMode: 'simple',
+        difficulty: assessment.difficulty || 'medium',
+        questionCount,
+        durationMinutes,
+        scheduledAt: startDate.toISOString(),
+        assessmentDate: startDate.toISOString(),
+        monthlyAssessmentId: assessment.id,
+        companyName: company?.name || 'Your company',
+        jobTitle: assessment.subject_name,
+        details: assessment.ai_generated_jd || null,
+      },
+      managerId,
+      companyId
+    )
+    await monthlyAssessmentRepository.updateEnrollmentInterview(enrollment.id, interview.id)
+    scheduledEnrollments.push({
+      ...enrollment,
+      interview_id: interview.id,
+      status: 'scheduled',
+      candidate_email: member?.email || null,
+    })
+  }
   const invitations = await sendAssignmentInvitations({
     assessment,
     members: ownedMembers,
@@ -128,7 +170,7 @@ async function assignCandidates(assessmentId, body, managerId, companyId) {
   })
 
   return {
-    enrollments,
+    enrollments: scheduledEnrollments,
     invitations,
   }
 }

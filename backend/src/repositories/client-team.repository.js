@@ -17,7 +17,10 @@ async function getByMandate(mandateId) {
   return db.query(
     `SELECT ct.*,
             u.first_name, u.last_name, u.email, u.resume_url, u.tags, u.job_title,
-            cmr.profile_name AS requirement_name
+            cmr.profile_name AS requirement_name,
+            cmr.years_min AS requirement_years_min,
+            cmr.years_max AS requirement_years_max,
+            cmr.headcount AS requirement_headcount
      FROM client_teams ct
      JOIN users u ON u.id = ct.user_id
      LEFT JOIN client_mandate_requirements cmr ON cmr.id = ct.requirement_id
@@ -31,7 +34,10 @@ async function getByUser(userId) {
   return db.query(
     `SELECT ct.*,
             ctm.client_name, ctm.requirements AS mandate_role, ctm.jd_text, ctm.tags AS mandate_tags,
-            cmr.profile_name AS requirement_name
+            cmr.profile_name AS requirement_name,
+            cmr.years_min AS requirement_years_min,
+            cmr.years_max AS requirement_years_max,
+            cmr.headcount AS requirement_headcount
      FROM client_teams ct
      JOIN client_templates ctm ON ctm.id = ct.mandate_id
      LEFT JOIN client_mandate_requirements cmr ON cmr.id = ct.requirement_id
@@ -43,9 +49,14 @@ async function getByUser(userId) {
 
 async function getById(id) {
   const rows = await db.query(
-    `SELECT ct.*, u.first_name, u.last_name, u.email, u.resume_url
+    `SELECT ct.*, u.first_name, u.last_name, u.email, u.resume_url,
+            cmr.profile_name AS requirement_name,
+            cmr.years_min AS requirement_years_min,
+            cmr.years_max AS requirement_years_max,
+            cmr.headcount AS requirement_headcount
      FROM client_teams ct
      JOIN users u ON u.id = ct.user_id
+     LEFT JOIN client_mandate_requirements cmr ON cmr.id = ct.requirement_id
      WHERE ct.id = @id`,
     { id }
   )

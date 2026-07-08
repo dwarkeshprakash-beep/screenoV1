@@ -25,7 +25,10 @@ router.post('/', async (req, res) => {
     if ([
       'At least one team member is required',
       'Subject is required',
+      'Assessment date is required',
       'Assessment date is invalid',
+      'Question count must be an integer between 1 and 50',
+      'Duration must be an integer between 15 and 180 minutes',
     ].includes(err.message)) {
       return res.status(400).json({ success: false, error: err.message })
     }
@@ -93,7 +96,10 @@ router.post('/:id/assign', async (req, res) => {
     }
     if ([
       'At least one team member is required',
+      'Assessment date is required',
       'Assessment date is invalid',
+      'Question count must be an integer between 1 and 50',
+      'Duration must be an integer between 15 and 180 minutes',
     ].includes(err.message)) {
       return res.status(400).json({ success: false, error: err.message })
     }
