@@ -161,6 +161,26 @@ async function getLatestByCandidateIdentity(
   return rows[0] || null
 }
 
+async function getHistoryByCandidateIdentity({ internalUserId = null, externalCandidateId = null }) {
+  const candidatePredicate = internalUserId
+    ? { sql: 'i.internal_user_id = @candidateId', candidateId: internalUserId }
+    : externalCandidateId
+      ? { sql: 'i.external_candidate_id = @candidateId', candidateId: externalCandidateId }
+      : { sql: '1 = 0', candidateId: null }
+  return db.query(`
+    SELECT r.id, r.interview_id, r.summary, r.strengths, r.status, r.created,
+           i.type AS interview_type,
+           i.scheduled_at,
+           COALESCE(ct.client_name, ma.subject_name) AS context_title
+    FROM reports r
+    JOIN interviews i ON i.id = r.interview_id
+    LEFT JOIN client_templates ct ON ct.id = i.client_template_id
+    LEFT JOIN monthly_assessments ma ON ma.id = i.monthly_assessment_id
+    WHERE ${candidatePredicate.sql}
+    ORDER BY r.created DESC
+  `, candidatePredicate.candidateId === null ? {} : { candidateId: candidatePredicate.candidateId })
+}
+
 async function getLatestByInternalUserForManager(userId, managerId) {
   const rows = await db.query(`
     SELECT r.*
@@ -197,6 +217,7 @@ module.exports = {
   getReportsByManager,
   getStatsByManager,
   getLatestByCandidateIdentity,
+  getHistoryByCandidateIdentity,
   getLatestByInternalUserForManager,
   getHistoryByUserForManager,
 }

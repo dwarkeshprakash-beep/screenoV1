@@ -7,7 +7,13 @@ const userRepository = require('../repositories/user.repository')
 const refreshTokenRepository = require('../repositories/refresh-token.repository')
 const passwordResetRepository = require('../repositories/password-reset.repository')
 const interviewRepository = require('../repositories/interview.repository')
+const emailDeliveryRepository = require('../repositories/email-delivery.repository')
 const emailService = require('./email.service')
+const {
+  launchWindow,
+  launchWindowMessage,
+  formatWindowDate,
+} = require('./interview-window.service')
 
 function hashToken(token) {
   return crypto.createHash('sha256').update(token).digest('hex')
@@ -49,12 +55,70 @@ function candidateInterviewSummary(interview) {
     type: interview.type,
     interviewMode: interview.interview_mode,
     difficulty: interview.difficulty,
+    questionCount: interview.question_count,
+    durationMinutes: interview.duration_minutes || null,
+    scheduledAt: interview.scheduled_at || null,
+    scheduled_at: interview.scheduled_at || null,
     candidateName: `${interview.candidate_first} ${interview.candidate_last}`.trim(),
     companyName: interview.company_name || null,
     company_name: interview.company_name || null,
     contextTitle: interview.context_title || null,
     status: interview.status,
   }
+}
+
+async function notifyManagerForReschedule(interview, window) {
+  if (!interview?.manager_email) return
+  const candidateName = `${interview.candidate_first || ''} ${interview.candidate_last || ''}`.trim() || 'Candidate'
+  try {
+    await emailService.sendRescheduleRequest(interview.manager_email, {
+      candidateName,
+      candidateEmail: interview.candidate_email,
+      interviewId: interview.id,
+      interviewType: interview.type,
+      contextTitle: interview.context_title,
+      scheduledAt: formatWindowDate(window.opensAt),
+      expiredAt: formatWindowDate(window.closesAt),
+      companyName: interview.company_name,
+    })
+    await emailDeliveryRepository.create({
+      kind: 'reschedule_request',
+      interviewId: interview.id,
+      intendedTo: interview.manager_email,
+      deliveredTo: emailService.getDeliveredRecipients(interview.manager_email).join(','),
+      status: 'sent',
+    }).catch(err => console.error('reschedule delivery log failed:', err.message))
+  } catch (err) {
+    console.error('sendRescheduleRequest failed:', err.message)
+    await emailDeliveryRepository.create({
+      kind: 'reschedule_request',
+      interviewId: interview.id,
+      intendedTo: interview.manager_email,
+      deliveredTo: emailService.getDeliveredRecipients(interview.manager_email).join(','),
+      status: 'failed',
+      error: err.message,
+    }).catch(logErr => console.error('reschedule delivery log failed:', logErr.message))
+  }
+}
+
+async function ensureLaunchWindow(interview) {
+  const window = launchWindow(interview)
+  if (window.state === 'open') return
+
+  if (window.state === 'expired') {
+    await notifyManagerForReschedule(interview, window)
+  }
+
+  const err = new Error(launchWindowMessage(window))
+  err.code = window.state === 'not_yet'
+    ? 'INTERVIEW_NOT_OPEN'
+    : 'INTERVIEW_WINDOW_EXPIRED'
+  err.data = {
+    opensAt: window.opensAt ? window.opensAt.toISOString() : null,
+    closesAt: window.closesAt ? window.closesAt.toISOString() : null,
+    durationMinutes: window.durationMinutes,
+  }
+  throw err
 }
 
 async function createLaunchPayload(interview) {
@@ -194,15 +258,16 @@ async function validateMagicLink(token) {
     throw new Error('Interview already completed')
   }
 
-  // Replace the email token with a short-lived launch token. The original
-  // magic link cannot be replayed, while exam routes still get a valid token.
-  return createLaunchPayload(interview)
+  return createCandidateLaunch(interview)
 }
 
 async function createCandidateLaunch(interview) {
   if (!interview) throw new Error('Interview not found')
   if (interview.status === 'completed') throw new Error('Interview already completed')
+  await ensureLaunchWindow(interview)
 
+  // Replace the email/dashboard token with a short-lived launch token. The original
+  // magic link cannot be replayed, while exam routes still get a valid token.
   return createLaunchPayload(interview)
 }
 

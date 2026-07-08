@@ -1,8 +1,8 @@
 # Screeno V2 Open Issues
 
-Last reviewed: 2026-07-07
+Last reviewed: 2026-07-08
 
-All blocking items from the V2 database and workflow audit are implemented and covered by `docs/AUDIT-AND-TESTING.md`.
+Blocking database/runtime items from the V2 audit are mostly implemented, but several UI workflow items still need end-to-end verification before a public handoff.
 
 ## P1 - Before Public Production
 
@@ -26,7 +26,7 @@ Acceptance:
 - A real candidate receives a magic link.
 - Fixed: Magic link validation now swaps the emailed token for a short-lived launch token, so the original email link cannot be replayed. Exam token expiry is mandatory.
 - ✓ Fixed 2026-06-18: Completing an interview now creates exactly one scorecard, one report, and one report job (all three upserts converted to `INSERT … ON CONFLICT DO UPDATE`).
-- Failed email and report jobs are visible and retryable.
+- Failed email and report jobs are visible and retryable from manager UI.
 
 ### Run migrations 006-008 on existing databases
 
@@ -64,7 +64,7 @@ Acceptance:
 - Confirm no design reference still depends on them.
 - Remove them in a dedicated cleanup commit.
 
-## Closed in the V2 Audit
+## Implemented / Needs Regression Verification
 
 - Compact 15-table schema and migration verification.
 - Manager/candidate-only role surface.
@@ -73,7 +73,7 @@ Acceptance:
 - Report-ready email query handling for `/manager/reports?interview=...`.
 - Forgot-password and reset-password flow with hashed single-use reset tokens.
 - Candidate feedback/tips views without candidate-visible scores.
-- Exam autosave, backend-configured duration, blank-timeout completion, and server-side coding judge submission.
+- Backend-configured exam/AI duration and blank-timeout completion.
 - Route-level lazy loading.
 - Internal and external candidate identity handling.
 - Resume URL/update time and tags on internal users.
@@ -86,3 +86,10 @@ Acceptance:
 - Tab-switch warning and cheating completion.
 - External provider request timeouts.
 - Unit, API, lint, build, security audit, and browser smoke coverage.
+
+## Still Open / Partial
+
+- Exam answer autosave needs a browser regression test.
+- Server-side coding submission judge is still not wired as the primary candidate-code grading path.
+- Monthly assessment and client-mandate scheduling need real-device candidate launch verification with specific start/end windows.
+- Prototype/backup folders still need a dedicated cleanup pass before handoff.

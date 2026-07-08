@@ -114,7 +114,7 @@ function CandidateProfilePage() {
             </p>
             <p style={{ fontSize: 12, color: 'var(--fg-subtle)', margin: '2px 0 0' }}>PDF format · Used for all interviews by default</p>
           </div>
-          <input type="file" accept=".pdf" style={{ display: 'none' }} onChange={handleResumeUpload} disabled={resumeUploading} />
+          <input type="file" accept=".pdf,.doc,.docx,.txt" style={{ display: 'none' }} onChange={handleResumeUpload} disabled={resumeUploading} />
         </label>
       </div>
 

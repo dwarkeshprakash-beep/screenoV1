@@ -92,7 +92,7 @@ function AddExternalModal({ open, onClose, onDone }) {
           </div>
           <div>
             <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--fg-body)', marginBottom: 4 }}>Resume (optional)</label>
-            <input type="file" onChange={e => setResumeFile(e.target.files?.[0] || null)} accept=".pdf,.doc,.docx" style={inp} />
+            <input type="file" onChange={e => setResumeFile(e.target.files?.[0] || null)} accept=".pdf,.doc,.docx,.txt" style={inp} />
           </div>
           {error && <p style={{ fontSize: 12, color: 'var(--danger-700)', margin: 0 }}>{error}</p>}
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 4 }}>

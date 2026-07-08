@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useLocation } from 'react-router-dom'
-import { Download, Filter, FileText, TrendingUp, Star, Clock } from 'lucide-react'
+import { Download, Filter, FileText, TrendingUp, Star, Clock, AlertTriangle, RotateCw } from 'lucide-react'
 import Spinner from '../../components/shared/Spinner'
 import ErrorMessage from '../../components/shared/ErrorMessage'
 import EmptyState from '../../components/shared/EmptyState'
@@ -155,6 +155,7 @@ function ReportsPage() {
   const location = useLocation()
   const [mainTab, setMainTab]         = useState('all')
   const [reports, setReports]         = useState([])
+  const [reportJobs, setReportJobs]   = useState([])
   const [decisionFilter, setDecision] = useState('all')
   const [templateFilter, setTemplate] = useState('all')
   const [loading, setLoading]         = useState(true)
@@ -163,15 +164,20 @@ function ReportsPage() {
   const [detailLoading, setDetailLoading] = useState(false)
   const [detailError, setDetailError] = useState(null)
   const [queryHandled, setQueryHandled] = useState(false)
+  const [retryingJobId, setRetryingJobId] = useState(null)
 
   const load = useCallback(async (tab) => {
     setLoading(true)
     setError(null)
     try {
       const source = tab === 'client' ? 'client' : tab === 'monthly' ? 'monthly' : null
-      const res = await api.getTeamReports(source)
+      const [res, jobsRes] = await Promise.all([
+        api.getTeamReports(source),
+        api.getReportJobs().catch(() => ({ data: [] })),
+      ])
       const payload = res.data || {}
       setReports(Array.isArray(payload) ? payload : payload.reports || [])
+      setReportJobs(jobsRes.data || [])
     } catch {
       setError('Could not load reports. Please try again.')
     } finally {
@@ -210,6 +216,20 @@ function ReportsPage() {
 
   function handleTabChange(t) { setMainTab(t); setDecision('all'); setTemplate('all') }
 
+  async function retryJob(job) {
+    setRetryingJobId(job.id)
+    setError(null)
+    try {
+      await api.retryReportJob(job.id)
+      const jobsRes = await api.getReportJobs()
+      setReportJobs(jobsRes.data || [])
+    } catch (err) {
+      setError(err.message || 'Could not retry report job.')
+    } finally {
+      setRetryingJobId(null)
+    }
+  }
+
   function exportCsv() {
     const rows = visible.map(r => [
       `${r.candidate_first || ''} ${r.candidate_last || ''}`.trim(),
@@ -240,7 +260,9 @@ function ReportsPage() {
   const passRate    = reports.length > 0 ? Math.round((passCount / reports.length) * 100) : null
   const scores      = reports.map(r => Number(r.overall_score)).filter(s => !isNaN(s) && s > 0)
   const avgScore    = scores.length > 0 ? (scores.reduce((a, b) => a + b, 0) / scores.length) : null
-  const pendingCount = reports.filter(r => r.status === 'generating').length
+  const failedJobs = reportJobs.filter(job => job.status === 'failed')
+  const activeJobs = reportJobs.filter(job => ['pending', 'processing'].includes(job.status))
+  const pendingCount = reports.filter(r => r.status === 'generating').length + failedJobs.length + activeJobs.length
 
   const cardStyle    = { background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderRadius: 12, padding: 20, boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }
   const thStyle      = { textAlign: 'left', padding: '11px 16px', fontSize: 11, fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--fg-subtle)', borderBottom: '1px solid var(--border-default)' }
@@ -276,6 +298,35 @@ function ReportsPage() {
           </div>
         ))}
       </div>
+
+      {(failedJobs.length > 0 || activeJobs.length > 0) && (
+        <div style={{ ...cardStyle, display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <AlertTriangle size={16} color="var(--warning-600)" />
+            <h2 style={{ fontSize: 14, fontWeight: 700, color: 'var(--fg-primary)', margin: 0 }}>Report jobs</h2>
+          </div>
+          <div className="assignment-list">
+            {[...failedJobs, ...activeJobs].slice(0, 8).map(job => {
+              const name = `${job.candidate_first || ''} ${job.candidate_last || ''}`.trim() || 'Candidate'
+              return (
+                <div className="assignment-row" key={job.id}>
+                  <div className="assignment-row__content">
+                    <strong>{name}</strong>
+                    <span>{job.context_title || job.interview_type || 'Assessment'} | attempts {job.attempts || 0}</span>
+                    {job.last_error && <span style={{ color: 'var(--danger-700)' }}>{job.last_error}</span>}
+                  </div>
+                  <span className={`status-pill${job.status === 'failed' ? ' status-pill--danger' : ' status-pill--brand'}`}>{job.status}</span>
+                  {job.status === 'failed' && (
+                    <button type="button" onClick={() => retryJob(job)} disabled={retryingJobId === job.id} style={btnSecondary}>
+                      <RotateCw size={12} />{retryingJobId === job.id ? 'Retrying...' : 'Retry'}
+                    </button>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      )}
 
       <div style={{ ...cardStyle, padding: 0, overflow: 'hidden' }}>
         {/* Main tabs */}

@@ -58,7 +58,7 @@ function ScheduleModal({
   const [interviewMode, setInterviewMode] = useState('simple')
   const [difficulty, setDifficulty] = useState('medium')
   const [questionCount, setQuestionCount] = useState(10)
-  const [durationMinutes, setDurationMinutes] = useState(60)
+  const [durationMinutes, setDurationMinutes] = useState(25)
   const [scheduledAt, setScheduledAt] = useState('')
   const [candidates, setCandidates] = useState([])
   const [orgUsers, setOrgUsers] = useState([])
@@ -98,7 +98,7 @@ function ScheduleModal({
     setInterviewMode('simple')
     setDifficulty(template?.difficulty || 'medium')
     setQuestionCount(10)
-    setDurationMinutes(60)
+    setDurationMinutes(25)
     setScheduledAt('')
     setCandidateQuery('')
     setReportQuery('')
@@ -196,8 +196,8 @@ function ScheduleModal({
       setError('Question count must be between 1 and 50.')
       return
     }
-    if (step === 2 && type === 'exam' && (!Number.isInteger(durationMinutes) || durationMinutes < 15 || durationMinutes > 180)) {
-      setError('Exam duration must be between 15 and 180 minutes.')
+    if (step === 2 && ['ai_voice', 'exam'].includes(type) && (!Number.isInteger(durationMinutes) || durationMinutes < 15 || durationMinutes > 180)) {
+      setError('Duration must be between 15 and 180 minutes.')
       return
     }
     if (step === 3 && selectedCandidates.length === 0) {
@@ -222,7 +222,7 @@ function ScheduleModal({
           interviewMode: type === 'exam' ? 'simple' : interviewMode,
           difficulty,
           questionCount,
-          durationMinutes: type === 'exam' ? durationMinutes : null,
+          durationMinutes: ['ai_voice', 'exam'].includes(type) ? durationMinutes : null,
           scheduledAt,
           assessmentDate: scheduledAt,
           reportUserIds: Array.from(reportUserIds),
@@ -286,7 +286,7 @@ function ScheduleModal({
       {step === 1 && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           {TYPES.map(option => (
-            <button key={option.id} type="button" onClick={() => setType(option.id)} style={card(type === option.id)}>
+            <button key={option.id} type="button" onClick={() => { setType(option.id); setDurationMinutes(option.id === 'ai_voice' ? 25 : 60) }} style={card(type === option.id)}>
               <span style={{ width: 38, height: 38, borderRadius: 9, background: 'var(--bg-surface)', color: 'var(--brand-500)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                 <option.icon size={18} />
               </span>
@@ -337,7 +337,7 @@ function ScheduleModal({
             <input id="schedule-question-count" type="number" min="1" max="50" value={questionCount} onChange={event => setQuestionCount(Number(event.target.value))} style={{ width: 140, padding: '9px 12px', border: '1px solid var(--border-default)', borderRadius: 8, background: 'var(--bg-surface)', fontFamily: 'inherit' }} />
             <span style={{ marginLeft: 8, fontSize: 12, color: 'var(--fg-muted)' }}>1-50 questions</span>
           </div>
-          {type === 'exam' && (
+          {['ai_voice', 'exam'].includes(type) && (
             <div>
               <label htmlFor="schedule-duration" style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--fg-muted)', marginBottom: 8 }}>Duration</label>
               <input id="schedule-duration" type="number" min="15" max="180" value={durationMinutes} onChange={event => setDurationMinutes(Number(event.target.value))} style={{ width: 140, padding: '9px 12px', border: '1px solid var(--border-default)', borderRadius: 8, background: 'var(--bg-surface)', fontFamily: 'inherit' }} />
@@ -420,7 +420,7 @@ function ScheduleModal({
             ['Difficulty', difficulty],
             ['Date', scheduledAt ? new Date(scheduledAt).toLocaleString() : 'Not selected'],
             ['Questions', questionCount],
-            ...(type === 'exam' ? [['Duration', `${durationMinutes} minutes`]] : []),
+            ...(['ai_voice', 'exam'].includes(type) ? [['Duration', `${durationMinutes} minutes`]] : []),
             ['Candidates', selectedCandidates.length],
             ['Context', context?.label || 'General assessment'],
           ].map(([label, value]) => (

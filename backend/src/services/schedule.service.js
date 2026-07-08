@@ -117,7 +117,9 @@ async function createSchedule(data, managerId, companyId) {
     questionCount,
     durationMinutes: data.type === 'exam'
       ? (requestedDuration || Math.min(90, Math.max(15, questionCount * 4)))
-      : null,
+      : data.type === 'ai_voice'
+        ? (requestedDuration || 25)
+        : null,
     tokenHash,
     tokenExpires,
     scheduledAt: scheduledAt ? scheduledAt.toISOString() : null,
@@ -189,6 +191,8 @@ async function getCalendarEvents(managerId) {
     result: interview.result,
     start: interview.scheduled_at || interview.created,
     scheduledAt: interview.scheduled_at || null,
+    duration_minutes: interview.duration_minutes || null,
+    durationMinutes: interview.duration_minutes || null,
     created: interview.created,
     teamMemberId: interview.team_member_id || null,
   }))

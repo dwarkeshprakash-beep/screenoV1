@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, ArrowRight, BriefcaseBusiness, Calendar, CheckCircle2,
   Clock, FileText, Mail, Plus, Search, Sparkles, Trash2, Upload,
@@ -36,11 +37,125 @@ function requirementMeta(item) {
   return parts.join(' | ')
 }
 
+function newRequirementProfile(seed = {}) {
+  return {
+    key: seed.key || seed.id || `new-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    id: seed.id || null,
+    profile_name: seed.profile_name || '',
+    years_min: seed.years_min ?? '',
+    years_max: seed.years_max ?? '',
+    headcount: seed.headcount || 1,
+    notes: seed.notes || '',
+  }
+}
+
+function normalizeRequirementProfilesForSave(profiles) {
+  return profiles
+    .map(profile => ({
+      id: profile.id || undefined,
+      profile_name: String(profile.profile_name || '').trim(),
+      years_min: profile.years_min === '' ? null : Number(profile.years_min),
+      years_max: profile.years_max === '' ? null : Number(profile.years_max),
+      headcount: Number(profile.headcount) || 1,
+      notes: String(profile.notes || '').trim() || null,
+    }))
+    .filter(profile => profile.profile_name)
+}
+
+function validateRequirementProfilesForSave(profiles) {
+  const normalized = normalizeRequirementProfilesForSave(profiles)
+  if (normalized.length === 0) return 'Add at least one required role.'
+  const seen = new Set()
+  for (const profile of normalized) {
+    if (!Number.isInteger(profile.headcount) || profile.headcount < 1) return 'Each role needs a headcount of at least 1.'
+    if (profile.years_min != null && (!Number.isInteger(profile.years_min) || profile.years_min < 0)) return 'Minimum experience must be a non-negative whole number.'
+    if (profile.years_max != null && (!Number.isInteger(profile.years_max) || profile.years_max < 0)) return 'Maximum experience must be a non-negative whole number.'
+    if (profile.years_min != null && profile.years_max != null && profile.years_min > profile.years_max) return 'Minimum experience cannot be greater than maximum experience.'
+    const key = profile.profile_name.toLowerCase()
+    if (seen.has(key)) return `Duplicate role: ${profile.profile_name}`
+    seen.add(key)
+  }
+  return null
+}
+
+function requirementProfilesHeadcount(profiles) {
+  return normalizeRequirementProfilesForSave(profiles)
+    .reduce((sum, profile) => sum + Number(profile.headcount || 0), 0)
+}
+
+function requirementProfilesSummary(profiles) {
+  return normalizeRequirementProfilesForSave(profiles)
+    .map(profile => profile.profile_name)
+    .join(', ')
+}
+
+function RequirementProfilesEditor({ profiles, setProfiles }) {
+  function updateProfile(key, field, value) {
+    setProfiles(current => current.map(profile => (
+      profile.key === key ? { ...profile, [field]: value } : profile
+    )))
+  }
+
+  function removeProfile(key) {
+    setProfiles(current => current.length > 1 ? current.filter(profile => profile.key !== key) : current)
+  }
+
+  const totalHeadcount = requirementProfilesHeadcount(profiles)
+
+  return (
+    <div className="form-field form-field--full">
+      <div className="workspace-section-heading" style={{ marginBottom: 10 }}>
+        <div>
+          <h3 style={{ fontSize: 15 }}>Required roles</h3>
+          <p>Total headcount syncs from these role profiles.</p>
+        </div>
+        <span className="status-pill status-pill--brand">{totalHeadcount || 0} total</span>
+      </div>
+      <div className="workspace-stack" style={{ gap: 10 }}>
+        {profiles.map((profile, index) => (
+          <div key={profile.key} style={{ border: '1px solid var(--border-default)', borderRadius: 8, padding: 12, background: 'var(--bg-surface)' }}>
+            <div className="form-grid">
+              <Field label="Role name" full={profiles.length === 1}>
+                <input className="form-input" value={profile.profile_name} onChange={e => updateProfile(profile.key, 'profile_name', e.target.value)} placeholder={`Role ${index + 1}`} />
+              </Field>
+              {profiles.length > 1 && (
+                <div className="form-field" style={{ justifyContent: 'flex-end' }}>
+                  <button type="button" className="danger-icon-button" onClick={() => removeProfile(profile.key)} style={{ alignSelf: 'flex-end', padding: '7px 9px' }}>
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+              )}
+              <Field label="Min years">
+                <input className="form-input" type="number" min="0" value={profile.years_min} onChange={e => updateProfile(profile.key, 'years_min', e.target.value)} placeholder="0" />
+              </Field>
+              <Field label="Max years">
+                <input className="form-input" type="number" min="0" value={profile.years_max} onChange={e => updateProfile(profile.key, 'years_max', e.target.value)} placeholder="Open" />
+              </Field>
+              <Field label="Headcount">
+                <input className="form-input" type="number" min="1" value={profile.headcount} onChange={e => updateProfile(profile.key, 'headcount', e.target.value)} />
+              </Field>
+              <Field label="Notes" full>
+                <input className="form-input" value={profile.notes} onChange={e => updateProfile(profile.key, 'notes', e.target.value)} placeholder="Optional profile notes" />
+              </Field>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div style={{ marginTop: 10 }}>
+        <Button variant="secondary" size="sm" onClick={() => setProfiles(current => [...current, newRequirementProfile()])}>
+          <Plus size={13} />Add role
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 // ── Mandate creation wizard ───────────────────────────────────────────────────
 
 function CreateMandateModal({ open, onClose, onCreated }) {
   const [step, setStep] = useState(1)
   const [form, setForm] = useState({ clientName: '', clientEmail: '', requirements: '', headcount: 1, jdText: '', customInfo: '' })
+  const [profiles, setProfiles] = useState(() => [newRequirementProfile()])
   const [tags, setTags] = useState([])
   const [customTag, setCustomTag] = useState('')
   const [fileName, setFileName] = useState('')
@@ -53,6 +168,7 @@ function CreateMandateModal({ open, onClose, onCreated }) {
     if (!open) return
     setStep(1)
     setForm({ clientName: '', clientEmail: '', requirements: '', headcount: 1, jdText: '', customInfo: '' })
+    setProfiles([newRequirementProfile()])
     setTags([])
     setCustomTag('')
     setFileName('')
@@ -79,7 +195,8 @@ function CreateMandateModal({ open, onClose, onCreated }) {
 
   async function continueToTags() {
     if (!form.clientName.trim()) { setError('Client name is required.'); return }
-    if (!form.requirements.trim()) { setError('Mandate title or default role is required.'); return }
+    const profileError = validateRequirementProfilesForSave(profiles)
+    if (profileError) { setError(profileError); return }
     setExtractingTags(true)
     setError(null)
     try {
@@ -105,8 +222,9 @@ function CreateMandateModal({ open, onClose, onCreated }) {
       await api.createClientTemplate({
         client_name: form.clientName.trim(),
         client_email: form.clientEmail.trim() || null,
-        requirements: form.requirements.trim(),
-        headcount: Number(form.headcount) || 1,
+        requirements: requirementProfilesSummary(profiles),
+        headcount: requirementProfilesHeadcount(profiles),
+        requirement_profiles: normalizeRequirementProfilesForSave(profiles),
         jd_text: form.jdText.trim(),
         custom_info: form.customInfo.trim() || null,
         tags: JSON.stringify(tags),
@@ -137,12 +255,7 @@ function CreateMandateModal({ open, onClose, onCreated }) {
             <Field label="Client email" help="Optional contact for the mandate.">
               <input className="form-input" type="email" value={form.clientEmail} onChange={e => update('clientEmail', e.target.value)} placeholder="contact@client.com" />
             </Field>
-            <Field label="Mandate title / default role" full>
-              <input className="form-input" value={form.requirements} onChange={e => update('requirements', e.target.value)} placeholder="e.g. Senior Backend Engineer" />
-            </Field>
-            <Field label="Required headcount">
-              <input className="form-input" type="number" min="1" value={form.headcount} onChange={e => update('headcount', e.target.value)} />
-            </Field>
+            <RequirementProfilesEditor profiles={profiles} setProfiles={setProfiles} />
             <Field label="Job description source" help="Paste the JD below or upload PDF, DOC, DOCX, or TXT.">
               <input id="client-jd-file" type="file" accept=".pdf,.doc,.docx,.txt" onChange={readJdFile} style={{ display: 'none' }} />
               <label htmlFor="client-jd-file" className="product-button product-button--secondary product-button--md" style={{ alignSelf: 'flex-start', cursor: extractingFile ? 'wait' : 'pointer' }}>
@@ -194,8 +307,9 @@ function CreateMandateModal({ open, onClose, onCreated }) {
 
 // ── Edit mandate ──────────────────────────────────────────────────────────────
 
-function EditMandateModal({ open, template, onClose, onSaved }) {
+function EditMandateModal({ open, template, requirements = [], onClose, onSaved }) {
   const [form, setForm] = useState({})
+  const [profiles, setProfiles] = useState(() => [newRequirementProfile()])
   const [tags, setTags] = useState([])
   const [customTag, setCustomTag] = useState('')
   const [saving, setSaving] = useState(false)
@@ -207,11 +321,14 @@ function EditMandateModal({ open, template, onClose, onSaved }) {
   useEffect(() => {
     if (!open) return
     setForm({ client_name: template.client_name || '', client_email: template.client_email || '', requirements: template.requirements || '', headcount: template.headcount || 1, jd_text: template.jd_text || '', custom_info: template.custom_info || '' })
+    setProfiles(requirements.length > 0
+      ? requirements.map(item => newRequirementProfile(item))
+      : [newRequirementProfile({ profile_name: template.requirements || '', headcount: template.headcount || 1 })])
     setTags(parseTags(template.tags))
     setCustomTag('')
     setFileName('')
     setError(null)
-  }, [open, template])
+  }, [open, template, requirements])
 
   async function readFile(event) {
     const file = event.target.files?.[0]
@@ -247,10 +364,18 @@ function EditMandateModal({ open, template, onClose, onSaved }) {
   }
 
   async function save() {
+    const profileError = validateRequirementProfilesForSave(profiles)
+    if (profileError) { setError(profileError); return }
     setSaving(true)
     setError(null)
     try {
-      const response = await api.updateClientTemplate(template.id, { ...form, tags: JSON.stringify(tags) })
+      const response = await api.updateClientTemplate(template.id, {
+        ...form,
+        requirements: requirementProfilesSummary(profiles),
+        headcount: requirementProfilesHeadcount(profiles),
+        requirement_profiles: normalizeRequirementProfilesForSave(profiles),
+        tags: JSON.stringify(tags),
+      })
       onSaved(response.data || { ...template, ...form })
     } catch (err) { setError(err.message || 'Could not update the mandate.') }
     finally { setSaving(false) }
@@ -262,8 +387,7 @@ function EditMandateModal({ open, template, onClose, onSaved }) {
         <div className="form-grid">
           <Field label="Client name"><input className="form-input" value={form.client_name || ''} onChange={e => setForm(c => ({ ...c, client_name: e.target.value }))} /></Field>
           <Field label="Client email"><input className="form-input" type="email" value={form.client_email || ''} onChange={e => setForm(c => ({ ...c, client_email: e.target.value }))} /></Field>
-          <Field label="Mandate title / default role" full><input className="form-input" value={form.requirements || ''} onChange={e => setForm(c => ({ ...c, requirements: e.target.value }))} /></Field>
-          <Field label="Headcount"><input className="form-input" type="number" min="1" value={form.headcount || 1} onChange={e => setForm(c => ({ ...c, headcount: Number(e.target.value) }))} /></Field>
+          <RequirementProfilesEditor profiles={profiles} setProfiles={setProfiles} />
           <Field label="Replace JD from file">
             <input id="edit-jd-file" type="file" accept=".pdf,.doc,.docx,.txt" onChange={readFile} style={{ display: 'none' }} />
             <label htmlFor="edit-jd-file" className="product-button product-button--secondary product-button--md" style={{ alignSelf: 'flex-start' }}>
@@ -321,10 +445,16 @@ function RequirementModal({ open, onClose, onSaved, existing, mandateId }) {
 
   async function save() {
     if (!form.profile_name.trim()) { setError('Profile name is required.'); return }
+    const minYears = form.years_min !== '' ? Number(form.years_min) : null
+    const maxYears = form.years_max !== '' ? Number(form.years_max) : null
+    if (minYears !== null && maxYears !== null && minYears > maxYears) {
+      setError('Minimum experience cannot be greater than maximum experience.')
+      return
+    }
     setSaving(true)
     setError(null)
     try {
-      const data = { ...form, years_min: form.years_min !== '' ? Number(form.years_min) : null, years_max: form.years_max !== '' ? Number(form.years_max) : null, headcount: Number(form.headcount) || 1 }
+      const data = { ...form, years_min: minYears, years_max: maxYears, headcount: Number(form.headcount) || 1 }
       const response = existing
         ? await api.updateMandateRequirement(mandateId, existing.id, data)
         : await api.createMandateRequirement(mandateId, data)
@@ -493,6 +623,91 @@ function AddProspectsModal({ open, onClose, onAdded, mandateId, requirements }) 
   )
 }
 
+function CandidateActionModal({ candidate, onClose, onViewProfile, onAdd, adding, error }) {
+  if (!candidate) return null
+  const name = `${candidate.first_name || ''} ${candidate.last_name || ''}`.trim() || candidate.email
+  const suggestedRequirement = candidate.matching_requirements?.[0]
+
+  return (
+    <Modal open={!!candidate} onClose={onClose} title="Candidate actions" size="sm">
+      <div className="workspace-stack">
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <Avatar name={name} size={40} />
+          <div style={{ minWidth: 0 }}>
+            <strong style={{ display: 'block', color: 'var(--fg-primary)', fontSize: 14 }}>{name}</strong>
+            <span style={{ display: 'block', color: 'var(--fg-muted)', fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{candidate.email}</span>
+          </div>
+        </div>
+        <div className="detail-facts">
+          <div className="detail-fact"><div className="detail-fact__label">Role</div><div className="detail-fact__value">{candidate.current_position || candidate.job_title || 'Not set'}</div></div>
+          <div className="detail-fact"><div className="detail-fact__label">Match</div><div className="detail-fact__value">{candidate.match_score || 0}</div></div>
+        </div>
+        {suggestedRequirement && (
+          <span className="tag" style={{ alignSelf: 'flex-start' }}>
+            Suggested: {suggestedRequirement.profile_name}{requirementMeta(suggestedRequirement) ? ` | ${requirementMeta(suggestedRequirement)}` : ''}
+          </span>
+        )}
+        {error && <ErrorMessage message={error} />}
+        <div className="form-actions" style={{ justifyContent: 'flex-end' }}>
+          <Button variant="secondary" onClick={onViewProfile} disabled={!candidate.team_member_id}>View profile</Button>
+          <Button onClick={onAdd} loading={adding}><UserCheck size={14} />Add candidate</Button>
+        </div>
+        {!candidate.team_member_id && (
+          <p style={{ fontSize: 12, color: 'var(--fg-subtle)', margin: 0 }}>Profile page is available after the candidate is in your team.</p>
+        )}
+      </div>
+    </Modal>
+  )
+}
+
+function MandateReportDetailModal({ report, loading, error, onClose }) {
+  const strengths = parseStoredArray(report?.strengths)
+  const name = report
+    ? `${report.candidate_first || ''} ${report.candidate_last || ''}`.trim() || 'Candidate'
+    : 'Candidate'
+
+  return (
+    <Modal open={!!report} onClose={onClose} title="Report detail" size="lg">
+      {loading ? <Spinner center /> : error ? <ErrorMessage message={error} /> : report && (
+        <div className="workspace-stack">
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+            <div>
+              <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--fg-primary)', margin: '0 0 4px' }}>{name}</h3>
+              <p style={{ fontSize: 13, color: 'var(--fg-muted)', margin: 0 }}>{report.candidate_email || 'No email'} | {report.interview_type || 'Interview'}</p>
+              <p style={{ fontSize: 12, color: 'var(--fg-subtle)', margin: '4px 0 0' }}>{formatDate(report.interview_date || report.created)}</p>
+            </div>
+            <span className={`status-pill${report.decision === 'pass' ? ' status-pill--success' : report.decision === 'fail' ? ' status-pill--danger' : ' status-pill--warning'}`}>{report.decision || 'Review'}</span>
+          </div>
+          <div className="detail-facts">
+            <div className="detail-fact"><div className="detail-fact__label">Overall</div><div className="detail-fact__value">{report.overall_score ?? 'Not scored'}</div></div>
+            <div className="detail-fact"><div className="detail-fact__label">Technical</div><div className="detail-fact__value">{report.tech_knowledge ?? 'Not scored'}</div></div>
+            <div className="detail-fact"><div className="detail-fact__label">Communication</div><div className="detail-fact__value">{report.communication ?? 'Not scored'}</div></div>
+            <div className="detail-fact"><div className="detail-fact__label">Problem solving</div><div className="detail-fact__value">{report.problem_solving ?? 'Not scored'}</div></div>
+          </div>
+          {report.summary && (
+            <section>
+              <h3 style={{ fontSize: 13, fontWeight: 700, color: 'var(--fg-primary)', margin: '0 0 8px' }}>Summary</h3>
+              <p style={{ fontSize: 13, lineHeight: 1.7, color: 'var(--fg-body)', margin: 0 }}>{report.summary}</p>
+            </section>
+          )}
+          {strengths.length > 0 && (
+            <section>
+              <h3 style={{ fontSize: 13, fontWeight: 700, color: 'var(--fg-primary)', margin: '0 0 8px' }}>Highlights</h3>
+              <div className="tag-list">{strengths.map(item => <span className="tag" key={item}>{item}</span>)}</div>
+            </section>
+          )}
+          {report.reason && (
+            <section>
+              <h3 style={{ fontSize: 13, fontWeight: 700, color: 'var(--fg-primary)', margin: '0 0 8px' }}>Decision reason</h3>
+              <p style={{ fontSize: 13, lineHeight: 1.7, color: 'var(--fg-body)', margin: 0 }}>{report.reason}</p>
+            </section>
+          )}
+        </div>
+      )}
+    </Modal>
+  )
+}
+
 // ── Send JD modal (with custom message + preview) ─────────────────────────────
 
 function SendJDModal({ open, onClose, onSent, member, template }) {
@@ -575,6 +790,7 @@ function ScheduleClientTeamModal({ open, onClose, onScheduled, member, template 
   const [mode, setMode] = useState('simple')
   const [difficulty, setDifficulty] = useState('medium')
   const [questionCount, setQuestionCount] = useState(10)
+  const [durationMinutes, setDurationMinutes] = useState(25)
   const [scheduledAt, setScheduledAt] = useState('')
   const [location, setLocation] = useState('')
   const [notes, setNotes] = useState('')
@@ -588,6 +804,7 @@ function ScheduleClientTeamModal({ open, onClose, onScheduled, member, template 
     setMode('simple')
     setDifficulty('medium')
     setQuestionCount(10)
+    setDurationMinutes(25)
     setScheduledAt('')
     setLocation('')
     setNotes('')
@@ -613,6 +830,10 @@ function ScheduleClientTeamModal({ open, onClose, onScheduled, member, template 
         return
       }
     }
+    if ((type === 'ai_voice' || type === 'exam') && (Number(durationMinutes) < 15 || Number(durationMinutes) > 180)) {
+      setError('Duration must be between 15 and 180 minutes.')
+      return
+    }
     setScheduling(true)
     setError(null)
     try {
@@ -622,6 +843,7 @@ function ScheduleClientTeamModal({ open, onClose, onScheduled, member, template 
         mode,
         difficulty,
         questionCount: Number(questionCount),
+        durationMinutes: type === 'ai_voice' || type === 'exam' ? Number(durationMinutes) : null,
         scheduledAt,
         location:      location.trim() || null,
         notes:         notes.trim() || null,
@@ -648,7 +870,7 @@ function ScheduleClientTeamModal({ open, onClose, onScheduled, member, template 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {INTERVIEW_TYPES.map(t => (
               <label key={t.value} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 12px', borderRadius: 8, border: `1px solid ${type === t.value ? 'var(--brand-400)' : 'var(--border-default)'}`, background: type === t.value ? 'var(--brand-50)' : 'var(--bg-surface)', cursor: 'pointer' }}>
-                <input type="radio" name="interview-type" value={t.value} checked={type === t.value} onChange={() => setType(t.value)} style={{ marginTop: 2, accentColor: 'var(--brand-500)' }} />
+                <input type="radio" name="interview-type" value={t.value} checked={type === t.value} onChange={() => { setType(t.value); setDurationMinutes(t.value === 'ai_voice' ? 25 : 60) }} style={{ marginTop: 2, accentColor: 'var(--brand-500)' }} />
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg-primary)' }}>{t.label}</div>
                   <div style={{ fontSize: 11, color: 'var(--fg-muted)', marginTop: 2 }}>{t.desc}</div>
@@ -674,8 +896,13 @@ function ScheduleClientTeamModal({ open, onClose, onScheduled, member, template 
               </select>
             </Field>
             {type === 'ai_voice' && (
-              <Field label="Questions" full>
+              <Field label="Questions">
                 <input className="form-input" type="number" min="1" max="50" value={questionCount} onChange={e => setQuestionCount(e.target.value)} />
+              </Field>
+            )}
+            {type === 'ai_voice' && (
+              <Field label="Duration (minutes)">
+                <input className="form-input" type="number" min="15" max="180" value={durationMinutes} onChange={e => setDurationMinutes(e.target.value)} />
               </Field>
             )}
           </div>
@@ -690,6 +917,9 @@ function ScheduleClientTeamModal({ open, onClose, onScheduled, member, template 
             </Field>
             <Field label="Questions">
               <input className="form-input" type="number" min="1" max="50" value={questionCount} onChange={e => setQuestionCount(e.target.value)} />
+            </Field>
+            <Field label="Duration (minutes)">
+              <input className="form-input" type="number" min="15" max="180" value={durationMinutes} onChange={e => setDurationMinutes(e.target.value)} />
             </Field>
           </div>
         )}
@@ -827,6 +1057,7 @@ function ClientInterviewOutcomeModal({ open, onClose, onSaved, member, template,
 // ── Mandate detail ─────────────────────────────────────────────────────────────
 
 function MandateDetail({ initialTemplate, onBack }) {
+  const navigate = useNavigate()
   const [template, setTemplate] = useState(initialTemplate)
   const [tab, setTab] = useState('overview')
   const [requirements, setRequirements] = useState([])
@@ -835,6 +1066,9 @@ function MandateDetail({ initialTemplate, onBack }) {
   const [clientTeam, setClientTeam] = useState([])
   const [assignments, setAssignments] = useState([])
   const [reports, setReports] = useState([])
+  const [selectedReport, setSelectedReport] = useState(null)
+  const [reportDetailLoading, setReportDetailLoading] = useState(false)
+  const [reportDetailError, setReportDetailError] = useState(null)
   const [loadingCandidates, setLoadingCandidates] = useState(false)
   const [loadingTeam, setLoadingTeam] = useState(false)
   const [candidateSection, setCandidateSection] = useState('team')
@@ -843,6 +1077,9 @@ function MandateDetail({ initialTemplate, onBack }) {
   const [message, setMessage] = useState(null)
   const [editOpen, setEditOpen] = useState(false)
   const [addProspectsOpen, setAddProspectsOpen] = useState(false)
+  const [candidateActionTarget, setCandidateActionTarget] = useState(null)
+  const [addingCandidateId, setAddingCandidateId] = useState(null)
+  const [candidateActionError, setCandidateActionError] = useState(null)
   const [sendJdTarget, setSendJdTarget] = useState(null)
   const [scheduleTarget, setScheduleTarget] = useState(null)
   const [outcomeTarget, setOutcomeTarget] = useState(null)
@@ -934,6 +1171,47 @@ function MandateDetail({ initialTemplate, onBack }) {
     const r = await api.getClientInterviewRecord(template.id, member.id).catch(() => ({ data: null }))
     setOutcomeExisting(r.data)
     setOutcomeTarget(member)
+  }
+
+  function viewCandidateProfile(candidate) {
+    if (!candidate?.team_member_id) return
+    navigate(`/manager/team/${candidate.team_member_id}`)
+  }
+
+  async function addCandidateFromBrowse(candidate) {
+    if (!candidate?.id) return
+    const requirementId = candidate.matching_requirements?.[0]?.id || requirements[0]?.id || null
+    setAddingCandidateId(candidate.id)
+    setCandidateActionError(null)
+    try {
+      await api.addProspects(template.id, {
+        userIds: [candidate.id],
+        requirementId: requirementId ? Number(requirementId) : null,
+      })
+      setCandidateActionTarget(null)
+      setMessage(`${candidate.first_name || 'Candidate'} added to the client team.`)
+      await Promise.all([loadClientTeam(), loadCandidates()])
+    } catch (err) {
+      setCandidateActionError(err.message || 'Could not add candidate.')
+    } finally {
+      setAddingCandidateId(null)
+    }
+  }
+
+  async function openMandateReport(report) {
+    setSelectedReport(report)
+    setReportDetailLoading(true)
+    setReportDetailError(null)
+    try {
+      const response = report.interview_id
+        ? await api.getReportByInterview(report.interview_id)
+        : await api.getReportDetail(report.id)
+      setSelectedReport({ ...report, ...(response.data || {}) })
+    } catch (err) {
+      setReportDetailError(err.message || 'Could not load report detail.')
+    } finally {
+      setReportDetailLoading(false)
+    }
   }
 
   return (
@@ -1088,7 +1366,7 @@ function MandateDetail({ initialTemplate, onBack }) {
                   {displayedMembers.map(member => {
                     const name = `${member.first_name || ''} ${member.last_name || ''}`.trim()
                     return (
-                      <div className="workspace-card" key={member.id} style={{ cursor: 'default' }}>
+                      <button type="button" className="workspace-card" key={member.id} onClick={() => { setCandidateActionTarget(member); setCandidateActionError(null) }} style={{ textAlign: 'left' }}>
                         <div className="workspace-card__body" style={{ padding: 16 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
                             <Avatar name={name} size={34} />
@@ -1104,7 +1382,7 @@ function MandateDetail({ initialTemplate, onBack }) {
                             </div>
                           )}
                         </div>
-                      </div>
+                      </button>
                     )
                   })}
                 </div>
@@ -1204,13 +1482,14 @@ function MandateDetail({ initialTemplate, onBack }) {
             : (
               <div className="assignment-list">
                 {reports.map(report => (
-                  <div className="assignment-row" key={report.id}>
+                  <div className="assignment-row" key={report.id} role="button" tabIndex={0} onClick={() => openMandateReport(report)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') openMandateReport(report) }} style={{ cursor: 'pointer' }}>
                     <Avatar name={`${report.candidate_first || ''} ${report.candidate_last || ''}`.trim()} size={30} />
                     <div className="assignment-row__content">
                       <strong>{report.candidate_first} {report.candidate_last}</strong>
                       <span>Overall score: {report.overall_score ?? 'Not scored'}</span>
                     </div>
                     <span className={`status-pill${report.decision === 'pass' ? ' status-pill--success' : ' status-pill--warning'}`}>{report.decision || 'Review'}</span>
+                    <Button size="sm" variant="secondary" onClick={event => { event.stopPropagation(); openMandateReport(report) }}>View</Button>
                   </div>
                 ))}
               </div>
@@ -1218,7 +1497,13 @@ function MandateDetail({ initialTemplate, onBack }) {
         )}
       </div>
 
-      <EditMandateModal open={editOpen} template={template} onClose={() => setEditOpen(false)} onSaved={updated => { setTemplate(updated); setEditOpen(false) }} />
+      <EditMandateModal
+        open={editOpen}
+        template={template}
+        requirements={requirements}
+        onClose={() => setEditOpen(false)}
+        onSaved={updated => { setTemplate(updated); setEditOpen(false); void loadRequirements() }}
+      />
 
       <RequirementModal
         open={!!reqModal}
@@ -1234,6 +1519,22 @@ function MandateDetail({ initialTemplate, onBack }) {
         mandateId={template.id}
         requirements={requirements}
         onAdded={() => { loadClientTeam(); if (tab === 'candidates') loadCandidates() }}
+      />
+
+      <CandidateActionModal
+        candidate={candidateActionTarget}
+        onClose={() => { setCandidateActionTarget(null); setCandidateActionError(null) }}
+        onViewProfile={() => viewCandidateProfile(candidateActionTarget)}
+        onAdd={() => addCandidateFromBrowse(candidateActionTarget)}
+        adding={addingCandidateId === candidateActionTarget?.id}
+        error={candidateActionError}
+      />
+
+      <MandateReportDetailModal
+        report={selectedReport}
+        loading={reportDetailLoading}
+        error={reportDetailError}
+        onClose={() => { setSelectedReport(null); setReportDetailError(null) }}
       />
 
       {sendJdTarget && (

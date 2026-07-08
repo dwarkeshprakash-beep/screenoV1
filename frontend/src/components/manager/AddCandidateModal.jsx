@@ -29,6 +29,7 @@ function AddCandidateModal({ open, onClose, onDone }) {
 
   // ── Manual tab state ──────────────────────────────────────────
   const [form, setForm] = useState({ firstName: '', lastName: '', email: '', phone: '', employeeId: '', department: '', position: '', source: 'LinkedIn', type: 'internal' })
+  const [resumeFile, setResumeFile] = useState(null)
   const setF = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
   async function loadUsers() {
@@ -48,6 +49,7 @@ function AddCandidateModal({ open, onClose, onDone }) {
       setTab(TAB_FIND); setError(null); setSuccess(null)
       setSearch(''); setSelected(new Set())
       setForm({ firstName: '', lastName: '', email: '', phone: '', employeeId: '', department: '', position: '', source: 'LinkedIn', type: 'internal' })
+      setResumeFile(null)
       return
     }
     loadUsers()
@@ -102,10 +104,22 @@ function AddCandidateModal({ open, onClose, onDone }) {
     setLoading(true); setError(null)
     try {
       if (form.type === 'external') {
+        let resumeUrl = null
+        let resumeText = null
+        let tags = []
+        if (resumeFile) {
+          const res = await api.uploadResume(null, resumeFile)
+          resumeUrl = res.data?.resumeUrl || null
+          resumeText = res.data?.resumeText || null
+          tags = Array.isArray(res.data?.tags) ? res.data.tags : []
+        }
         await api.addExternalCandidate({
           firstName: form.firstName.trim(),
           lastName:  form.lastName.trim(),
-          email:     form.email.trim()
+          email:     form.email.trim(),
+          resumeUrl,
+          resumeText,
+          tags,
         })
       } else {
         await api.addMember({
@@ -119,7 +133,7 @@ function AddCandidateModal({ open, onClose, onDone }) {
           type:      form.type,
         })
       }
-      setSuccess(`${form.firstName} added to your team.`)
+      setSuccess(`${form.firstName} added${form.type === 'external' ? ' as an external candidate' : ' to your team'}.`)
       setTimeout(() => { onDone && onDone(); onClose() }, 1000)
     } catch (err) {
       setError(err.message || 'Could not add member.')
@@ -369,6 +383,18 @@ function AddCandidateModal({ open, onClose, onDone }) {
                   <option value="Referral">Referral</option>
                   <option value="Other">Other</option>
                 </select>
+              </div>
+            )}
+
+            {form.type === 'external' && (
+              <div>
+                {lbl('Resume', true)}
+                <input
+                  type="file"
+                  accept=".pdf,.doc,.docx,.txt"
+                  onChange={e => setResumeFile(e.target.files?.[0] || null)}
+                  style={inputStyle}
+                />
               </div>
             )}
 

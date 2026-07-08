@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { CalendarPlus } from 'lucide-react'
+import { CalendarPlus, Mail, RotateCw } from 'lucide-react'
 import Spinner from '../../components/shared/Spinner'
 import ErrorMessage from '../../components/shared/ErrorMessage'
 import Button from '../../components/shared/Button'
+import Modal from '../../components/shared/Modal'
 import ScheduleModal from '../../components/manager/ScheduleModal'
 import * as api from '../../services/api'
 
@@ -53,6 +54,11 @@ function SchedulePage() {
   const [loading, setLoading]     = useState(true)
   const [error, setError]         = useState(null)
   const [scheduleOpen, setScheduleOpen] = useState(false)
+  const [selectedEvent, setSelectedEvent] = useState(null)
+  const [deliveries, setDeliveries] = useState([])
+  const [deliveryLoading, setDeliveryLoading] = useState(false)
+  const [deliveryError, setDeliveryError] = useState(null)
+  const [resending, setResending] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -72,6 +78,36 @@ function SchedulePage() {
   function prevWeek() { setWeekStart(d => addDays(d, -7)) }
   function nextWeek() { setWeekStart(d => addDays(d, 7)) }
   function goToday()  { setWeekStart(getWeekStart(new Date())) }
+
+  async function openEvent(ev) {
+    setSelectedEvent(ev)
+    setDeliveries([])
+    setDeliveryError(null)
+    setDeliveryLoading(true)
+    try {
+      const res = await api.getEmailDeliveries(ev.id)
+      setDeliveries(res.data || [])
+    } catch (err) {
+      setDeliveryError(err.message || 'Could not load email delivery status.')
+    } finally {
+      setDeliveryLoading(false)
+    }
+  }
+
+  async function resendInvite() {
+    if (!selectedEvent?.id) return
+    setResending(true)
+    setDeliveryError(null)
+    try {
+      await api.resendMagicLink(selectedEvent.id)
+      const res = await api.getEmailDeliveries(selectedEvent.id)
+      setDeliveries(res.data || [])
+    } catch (err) {
+      setDeliveryError(err.message || 'Could not resend invite.')
+    } finally {
+      setResending(false)
+    }
+  }
 
   const today = new Date()
   const weekDays = Array.from({ length: 5 }, (_, i) => addDays(weekStart, i))
@@ -177,7 +213,7 @@ function SchedulePage() {
                     return (
                       <div
                         key={ei}
-                        onClick={() => { const mid = ev.teamMemberId || ev.team_member_id; if (mid) navigate(`/manager/team/${mid}`) }}
+                        onClick={() => openEvent(ev)}
                         style={{ position: 'absolute', left: 4, right: 4, top, height, background: ts.bg, borderLeft: `3px solid ${ts.border}`, borderRadius: 6, padding: '5px 8px', cursor: 'pointer', overflow: 'hidden', transition: 'filter 120ms' }}
                         onMouseEnter={e => e.currentTarget.style.filter = 'brightness(0.95)'}
                         onMouseLeave={e => e.currentTarget.style.filter = 'none'}
@@ -202,6 +238,54 @@ function SchedulePage() {
         onClose={() => setScheduleOpen(false)}
         onDone={load}
       />
+
+      <Modal open={!!selectedEvent} onClose={() => setSelectedEvent(null)} title="Scheduled interview" size="md">
+        {selectedEvent && (
+          <div className="workspace-stack">
+            <div className="detail-facts">
+              <div className="detail-fact"><div className="detail-fact__label">Candidate</div><div className="detail-fact__value">{selectedEvent.candidateName || selectedEvent.title || 'Candidate'}</div></div>
+              <div className="detail-fact"><div className="detail-fact__label">Type</div><div className="detail-fact__value">{getTypeStyle(selectedEvent.type).label}</div></div>
+              <div className="detail-fact"><div className="detail-fact__label">Status</div><div className="detail-fact__value">{selectedEvent.status || 'scheduled'}</div></div>
+              <div className="detail-fact"><div className="detail-fact__label">Duration</div><div className="detail-fact__value">{selectedEvent.duration_minutes || 60} min</div></div>
+            </div>
+
+            <div className="workspace-section-heading">
+              <div><h3 style={{ fontSize: 15 }}>Email delivery</h3><p>Magic-link delivery log for this interview.</p></div>
+              <Mail size={18} color="var(--brand-500)" />
+            </div>
+
+            {deliveryLoading ? <Spinner center /> : deliveries.length === 0 ? (
+              <span style={{ color: 'var(--fg-muted)', fontSize: 12 }}>No delivery rows logged yet.</span>
+            ) : (
+              <div className="assignment-list">
+                {deliveries.map(row => (
+                  <div className="assignment-row" key={row.id}>
+                    <div className="assignment-row__content">
+                      <strong>{row.kind}</strong>
+                      <span>{row.intended_to || 'No recipient'} | {row.created ? new Date(row.created).toLocaleString() : ''}</span>
+                      {row.error && <span style={{ color: 'var(--danger-700)' }}>{row.error}</span>}
+                    </div>
+                    <span className={`status-pill${row.status === 'sent' ? ' status-pill--success' : ' status-pill--danger'}`}>{row.status}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {deliveryError && <ErrorMessage message={deliveryError} />}
+
+            <div className="form-actions" style={{ justifyContent: 'flex-end' }}>
+              {(selectedEvent.teamMemberId || selectedEvent.team_member_id) && (
+                <Button variant="secondary" onClick={() => navigate(`/manager/team/${selectedEvent.teamMemberId || selectedEvent.team_member_id}`)}>Open profile</Button>
+              )}
+              {selectedEvent.type !== 'offline' && selectedEvent.status !== 'completed' && (
+                <Button onClick={resendInvite} loading={resending}>
+                  <RotateCw size={14} />Resend magic link
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   )
 }

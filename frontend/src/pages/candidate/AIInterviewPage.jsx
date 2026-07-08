@@ -15,6 +15,7 @@ function AIInterviewPage() {
 
   const session = (() => { try { return JSON.parse(localStorage.getItem('interviewSession') || '{}') } catch { return {} } })()
   const { interviewId, mode, transcriptionMode } = session
+  const configuredDurationMinutes = Number(session.durationMinutes) > 0 ? Number(session.durationMinutes) : 25
 
   const {
     phase, currentQuestion, transcript, liveTranscript, currentIndex, totalQuestions,
@@ -27,7 +28,7 @@ function AIInterviewPage() {
   const [muted, setMuted]         = useState(false)
   const [recordingMuted, setRecordingMuted] = useState(false)
   const [manualText, setManualText] = useState('')
-  const [remaining, setRemaining] = useState(25 * 60)
+  const [remaining, setRemaining] = useState(() => configuredDurationMinutes * 60)
   const [recElapsed, setRecEl]    = useState(0)
   const [cameraReady, setCameraReady] = useState(false)
   const cameraVideoRef = useRef(null)

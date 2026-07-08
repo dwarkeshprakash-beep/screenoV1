@@ -1,10 +1,11 @@
 import { NavLink, Outlet } from 'react-router-dom'
-import { Home, Calendar, BriefcaseBusiness, User, BookOpen } from 'lucide-react'
+import { Home, Calendar, BriefcaseBusiness, User, BookOpen, Lightbulb } from 'lucide-react'
 
 const TABS = [
   { to: '/candidate/overview',   label: 'Overview',   icon: Home },
   { to: '/candidate/interviews', label: 'Interviews', icon: Calendar },
   { to: '/candidate/monthly',    label: 'Monthly',    icon: BookOpen },
+  { to: '/candidate/feedback',   label: 'Feedback',   icon: Lightbulb },
   { to: '/candidate/mandates',   label: 'Mandates',   icon: BriefcaseBusiness },
   { to: '/candidate/profile',    label: 'Profile',    icon: User },
 ]

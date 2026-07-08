@@ -44,6 +44,9 @@ router.post('/interviews/:id/launch', async (req, res) => {
     res.json({ success: true, data: launch })
   } catch (err) {
     console.error('POST /candidate/interviews/:id/launch failed:', err)
+    if (['INTERVIEW_NOT_OPEN', 'INTERVIEW_WINDOW_EXPIRED'].includes(err.code)) {
+      return res.status(409).json({ success: false, error: err.message, data: err.data || null })
+    }
     res.status(500).json({ success: false, error: 'Could not start interview' })
   }
 })
@@ -59,6 +62,7 @@ router.get('/report', async (req, res) => {
         id: report.id,
         interview_id: report.interview_id,
         status: report.status,
+        summary: report.summary,
         strengths: report.strengths,
         created: report.created,
       },
@@ -66,6 +70,17 @@ router.get('/report', async (req, res) => {
   } catch (err) {
     console.error('GET /candidate/report failed:', err)
     res.status(500).json({ success: false, error: 'Could not load report' })
+  }
+})
+
+router.get('/reports', async (req, res) => {
+  try {
+    const identity = candidateIdentityService.fromUser(req.user)
+    const reports = await reportRepository.getHistoryByCandidateIdentity(identity)
+    res.json({ success: true, data: reports })
+  } catch (err) {
+    console.error('GET /candidate/reports failed:', err)
+    res.status(500).json({ success: false, error: 'Could not load reports' })
   }
 })
 
@@ -80,7 +95,7 @@ router.get('/client-mandates', async (req, res) => {
       const db = require('../db/connection')
       const [interviews, clientRecord] = await Promise.all([
         db.query(
-          `SELECT id, type, status, scheduled_at, location, created
+          `SELECT id, type, status, scheduled_at, duration_minutes, location, created
            FROM interviews
            WHERE client_team_id = @ctId
            ORDER BY created DESC LIMIT 5`,

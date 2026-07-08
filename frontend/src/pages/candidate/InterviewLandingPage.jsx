@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { Briefcase, Video, Calendar, ArrowRight } from 'lucide-react'
 import Spinner from '../../components/shared/Spinner'
 import * as api from '../../services/api'
+import { formatDateTime } from '../../utils/helpers'
 
 function InterviewLandingPage() {
   const { token } = useParams()
@@ -27,6 +28,8 @@ function InterviewLandingPage() {
         jobTitle: data.interview.contextTitle || (data.interview.type === 'exam' ? 'Technical Assessment' : 'AI Voice Interview'),
         companyName: data.interview.company_name || data.interview.companyName || 'Your Company',
         mode: data.interview.interviewMode,
+        durationMinutes: data.interview.durationMinutes,
+        scheduledAt: data.interview.scheduledAt,
         transcriptionMode: data.interview.transcriptionMode,
         candidateName: data.interview.candidateName,
         sessionToken: data.sessionToken,
@@ -65,6 +68,10 @@ function InterviewLandingPage() {
     : ['exam', 'ai_exam'].includes(interview.type) ? 'Assessment Exam' : 'Interview'
   const companyName = interview.companyName || 'Your Company'
   const launchToken = interview.launchToken || token
+  const durationLabel = interview.durationMinutes ? `${interview.durationMinutes} minutes` : '~25 minutes'
+  const scheduleLabel = interview.scheduledAt || interview.scheduled_at
+    ? formatDateTime(interview.scheduledAt || interview.scheduled_at)
+    : 'Available now'
 
   return (
     <div style={{ minHeight: 'calc(100vh - 132px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 24px' }}>
@@ -82,8 +89,8 @@ function InterviewLandingPage() {
 
         <div style={{ background: 'var(--slate-50)', border: '1px solid var(--slate-200)', borderRadius: 12, padding: 20, marginBottom: 24, textAlign: 'left' }}>
           {[
-            { icon: Video,    label: typeLabel,       sub: '~20 minutes' },
-            { icon: Calendar, label: 'Scheduled',     sub: 'Check your email for details' },
+            { icon: Video,    label: typeLabel,       sub: durationLabel },
+            { icon: Calendar, label: 'Scheduled',     sub: scheduleLabel },
           ].map((it, i) => (
             <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: i === 0 ? '0 0 14px' : '14px 0 0', borderTop: i > 0 ? '1px solid var(--slate-200)' : '0' }}>
               <div style={{ width: 30, height: 30, borderRadius: 8, background: 'var(--brand-50)', color: 'var(--brand-500)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>

@@ -68,7 +68,7 @@ async function getById(id) {
 async function getByToken(rawToken) {
   const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex')
   const rows = await db.query(
-    `SELECT i.*, ${INTERVIEW_COLS}
+    `SELECT i.*, ${INTERVIEW_COLS}, mu.email AS manager_email, mu.company_id AS company_id
      FROM interviews i
      ${INTERVIEW_JOINS}
      WHERE i.token = @tokenHash`,
@@ -95,7 +95,8 @@ async function getByManager(managerId) {
 async function getByClientTemplateForManager(clientTemplateId, managerId) {
   return db.query(
     `SELECT i.id, i.internal_user_id, i.external_candidate_id, i.status, i.result,
-            i.interview_mode, i.difficulty, i.question_count, i.created,
+            i.interview_mode, i.difficulty, i.question_count, i.duration_minutes,
+            i.scheduled_at, i.created,
             ${INTERVIEW_COLS}
      FROM interviews i
      ${INTERVIEW_JOINS}
@@ -184,7 +185,7 @@ async function getByIdForCandidateIdentity(
       ? { sql: 'i.external_candidate_id = @candidateId', candidateId: externalCandidateId }
       : { sql: '1 = 0', candidateId: null }
   const rows = await db.query(
-    `SELECT i.*, ${INTERVIEW_COLS}
+    `SELECT i.*, ${INTERVIEW_COLS}, mu.email AS manager_email, mu.company_id AS company_id
      FROM interviews i
      ${INTERVIEW_JOINS}
      WHERE i.id = @interviewId

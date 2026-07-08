@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Calendar, Clock, MapPin } from 'lucide-react'
 import Spinner from '../../components/shared/Spinner'
 import * as api from '../../services/api'
-import { formatDate, formatDateTime } from '../../utils/helpers'
+import { formatDate, formatDateTime, interviewAvailability } from '../../utils/helpers'
 
 const INTERVIEW_TYPE_LABEL = {
   ai_voice: 'AI Voice', exam: 'Coding Exam', human: 'Video Interview',
@@ -15,7 +15,9 @@ const TYPE_BG    = { ai_voice: 'var(--brand-50)',  exam: 'var(--info-50)',  huma
 function InterviewCard({ iv, onLaunch, launchingId }) {
   const tColor = TYPE_COLOR[iv.type] || 'var(--border-strong)'
   const tBg    = TYPE_BG[iv.type]    || 'var(--bg-surface-alt)'
-  const canLaunch = (iv.type === 'ai_voice' || iv.type === 'exam') && ['scheduled', 'in_progress'].includes(iv.status)
+  const availability = interviewAvailability(iv)
+  const launchableType = iv.type === 'ai_voice' || iv.type === 'exam'
+  const canLaunch = launchableType && ['scheduled', 'in_progress'].includes(iv.status) && availability.canStart
 
   return (
     <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderLeft: `3px solid ${tColor}`, borderRadius: 10, boxShadow: 'var(--shadow-xs)' }}>
@@ -55,6 +57,11 @@ function InterviewCard({ iv, onLaunch, launchingId }) {
             style={{ width: '100%', padding: '9px 14px', background: 'var(--fg-primary)', border: 0, borderRadius: 7, fontSize: 12, fontWeight: 700, color: 'var(--bg-surface)', cursor: launchingId === iv.id ? 'not-allowed' : 'pointer', opacity: launchingId === iv.id ? 0.6 : 1 }}>
             {launchingId === iv.id ? 'Preparing…' : 'Start Interview'}
           </button>
+        )}
+        {launchableType && ['scheduled', 'in_progress'].includes(iv.status) && !canLaunch && availability.label && (
+          <p style={{ fontSize: 12, color: availability.state === 'expired' ? 'var(--danger-700)' : 'var(--fg-muted)', margin: 0, display: 'flex', alignItems: 'center', gap: 4 }}>
+            <Clock size={11} />{availability.label}
+          </p>
         )}
         {iv.type === 'human' && ['scheduled', 'in_progress'].includes(iv.status) && (
           <p style={{ fontSize: 12, color: 'var(--fg-muted)', margin: 0, display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -97,6 +104,8 @@ function CandidateInterviewsPage() {
         token: launch.launchToken,
         type: launch.interview.type,
         mode: launch.interview.interviewMode,
+        durationMinutes: launch.interview.durationMinutes,
+        scheduledAt: launch.interview.scheduledAt,
         candidateName: launch.interview.candidateName,
         sessionToken: launch.sessionToken,
       }))

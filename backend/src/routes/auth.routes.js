@@ -123,6 +123,9 @@ router.post('/magic-link/:token', async (req, res) => {
     if (['Link has expired', 'Interview already completed', 'Invalid link'].includes(msg)) {
       return res.status(400).json({ success: false, error: msg })
     }
+    if (['INTERVIEW_NOT_OPEN', 'INTERVIEW_WINDOW_EXPIRED'].includes(err.code)) {
+      return res.status(409).json({ success: false, error: msg, data: err.data || null })
+    }
     res.status(500).json({ success: false, error: 'Could not validate link' })
   }
 })

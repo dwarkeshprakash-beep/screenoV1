@@ -97,7 +97,7 @@ function ManagerProfilePage() {
     setPwSuccess(false)
     setPwError(null)
     if (newPassword !== confirmPassword) { setPwError('New passwords do not match.'); return }
-    if (newPassword.length < 6) { setPwError('New password must be at least 6 characters.'); return }
+    if (newPassword.length < 8) { setPwError('New password must be at least 8 characters.'); return }
     setPwSaving(true)
     try {
       await api.updateManagerProfile({ currentPassword, newPassword })

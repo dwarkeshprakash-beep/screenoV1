@@ -1,4 +1,6 @@
 import { Outlet, useNavigate } from 'react-router-dom'
+import { LogOut } from 'lucide-react'
+import * as api from '../../services/api'
 
 function CandidateLayout() {
   const navigate = useNavigate()
@@ -15,6 +17,19 @@ function CandidateLayout() {
   // interview sessions have no authenticated user, so the logo stays static there.
   function handleLogoClick() {
     if (canOpenCandidateDashboard) navigate('/candidate/dashboard')
+  }
+
+  async function handleLogout() {
+    try {
+      await api.logout()
+    } catch {
+      // Local cleanup is enough if the server session is already gone.
+    }
+    localStorage.removeItem('accessToken')
+    localStorage.removeItem('user')
+    localStorage.removeItem('interviewAccessToken')
+    localStorage.removeItem('interviewSession')
+    navigate('/login', { replace: true })
   }
 
   return (
@@ -49,9 +64,22 @@ function CandidateLayout() {
           <span style={{ fontSize: '1.0625rem', fontWeight: 'var(--fw-bold)', color: 'var(--fg-primary)', letterSpacing: 'var(--tracking-tight)' }}>Screeno</span>
         </div>
 
-        <span style={{ fontSize: 'var(--fs-sm)', color: 'var(--fg-subtle)' }}>
-          Need help? <a href="mailto:support@screeno.ai" style={{ color: 'var(--fg-link)', cursor: 'pointer', textDecoration: 'none', fontWeight: 'var(--fw-semibold)' }}>Support</a>
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{ fontSize: 'var(--fs-sm)', color: 'var(--fg-subtle)' }}>
+            Need help? <a href="mailto:support@screeno.ai" style={{ color: 'var(--fg-link)', cursor: 'pointer', textDecoration: 'none', fontWeight: 'var(--fw-semibold)' }}>Support</a>
+          </span>
+          {canOpenCandidateDashboard && (
+            <button
+              type="button"
+              onClick={handleLogout}
+              title="Log out"
+              aria-label="Log out"
+              style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 34, height: 34, borderRadius: 8, border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--fg-muted)', cursor: 'pointer' }}
+            >
+              <LogOut size={15} />
+            </button>
+          )}
+        </div>
       </header>
 
       <div style={{ flex: 1, background: 'var(--slate-50)' }}>

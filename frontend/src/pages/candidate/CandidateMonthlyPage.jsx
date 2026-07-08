@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { BookOpen, Calendar, Clock, Play } from 'lucide-react'
 import Spinner from '../../components/shared/Spinner'
 import * as api from '../../services/api'
-import { formatDate, formatDateTime, parseStoredArray } from '../../utils/helpers'
+import { formatDate, formatDateTime, interviewAvailability, parseStoredArray } from '../../utils/helpers'
 
 function CandidateMonthlyPage() {
   const navigate = useNavigate()
@@ -39,6 +39,8 @@ function CandidateMonthlyPage() {
         token: launch.launchToken,
         type: launch.interview.type,
         mode: launch.interview.interviewMode,
+        durationMinutes: launch.interview.durationMinutes,
+        scheduledAt: launch.interview.scheduledAt,
         candidateName: launch.interview.candidateName,
         sessionToken: launch.sessionToken,
       }))
@@ -74,7 +76,8 @@ function CandidateMonthlyPage() {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {assessments.map(assessment => {
-            const canLaunch = ['scheduled', 'in_progress'].includes(assessment.status)
+            const availability = interviewAvailability(assessment)
+            const canLaunch = ['scheduled', 'in_progress'].includes(assessment.status) && availability.canStart
             const focusAreas = parseStoredArray(assessment.context_focus_areas)
             return (
               <div key={assessment.id} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderLeft: '3px solid var(--info-500)', borderRadius: 10, boxShadow: 'var(--shadow-xs)' }}>
@@ -112,6 +115,11 @@ function CandidateMonthlyPage() {
                       <Play size={12} style={{ verticalAlign: 'middle', marginRight: 5 }} />
                       {launchingId === assessment.id ? 'Preparing...' : 'Start Assessment'}
                     </button>
+                  )}
+                  {['scheduled', 'in_progress'].includes(assessment.status) && !canLaunch && availability.label && (
+                    <p style={{ fontSize: 12, color: availability.state === 'expired' ? 'var(--danger-700)' : 'var(--fg-muted)', margin: 0, display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <Clock size={11} />{availability.label}
+                    </p>
                   )}
                 </div>
               </div>

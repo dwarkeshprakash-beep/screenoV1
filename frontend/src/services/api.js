@@ -136,6 +136,10 @@ export const createSchedule = data =>
 export const getScheduleOrgUsers = () => request('/api/schedule/org-users')
 export const getCalendarEvents = week =>
   request(`/api/schedule/calendar${week ? `?week=${week}` : ''}`)
+export const getEmailDeliveries = interviewId =>
+  request(`/api/schedule/email-deliveries/${interviewId}`)
+export const resendMagicLink = interviewId =>
+  request(`/api/schedule/email-deliveries/${interviewId}/resend`, { method: 'POST' })
 
 export const getTeamReports = source =>
   request(`/api/reports/team${source ? `?source=${source}` : ''}`)
@@ -144,6 +148,9 @@ export const getReportByInterview = id => request(`/api/reports/interview/${id}`
 export const getCandidateReport = id => request(`/api/reports/candidate/${id}`)
 export const getCandidateReportHistory = id =>
   request(`/api/reports/candidate/${id}/history`)
+export const getReportJobs = () => request('/api/reports/jobs')
+export const retryReportJob = id =>
+  request(`/api/reports/jobs/${id}/retry`, { method: 'POST' })
 
 export const startInterview = id =>
   request(`/api/interviews/${id}/start`, { method: 'POST', useInterviewAuth: true, skipAuthRedirect: true })
@@ -181,6 +188,7 @@ export const getCandidateOwnReport = (interviewScoped = false) =>
     skipAuthRedirect: interviewScoped,
     useInterviewAuth: interviewScoped,
   })
+export const getCandidateFeedbackHistory = () => request('/api/candidate/reports')
 
 export const getExam = token =>
   request(`/api/exam/${token}`, { skipAuthRedirect: true, omitAuth: true })

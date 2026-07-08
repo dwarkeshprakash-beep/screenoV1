@@ -53,4 +53,52 @@ async function resetProcessingJobs() {
   await db.query(`UPDATE report_jobs SET status = 'pending' WHERE status = 'processing'`)
 }
 
-module.exports = { create, markStarted, markCompleted, markFailed, getPendingJobs, resetProcessingJobs }
+async function getByManager(managerId) {
+  return db.query(`
+    SELECT j.*,
+           i.type AS interview_type,
+           i.status AS interview_status,
+           i.created AS interview_created,
+           COALESCE(iu.first_name, ec.first_name) AS candidate_first,
+           COALESCE(iu.last_name, ec.last_name) AS candidate_last,
+           COALESCE(iu.email, ec.email) AS candidate_email,
+           COALESCE(ct.client_name, ma.subject_name) AS context_title
+    FROM report_jobs j
+    JOIN interviews i ON i.id = j.interview_id
+    LEFT JOIN users iu ON iu.id = i.internal_user_id
+    LEFT JOIN external_candidates ec ON ec.id = i.external_candidate_id
+    LEFT JOIN client_templates ct ON ct.id = i.client_template_id
+    LEFT JOIN monthly_assessments ma ON ma.id = i.monthly_assessment_id
+    WHERE i.manager_id = @managerId
+    ORDER BY j.created DESC
+    LIMIT 50
+  `, { managerId })
+}
+
+async function retryForManager(jobId, managerId) {
+  const rows = await db.query(`
+    UPDATE report_jobs j
+    SET status = 'pending',
+        attempts = 0,
+        last_error = NULL,
+        available_at = NOW()
+    FROM interviews i
+    WHERE j.id = @jobId
+      AND i.id = j.interview_id
+      AND i.manager_id = @managerId
+      AND j.status = 'failed'
+    RETURNING j.*
+  `, { jobId, managerId })
+  return rows[0] || null
+}
+
+module.exports = {
+  create,
+  markStarted,
+  markCompleted,
+  markFailed,
+  getPendingJobs,
+  resetProcessingJobs,
+  getByManager,
+  retryForManager,
+}

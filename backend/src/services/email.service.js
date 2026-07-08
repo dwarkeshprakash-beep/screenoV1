@@ -380,6 +380,56 @@ async function sendReportReady(to, { candidate, interviewId, companyName }) {
   })
 }
 
+async function sendRescheduleRequest(to, {
+  candidateName,
+  candidateEmail,
+  interviewId,
+  interviewType,
+  contextTitle,
+  scheduledAt,
+  expiredAt,
+  companyName,
+}) {
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173'
+  const link = `${frontendUrl}/manager/schedule`
+  const title = contextTitle || interviewType || 'assessment'
+
+  await sendMail({
+    to,
+    subject: `Reschedule needed - ${candidateName}`,
+    text: [
+      `Candidate: ${candidateName}`,
+      candidateEmail ? `Email: ${candidateEmail}` : '',
+      `Assessment: ${title}`,
+      `Interview ID: ${interviewId}`,
+      scheduledAt ? `Scheduled at: ${scheduledAt}` : '',
+      expiredAt ? `Expired at: ${expiredAt}` : '',
+      '',
+      'The candidate tried to access the assessment after the scheduled window expired.',
+      `Open Screeno schedule: ${link}`,
+    ].filter(Boolean).join('\n'),
+    html: `
+      <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px">
+        <h2 style="color:#0F172A">Reschedule needed</h2>
+        <p><strong>${escapeHtml(candidateName)}</strong> tried to access an assessment after its scheduled window expired.</p>
+        <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:16px;margin:18px 0;font-size:14px;color:#374151;line-height:1.7">
+          <div><strong>Assessment:</strong> ${escapeHtml(title)}</div>
+          <div><strong>Interview ID:</strong> ${escapeHtml(interviewId)}</div>
+          ${candidateEmail ? `<div><strong>Email:</strong> ${escapeHtml(candidateEmail)}</div>` : ''}
+          ${scheduledAt ? `<div><strong>Scheduled at:</strong> ${escapeHtml(scheduledAt)}</div>` : ''}
+          ${expiredAt ? `<div><strong>Expired at:</strong> ${escapeHtml(expiredAt)}</div>` : ''}
+        </div>
+        <p style="margin:24px 0">
+          <a href="${link}" style="background:#5B4FE9;color:#fff;padding:12px 22px;border-radius:8px;text-decoration:none;font-weight:600">
+            Open Schedule
+          </a>
+        </p>
+        <p style="color:#94A3B8;font-size:12px">Screeno${companyName ? ` &middot; ${escapeHtml(companyName)}` : ''}</p>
+      </div>
+    `,
+  })
+}
+
 async function sendJDForResumeUpdate(to, { candidateName, clientName, jdText, deadline }) {
   const deadlineStr = deadline ? new Date(deadline).toLocaleDateString('en-IN') : 'as soon as possible'
   const sender = senderLabel()
@@ -521,6 +571,7 @@ module.exports = {
   sendMagicLink,
   sendMonthlyAssessmentInvite,
   sendReportReady,
+  sendRescheduleRequest,
   sendJDForResumeUpdate,
   sendClientJDWithMessage,
   sendOfflineInterviewInvite,

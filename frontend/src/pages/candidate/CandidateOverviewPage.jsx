@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom'
 import { Calendar, CheckCircle2, BriefcaseBusiness, Clock, Play, ArrowRight, Lightbulb } from 'lucide-react'
 import Spinner from '../../components/shared/Spinner'
 import * as api from '../../services/api'
-import { formatDate, formatDateTime, parseStoredArray } from '../../utils/helpers'
+import { formatDate, formatDateTime, interviewAvailability, parseStoredArray } from '../../utils/helpers'
 
 const INTERVIEW_TYPE_LABEL = {
   ai_voice: 'AI Voice', exam: 'Coding Exam', human: 'Video Interview',
@@ -72,6 +72,8 @@ function CandidateOverviewPage() {
         token: launch.launchToken,
         type: launch.interview.type,
         mode: launch.interview.interviewMode,
+        durationMinutes: launch.interview.durationMinutes,
+        scheduledAt: launch.interview.scheduledAt,
         candidateName: launch.interview.candidateName,
         sessionToken: launch.sessionToken,
       }))
@@ -86,6 +88,7 @@ function CandidateOverviewPage() {
   const firstName = user.first_name || user.name?.split(' ')[0] || 'there'
   const initials = [user.first_name, user.last_name].filter(Boolean).map(n => n[0]?.toUpperCase()).join('') || firstName[0]?.toUpperCase() || '?'
   const nextLaunchable = upcoming.find(i => i.type === 'ai_voice' || i.type === 'exam')
+  const nextAvailability = nextLaunchable ? interviewAvailability(nextLaunchable) : null
 
   if (loading) return <div style={{ padding: 40, display: 'flex', justifyContent: 'center' }}><Spinner /></div>
 
@@ -117,15 +120,20 @@ function CandidateOverviewPage() {
               <Play size={18} color="white" />
             </div>
             <div>
-              <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--brand-600)', margin: '0 0 3px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Ready to Start</p>
+              <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--brand-600)', margin: '0 0 3px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                {nextAvailability?.canStart ? 'Ready to Start' : nextAvailability?.state === 'expired' ? 'Expired' : 'Scheduled'}
+              </p>
               <p style={{ fontSize: 15, fontWeight: 700, color: 'var(--fg-primary)', margin: 0 }}>{nextLaunchable.context_title || nextLaunchable.job_title || 'Interview'}</p>
               <p style={{ fontSize: 12, color: 'var(--fg-muted)', margin: '2px 0 0' }}>
                 {INTERVIEW_TYPE_LABEL[nextLaunchable.type]} · {nextLaunchable.scheduled_at ? formatDateTime(nextLaunchable.scheduled_at) : formatDate(nextLaunchable.created)}
               </p>
+              {nextAvailability?.label && (
+                <p style={{ fontSize: 12, color: nextAvailability.state === 'expired' ? 'var(--danger-700)' : 'var(--fg-muted)', margin: '2px 0 0' }}>{nextAvailability.label}</p>
+              )}
             </div>
           </div>
-          <button onClick={() => launchInterview(nextLaunchable)} disabled={launchingId === nextLaunchable.id}
-            style={{ padding: '10px 22px', background: 'var(--brand-500)', border: 0, borderRadius: 8, fontSize: 13, fontWeight: 700, color: 'white', cursor: launchingId === nextLaunchable.id ? 'not-allowed' : 'pointer', opacity: launchingId === nextLaunchable.id ? 0.7 : 1, flexShrink: 0 }}>
+          <button onClick={() => launchInterview(nextLaunchable)} disabled={launchingId === nextLaunchable.id || !nextAvailability?.canStart}
+            style={{ padding: '10px 22px', background: nextAvailability?.canStart ? 'var(--brand-500)' : 'var(--slate-300)', border: 0, borderRadius: 8, fontSize: 13, fontWeight: 700, color: 'white', cursor: launchingId === nextLaunchable.id || !nextAvailability?.canStart ? 'not-allowed' : 'pointer', opacity: launchingId === nextLaunchable.id ? 0.7 : 1, flexShrink: 0 }}>
             {launchingId === nextLaunchable.id ? 'Preparing…' : 'Start Now →'}
           </button>
         </div>
@@ -180,7 +188,9 @@ function CandidateOverviewPage() {
           {upcoming.slice(0, 3).map(u => {
             const tColor = TYPE_COLOR[u.type] || 'var(--border-strong)'
             const tBg    = TYPE_BG[u.type]    || 'var(--bg-surface-alt)'
-            const canLaunch = u.type === 'ai_voice' || u.type === 'exam'
+            const availability = interviewAvailability(u)
+            const launchableType = u.type === 'ai_voice' || u.type === 'exam'
+            const canLaunch = launchableType && availability.canStart
             return (
               <div key={u.id} style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderLeft: `3px solid ${tColor}`, borderRadius: 10, boxShadow: 'var(--shadow-xs)', overflow: 'hidden' }}>
                 <div style={{ padding: '14px 16px' }}>
@@ -210,6 +220,11 @@ function CandidateOverviewPage() {
                       style={{ width: '100%', padding: '9px 14px', background: 'var(--fg-primary)', border: 0, borderRadius: 7, fontSize: 12, fontWeight: 700, color: 'var(--bg-surface)', cursor: launchingId === u.id ? 'not-allowed' : 'pointer', opacity: launchingId === u.id ? 0.6 : 1 }}>
                       {launchingId === u.id ? 'Preparing…' : 'Start Interview'}
                     </button>
+                  )}
+                  {launchableType && !canLaunch && availability.label && (
+                    <p style={{ fontSize: 12, color: availability.state === 'expired' ? 'var(--danger-700)' : 'var(--fg-muted)', margin: 0, display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <Clock size={11} />{availability.label}
+                    </p>
                   )}
                   {u.type === 'human' && (
                     <p style={{ fontSize: 12, color: 'var(--fg-muted)', margin: 0, display: 'flex', alignItems: 'center', gap: 4 }}>

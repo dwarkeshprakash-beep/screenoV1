@@ -31,21 +31,21 @@ async function getByMandate(mandateId) {
 async function update(id, mandateId, data) {
   const rows = await db.query(
     `UPDATE client_mandate_requirements
-     SET profile_name = COALESCE(@profileName, profile_name),
-         years_min    = COALESCE(@yearsMin,    years_min),
-         years_max    = COALESCE(@yearsMax,    years_max),
-         headcount    = COALESCE(@headcount,   headcount),
-         notes        = COALESCE(@notes,       notes)
+     SET profile_name = @profileName,
+         years_min    = @yearsMin,
+         years_max    = @yearsMax,
+         headcount    = @headcount,
+         notes        = @notes
      WHERE id = @id AND mandate_id = @mandateId
      RETURNING *`,
     {
       id,
       mandateId,
-      profileName: data.profile_name || null,
+      profileName: data.profile_name,
       yearsMin:    data.years_min    != null ? Number(data.years_min)  : null,
       yearsMax:    data.years_max    != null ? Number(data.years_max)  : null,
-      headcount:   data.headcount    != null ? Number(data.headcount)  : null,
-      notes:       data.notes        !== undefined ? (data.notes || null) : null,
+      headcount:   data.headcount    != null ? Number(data.headcount)  : 1,
+      notes:       data.notes        || null,
     }
   )
   return rows[0] || null

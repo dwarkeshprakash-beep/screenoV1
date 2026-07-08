@@ -26,6 +26,7 @@ const CandidateInterviewsPage = lazy(() => import('./pages/candidate/CandidateIn
 const CandidateProfilePage = lazy(() => import('./pages/candidate/CandidateProfilePage'))
 const CandidateMandatesPage = lazy(() => import('./pages/candidate/CandidateMandatesPage'))
 const CandidateMonthlyPage = lazy(() => import('./pages/candidate/CandidateMonthlyPage'))
+const CandidateFeedbackPage = lazy(() => import('./pages/candidate/CandidateFeedbackPage'))
 
 function RequireAuth({ children, role }) {
   const token = localStorage.getItem('accessToken')
@@ -77,6 +78,7 @@ function App() {
           <Route path="overview"   element={<CandidateOverviewPage />} />
           <Route path="interviews" element={<CandidateInterviewsPage />} />
           <Route path="monthly"    element={<CandidateMonthlyPage />} />
+          <Route path="feedback"   element={<CandidateFeedbackPage />} />
           <Route path="mandates"   element={<CandidateMandatesPage />} />
           <Route path="profile"    element={<CandidateProfilePage />} />
         </Route>

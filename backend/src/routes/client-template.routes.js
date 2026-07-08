@@ -55,18 +55,133 @@ function requirementDisplay(teamMember, fallbackRole) {
   return `${name} (${min}-${max ?? '+'} yrs)`
 }
 
+function optionalYear(value) {
+  if (value === '' || value === undefined || value === null) return null
+  const parsed = Number(value)
+  if (!Number.isInteger(parsed) || parsed < 0) {
+    throw new Error('Experience years must be a non-negative whole number')
+  }
+  return parsed
+}
+
+function normalizeRequirementPayload(input = {}) {
+  const profileName = String(input.profile_name ?? input.profileName ?? '').trim()
+  if (!profileName) throw new Error('profile_name is required')
+  const yearsMin = optionalYear(input.years_min ?? input.yearsMin)
+  const yearsMax = optionalYear(input.years_max ?? input.yearsMax)
+  if (yearsMin !== null && yearsMax !== null && yearsMin > yearsMax) {
+    throw new Error('Minimum experience cannot be greater than maximum experience')
+  }
+  const headcount = Number(input.headcount ?? 1)
+  if (!Number.isInteger(headcount) || headcount < 1) {
+    throw new Error('Headcount must be at least 1')
+  }
+  return {
+    id: input.id ? Number(input.id) : null,
+    profile_name: profileName,
+    years_min: yearsMin,
+    years_max: yearsMax,
+    headcount,
+    notes: String(input.notes || '').trim() || null,
+  }
+}
+
+function normalizeRequirementProfiles(input) {
+  if (input === undefined) return null
+  if (!Array.isArray(input)) throw new Error('requirement_profiles must be an array')
+  const profiles = input.map(normalizeRequirementPayload)
+  const seen = new Set()
+  for (const profile of profiles) {
+    const key = profile.profile_name.toLowerCase()
+    if (seen.has(key)) throw new Error(`Duplicate requirement profile: ${profile.profile_name}`)
+    seen.add(key)
+  }
+  return profiles
+}
+
+function isRequirementValidationError(err) {
+  return [
+    'requirement_profiles must be an array',
+    'profile_name is required',
+    'Experience years must be a non-negative whole number',
+    'Minimum experience cannot be greater than maximum experience',
+    'Headcount must be at least 1',
+  ].includes(err.message) || err.message.startsWith('Duplicate requirement profile')
+    || err.message.startsWith('Requirement profile "')
+}
+
+function requirementHeadcount(profiles) {
+  return profiles.reduce((sum, profile) => sum + Number(profile.headcount || 0), 0)
+}
+
+async function assertUniqueRequirementName(mandateId, profileName, excludeId = null) {
+  const existing = await clientRequirementsRepo.getByMandate(mandateId)
+  const duplicate = existing.find(item =>
+    String(item.profile_name || '').trim().toLowerCase() === profileName.toLowerCase()
+    && Number(item.id) !== Number(excludeId)
+  )
+  if (duplicate) throw new Error(`Requirement profile "${profileName}" already exists`)
+}
+
+async function syncMandateHeadcount(mandateId, managerId) {
+  const profiles = await clientRequirementsRepo.getByMandate(mandateId)
+  if (profiles.length > 0) {
+    await clientTemplateRepo.update(mandateId, managerId, {
+      headcount: requirementHeadcount(profiles),
+      requirements: profiles.map(profile => profile.profile_name).join(', '),
+    })
+  }
+  return profiles
+}
+
+async function syncRequirementProfiles(mandateId, managerId, profiles) {
+  const existing = await clientRequirementsRepo.getByMandate(mandateId)
+  const existingIds = new Set(existing.map(item => Number(item.id)))
+  const keptIds = new Set()
+
+  for (const profile of profiles) {
+    if (profile.id && existingIds.has(Number(profile.id))) {
+      await clientRequirementsRepo.update(profile.id, mandateId, profile)
+      keptIds.add(Number(profile.id))
+    } else {
+      await clientRequirementsRepo.create(mandateId, profile)
+    }
+  }
+
+  await Promise.all(
+    existing
+      .filter(item => !keptIds.has(Number(item.id)))
+      .map(item => clientRequirementsRepo.deleteReq(item.id, mandateId))
+  )
+
+  return syncMandateHeadcount(mandateId, managerId)
+}
+
 // ── Mandate CRUD ──────────────────────────────────────────────────────────────
 
 router.post('/', async (req, res) => {
   try {
+    const requirementProfiles = normalizeRequirementProfiles(req.body.requirement_profiles ?? req.body.requirementProfiles) || []
     const data = { ...req.body, manager_id: req.user.id }
+    delete data.requirement_profiles
+    delete data.requirementProfiles
+    if (requirementProfiles.length > 0) {
+      data.headcount = requirementHeadcount(requirementProfiles)
+      if (!String(data.requirements || '').trim()) {
+        data.requirements = requirementProfiles.map(profile => profile.profile_name).join(', ')
+      }
+    }
     if (data.jd_text && !hasTags(data.tags)) {
       data.tags = await llmService.extractTagsFromText(data.jd_text)
     }
     const template = await clientTemplateRepo.create(data)
-    res.status(201).json({ success: true, data: template })
+    const savedProfiles = requirementProfiles.length > 0
+      ? await syncRequirementProfiles(template.id, req.user.id, requirementProfiles)
+      : []
+    res.status(201).json({ success: true, data: { ...template, requirement_profiles: savedProfiles } })
   } catch (err) {
     console.error('POST /client-templates failed:', err.message)
+    if (isRequirementValidationError(err)) return res.status(400).json({ success: false, error: err.message })
     res.status(500).json({ success: false, error: 'Could not create template' })
   }
 })
@@ -109,7 +224,14 @@ router.patch('/:id', async (req, res) => {
     const templateId = parseInt(req.params.id, 10)
     const existing = await clientTemplateRepo.getById(templateId, req.user.id)
     if (!existing) return res.status(404).json({ success: false, error: 'Template not found' })
+    const requirementProfiles = normalizeRequirementProfiles(req.body.requirement_profiles ?? req.body.requirementProfiles)
     const data = { ...req.body }
+    delete data.requirement_profiles
+    delete data.requirementProfiles
+    if (requirementProfiles?.length) {
+      data.headcount = requirementHeadcount(requirementProfiles)
+      data.requirements = requirementProfiles.map(profile => profile.profile_name).join(', ')
+    }
     const jdChanged = data.jd_text !== undefined
       && String(data.jd_text || '').trim()
       && String(data.jd_text || '') !== String(existing.jd_text || '')
@@ -118,9 +240,14 @@ router.patch('/:id', async (req, res) => {
     }
     const template = await clientTemplateRepo.update(templateId, req.user.id, data)
     if (!template) return res.status(404).json({ success: false, error: 'Template not found' })
-    res.json({ success: true, data: template })
+    const savedProfiles = requirementProfiles
+      ? await syncRequirementProfiles(templateId, req.user.id, requirementProfiles)
+      : await clientRequirementsRepo.getByMandate(templateId)
+    const updatedTemplate = await clientTemplateRepo.getById(templateId, req.user.id)
+    res.json({ success: true, data: { ...(updatedTemplate || template), requirement_profiles: savedProfiles } })
   } catch (err) {
     console.error('PATCH /client-templates/:id failed:', err.message)
+    if (isRequirementValidationError(err)) return res.status(400).json({ success: false, error: err.message })
     res.status(500).json({ success: false, error: 'Could not update template' })
   }
 })
@@ -157,11 +284,14 @@ router.post('/:id/requirements', async (req, res) => {
     const mandateId = parseInt(req.params.id, 10)
     const template = await clientTemplateRepo.getById(mandateId, req.user.id)
     if (!template) return res.status(404).json({ success: false, error: 'Mandate not found' })
-    if (!req.body.profile_name) return res.status(400).json({ success: false, error: 'profile_name is required' })
-    const req_ = await clientRequirementsRepo.create(mandateId, req.body)
+    const payload = normalizeRequirementPayload(req.body)
+    await assertUniqueRequirementName(mandateId, payload.profile_name)
+    const req_ = await clientRequirementsRepo.create(mandateId, payload)
+    await syncMandateHeadcount(mandateId, req.user.id)
     res.status(201).json({ success: true, data: req_ })
   } catch (err) {
     console.error('POST /requirements failed:', err.message)
+    if (isRequirementValidationError(err)) return res.status(400).json({ success: false, error: err.message })
     res.status(500).json({ success: false, error: 'Could not create requirement' })
   }
 })
@@ -172,11 +302,15 @@ router.patch('/:id/requirements/:rqId', async (req, res) => {
     const rqId = parseInt(req.params.rqId, 10)
     const template = await clientTemplateRepo.getById(mandateId, req.user.id)
     if (!template) return res.status(404).json({ success: false, error: 'Mandate not found' })
-    const updated = await clientRequirementsRepo.update(rqId, mandateId, req.body)
+    const payload = normalizeRequirementPayload({ ...req.body, id: rqId })
+    await assertUniqueRequirementName(mandateId, payload.profile_name, rqId)
+    const updated = await clientRequirementsRepo.update(rqId, mandateId, payload)
     if (!updated) return res.status(404).json({ success: false, error: 'Requirement not found' })
+    await syncMandateHeadcount(mandateId, req.user.id)
     res.json({ success: true, data: updated })
   } catch (err) {
     console.error('PATCH /requirements/:id failed:', err.message)
+    if (isRequirementValidationError(err)) return res.status(400).json({ success: false, error: err.message })
     res.status(500).json({ success: false, error: 'Could not update requirement' })
   }
 })
@@ -189,6 +323,7 @@ router.delete('/:id/requirements/:rqId', async (req, res) => {
     if (!template) return res.status(404).json({ success: false, error: 'Mandate not found' })
     const deleted = await clientRequirementsRepo.deleteReq(rqId, mandateId)
     if (!deleted) return res.status(404).json({ success: false, error: 'Requirement not found' })
+    await syncMandateHeadcount(mandateId, req.user.id)
     res.json({ success: true })
   } catch (err) {
     console.error('DELETE /requirements/:id failed:', err.message)
@@ -211,7 +346,7 @@ router.get('/:id/matches', async (req, res) => {
     const [allMembers, teamRows, clientTeamRows, requirements] = await Promise.all([
       userRepository.getByCompany(req.user.companyId),
       require('../db/connection').query(
-        `SELECT user_id FROM team_members WHERE manager_id = @managerId`,
+        `SELECT id, user_id FROM team_members WHERE manager_id = @managerId`,
         { managerId: req.user.id }
       ),
       clientTeamRepo.getByMandate(parseInt(req.params.id, 10)),
@@ -219,6 +354,7 @@ router.get('/:id/matches', async (req, res) => {
     ])
 
     const teamUserIds = new Set(teamRows.map(r => r.user_id))
+    const teamMemberIdsByUser = new Map(teamRows.map(row => [Number(row.user_id), row.id]))
     const alreadyInClientTeam = new Set(clientTeamRows.map(r => r.user_id))
     const filledByRequirement = clientTeamRows.reduce((counts, row) => {
       if (row.requirement_id) counts.set(row.requirement_id, (counts.get(row.requirement_id) || 0) + 1)
@@ -255,6 +391,7 @@ router.get('/:id/matches', async (req, res) => {
           })),
           recommended: (overlap.length > 0 || profileScore > 0) && teamUserIds.has(m.id),
           in_team: teamUserIds.has(m.id),
+          team_member_id: teamMemberIdsByUser.get(Number(m.id)) || null,
         }
       })
       .sort((a, b) =>
@@ -283,7 +420,7 @@ router.get('/:id/team', async (req, res) => {
     const interviewMap = {}
     await Promise.all(team.map(async member => {
       const rows = await require('../db/connection').query(
-        `SELECT id, type, status, scheduled_at, location, created
+        `SELECT id, type, status, scheduled_at, duration_minutes, location, created
          FROM interviews
          WHERE client_team_id = @ctId
          ORDER BY created DESC LIMIT 1`,
@@ -408,7 +545,7 @@ router.post('/:id/team/:ctId/schedule', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Team member not found' })
     }
 
-    const { type, videoPlatform, scheduledAt, location, notes, mode, difficulty, questionCount } = req.body
+    const { type, videoPlatform, scheduledAt, location, notes, mode, difficulty, questionCount, durationMinutes } = req.body
     const validTypes = ['ai_voice', 'exam', 'human', 'offline']
     if (!validTypes.includes(type)) {
       return res.status(400).json({ success: false, error: 'Invalid interview type' })
@@ -470,7 +607,8 @@ router.post('/:id/team/:ctId/schedule', async (req, res) => {
 
     let videoLink = null
     if (type === 'human' && scheduledAt && videoPlatform) {
-      const endAt = new Date(new Date(scheduledAt).getTime() + 60 * 60 * 1000).toISOString()
+      const meetingMinutes = Number(durationMinutes) || 60
+      const endAt = new Date(new Date(scheduledAt).getTime() + meetingMinutes * 60 * 1000).toISOString()
       const meetingTopic = `Interview - ${requirementDisplay(teamMember, template.requirements)} @ ${template.client_name}`
 
       if (videoPlatform === 'google_meet' && googleMeetService.isConfigured()) {
@@ -499,6 +637,7 @@ router.post('/:id/team/:ctId/schedule', async (req, res) => {
         interviewMode:    mode || 'simple',
         difficulty:       difficulty || 'medium',
         questionCount:    questionCount || 10,
+        durationMinutes:   durationMinutes || null,
         clientTemplateId: mandateId,
         scheduledAt,
         assessmentDate:   scheduledAt,
