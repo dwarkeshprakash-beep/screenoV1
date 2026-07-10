@@ -380,6 +380,10 @@ export const uploadOwnResume = file => {
 export const getMonthlyAssessments = () => request('/api/assessments/monthly')
 export const createMonthlyAssessment = data =>
   request('/api/assessments/monthly', { method: 'POST', body: JSON.stringify(data) })
+export const updateMonthlyAssessment = (id, data) =>
+  request(`/api/assessments/monthly/${id}`, { method: 'PUT', body: JSON.stringify(data) })
+export const deleteMonthlyAssessment = id =>
+  request(`/api/assessments/monthly/${id}`, { method: 'DELETE' })
 export const getMonthlyAssessmentCalendar = () =>
   request('/api/assessments/monthly/calendar')
 export const getMonthlyAssessmentPlan = month =>

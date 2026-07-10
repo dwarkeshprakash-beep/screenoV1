@@ -51,7 +51,7 @@ const SCHEMA = {
   monthly_assessments: {
     columns: [
       'id', 'manager_id', 'subject_name', 'difficulty', 'topics', 'sub_topics',
-      'ai_generated_jd', 'duration_months', 'status', 'created',
+      'ai_generated_jd', 'duration_months', 'status', 'interview_type', 'interview_mode', 'created',
     ],
   },
   monthly_assessment_enrollments: {

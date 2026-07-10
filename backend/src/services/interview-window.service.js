@@ -56,7 +56,7 @@ function launchWindowMessage(window) {
     return `This assessment opens at ${formatWindowDate(window.opensAt)}.`
   }
   if (window.state === 'expired') {
-    return `This assessment window expired at ${formatWindowDate(window.closesAt)}. Your manager has been notified to reschedule.`
+    return `This assessment window has expired. Your manager has been notified to reschedule.`
   }
   return null
 }

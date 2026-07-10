@@ -14,27 +14,35 @@ function toDateTimeLocalValue(date) {
   return `${year}-${month}-${day}T${hours}:${minutes}`
 }
 
-function nextWeekDateTime() {
-  const date = new Date()
-  date.setDate(date.getDate() + 7)
-  date.setHours(10, 0, 0, 0)
-  return toDateTimeLocalValue(date)
+function nowDateTime() {
+  return toDateTimeLocalValue(new Date())
 }
 
-function twoHoursLater(base) {
+function addOffset(baseStr, amount, unit) {
+  const base = new Date(baseStr)
+  if (Number.isNaN(base.getTime())) return baseStr
   const d = new Date(base)
-  d.setHours(d.getHours() + 2)
+  if (unit === 'minutes') d.setMinutes(d.getMinutes() + amount)
+  else if (unit === 'hours') d.setHours(d.getHours() + amount)
+  else if (unit === 'days') d.setDate(d.getDate() + amount)
+  else if (unit === 'months') d.setMonth(d.getMonth() + amount)
   return toDateTimeLocalValue(d)
-}
-
-function initialAssessmentDate(defaultDate) {
-  if (!defaultDate) return nextWeekDateTime()
-  return String(defaultDate).includes('T') ? defaultDate : `${defaultDate}T10:00`
 }
 
 function generateRequestKey() {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`
 }
+
+const DURATION_PRESETS = [
+  { label: '2 min', amount: 2, unit: 'minutes' },
+  { label: '30 min', amount: 30, unit: 'minutes' },
+  { label: '1 hr', amount: 1, unit: 'hours' },
+  { label: '3 hr', amount: 3, unit: 'hours' },
+  { label: '1 day', amount: 1, unit: 'days' },
+  { label: '3 days', amount: 3, unit: 'days' },
+  { label: '1 week', amount: 7, unit: 'days' },
+  { label: '1 month', amount: 1, unit: 'months' },
+]
 
 function MonthlyAssessmentAssignModal({
   open,
@@ -45,8 +53,8 @@ function MonthlyAssessmentAssignModal({
 }) {
   const [team, setTeam] = useState([])
   const [selectedIds, setSelectedIds] = useState(new Set())
-  const [availableFrom, setAvailableFrom] = useState(() => initialAssessmentDate(defaultDate))
-  const [dueAt, setDueAt] = useState(() => twoHoursLater(initialAssessmentDate(defaultDate)))
+  const [availableFrom, setAvailableFrom] = useState(nowDateTime)
+  const [dueAt, setDueAt] = useState(() => addOffset(nowDateTime(), 3, 'hours'))
   const [questionCount, setQuestionCount] = useState(10)
   const [durationMinutes, setDurationMinutes] = useState(60)
   const [query, setQuery] = useState('')
@@ -54,15 +62,14 @@ function MonthlyAssessmentAssignModal({
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
-  // Stable per-modal-open request key for idempotency
   const [requestKey, setRequestKey] = useState(() => generateRequestKey())
 
   useEffect(() => {
     if (!open) return
     setSelectedIds(new Set())
-    const base = initialAssessmentDate(defaultDate)
+    const base = nowDateTime()
     setAvailableFrom(base)
-    setDueAt(twoHoursLater(base))
+    setDueAt(addOffset(base, 3, 'hours'))
     setQuestionCount(10)
     setDurationMinutes(60)
     setQuery('')
@@ -136,17 +143,36 @@ function MonthlyAssessmentAssignModal({
     })
   }
 
+  function applyDurationPreset(amount, unit) {
+    const newDue = addOffset(availableFrom, amount, unit)
+    setDueAt(newDue)
+  }
+
+  function handleOpenChange(val) {
+    setAvailableFrom(val)
+    // Keep same duration gap when open date changes
+    const openDate = new Date(val)
+    const dueDate = new Date(dueAt)
+    const gapMs = dueDate - new Date(availableFrom)
+    if (!Number.isNaN(gapMs) && gapMs > 0) {
+      setDueAt(toDateTimeLocalValue(new Date(openDate.getTime() + gapMs)))
+    }
+  }
+
   async function handleAssign() {
-    if (!availableFrom) {
-      setError('First assessment open date is required.')
+    const openDate = new Date(availableFrom)
+    const closeDate = new Date(dueAt)
+
+    if (!availableFrom || Number.isNaN(openDate.getTime())) {
+      setError('Opens date is required.')
       return
     }
-    if (!dueAt) {
-      setError('First assessment due date is required.')
+    if (!dueAt || Number.isNaN(closeDate.getTime())) {
+      setError('Due date is required.')
       return
     }
-    if (new Date(dueAt) <= new Date(availableFrom)) {
-      setError('Due date must be after the available date.')
+    if (closeDate <= openDate) {
+      setError('Due date/time must be after the Opens date/time.')
       return
     }
     if (selectedIds.size === 0) {
@@ -157,8 +183,8 @@ function MonthlyAssessmentAssignModal({
       setError('Question count must be between 1 and 50.')
       return
     }
-    if (!Number.isInteger(Number(durationMinutes)) || Number(durationMinutes) < 15 || Number(durationMinutes) > 180) {
-      setError('Exam duration must be between 15 and 180 minutes.')
+    if (!Number.isInteger(Number(durationMinutes)) || Number(durationMinutes) < 1 || Number(durationMinutes) > 180) {
+      setError('Exam duration must be between 1 and 180 minutes.')
       return
     }
     setSaving(true)
@@ -166,8 +192,8 @@ function MonthlyAssessmentAssignModal({
     try {
       const result = await api.assignMonthlyAssessment(assessment.id, {
         request_key: requestKey,
-        available_from: new Date(availableFrom).toISOString(),
-        due_at: new Date(dueAt).toISOString(),
+        available_from: openDate.toISOString(),
+        due_at: closeDate.toISOString(),
         schedule_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         question_count: Number(questionCount),
         duration_minutes: Number(durationMinutes),
@@ -192,46 +218,134 @@ function MonthlyAssessmentAssignModal({
 
   if (!open || !assessment) return null
 
+  const inputStyle = {
+    width: '100%',
+    boxSizing: 'border-box',
+    padding: '9px 11px',
+    border: '1px solid var(--border-default)',
+    borderRadius: 8,
+    fontFamily: 'inherit',
+    fontSize: 13,
+  }
+  const labelStyle = {
+    display: 'block',
+    marginBottom: 5,
+    fontSize: 12,
+    fontWeight: 600,
+    color: 'var(--fg-body)',
+  }
+
   return (
     <Modal open={open} onClose={saving ? () => {} : onClose} title={`Assign ${assessment.subject_name}`} size="md">
       <div style={{ display: 'flex', flexDirection: 'column', gap: 15 }}>
         <div style={{ padding: '10px 12px', borderRadius: 8, background: 'var(--brand-50)', color: 'var(--brand-700)', fontSize: 12 }}>
-          This reuses the existing subject, sub-topics, difficulty, and study material. Candidates receive a secure assessment link for the selected time.
+          Each candidate gets one assessment window per month for the plan duration ({assessment.duration_months || 1} month{Number(assessment.duration_months) === 1 ? '' : 's'}).
+          Subsequent months shift by the same window length.
         </div>
+
+        {/* Opens date row */}
+        <div>
+          <label htmlFor="monthly-available-from" style={labelStyle}>
+            Opens (first month) — defaults to now
+          </label>
+          <input
+            id="monthly-available-from"
+            type="datetime-local"
+            value={availableFrom}
+            onChange={e => handleOpenChange(e.target.value)}
+            style={inputStyle}
+          />
+        </div>
+
+        {/* Due date row with presets */}
+        <div>
+          <label htmlFor="monthly-due-at" style={labelStyle}>
+            Due (first month) — pick a preset or set manually
+          </label>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+            {DURATION_PRESETS.map(p => (
+              <button
+                key={p.label}
+                type="button"
+                onClick={() => applyDurationPreset(p.amount, p.unit)}
+                style={{
+                  padding: '4px 10px',
+                  fontSize: 11,
+                  fontWeight: 600,
+                  border: '1px solid var(--border-default)',
+                  borderRadius: 20,
+                  background: 'var(--bg-surface-alt)',
+                  color: 'var(--fg-muted)',
+                  cursor: 'pointer',
+                  lineHeight: 1.6,
+                }}
+              >
+                + {p.label}
+              </button>
+            ))}
+          </div>
+          <input
+            id="monthly-due-at"
+            type="datetime-local"
+            value={dueAt}
+            onChange={e => setDueAt(e.target.value)}
+            style={{
+              ...inputStyle,
+              borderColor: dueAt && availableFrom && new Date(dueAt) <= new Date(availableFrom)
+                ? 'var(--danger-500)' : 'var(--border-default)',
+            }}
+          />
+          {dueAt && availableFrom && new Date(dueAt) <= new Date(availableFrom) && (
+            <p style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--danger-600)' }}>
+              Due must be after Opens
+            </p>
+          )}
+          <p style={{ fontSize: 11, color: 'var(--fg-muted)', margin: '4px 0 0' }}>
+            Timezone: {Intl.DateTimeFormat().resolvedOptions().timeZone}
+          </p>
+        </div>
+
+        {/* Questions + duration */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
           <div>
-            <label htmlFor="monthly-available-from" style={{ display: 'block', marginBottom: 5, fontSize: 12, fontWeight: 600, color: 'var(--fg-body)' }}>
-              Opens (first month)
-            </label>
-            <input id="monthly-available-from" type="datetime-local" value={availableFrom} onChange={e => setAvailableFrom(e.target.value)} style={{ width: '100%', boxSizing: 'border-box', padding: '9px 11px', border: '1px solid var(--border-default)', borderRadius: 8, fontFamily: 'inherit' }} />
+            <label htmlFor="monthly-question-count" style={labelStyle}>Questions (1–50)</label>
+            <input
+              id="monthly-question-count"
+              type="number"
+              min="1"
+              max="50"
+              value={questionCount}
+              onChange={event => setQuestionCount(event.target.value)}
+              style={inputStyle}
+            />
           </div>
           <div>
-            <label htmlFor="monthly-due-at" style={{ display: 'block', marginBottom: 5, fontSize: 12, fontWeight: 600, color: 'var(--fg-body)' }}>
-              Due (first month)
-            </label>
-            <input id="monthly-due-at" type="datetime-local" value={dueAt} onChange={e => setDueAt(e.target.value)} style={{ width: '100%', boxSizing: 'border-box', padding: '9px 11px', border: '1px solid var(--border-default)', borderRadius: 8, fontFamily: 'inherit' }} />
+            <label htmlFor="monthly-duration-min" style={labelStyle}>Duration (minutes)</label>
+            <input
+              id="monthly-duration-min"
+              type="number"
+              min="1"
+              max="180"
+              value={durationMinutes}
+              onChange={event => setDurationMinutes(event.target.value)}
+              style={inputStyle}
+            />
           </div>
         </div>
-        <p style={{ fontSize: 11, color: 'var(--fg-muted)', margin: '-8px 0 0' }}>Subsequent months shift by the same window. Timezone: {Intl.DateTimeFormat().resolvedOptions().timeZone}</p>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-          <div>
-            <label htmlFor="monthly-question-count" style={{ display: 'block', marginBottom: 5, fontSize: 12, fontWeight: 600, color: 'var(--fg-body)' }}>
-              Questions
-            </label>
-            <input id="monthly-question-count" type="number" min="1" max="50" value={questionCount} onChange={event => setQuestionCount(event.target.value)} style={{ width: '100%', boxSizing: 'border-box', padding: '9px 11px', border: '1px solid var(--border-default)', borderRadius: 8, fontFamily: 'inherit' }} />
-          </div>
-          <div>
-            <label htmlFor="monthly-duration" style={{ display: 'block', marginBottom: 5, fontSize: 12, fontWeight: 600, color: 'var(--fg-body)' }}>
-              Duration minutes
-            </label>
-            <input id="monthly-duration" type="number" min="15" max="180" value={durationMinutes} onChange={event => setDurationMinutes(event.target.value)} style={{ width: '100%', boxSizing: 'border-box', padding: '9px 11px', border: '1px solid var(--border-default)', borderRadius: 8, fontFamily: 'inherit' }} />
-          </div>
-        </div>
+
+        {/* Team search */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', border: '1px solid var(--border-default)', borderRadius: 8 }}>
           <Search size={14} color="var(--fg-subtle)" />
-          <input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search team members..." style={{ flex: 1, border: 0, outline: 0, background: 'transparent', fontFamily: 'inherit', fontSize: 13 }} />
+          <input
+            value={query}
+            onChange={event => setQuery(event.target.value)}
+            placeholder="Search team members..."
+            style={{ flex: 1, border: 0, outline: 0, background: 'transparent', fontFamily: 'inherit', fontSize: 13 }}
+          />
         </div>
-        <div style={{ maxHeight: 280, overflowY: 'auto', border: '1px solid var(--border-default)', borderRadius: 9 }}>
+
+        {/* Team list */}
+        <div style={{ maxHeight: 260, overflowY: 'auto', border: '1px solid var(--border-default)', borderRadius: 9 }}>
           {loading ? (
             <div style={{ padding: 22, textAlign: 'center', fontSize: 12, color: 'var(--fg-muted)' }}>Loading team...</div>
           ) : visibleTeam.length === 0 ? (
@@ -247,7 +361,7 @@ function MonthlyAssessmentAssignModal({
                   <strong style={{ display: 'block', fontSize: 13, color: 'var(--fg-primary)' }}>{name}</strong>
                   {conflict ? (
                     <span style={{ display: 'block', fontSize: 11, color: 'var(--danger-600)', marginTop: 2 }}>
-                      Already assigned: {conflict.subject} | {new Date(conflict.startDate).toLocaleDateString()} - {new Date(conflict.endDate).toLocaleDateString()} | {conflict.durationMonths} month{Number(conflict.durationMonths) === 1 ? '' : 's'}
+                      Already assigned: {conflict.subject} ({conflict.durationMonths}m) — {new Date(conflict.startDate).toLocaleDateString()} to {new Date(conflict.endDate).toLocaleDateString()}
                     </span>
                   ) : (
                     <span style={{ fontSize: 11, color: 'var(--fg-muted)' }}>{member.email}</span>
@@ -257,10 +371,14 @@ function MonthlyAssessmentAssignModal({
             )
           })}
         </div>
+
         {error && <div style={{ padding: '9px 11px', borderRadius: 8, background: 'var(--danger-50)', color: 'var(--danger-700)', fontSize: 12 }}>{error}</div>}
+
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
           <Button variant="secondary" disabled={saving} onClick={onClose}>Cancel</Button>
-          <Button disabled={saving} onClick={handleAssign}>{saving ? 'Assigning...' : selectedIds.size > 0 ? `Assign ${selectedIds.size} candidate${selectedIds.size === 1 ? '' : 's'}` : 'Assign candidates'}</Button>
+          <Button disabled={saving} onClick={handleAssign}>
+            {saving ? 'Assigning...' : selectedIds.size > 0 ? `Assign ${selectedIds.size} candidate${selectedIds.size === 1 ? '' : 's'}` : 'Assign candidates'}
+          </Button>
         </div>
       </div>
     </Modal>

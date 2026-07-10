@@ -389,6 +389,7 @@ async function deleteEnrollment(enrollmentId, managerId) {
       await tx.query(`DELETE FROM reports WHERE interview_id = ANY(@interviewIds)`, { interviewIds })
       await tx.query(`DELETE FROM scorecards WHERE interview_id = ANY(@interviewIds)`, { interviewIds })
       await tx.query(`DELETE FROM transcripts WHERE interview_id = ANY(@interviewIds)`, { interviewIds })
+      await tx.query(`DELETE FROM qa_history WHERE interview_id = ANY(@interviewIds)`, { interviewIds })
       await tx.query(`DELETE FROM interviews WHERE id = ANY(@interviewIds)`, { interviewIds })
     }
 
@@ -409,6 +410,41 @@ async function deleteEnrollment(enrollmentId, managerId) {
   })
 }
 
+async function updateTemplate(id, managerId, data) {
+  const rows = await db.query(
+    `UPDATE monthly_assessments
+     SET subject_name   = COALESCE(@subjectName, subject_name),
+         difficulty     = COALESCE(@difficulty, difficulty),
+         sub_topics     = COALESCE(@subTopics, sub_topics),
+         ai_generated_jd = COALESCE(@jd, ai_generated_jd),
+         duration_months = COALESCE(@durationMonths, duration_months),
+         interview_type  = COALESCE(@interviewType, interview_type),
+         interview_mode  = COALESCE(@interviewMode, interview_mode)
+     WHERE id = @id AND manager_id = @managerId
+     RETURNING *`,
+    {
+      id,
+      managerId,
+      subjectName: data.subjectName || null,
+      difficulty: data.difficulty || null,
+      subTopics: data.subTopics != null ? JSON.stringify(data.subTopics) : null,
+      jd: data.jd != null ? data.jd : null,
+      durationMonths: data.durationMonths || null,
+      interviewType: data.interviewType || null,
+      interviewMode: data.interviewMode || null,
+    }
+  )
+  return rows[0] || null
+}
+
+async function deleteTemplate(id, managerId) {
+  const rows = await db.query(
+    `DELETE FROM monthly_assessments WHERE id = @id AND manager_id = @managerId RETURNING *`,
+    { id, managerId }
+  )
+  return rows[0] || null
+}
+
 module.exports = {
   getAssignmentRequest,
   createAssignmentRequest,
@@ -417,4 +453,5 @@ module.exports = {
   getByManager, getByIdForManager,
   getEnrollmentsByAssessment, getEnrollmentsByManager,
   getCalendarByManager, updateEnrollmentInterview, cancelEnrollment, deleteEnrollment,
+  updateTemplate, deleteTemplate,
 }

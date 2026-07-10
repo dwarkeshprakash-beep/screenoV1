@@ -55,7 +55,7 @@ async function getByMandate(mandateId) {
 async function getByUser(userId) {
   return db.query(
     `SELECT ct.*,
-            ctm.client_name, ctm.requirements AS mandate_role, ctm.jd_text, ctm.tags AS mandate_tags, ctm.resume_deadline,
+            ctm.client_name, ctm.requirements AS mandate_role, ctm.jd_text, ctm.tags AS mandate_tags,
             cmr.profile_name AS requirement_name,
             cmr.years_min AS requirement_years_min,
             cmr.years_max AS requirement_years_max,

@@ -4,9 +4,9 @@ const db = require('../db/connection')
 async function create(data) {
   const rows = await db.query(
     `INSERT INTO client_templates
-      (manager_id, client_name, client_email, headcount, requirements, jd_text, custom_info, tags, resume_deadline)
+      (manager_id, client_name, client_email, headcount, requirements, jd_text, custom_info, tags)
      VALUES
-      (@manager_id, @client_name, @client_email, @headcount, @requirements, @jd_text, @custom_info, @tags, @resume_deadline)
+      (@manager_id, @client_name, @client_email, @headcount, @requirements, @jd_text, @custom_info, @tags)
      RETURNING *`,
     {
       manager_id:      data.manager_id,
@@ -17,7 +17,7 @@ async function create(data) {
       jd_text:         data.jd_text         || '',
       custom_info:     data.custom_info     || '',
       tags:            typeof data.tags === 'string' ? data.tags : JSON.stringify(data.tags || []),
-      resume_deadline: data.resume_deadline || null,
+      
     }
   )
   return rows[0]
@@ -52,7 +52,7 @@ async function update(id, managerId, data) {
          jd_text         = COALESCE(@jd_text,         jd_text),
          custom_info     = COALESCE(@custom_info,     custom_info),
          tags            = COALESCE(@tags,            tags),
-         resume_deadline = COALESCE(@resume_deadline, resume_deadline)
+         resume_deadline = COALESCE(@resume_deadline)
      WHERE id = @id AND manager_id = @managerId
      RETURNING *`,
     {
@@ -65,7 +65,7 @@ async function update(id, managerId, data) {
       jd_text:         data.jd_text         || null,
       custom_info:     data.custom_info     || null,
       tags:            data.tags ? (typeof data.tags === 'string' ? data.tags : JSON.stringify(data.tags)) : null,
-      resume_deadline: data.resume_deadline || null,
+      
     }
   )
   return rows[0]

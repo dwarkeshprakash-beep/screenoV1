@@ -96,7 +96,7 @@ function normalizeRequirementPayload(input = {}) {
     notes: String(input.notes || '').trim() || null,
     jd_text: String(input.jd_text ?? input.jdText ?? '').trim() || null,
     tags: input.tags || null,
-    resume_deadline: optionalDateTime(input.resume_deadline ?? input.resumeDeadline),
+
   }
 }
 
@@ -780,7 +780,7 @@ router.post('/:id/team/:ctId/send-jd', async (req, res) => {
     if (!user) return res.status(404).json({ success: false, error: 'User not found' })
     const roleName = requirementDisplay(member, template.requirements)
     const jdText = member.requirement_jd_text || template.jd_text || template.requirements || ''
-    const deadline = req.body.deadline || member.requirement_resume_deadline || template.resume_deadline
+    const deadline = req.body.deadline 
 
     await emailService.sendClientJDWithMessage(user.email, {
       candidateName: `${user.first_name} ${user.last_name}`,
@@ -953,7 +953,7 @@ router.post('/:id/send-jd', async (req, res) => {
     if (!Array.isArray(userIds) || userIds.length === 0) {
       return res.status(400).json({ success: false, error: 'userIds array is required' })
     }
-    if (deadline) await clientTemplateRepo.update(template.id, req.user.id, { resume_deadline: deadline })
+    
     const companyMembers = await userRepository.getByIdsForCompany(
       [...new Set(userIds.map(Number).filter(Number.isInteger))],
       req.user.companyId
@@ -969,7 +969,7 @@ router.post('/:id/send-jd', async (req, res) => {
             clientName: template.client_name,
             role: template.requirements || 'the requirement',
             jdText: template.jd_text || template.requirements || '',
-            deadline: deadline || template.resume_deadline,
+            deadline: deadline,
           })
           return { uid, ok: true }
         } catch { return { uid, ok: false } }

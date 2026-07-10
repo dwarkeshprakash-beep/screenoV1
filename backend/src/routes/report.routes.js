@@ -4,6 +4,7 @@ const authMiddleware = require('../middleware/auth')
 const requireRole = require('../middleware/role')
 const reportRepository = require('../repositories/report.repository')
 const reportJobRepository = require('../repositories/report-job.repository')
+const transcriptRepository = require('../repositories/transcript.repository')
 const storageService = require('../services/storage.service')
 
 const router = express.Router()
@@ -68,12 +69,13 @@ router.post('/jobs/:id/retry', async (req, res) => {
   }
 })
 
-// GET /api/reports/interview/:id — report by interview ID
+// GET /api/reports/interview/:id - report by interview ID
 router.get('/interview/:id', async (req, res) => {
   try {
     const interviewId = parseInt(req.params.id, 10)
     const report = await reportRepository.getDetailByInterviewForManager(interviewId, req.user.id)
     if (!report) return res.status(404).json({ success: false, error: 'Report not found' })
+    report.transcripts = await transcriptRepository.getByInterviewId(interviewId)
     res.json({ success: true, data: await attachSignedReportUrl(report) })
   } catch (err) {
     console.error('GET /reports/interview/:id failed:', err)
@@ -81,12 +83,13 @@ router.get('/interview/:id', async (req, res) => {
   }
 })
 
-// GET /api/reports/detail/:id — full report detail by report ID
+// GET /api/reports/detail/:id - full report detail by report ID
 router.get('/detail/:id', async (req, res) => {
   try {
     const reportId = parseInt(req.params.id, 10)
     const report = await reportRepository.getDetailByIdForManager(reportId, req.user.id)
     if (!report) return res.status(404).json({ success: false, error: 'Report not found' })
+    report.transcripts = await transcriptRepository.getByInterviewId(report.interview_id)
     res.json({ success: true, data: await attachSignedReportUrl(report) })
   } catch (err) {
     console.error('GET /reports/detail/:id failed:', err)
@@ -106,6 +109,34 @@ router.get('/candidate/:userId', async (req, res) => {
   }
 })
 
+// GET /api/reports/interview/:id - report by interview ID
+router.get('/interview/:id', async (req, res) => {
+  try {
+    const interviewId = parseInt(req.params.id, 10)
+    const report = await reportRepository.getDetailByInterviewForManager(interviewId, req.user.id)
+    if (!report) return res.status(404).json({ success: false, error: 'Report not found' })
+    report.transcripts = await transcriptRepository.getByInterviewId(interviewId)
+    res.json({ success: true, data: await attachSignedReportUrl(report) })
+  } catch (err) {
+    console.error('GET /reports/interview/:id failed:', err)
+    res.status(500).json({ success: false, error: 'Could not load report' })
+  }
+})
+
+// GET /api/reports/detail/:id - full report detail by report ID
+router.get('/detail/:id', async (req, res) => {
+  try {
+    const reportId = parseInt(req.params.id, 10)
+    const report = await reportRepository.getDetailByIdForManager(reportId, req.user.id)
+    if (!report) return res.status(404).json({ success: false, error: 'Report not found' })
+    report.transcripts = await transcriptRepository.getByInterviewId(report.interview_id)
+    res.json({ success: true, data: await attachSignedReportUrl(report) })
+  } catch (err) {
+    console.error('GET /reports/detail/:id failed:', err)
+    res.status(500).json({ success: false, error: 'Could not load report' })
+  }
+})
+
 // GET /api/reports/candidate/:userId/history — all reports for a user
 router.get('/candidate/:userId/history', async (req, res) => {
   try {
@@ -119,3 +150,4 @@ router.get('/candidate/:userId/history', async (req, res) => {
 })
 
 module.exports = router
+

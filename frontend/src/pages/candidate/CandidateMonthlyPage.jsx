@@ -27,7 +27,7 @@ function OccurrenceRow({ occ, onLaunch, launchingId }) {
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
           <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg-primary)' }}>
             {occ.period_month
-              ? new Date(occ.period_month + 'T00:00:00').toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
+              ? new Date(occ.period_month + (occ.period_month.length === 7 ? '-01' : '') + 'T00:00:00').toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
               : '—'}
           </span>
           <span style={{
@@ -133,11 +133,25 @@ function PlanCard({ plan, onLaunch, launchingId }) {
           </div>
         )}
 
-        {/* Study topics */}
-        {topics.length > 0 && (
-          <div className="tag-list" style={{ marginBottom: 12 }}>
-            {topics.slice(0, 6).map(area => <span className="tag" key={area}>{area}</span>)}
-          </div>
+        {/* Study topics and material */}
+        {(plan.study_material || topics.length > 0) && (
+          <details style={{ marginBottom: 12, border: '1px solid var(--border-default)', borderRadius: 8, background: 'var(--bg-surface-alt)', overflow: 'hidden' }}>
+            <summary style={{ padding: '10px 12px', cursor: 'pointer', fontSize: 12, fontWeight: 700, color: 'var(--fg-primary)' }}>
+              Study material and focus areas
+            </summary>
+            <div style={{ padding: '0 12px 12px', fontSize: 12, color: 'var(--fg-body)', lineHeight: 1.65 }}>
+              {topics.length > 0 && (
+                <div className="tag-list" style={{ marginBottom: plan.study_material ? 10 : 0 }}>
+                  {topics.map(area => <span className="tag" key={area}>{area}</span>)}
+                </div>
+              )}
+              {plan.study_material && (
+                <div style={{ whiteSpace: 'pre-wrap', maxHeight: 260, overflowY: 'auto' }}>
+                  {plan.study_material}
+                </div>
+              )}
+            </div>
+          </details>
         )}
 
         {/* Occurrences toggle */}

@@ -181,8 +181,8 @@ async function assignCandidates(assessmentId, body, managerId, companyId) {
          WHERE e.team_member_id = @teamMemberId
            AND a.manager_id = selected.manager_id
            AND COALESCE(e.status, 'pending') != 'cancelled'
-           AND e.start_date <= @endDate
-           AND e.end_date >= @startDate
+           AND e.start_date < @endDate
+           AND e.end_date > @startDate
          LIMIT 1`,
         {
           assessmentId: assessment.id,
@@ -238,7 +238,7 @@ async function assignCandidates(assessmentId, body, managerId, companyId) {
              duration_minutes, scheduled_at, available_from, due_at, schedule_timezone,
              monthly_assessment_id)
            VALUES
-            (@managerId, @internalUserId, 'exam', 'simple', @difficulty, @questionCount,
+            (@managerId, @internalUserId, @interviewType, @interviewMode, @difficulty, @questionCount,
              @durationMinutes, @scheduledAt, @availableFrom, @dueAt, @scheduleTimezone,
              @monthlyAssessmentId)
            RETURNING *`,
@@ -414,13 +414,35 @@ async function deleteEnrollment(enrollmentId, managerId) {
   return enrollment
 }
 
+async function updateAssessment(id, managerId, data) {
+  const assessment = await monthlyAssessmentRepository.updateTemplate(
+    Number(id),
+    managerId,
+    data
+  )
+  if (!assessment) throw new Error('Monthly assessment not found')
+  return assessment
+}
+
+async function deleteAssessment(id, managerId) {
+  const assessment = await monthlyAssessmentRepository.deleteTemplate(
+    Number(id),
+    managerId
+  )
+  if (!assessment) throw new Error('Monthly assessment not found')
+  return assessment
+}
+
 module.exports = {
   createAssessment,
   assignCandidates,
   getAssessments,
   getMonthPlan,
   cancelEnrollment,
+  cancelEnrollment,
   deleteEnrollment,
+  updateAssessment,
+  deleteAssessment,
   parseArray,
   addMonths,
   monthIndexForDate,

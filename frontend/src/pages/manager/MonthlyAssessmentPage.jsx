@@ -7,7 +7,12 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock3,
+  FileText,
   ListChecks,
+  Mic,
+  CheckSquare,
+  Pencil,
+  Settings,
   Plus,
   Search,
   Sparkles,
@@ -16,6 +21,7 @@ import {
   Users,
 } from 'lucide-react'
 import MonthlyAssessmentAssignModal from '../../components/manager/MonthlyAssessmentAssignModal'
+import { MonthlyReports } from '../../components/manager/MonthlyReports'
 import Avatar from '../../components/shared/Avatar'
 import Button from '../../components/shared/Button'
 import EmptyState from '../../components/shared/EmptyState'
@@ -60,11 +66,13 @@ function formatDateTime(value) {
   return date.toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' })
 }
 
-function WizardModal({ open, onClose, onDone }) {
+function WizardModal({ open, onClose, onDone, initialData }) {
   const [step, setStep] = useState(1)
   const [subject, setSubject] = useState('')
   const [difficulty, setDifficulty] = useState('medium')
   const [durationMonths, setDurationMonths] = useState(3)
+  const [interviewType, setInterviewType] = useState('exam')
+  const [interviewMode, setInterviewMode] = useState('simple')
   const [subTopics, setSubTopics] = useState('')
   const [studyMaterial, setStudyMaterial] = useState('')
   const [generating, setGenerating] = useState(false)
@@ -75,13 +83,15 @@ function WizardModal({ open, onClose, onDone }) {
   useEffect(() => {
     if (!open) return
     setStep(1)
-    setSubject('')
-    setDifficulty('medium')
-    setDurationMonths(3)
-    setSubTopics('')
-    setStudyMaterial('')
+    setSubject(initialData?.subject_name || '')
+    setDifficulty(initialData?.difficulty || 'medium')
+    setDurationMonths(Number(initialData?.duration_months) || 3)
+    setInterviewType(initialData?.interview_type || 'exam')
+    setInterviewMode(initialData?.interview_mode || 'simple')
+    setSubTopics(initialData?.sub_topics ? parseStoredArray(initialData.sub_topics).join('\n') : '')
+    setStudyMaterial(initialData?.ai_generated_jd || '')
     setError(null)
-  }, [open])
+  }, [open, initialData])
 
   async function generateSubtopics() {
     if (!subject.trim()) return
@@ -131,13 +141,20 @@ function WizardModal({ open, onClose, onDone }) {
     setError(null)
     try {
       const topics = subTopics.split('\n').map(item => item.trim()).filter(Boolean)
-      await api.createMonthlyAssessment({
+      const payload = {
         subject: subject.trim(),
         sub_topics: JSON.stringify(topics),
         difficulty,
         jd_text: studyMaterial,
         duration_months: durationMonths,
-      })
+        interview_type: interviewType,
+        interview_mode: interviewMode,
+      }
+      if (initialData?.id) {
+        await api.updateMonthlyAssessment(initialData.id, payload)
+      } else {
+        await api.createMonthlyAssessment(payload)
+      }
       await onDone?.()
       onClose()
     } catch (saveError) {
@@ -157,7 +174,7 @@ function WizardModal({ open, onClose, onDone }) {
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Create monthly subject" size="lg">
+    <Modal open={open} onClose={onClose} title={initialData ? "Edit monthly subject" : "Create monthly subject"} size="lg">
       <div className="workspace-stack">
         <div className="workspace-tabs" aria-label="Creation progress">
           {['Subject', 'Sub-topics', 'Study material'].map((label, index) => (
@@ -190,6 +207,23 @@ function WizardModal({ open, onClose, onDone }) {
                 Only the subject name is required. AI can prepare the sub-topics from it.
               </span>
             </div>
+            <div className="form-grid" style={{ gridTemplateColumns: '1fr 1fr' }}>
+              <div className="form-field">
+                <label htmlFor="monthly-interview-type" className="form-label">Type</label>
+                <select id="monthly-interview-type" className="form-input" value={interviewType} onChange={e => setInterviewType(e.target.value)}>
+                  <option value="exam">Exam</option>
+                  <option value="ai_voice">AI Voice Interview</option>
+                </select>
+              </div>
+              <div className="form-field">
+                <label htmlFor="monthly-interview-mode" className="form-label">Mode</label>
+                <select id="monthly-interview-mode" className="form-input" value={interviewMode} onChange={e => setInterviewMode(e.target.value)} disabled={interviewType === 'exam'}>
+                  <option value="simple">Simple</option>
+                  <option value="adaptive">Adaptive</option>
+                </select>
+              </div>
+            </div>
+
             <div className="form-field">
               <label htmlFor="monthly-difficulty" className="form-label">Difficulty</label>
               <select
@@ -298,7 +332,7 @@ function WizardModal({ open, onClose, onDone }) {
           {step < 3 ? (
             <Button onClick={nextStep}>Continue</Button>
           ) : (
-            <Button onClick={createSubject} loading={saving}>Create subject</Button>
+            <Button onClick={createSubject} loading={saving}>{initialData ? 'Save changes' : 'Create subject'}</Button>
           )}
         </div>
       </div>
@@ -306,7 +340,7 @@ function WizardModal({ open, onClose, onDone }) {
   )
 }
 
-function SubjectDetailModal({ assessment, open, onClose, onAssign }) {
+function SubjectDetailModal({ assessment, open, onClose, onAssign, onEdit, onDelete }) {
   const [showHistory, setShowHistory] = useState(false)
   if (!assessment) return null
 
@@ -408,7 +442,17 @@ function SubjectDetailModal({ assessment, open, onClose, onAssign }) {
           </section>
         )}
 
-        <div className="form-actions" style={{ justifyContent: 'flex-end' }}>
+        <div className="form-actions" style={{ justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', gap: 12 }}>
+            <Button variant="secondary" onClick={() => { onClose(); onEdit(); }}>
+              <Pencil size={15} />
+              Edit subject
+            </Button>
+            <Button variant="danger" onClick={() => { onClose(); onDelete(); }}>
+              <Trash2 size={15} />
+              Delete subject
+            </Button>
+          </div>
           <Button onClick={() => onAssign(assessment)}>
             <UserPlus size={15} />
             Assign candidates
@@ -432,6 +476,7 @@ function MonthlyAssessmentPage() {
   const [error, setError] = useState(null)
   const [planError, setPlanError] = useState(null)
   const [wizardOpen, setWizardOpen] = useState(false)
+  const [editingAssessment, setEditingAssessment] = useState(null)
   const [selectedAssessment, setSelectedAssessment] = useState(null)
   const [assignAssessment, setAssignAssessment] = useState(null)
   const [cancellingEnrollmentId, setCancellingEnrollmentId] = useState(null)
@@ -474,6 +519,24 @@ function MonthlyAssessmentPage() {
     await Promise.all([loadAll(), loadPlan()])
   }
 
+  function removeAssessment(assessment) {
+    setConfirmDialog({
+      open: true,
+      title: 'Delete subject',
+      message: "Are you sure you want to delete ? This cannot be undone.",
+      danger: true,
+      confirmText: 'Delete',
+      onConfirm: async () => {
+        try {
+          await api.deleteMonthlyAssessment(assessment.id)
+          await refreshAll()
+        } catch (err) {
+          setError(err.message || 'Could not delete subject.')
+        }
+      }
+    })
+  }
+
   function removeEnrollment(enrollment) {
     const name = `${enrollment.first_name || ''} ${enrollment.last_name || ''}`.trim()
     setConfirmDialog({
@@ -510,13 +573,10 @@ function MonthlyAssessmentPage() {
 
   const calendarRows = useMemo(() => {
     const byCandidate = new Map()
+    // Track seen (candidateKey, slotId) to deduplicate
+    const seen = new Set()
 
     for (const row of calendarData) {
-      const progress = parseStoredArray(row.month_progress)
-      const duration = Number(row.duration_months) || progress.length || 1
-      const startDate = new Date(row.start_date || row.assessment_created || row.created)
-      if (Number.isNaN(startDate.getTime())) continue
-
       const candidateKey = String(row.user_id || row.team_member_id || `${row.first_name || ''}-${row.last_name || ''}`)
       const name = `${row.first_name || ''} ${row.last_name || ''}`.trim() || 'Candidate'
       const candidate = byCandidate.get(candidateKey) || {
@@ -528,20 +588,46 @@ function MonthlyAssessmentPage() {
 
       if (row.subject_name) candidate.subjects.set(row.assessment_id || row.id, row.subject_name)
 
-      for (let index = 0; index < duration; index += 1) {
-        const monthDate = new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth() + index, 1))
-        if (monthDate.getUTCFullYear() !== calendarYear) continue
-
-        const status = row.status === 'cancelled'
-          ? 'cancelled'
-          : (row.interview_status || row.status || progress[index] || 'pending')
-        candidate.months[monthDate.getUTCMonth()].push({
-          id: `${row.id}-${index}`,
-          subject: row.subject_name || 'Assessment',
-          status,
-          startDate: row.start_date,
-          endDate: row.end_date,
-        })
+      // Each row from the DB is one occurrence (one month slot). Use period_month directly.
+      const periodRaw = row.period_month || row.occurrence_available_from
+      if (periodRaw) {
+        const periodDate = new Date(periodRaw)
+        if (!Number.isNaN(periodDate.getTime()) && periodDate.getUTCFullYear() === calendarYear) {
+          const monthIdx = periodDate.getUTCMonth()
+          const slotId = `${candidateKey}|${row.occurrence_id || row.id}|${monthIdx}`
+          if (!seen.has(slotId)) {
+            seen.add(slotId)
+            const status = row.status === 'cancelled' || row.occurrence_status === 'cancelled'
+              ? 'cancelled'
+              : (row.interview_status || row.occurrence_status || 'pending')
+            candidate.months[monthIdx].push({
+              id: row.occurrence_id || `${row.id}-${monthIdx}`,
+              subject: row.subject_name || 'Assessment',
+              status,
+            })
+          }
+        }
+      } else {
+        // Fallback: no occurrence rows yet — show enrollment span from start_date
+        const progress = parseStoredArray(row.month_progress)
+        const duration = Number(row.duration_months) || progress.length || 1
+        const startDate = new Date(row.start_date || row.assessment_created || row.created)
+        if (!Number.isNaN(startDate.getTime())) {
+          for (let i = 0; i < duration; i++) {
+            const monthDate = new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth() + i, 1))
+            if (monthDate.getUTCFullYear() !== calendarYear) continue
+            const monthIdx = monthDate.getUTCMonth()
+            const slotId = `${candidateKey}|enroll-${row.id}|${monthIdx}`
+            if (!seen.has(slotId)) {
+              seen.add(slotId)
+              candidate.months[monthIdx].push({
+                id: `enroll-${row.id}-${i}`,
+                subject: row.subject_name || 'Assessment',
+                status: row.status === 'cancelled' ? 'cancelled' : (progress[i] || 'pending'),
+              })
+            }
+          }
+        }
       }
 
       byCandidate.set(candidateKey, candidate)
@@ -575,6 +661,7 @@ function MonthlyAssessmentPage() {
             { id: 'library', label: 'Subject library', Icon: BookOpen },
             { id: 'plan', label: 'Monthly plan', Icon: ListChecks },
             { id: 'calendar', label: 'Yearly calendar', Icon: CalendarDays },
+            { id: 'reports', label: 'Reports', Icon: FileText },
           ].map(({ id, label, Icon }) => (
             <button
               key={id}
@@ -888,7 +975,13 @@ function MonthlyAssessmentPage() {
         </div>
       )}
 
-      <WizardModal open={wizardOpen} onClose={() => setWizardOpen(false)} onDone={refreshAll} />
+      {tab === 'reports' && (
+        <div className="workspace-stack">
+          <MonthlyReports />
+        </div>
+      )}
+
+      <WizardModal open={wizardOpen} initialData={editingAssessment} onClose={() => { setWizardOpen(false); setEditingAssessment(null); }} onDone={refreshAll} />
       <MonthlyAssessmentAssignModal
         open={Boolean(assignAssessment)}
         assessment={assignAssessment}
@@ -900,9 +993,18 @@ function MonthlyAssessmentPage() {
         assessment={selectedAssessment}
         open={Boolean(selectedAssessment)}
         onClose={() => setSelectedAssessment(null)}
-        onAssign={assessment => {
+        onAssign={subject => {
           setSelectedAssessment(null)
-          setAssignAssessment(assessment)
+          setAssignAssessment(subject)
+        }}
+        onEdit={() => {
+          setSelectedAssessment(null)
+          setEditingAssessment(selectedAssessment)
+          setWizardOpen(true)
+        }}
+        onDelete={() => {
+          setSelectedAssessment(null)
+          removeAssessment(selectedAssessment)
         }}
       />
       <ConfirmDialog
