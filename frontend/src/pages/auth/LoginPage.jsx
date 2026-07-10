@@ -36,9 +36,58 @@ function parseDemoAccounts() {
   }
 }
 
-const SHOW_DEMO_ACCOUNTS = import.meta.env.VITE_SHOW_DEMO_ACCOUNTS === 'true'
 const configuredDemoAccounts = parseDemoAccounts()
-const DEMO_ACCOUNTS = SHOW_DEMO_ACCOUNTS ? configuredDemoAccounts : []
+// Product owner requested quick access on the login page for production too.
+// Do not remove or hide these quick-access buttons unless Dwarkesh explicitly asks to remove them.
+const QUICK_ACCESS_ACCOUNTS = [
+  {
+    role: 'manager',
+    name: 'Kiran Oza',
+    sub: 'Manager quick access',
+    initials: 'KO',
+    email: 'kiran.oza@prakashinfotech.com',
+    password: import.meta.env.VITE_QUICK_LOGIN_KIRAN_PASSWORD || import.meta.env.VITE_QUICK_LOGIN_MANAGER_PASSWORD || '',
+    bgColor: '#EDE9FE',
+    fgColor: '#5B21B6',
+    badgeBg: '#3730A3',
+    badgeFg: '#C7D2FE',
+  },
+  {
+    role: 'candidate',
+    name: 'Dwarkesh Vajjala',
+    sub: 'Candidate quick access',
+    initials: 'DV',
+    email: 'dwarkesh.vajjala@prakashinfotech.com',
+    password: import.meta.env.VITE_QUICK_LOGIN_DWARKESH_PASSWORD || import.meta.env.VITE_QUICK_LOGIN_CANDIDATE_PASSWORD || '',
+    bgColor: '#FEE2E2',
+    fgColor: '#B91C1C',
+    badgeBg: '#7F1D1D',
+    badgeFg: '#FECACA',
+  },
+].filter(account => account.password)
+
+function mergeDemoAccounts(accounts) {
+  const byEmail = new Map()
+  for (const account of accounts) {
+    if (!account?.email || !account?.password) continue
+    byEmail.set(account.email.toLowerCase(), {
+      ...account,
+      name: account.name || account.email,
+      sub: account.sub || account.role,
+      initials: account.initials || initialsFor(account),
+      bgColor: account.bgColor || '#EDE9FE',
+      fgColor: account.fgColor || '#5B21B6',
+      badgeBg: account.badgeBg || '#3730A3',
+      badgeFg: account.badgeFg || '#C7D2FE',
+    })
+  }
+  return [...byEmail.values()]
+}
+
+const DEMO_ACCOUNTS = mergeDemoAccounts([
+  ...QUICK_ACCESS_ACCOUNTS,
+  ...configuredDemoAccounts,
+])
 
 function roleRedirect(role) {
   if (role === 'manager') return '/manager/dashboard'
@@ -163,7 +212,7 @@ function LoginPage() {
         <div style={{ background: '#1E293B', border: '1px solid #334155', borderRadius: '1rem', padding: '1.75rem' }}>
           {mode === 'login' && DEMO_ACCOUNTS.length > 0 && (
             <>
-              <p style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--slate-400)', letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: '1.125rem' }}>Demo Accounts</p>
+              <p style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--slate-400)', letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: '1.125rem' }}>Quick access</p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.625rem', marginBottom: '1.25rem' }}>
                 {DEMO_ACCOUNTS.map(account => (
                   <DemoButton key={account.email} account={account} onSelect={selectDemo} loading={loading} />

@@ -115,7 +115,7 @@ router.post('/:id/assign', async (req, res) => {
 
 router.delete('/enrollments/:id', async (req, res) => {
   try {
-    const enrollment = await monthlyAssessmentService.cancelEnrollment(
+    const enrollment = await monthlyAssessmentService.deleteEnrollment(
       Number(req.params.id),
       req.user.id
     )
@@ -125,7 +125,7 @@ router.delete('/enrollments/:id', async (req, res) => {
     if (err.message === 'Monthly enrollment not found') {
       return res.status(404).json({ success: false, error: err.message })
     }
-    res.status(500).json({ success: false, error: 'Could not cancel monthly assessment' })
+    res.status(500).json({ success: false, error: 'Could not remove monthly assessment plan' })
   }
 })
 

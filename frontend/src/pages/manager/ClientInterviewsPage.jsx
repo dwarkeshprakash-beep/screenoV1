@@ -119,7 +119,7 @@ function requirementProfilesSummary(profiles) {
     .join(', ')
 }
 
-function RequirementProfilesEditor({ profiles, setProfiles }) {
+function RequirementProfilesEditor({ profiles, setProfiles, allowEmpty = false, sharedJdText = '' }) {
   function updateProfile(key, field, value) {
     setProfiles(current => current.map(profile => (
       profile.key === key ? { ...profile, [field]: value } : profile
@@ -127,28 +127,34 @@ function RequirementProfilesEditor({ profiles, setProfiles }) {
   }
 
   function removeProfile(key) {
-    setProfiles(current => current.length > 1 ? current.filter(profile => profile.key !== key) : current)
+    setProfiles(current => current.length > 1 || allowEmpty ? current.filter(profile => profile.key !== key) : current)
   }
 
   const totalHeadcount = requirementProfilesHeadcount(profiles)
+  const canApplySharedJd = Boolean(String(sharedJdText || '').trim())
 
   return (
     <div className="form-field form-field--full">
       <div className="workspace-section-heading" style={{ marginBottom: 10 }}>
         <div>
-          <h3 style={{ fontSize: 15 }}>Required roles</h3>
-          <p>Total headcount syncs from these role profiles.</p>
+          <h3 style={{ fontSize: 15 }}>Role profiles</h3>
+          <p>Add one or more roles when the mandate has multiple JDs. Roles are optional at creation.</p>
         </div>
         <span className="status-pill status-pill--brand">{totalHeadcount || 0} total</span>
       </div>
       <div className="workspace-stack" style={{ gap: 10 }}>
+        {profiles.length === 0 && (
+          <div style={{ padding: 14, border: '1px dashed var(--border-default)', borderRadius: 10, background: 'var(--bg-surface-alt)', color: 'var(--fg-muted)', fontSize: 12 }}>
+            No roles added yet. You can create the mandate now and add roles later, or add role-specific JDs here.
+          </div>
+        )}
         {profiles.map((profile, index) => (
           <div key={profile.key} style={{ border: '1px solid var(--border-default)', borderRadius: 8, padding: 12, background: 'var(--bg-surface)' }}>
             <div className="form-grid">
               <Field label="Role name" full={profiles.length === 1}>
                 <input className="form-input" value={profile.profile_name} onChange={e => updateProfile(profile.key, 'profile_name', e.target.value)} placeholder={`Role ${index + 1}`} />
               </Field>
-              {profiles.length > 1 && (
+              {(profiles.length > 1 || allowEmpty) && (
                 <div className="form-field" style={{ justifyContent: 'flex-end' }}>
                   <button type="button" className="danger-icon-button" onClick={() => removeProfile(profile.key)} style={{ alignSelf: 'flex-end', padding: '7px 9px' }}>
                     <Trash2 size={14} />
@@ -163,6 +169,19 @@ function RequirementProfilesEditor({ profiles, setProfiles }) {
               </Field>
               <Field label="Headcount">
                 <input className="form-input" type="number" min="1" value={profile.headcount} onChange={e => updateProfile(profile.key, 'headcount', e.target.value)} />
+              </Field>
+              <Field label="Resume deadline">
+                <input className="form-input" type="datetime-local" value={profile.resume_deadline} onChange={e => updateProfile(profile.key, 'resume_deadline', e.target.value)} />
+              </Field>
+              <Field label="Role JD" full help="Optional. If blank, the mandate/shared JD is used as fallback.">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <textarea className="form-input" rows={5} value={profile.jd_text} onChange={e => updateProfile(profile.key, 'jd_text', e.target.value)} placeholder="Paste JD for this role..." style={{ resize: 'vertical' }} />
+                  {canApplySharedJd && (
+                    <button type="button" className="product-button product-button--secondary product-button--sm" style={{ alignSelf: 'flex-start' }} onClick={() => updateProfile(profile.key, 'jd_text', sharedJdText)}>
+                      Use shared uploaded JD
+                    </button>
+                  )}
+                </div>
               </Field>
               <Field label="Notes" full>
                 <input className="form-input" value={profile.notes} onChange={e => updateProfile(profile.key, 'notes', e.target.value)} placeholder="Optional profile notes" />
@@ -185,6 +204,7 @@ function RequirementProfilesEditor({ profiles, setProfiles }) {
 function CreateMandateModal({ open, onClose, onCreated }) {
   const [step, setStep] = useState(1)
   const [form, setForm] = useState({ clientName: '', clientEmail: '', requirements: '', headcount: 1, jdText: '', customInfo: '' })
+  const [profiles, setProfiles] = useState([])
   const [tags, setTags] = useState([])
   const [customTag, setCustomTag] = useState('')
   const [fileName, setFileName] = useState('')
@@ -197,6 +217,7 @@ function CreateMandateModal({ open, onClose, onCreated }) {
     if (!open) return
     setStep(1)
     setForm({ clientName: '', clientEmail: '', requirements: '', headcount: 1, jdText: '', customInfo: '' })
+    setProfiles([])
     setTags([])
     setCustomTag('')
     setFileName('')
@@ -223,6 +244,18 @@ function CreateMandateModal({ open, onClose, onCreated }) {
 
   async function continueToTags() {
     if (!form.clientName.trim()) { setError('Client name is required.'); return }
+    const hasRoleDraft = profiles.some(profile => (
+      String(profile.profile_name || '').trim()
+      || String(profile.jd_text || '').trim()
+      || String(profile.notes || '').trim()
+      || profile.years_min !== ''
+      || profile.years_max !== ''
+      || profile.resume_deadline
+    ))
+    if (hasRoleDraft) {
+      const profileError = validateRequirementProfilesForSave(profiles)
+      if (profileError) { setError(profileError); return }
+    }
     setExtractingTags(true)
     setError(null)
     try {
@@ -245,12 +278,23 @@ function CreateMandateModal({ open, onClose, onCreated }) {
     setSaving(true)
     setError(null)
     try {
+      const sharedJd = form.jdText.trim()
+      const normalizedProfiles = normalizeRequirementProfilesForSave(profiles)
+        .map(profile => ({
+          ...profile,
+          jd_text: profile.jd_text || sharedJd || null,
+        }))
       await api.createClientTemplate({
         client_name: form.clientName.trim(),
         client_email: form.clientEmail.trim() || null,
-        requirements: form.requirements.trim(),
-        headcount: Number(form.headcount) || 1,
-        jd_text: form.jdText.trim(),
+        requirements: normalizedProfiles.length
+          ? normalizedProfiles.map(profile => profile.profile_name).join(', ')
+          : form.requirements.trim(),
+        headcount: normalizedProfiles.length
+          ? normalizedProfiles.reduce((sum, profile) => sum + Number(profile.headcount || 0), 0)
+          : Number(form.headcount) || 1,
+        requirement_profiles: normalizedProfiles,
+        jd_text: sharedJd,
         custom_info: form.customInfo.trim() || null,
         tags: JSON.stringify(tags),
       })
@@ -301,6 +345,7 @@ function CreateMandateModal({ open, onClose, onCreated }) {
             <Field label="Job description" full>
               <textarea className="form-input" rows={9} value={form.jdText} onChange={e => update('jdText', e.target.value)} placeholder="Paste the client JD here..." style={{ resize: 'vertical' }} />
             </Field>
+            <RequirementProfilesEditor profiles={profiles} setProfiles={setProfiles} allowEmpty sharedJdText={form.jdText} />
             <Field label="Internal notes" full help="Visible to managers, not candidates.">
               <textarea className="form-input" rows={4} value={form.customInfo} onChange={e => update('customInfo', e.target.value)} placeholder="Interview process, client expectations, or other context..." style={{ resize: 'vertical' }} />
             </Field>
@@ -422,7 +467,7 @@ function EditMandateModal({ open, template, requirements = [], onClose, onSaved 
         <div className="form-grid">
           <Field label="Client name"><input className="form-input" value={form.client_name || ''} onChange={e => setForm(c => ({ ...c, client_name: e.target.value }))} /></Field>
           <Field label="Client email"><input className="form-input" type="email" value={form.client_email || ''} onChange={e => setForm(c => ({ ...c, client_email: e.target.value }))} /></Field>
-          <RequirementProfilesEditor profiles={profiles} setProfiles={setProfiles} />
+          <RequirementProfilesEditor profiles={profiles} setProfiles={setProfiles} sharedJdText={form.jd_text || ''} />
           <Field label="Replace JD from file">
             <input id="edit-jd-file" type="file" accept=".pdf,.doc,.docx,.txt" onChange={readFile} style={{ display: 'none' }} />
             <label htmlFor="edit-jd-file" className="product-button product-button--secondary product-button--md" style={{ alignSelf: 'flex-start' }}>
@@ -1167,18 +1212,25 @@ function OutcomeRoundsModal({ open, onClose, onSaved, member, template }) {
     }
   }
 
+  const candidateName = `${member?.first_name || ''} ${member?.last_name || ''}`.trim() || 'Candidate'
+  const roleName = member?.requirement_name || template?.requirements || 'Role not assigned'
+
   return (
     <Modal open={open} onClose={onClose} title="Client outcome rounds" size="lg">
-      <div className="workspace-stack">
-        <div className="detail-facts">
-          <div className="detail-fact"><div className="detail-fact__label">Candidate</div><div className="detail-fact__value">{member?.first_name} {member?.last_name}</div></div>
-          <div className="detail-fact"><div className="detail-fact__label">Client</div><div className="detail-fact__value">{template?.client_name}</div></div>
+      <div className="workspace-stack" style={{ gap: 18 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 14, padding: 16, border: '1px solid var(--border-default)', borderRadius: 14, background: 'linear-gradient(135deg, var(--brand-50), var(--bg-surface))' }}>
+          <Avatar name={candidateName} size={42} />
+          <div style={{ minWidth: 0, flex: 1 }}>
+            <div style={{ color: 'var(--fg-primary)', fontSize: 15, fontWeight: 800 }}>{candidateName}</div>
+            <div style={{ marginTop: 3, color: 'var(--fg-muted)', fontSize: 12 }}>{template?.client_name || 'Client'} · {roleName}</div>
+          </div>
+          <span className="status-pill status-pill--brand">{rounds.length} round{rounds.length === 1 ? '' : 's'}</span>
         </div>
 
         {loading ? <Spinner center /> : (
-          <div className="assignment-list">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {rounds.length === 0 ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '18px 20px', border: '1px dashed var(--border-default)', borderRadius: 12, background: 'var(--bg-surface-alt)', color: 'var(--fg-muted)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '18px 20px', border: '1px dashed var(--border-default)', borderRadius: 14, background: 'var(--bg-surface-alt)', color: 'var(--fg-muted)' }}>
                 <span style={{ width: 34, height: 34, borderRadius: 999, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'var(--brand-50)', color: 'var(--brand-600)', flexShrink: 0 }}>
                   <AlertCircle size={17} />
                 </span>
@@ -1188,22 +1240,34 @@ function OutcomeRoundsModal({ open, onClose, onSaved, member, template }) {
                 </div>
               </div>
             ) : rounds.map(round => (
-              <div className="assignment-row" key={round.id}>
-                <div className="assignment-row__content">
-                  <strong>Round {round.round_number}: {round.outcome?.replace(/_/g, ' ') || 'pending'}</strong>
-                  <span>{round.interview_at ? formatDateTime(round.interview_at) : 'Date not set'}{round.candidate_visible ? ' | visible to candidate' : ' | manager-only draft'}</span>
-                  {round.feedback && <span>{round.feedback}</span>}
+              <div key={round.id} style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', gap: 14, alignItems: 'center', padding: '14px 16px', border: '1px solid var(--border-default)', borderRadius: 14, background: 'var(--bg-surface)', boxShadow: 'var(--shadow-xs)' }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <strong style={{ color: 'var(--fg-primary)', fontSize: 13 }}>Round {round.round_number}</strong>
+                    <span className={`status-pill${round.candidate_visible ? ' status-pill--success' : ''}`}>
+                      {round.candidate_visible ? 'Visible to candidate' : 'Draft'}
+                    </span>
+                    <span style={{ color: 'var(--fg-muted)', fontSize: 12, textTransform: 'capitalize' }}>
+                      {round.outcome?.replace(/_/g, ' ') || 'pending'}
+                    </span>
+                  </div>
+                  <div style={{ marginTop: 6, color: 'var(--fg-muted)', fontSize: 12 }}>
+                    {round.interview_at ? formatDateTime(round.interview_at) : 'Interview date not set'}
+                  </div>
+                  {round.feedback && <div style={{ marginTop: 8, color: 'var(--fg-body)', fontSize: 12, lineHeight: 1.55 }}>{round.feedback}</div>}
                 </div>
-                <Button size="sm" variant="secondary" disabled={saving || round.candidate_visible} onClick={() => editRound(round)}>Edit</Button>
-                <Button size="sm" variant={round.candidate_visible ? 'secondary' : 'primary'} disabled={saving} onClick={() => togglePublish(round)}>
-                  {round.candidate_visible ? 'Unpublish' : 'Publish'}
-                </Button>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, flexWrap: 'wrap' }}>
+                  <Button size="sm" variant="secondary" disabled={saving || round.candidate_visible} onClick={() => editRound(round)}>Edit</Button>
+                  <Button size="sm" variant={round.candidate_visible ? 'secondary' : 'primary'} disabled={saving} onClick={() => togglePublish(round)}>
+                    {round.candidate_visible ? 'Unpublish' : 'Publish'}
+                  </Button>
+                </div>
               </div>
             ))}
           </div>
         )}
 
-        <div className="workspace-panel" style={{ borderRadius: 14, borderColor: 'var(--brand-100)', background: 'linear-gradient(180deg, var(--bg-surface) 0%, var(--bg-surface-alt) 100%)' }}>
+        <div style={{ padding: 18, border: '1px solid var(--brand-100)', borderRadius: 16, background: 'linear-gradient(180deg, var(--bg-surface) 0%, var(--bg-surface-alt) 100%)', boxShadow: 'var(--shadow-xs)' }}>
           <div className="workspace-section-heading" style={{ marginBottom: 12 }}>
             <div>
               <h3 style={{ fontSize: 15 }}>{editingRound ? `Edit round ${editingRound.round_number}` : 'Add client round'}</h3>

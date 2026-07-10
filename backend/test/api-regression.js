@@ -394,21 +394,34 @@ async function run() {
   ))
   assert.ok(reusablePlan.payload.data.unassigned.some(member => member.id === primary.teamMember.id))
 
-  const cancelledEnrollment = await api(
+  const removedEnrollment = await api(
     `/api/assessments/monthly/enrollments/${reusableAssignment.payload.data.enrollments[0].id}`,
     { method: 'DELETE', token: managerToken }
   )
-  assert.equal(cancelledEnrollment.status, 200)
-  assert.equal(cancelledEnrollment.payload.data.status, 'cancelled')
+  assert.equal(removedEnrollment.status, 200)
+  assert.equal(removedEnrollment.payload.data.deleted, true)
 
-  const octoberPlanAfterCancellation = await api(
+  const octoberPlanAfterRemoval = await api(
     `/api/assessments/monthly/plan?month=${reusableAssessmentMonth}`,
     { token: managerToken }
   )
-  assert.equal(octoberPlanAfterCancellation.status, 200)
-  assert.ok(octoberPlanAfterCancellation.payload.data.unassigned.some(
+  assert.equal(octoberPlanAfterRemoval.status, 200)
+  assert.ok(octoberPlanAfterRemoval.payload.data.unassigned.some(
     member => member.id === addedMember.payload.data.id
   ))
+
+  const reassignmentAfterRemoval = await api(
+    `/api/assessments/monthly/${reusableTemplate.payload.data.id}/assign`,
+    {
+      method: 'POST',
+      token: managerToken,
+      body: {
+        assessment_date: reusableAssessmentDate,
+        team_member_ids: [addedMember.payload.data.id],
+      },
+    }
+  )
+  assert.equal(reassignmentAfterRemoval.status, 201)
 
   const invalidPlanMonth = await api('/api/assessments/monthly/plan?month=October-2026', {
     token: managerToken,

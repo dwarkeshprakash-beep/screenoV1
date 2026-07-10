@@ -2,6 +2,15 @@ import { Outlet, useNavigate } from 'react-router-dom'
 import { LogOut } from 'lucide-react'
 import * as api from '../../services/api'
 
+function LogoMark({ size = 22 }) {
+  return (
+    <div style={{ width: size, height: size, borderRadius: Math.round(size * 0.27), background: 'linear-gradient(135deg,var(--brand-500),var(--brand-600))', display: 'inline-flex', flexShrink: 0, position: 'relative' }}>
+      <div style={{ position: 'absolute', left: '23%', top: '32%', width: '54%', height: '11%', background: 'var(--bg-surface)', borderRadius: 2, opacity: 0.95 }} />
+      <div style={{ position: 'absolute', left: '23%', top: '57%', width: '54%', height: '11%', background: 'var(--bg-surface)', borderRadius: 2, opacity: 0.6 }} />
+    </div>
+  )
+}
+
 function CandidateLayout() {
   const navigate = useNavigate()
   const canOpenCandidateDashboard = (() => {
@@ -35,14 +44,17 @@ function CandidateLayout() {
   return (
     <div style={{ minHeight: '100svh', display: 'flex', flexDirection: 'column' }}>
       <header style={{
-        background: 'var(--bg-surface)',
-        borderBottom: '1px solid var(--border-default)',
-        height: '3.5rem',
-        padding: '0 1.5rem',
+        background: 'var(--slate-900)',
+        borderBottom: '1px solid #1E293B',
+        height: 38,
+        padding: '0 14px',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
         flexShrink: 0,
+        position: 'sticky',
+        top: 0,
+        zIndex: 100,
       }}>
         <div
           onClick={handleLogoClick}
@@ -51,22 +63,25 @@ function CandidateLayout() {
           onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') handleLogoClick() }}
           style={{ display: 'inline-flex', alignItems: 'center', gap: 8, cursor: canOpenCandidateDashboard ? 'pointer' : 'default' }}
         >
-          <div style={{
-            width: '1.75rem',
-            height: '1.75rem',
-            borderRadius: '0.4375rem',
-            background: 'linear-gradient(135deg,var(--brand-500),var(--brand-600))',
-            position: 'relative',
+          <LogoMark size={22} />
+          <span style={{ color: 'var(--bg-surface)', fontSize: 15, fontWeight: 700, letterSpacing: '-0.02em' }}>Screeno</span>
+          <div style={{ width: 1, height: 18, background: '#1E293B', margin: '0 8px' }} />
+          <span style={{
+            padding: '4px 12px',
+            borderRadius: 5,
+            border: '1px solid #334155',
+            color: 'var(--bg-surface)',
+            fontSize: 12,
+            fontWeight: 600,
+            letterSpacing: '0.06em',
           }}>
-            <div style={{ position: 'absolute', left: '0.375rem', top: '0.5625rem', width: '1rem', height: '0.15625rem', background: 'var(--bg-surface)', borderRadius: '0.125rem', opacity: 0.95 }} />
-            <div style={{ position: 'absolute', left: '0.375rem', top: '0.9375rem', width: '1rem', height: '0.15625rem', background: 'var(--bg-surface)', borderRadius: '0.125rem', opacity: 0.6 }} />
-          </div>
-          <span style={{ fontSize: '1.0625rem', fontWeight: 'var(--fw-bold)', color: 'var(--fg-primary)', letterSpacing: 'var(--tracking-tight)' }}>Screeno</span>
+            CANDIDATE
+          </span>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span style={{ fontSize: 'var(--fs-sm)', color: 'var(--fg-subtle)' }}>
-            Need help? <a href="mailto:support@screeno.ai" style={{ color: 'var(--fg-link)', cursor: 'pointer', textDecoration: 'none', fontWeight: 'var(--fw-semibold)' }}>Support</a>
+          <span style={{ fontSize: 12, color: '#64748B' }}>
+            Need help? <a href="mailto:support@screeno.ai" style={{ color: '#94A3B8', cursor: 'pointer', textDecoration: 'none', fontWeight: 600 }}>Support</a>
           </span>
           {canOpenCandidateDashboard && (
             <button
@@ -74,9 +89,25 @@ function CandidateLayout() {
               onClick={handleLogout}
               title="Log out"
               aria-label="Log out"
-              style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 34, height: 34, borderRadius: 8, border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--fg-muted)', cursor: 'pointer' }}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '4px 12px',
+                borderRadius: 5,
+                border: '1px solid transparent',
+                background: 'transparent',
+                color: '#64748B',
+                fontSize: 12,
+                fontWeight: 500,
+                cursor: 'pointer',
+                fontFamily: 'inherit',
+                transition: 'color 120ms',
+              }}
+              onMouseEnter={e => e.currentTarget.style.color = 'var(--bg-surface)'}
+              onMouseLeave={e => e.currentTarget.style.color = '#64748B'}
             >
-              <LogOut size={15} />
+              <LogOut size={13} /> Logout
             </button>
           )}
         </div>

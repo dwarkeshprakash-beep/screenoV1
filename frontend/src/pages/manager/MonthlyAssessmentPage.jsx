@@ -2,7 +2,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   AlertCircle,
   ArrowRight,
-  Ban,
   BookOpen,
   CalendarDays,
   ChevronLeft,
@@ -12,6 +11,7 @@ import {
   Plus,
   Search,
   Sparkles,
+  Trash2,
   UserPlus,
   Users,
 } from 'lucide-react'
@@ -474,22 +474,22 @@ function MonthlyAssessmentPage() {
     await Promise.all([loadAll(), loadPlan()])
   }
 
-  function cancelEnrollment(enrollment) {
+  function removeEnrollment(enrollment) {
     const name = `${enrollment.first_name || ''} ${enrollment.last_name || ''}`.trim()
     setConfirmDialog({
       open: true,
-      title: 'Cancel Assessment',
-      message: `Cancel ${name}'s ${enrollment.subject_name || 'monthly assessment'} plan?`,
+      title: 'Remove monthly plan',
+      message: `Remove ${name}'s ${enrollment.subject_name || 'monthly assessment'} plan? This deletes the full ${enrollment.duration_months || ''} month assignment and all generated monthly slots for this plan.`,
       danger: true,
-      confirmText: 'Cancel Plan',
+      confirmText: 'Remove Plan',
       onConfirm: async () => {
         setCancellingEnrollmentId(enrollment.id)
         setPlanError(null)
         try {
-          await api.cancelMonthlyEnrollment(enrollment.id)
+          await api.removeMonthlyEnrollment(enrollment.id)
           await refreshAll()
         } catch (cancelError) {
-          setPlanError(cancelError.message || 'Could not cancel the monthly assessment.')
+          setPlanError(cancelError.message || 'Could not remove the monthly assessment plan.')
         } finally {
           setCancellingEnrollmentId(null)
         }
@@ -671,7 +671,7 @@ function MonthlyAssessmentPage() {
           <div className="month-navigator">
             <div className="workspace-intro">
               <h2>{monthLabel(month)}</h2>
-              <p>See assigned candidates, open capacity, and cancellation controls for this month.</p>
+              <p>See assigned candidates, open capacity, and remove full monthly plans when needed.</p>
             </div>
             <div className="month-navigator__actions">
               <button type="button" className="icon-button" onClick={() => setMonth(value => shiftMonth(value, -1))} aria-label="Previous month">
@@ -703,7 +703,7 @@ function MonthlyAssessmentPage() {
                 <div className="workspace-section-heading">
                   <div>
                     <h3 style={{ fontSize: 16 }}>Subject assignments</h3>
-                    <p>{planSubjects.filter(subject => subject.candidates.length > 0).length} subjects active in {monthLabel(month)}.</p>
+                    <p>{planSubjects.filter(subject => subject.candidates.some(candidate => candidate.status !== 'cancelled')).length} subjects active in {monthLabel(month)}.</p>
                   </div>
                 </div>
 
@@ -744,15 +744,21 @@ function MonthlyAssessmentPage() {
                                     <strong>{name}</strong>
                                     <span>{formatDateTime(candidate.start_date)} - {formatDate(candidate.end_date)}</span>
                                   </div>
-                                  <button
-                                    type="button"
-                                    className="danger-icon-button"
-                                    disabled={cancellingEnrollmentId === candidate.id}
-                                    onClick={() => cancelEnrollment({ ...candidate, subject_name: subject.subject_name })}
-                                    aria-label={`Cancel ${name}'s assignment`}
-                                  >
-                                    <Ban size={14} />
-                                  </button>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 'auto' }}>
+                                    {candidate.status === 'cancelled' && (
+                                      <span className="status-pill status-pill--danger">Cancelled</span>
+                                    )}
+                                    <button
+                                      type="button"
+                                      className="danger-icon-button"
+                                      disabled={cancellingEnrollmentId === candidate.id}
+                                      onClick={() => removeEnrollment({ ...candidate, subject_name: subject.subject_name, duration_months: subject.duration_months })}
+                                      aria-label={`Remove ${name}'s full monthly plan`}
+                                      title="Remove full plan"
+                                    >
+                                      <Trash2 size={14} />
+                                    </button>
+                                  </div>
                                 </div>
                               )
                             })}

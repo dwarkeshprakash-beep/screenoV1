@@ -94,6 +94,7 @@ function MonthlyAssessmentAssignModal({
         const next = new Map()
         for (const subject of response.data?.subjects || []) {
           for (const candidate of subject.candidates || []) {
+            if (candidate.status === 'cancelled') continue
             next.set(Number(candidate.team_member_id), {
               subject: subject.subject_name,
               startDate: candidate.start_date,

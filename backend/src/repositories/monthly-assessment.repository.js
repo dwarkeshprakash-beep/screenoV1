@@ -310,7 +310,10 @@ async function cancelEnrollment(enrollmentId, managerId) {
          AND interview_id IS NOT NULL`,
       { enrollmentId }
     )
-    const interviewIds = occurrenceInterviews.map(row => row.interview_id).filter(Boolean)
+    const interviewIds = [
+      ...occurrenceInterviews.map(row => row.interview_id),
+      enrollment.interview_id,
+    ].filter(Boolean)
     if (interviewIds.length > 0) {
       await tx.query(
         `UPDATE interviews
@@ -346,6 +349,66 @@ async function cancelEnrollment(enrollmentId, managerId) {
   })
 }
 
+async function deleteEnrollment(enrollmentId, managerId) {
+  return db.transaction(async tx => {
+    const rows = await tx.query(
+      `SELECT e.*, a.subject_name
+       FROM monthly_assessment_enrollments e
+       JOIN monthly_assessments a ON a.id = e.assessment_id
+       WHERE e.id = @enrollmentId
+         AND a.manager_id = @managerId
+       LIMIT 1`,
+      { enrollmentId, managerId }
+    )
+    const enrollment = rows[0]
+    if (!enrollment) return null
+
+    const occurrenceInterviews = await tx.query(
+      `SELECT interview_id
+       FROM monthly_assessment_occurrences
+       WHERE enrollment_id = @enrollmentId
+         AND interview_id IS NOT NULL`,
+      { enrollmentId }
+    )
+    const interviewIds = occurrenceInterviews.map(row => row.interview_id).filter(Boolean)
+
+    await tx.query(
+      `DELETE FROM email_outbox_jobs
+       WHERE event_key LIKE @eventKey`,
+      { eventKey: `monthly_occurrence_${enrollmentId}_%` }
+    )
+    await tx.query(
+      `DELETE FROM assignment_requests
+       WHERE enrollment_id = @enrollmentId`,
+      { enrollmentId }
+    )
+
+    if (interviewIds.length > 0) {
+      await tx.query(`DELETE FROM email_deliveries WHERE interview_id = ANY(@interviewIds)`, { interviewIds })
+      await tx.query(`DELETE FROM report_jobs WHERE interview_id = ANY(@interviewIds)`, { interviewIds })
+      await tx.query(`DELETE FROM reports WHERE interview_id = ANY(@interviewIds)`, { interviewIds })
+      await tx.query(`DELETE FROM scorecards WHERE interview_id = ANY(@interviewIds)`, { interviewIds })
+      await tx.query(`DELETE FROM transcripts WHERE interview_id = ANY(@interviewIds)`, { interviewIds })
+      await tx.query(`DELETE FROM interviews WHERE id = ANY(@interviewIds)`, { interviewIds })
+    }
+
+    await tx.query(
+      `DELETE FROM monthly_assessment_occurrences
+       WHERE enrollment_id = @enrollmentId`,
+      { enrollmentId }
+    )
+
+    const deleted = await tx.query(
+      `DELETE FROM monthly_assessment_enrollments
+       WHERE id = @enrollmentId
+       RETURNING *`,
+      { enrollmentId }
+    )
+
+    return { ...deleted[0], subject_name: enrollment.subject_name, deleted: true }
+  })
+}
+
 module.exports = {
   getAssignmentRequest,
   createAssignmentRequest,
@@ -353,5 +416,5 @@ module.exports = {
   create, createEnrollment, createWithEnrollments, createTemplate, createEnrollments,
   getByManager, getByIdForManager,
   getEnrollmentsByAssessment, getEnrollmentsByManager,
-  getCalendarByManager, updateEnrollmentInterview, cancelEnrollment,
+  getCalendarByManager, updateEnrollmentInterview, cancelEnrollment, deleteEnrollment,
 }

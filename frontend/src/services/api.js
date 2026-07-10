@@ -389,8 +389,9 @@ export const assignMonthlyAssessment = (id, data) =>
     method: 'POST',
     body: JSON.stringify(data),
   })
-export const cancelMonthlyEnrollment = id =>
+export const removeMonthlyEnrollment = id =>
   request(`/api/assessments/monthly/enrollments/${id}`, { method: 'DELETE' })
+export const cancelMonthlyEnrollment = removeMonthlyEnrollment
 export const generateSubtopics = data =>
   request('/api/assessments/monthly/generate-subtopics', {
     method: 'POST',

@@ -49,7 +49,6 @@ function normalizeWindow(body, fallbackDurationMinutes) {
 
   const startDate = new Date(startValue)
   if (Number.isNaN(startDate.getTime())) throw new Error('Assessment date is invalid')
-  if (startDate <= new Date()) throw new Error('Assessment date must be in the future')
 
   const dueValue = String(body.due_at || body.dueAt || '').trim()
   const dueAt = dueValue
@@ -367,7 +366,6 @@ async function getMonthPlan(managerId, monthValue) {
     teamMemberRepository.getByManager(managerId),
   ])
   const activeEnrollments = enrollments.filter(enrollment => {
-    if (enrollment.status === 'cancelled') return false
     const index = monthIndexForDate(enrollment.start_date, year, monthIndex)
     const progress = parseArray(enrollment.month_progress)
     const assessment = assessments.find(item => item.id === enrollment.assessment_id)
@@ -375,7 +373,9 @@ async function getMonthPlan(managerId, monthValue) {
     return index >= 0 && index < duration
   })
   const assignedTeamMemberIds = new Set(
-    activeEnrollments.map(enrollment => Number(enrollment.team_member_id))
+    activeEnrollments
+      .filter(e => e.status !== 'cancelled')
+      .map(enrollment => Number(enrollment.team_member_id))
   )
   const byAssessment = new Map()
   for (const enrollment of activeEnrollments) {
@@ -405,12 +405,22 @@ async function cancelEnrollment(enrollmentId, managerId) {
   return enrollment
 }
 
+async function deleteEnrollment(enrollmentId, managerId) {
+  const enrollment = await monthlyAssessmentRepository.deleteEnrollment(
+    Number(enrollmentId),
+    managerId
+  )
+  if (!enrollment) throw new Error('Monthly enrollment not found')
+  return enrollment
+}
+
 module.exports = {
   createAssessment,
   assignCandidates,
   getAssessments,
   getMonthPlan,
   cancelEnrollment,
+  deleteEnrollment,
   parseArray,
   addMonths,
   monthIndexForDate,
