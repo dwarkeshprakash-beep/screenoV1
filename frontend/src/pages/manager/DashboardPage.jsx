@@ -80,7 +80,7 @@ function DashboardPage() {
       </div>
 
       {/* Bottom row — flex:1 so it fills remaining viewport height */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(20rem, 1fr))', gap: '1rem', flex: 1, minHeight: 0 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(20rem, 1fr))', gap: '1rem', flex: 1, minHeight: 0, maxHeight: '50vh' }}>
 
         {/* Assessment flow */}
         <div style={{ ...card, display: 'flex', flexDirection: 'column' }}>

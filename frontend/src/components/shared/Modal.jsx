@@ -70,9 +70,6 @@ function Modal({ open, onClose, title, children, size = 'md' }) {
       aria-modal="true"
       aria-labelledby="modal-title"
       className="product-modal-backdrop"
-      onMouseDown={event => {
-        if (event.target === event.currentTarget) onClose()
-      }}
     >
       <div className={`product-modal product-modal--${size}`} ref={modalRef}>
         <div className="product-modal__header">
