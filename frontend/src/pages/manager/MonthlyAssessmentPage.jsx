@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   AlertCircle,
   ArrowRight,
+  Ban,
   BookOpen,
   CalendarDays,
   ChevronLeft,
@@ -11,7 +12,6 @@ import {
   Plus,
   Search,
   Sparkles,
-  Trash2,
   UserPlus,
   Users,
 } from 'lucide-react'
@@ -21,6 +21,7 @@ import Button from '../../components/shared/Button'
 import EmptyState from '../../components/shared/EmptyState'
 import ErrorMessage from '../../components/shared/ErrorMessage'
 import Modal from '../../components/shared/Modal'
+import ConfirmDialog from '../../components/shared/ConfirmDialog'
 import Spinner from '../../components/shared/Spinner'
 import * as api from '../../services/api'
 import { parseStoredArray } from '../../utils/helpers'
@@ -306,11 +307,13 @@ function WizardModal({ open, onClose, onDone }) {
 }
 
 function SubjectDetailModal({ assessment, open, onClose, onAssign }) {
+  const [showHistory, setShowHistory] = useState(false)
   if (!assessment) return null
 
   const topics = parseStoredArray(assessment.sub_topics)
   const enrollments = assessment.enrollments || []
   const activeEnrollments = enrollments.filter(item => item.status !== 'cancelled')
+  const visibleEnrollments = showHistory ? enrollments : activeEnrollments
 
   return (
     <Modal open={open} onClose={onClose} title={assessment.subject_name} size="lg">
@@ -377,11 +380,16 @@ function SubjectDetailModal({ assessment, open, onClose, onAssign }) {
             <div className="workspace-section-heading" style={{ marginBottom: 10 }}>
               <div>
                 <h3 style={{ fontSize: 15 }}>Assignment history</h3>
-                <p>Every candidate previously assigned to this subject.</p>
+                <p>{showHistory ? 'Every candidate previously assigned to this subject.' : 'Active candidate assignments for this subject.'}</p>
               </div>
+              {enrollments.length !== activeEnrollments.length && (
+                <Button size="sm" variant="secondary" onClick={() => setShowHistory(value => !value)}>
+                  {showHistory ? 'Hide cancelled' : 'Show all'}
+                </Button>
+              )}
             </div>
             <div className="assignment-list">
-              {enrollments.map(enrollment => {
+              {visibleEnrollments.map(enrollment => {
                 const name = `${enrollment.first_name || ''} ${enrollment.last_name || ''}`.trim()
                 return (
                   <div className="assignment-row" key={enrollment.id}>
@@ -427,6 +435,7 @@ function MonthlyAssessmentPage() {
   const [selectedAssessment, setSelectedAssessment] = useState(null)
   const [assignAssessment, setAssignAssessment] = useState(null)
   const [cancellingEnrollmentId, setCancellingEnrollmentId] = useState(null)
+  const [confirmDialog, setConfirmDialog] = useState({ open: false, title: '', message: '', onConfirm: () => {} })
 
   const loadAll = useCallback(async () => {
     setLoading(true)
@@ -465,20 +474,27 @@ function MonthlyAssessmentPage() {
     await Promise.all([loadAll(), loadPlan()])
   }
 
-  async function cancelEnrollment(enrollment) {
+  function cancelEnrollment(enrollment) {
     const name = `${enrollment.first_name || ''} ${enrollment.last_name || ''}`.trim()
-    if (!window.confirm(`Cancel ${name}'s ${enrollment.subject_name || 'monthly assessment'} plan?`)) return
-
-    setCancellingEnrollmentId(enrollment.id)
-    setPlanError(null)
-    try {
-      await api.cancelMonthlyEnrollment(enrollment.id)
-      await refreshAll()
-    } catch (cancelError) {
-      setPlanError(cancelError.message || 'Could not cancel the monthly assessment.')
-    } finally {
-      setCancellingEnrollmentId(null)
-    }
+    setConfirmDialog({
+      open: true,
+      title: 'Cancel Assessment',
+      message: `Cancel ${name}'s ${enrollment.subject_name || 'monthly assessment'} plan?`,
+      danger: true,
+      confirmText: 'Cancel Plan',
+      onConfirm: async () => {
+        setCancellingEnrollmentId(enrollment.id)
+        setPlanError(null)
+        try {
+          await api.cancelMonthlyEnrollment(enrollment.id)
+          await refreshAll()
+        } catch (cancelError) {
+          setPlanError(cancelError.message || 'Could not cancel the monthly assessment.')
+        } finally {
+          setCancellingEnrollmentId(null)
+        }
+      }
+    })
   }
 
   const visibleAssessments = useMemo(() => {
@@ -735,7 +751,7 @@ function MonthlyAssessmentPage() {
                                     onClick={() => cancelEnrollment({ ...candidate, subject_name: subject.subject_name })}
                                     aria-label={`Cancel ${name}'s assignment`}
                                   >
-                                    <Trash2 size={14} />
+                                    <Ban size={14} />
                                   </button>
                                 </div>
                               )
@@ -882,6 +898,15 @@ function MonthlyAssessmentPage() {
           setSelectedAssessment(null)
           setAssignAssessment(assessment)
         }}
+      />
+      <ConfirmDialog
+        open={confirmDialog.open}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        danger={confirmDialog.danger}
+        confirmText={confirmDialog.confirmText}
+        onClose={() => setConfirmDialog(prev => ({ ...prev, open: false }))}
+        onConfirm={confirmDialog.onConfirm}
       />
     </div>
   )

@@ -3,33 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import { Eye, EyeOff } from 'lucide-react'
 import * as api from '../../services/api'
 
-const DEFAULT_DEMO_ACCOUNTS = [
-  {
-    role: 'manager',
-    name: 'Kiran Oza',
-    sub: 'Manager - Prakash Infotech',
-    initials: 'KO',
-    bgColor: '#EDE9FE',
-    fgColor: '#5B21B6',
-    badgeBg: '#3730A3',
-    badgeFg: '#C7D2FE',
-    email: 'kiran.oza@prakashinfotech.com',
-    password: 'Test@1234',
-  },
-  {
-    role: 'candidate',
-    name: 'Dwarkesh Vajjala',
-    sub: 'Candidate - Prakash Infotech',
-    initials: 'DV',
-    bgColor: '#ECFDF5',
-    fgColor: '#065F46',
-    badgeBg: '#047857',
-    badgeFg: '#A7F3D0',
-    email: 'dwarkesh.vajjala@prakashinfotech.com',
-    password: 'Test@1234',
-  },
-]
-
 function initialsFor(account) {
   const source = account.name || account.email || account.role || 'U'
   return source
@@ -63,12 +36,14 @@ function parseDemoAccounts() {
   }
 }
 
+const SHOW_DEMO_ACCOUNTS = import.meta.env.VITE_SHOW_DEMO_ACCOUNTS === 'true'
 const configuredDemoAccounts = parseDemoAccounts()
-const DEMO_ACCOUNTS = configuredDemoAccounts.length > 0 ? configuredDemoAccounts : DEFAULT_DEMO_ACCOUNTS
+const DEMO_ACCOUNTS = SHOW_DEMO_ACCOUNTS ? configuredDemoAccounts : []
 
 function roleRedirect(role) {
   if (role === 'manager') return '/manager/dashboard'
   if (role === 'candidate') return '/candidate/dashboard'
+  if (role === 'admin') return '/admin/dashboard'
   return '/login'
 }
 
@@ -93,7 +68,7 @@ function LoginPage() {
     setLoading(true)
     try {
       const result = await api.login(loginEmail, loginPassword)
-      if (!['manager', 'candidate'].includes(result.data.user.role)) {
+      if (!['manager', 'candidate', 'admin'].includes(result.data.user.role)) {
         throw new Error('This account type is paused in Screeno V2.')
       }
       localStorage.setItem('accessToken', result.data.accessToken)

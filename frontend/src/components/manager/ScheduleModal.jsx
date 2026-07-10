@@ -4,6 +4,7 @@ import Modal from '../shared/Modal'
 import Button from '../shared/Button'
 import Avatar from '../shared/Avatar'
 import * as api from '../../services/api'
+import { serializeDatetimeLocal } from '../../utils/helpers'
 
 const STEPS = ['Type', 'Configure', 'Candidates', 'Confirm']
 const TYPES = [
@@ -192,6 +193,15 @@ function ScheduleModal({
       setError('Choose the scheduled date and time.')
       return
     }
+    const parsedScheduled = serializeDatetimeLocal(scheduledAt)
+    if (step === 2 && !parsedScheduled) {
+      setError('Invalid date and time.')
+      return
+    }
+    if (step === 2 && new Date(parsedScheduled) < new Date()) {
+      setError('Scheduled time must be in the future.')
+      return
+    }
     if (step === 2 && (!Number.isInteger(questionCount) || questionCount < 1 || questionCount > 50)) {
       setError('Question count must be between 1 and 50.')
       return
@@ -223,8 +233,9 @@ function ScheduleModal({
           difficulty,
           questionCount,
           durationMinutes: ['ai_voice', 'exam'].includes(type) ? durationMinutes : null,
-          scheduledAt,
-          assessmentDate: scheduledAt,
+          scheduledAt: serializeDatetimeLocal(scheduledAt),
+          scheduleTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          assessmentDate: serializeDatetimeLocal(scheduledAt),
           reportUserIds: Array.from(reportUserIds),
           clientTemplateId: context?.clientTemplateId,
           monthlyAssessmentId: context?.monthlyAssessmentId,

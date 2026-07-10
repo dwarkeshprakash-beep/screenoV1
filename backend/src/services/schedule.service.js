@@ -32,7 +32,7 @@ async function createSchedule(data, managerId, companyId) {
   if (!data.userId && !data.teamMemberId && !data.candidateId) {
     throw new Error('userId or candidateId is required')
   }
-  if (!['ai_voice', 'exam', 'human'].includes(data.type)) throw new Error('Invalid interview type')
+  if (!['ai_voice', 'exam', 'human', 'offline'].includes(data.type)) throw new Error('Invalid interview type')
   if (!['simple', 'adaptive'].includes(data.interviewMode)) {
     throw new Error('Invalid interview mode')
   }
@@ -49,8 +49,14 @@ async function createSchedule(data, managerId, companyId) {
     throw new Error('Duration must be an integer between 15 and 180 minutes')
   }
   const scheduledAt = data.scheduledAt ? new Date(data.scheduledAt) : null
-  if (data.scheduledAt && Number.isNaN(scheduledAt.getTime())) {
+  if (!scheduledAt) {
+    throw new Error('scheduledAt is required')
+  }
+  if (Number.isNaN(scheduledAt.getTime())) {
     throw new Error('Invalid scheduled date and time')
+  }
+  if (scheduledAt <= new Date()) {
+    throw new Error('Scheduled time must be in the future')
   }
   await validateContext(data, managerId)
 
@@ -102,10 +108,25 @@ async function createSchedule(data, managerId, companyId) {
     ...reportUsers.map(user => user.email),
   ].filter(Boolean))]
 
+  const finalDurationMinutes = data.type === 'exam'
+    ? (requestedDuration || Math.min(90, Math.max(15, questionCount * 4)))
+    : data.type === 'ai_voice'
+      ? (requestedDuration || 25)
+    : (requestedDuration || 60)
+
+  let availableFrom = null
+  let dueAt = null
+  if (scheduledAt) {
+    availableFrom = scheduledAt.toISOString()
+    dueAt = new Date(scheduledAt.getTime() + finalDurationMinutes * 60000).toISOString()
+  }
+
   const token = crypto.randomBytes(32).toString('hex')
   const tokenHash = crypto.createHash('sha256').update(token).digest('hex')
   const windowDays = 7
-  const tokenExpires = new Date(Date.now() + windowDays * 24 * 60 * 60 * 1000)
+  const tokenExpires = dueAt 
+    ? new Date(new Date(dueAt).getTime() + windowDays * 24 * 60 * 60 * 1000)
+    : new Date(Date.now() + windowDays * 24 * 60 * 60 * 1000)
 
   const interview = await interviewRepository.create({
     managerId,
@@ -115,27 +136,31 @@ async function createSchedule(data, managerId, companyId) {
     interviewMode: data.type === 'exam' ? 'simple' : data.interviewMode,
     difficulty: data.difficulty || 'medium',
     questionCount,
-    durationMinutes: data.type === 'exam'
-      ? (requestedDuration || Math.min(90, Math.max(15, questionCount * 4)))
-      : data.type === 'ai_voice'
-        ? (requestedDuration || 25)
-        : null,
+    durationMinutes: finalDurationMinutes,
     tokenHash,
     tokenExpires,
     scheduledAt: scheduledAt ? scheduledAt.toISOString() : null,
+    scheduleTimezone: data.scheduleTimezone || null,
+    availableFrom,
+    dueAt,
     clientTemplateId: data.clientTemplateId || null,
     monthlyAssessmentId: data.monthlyAssessmentId || null,
+    clientTeamId: data.clientTeamId || null,
+    location: data.location || null,
+    meetingUrl: data.meetingUrl || null,
     reportEmails: reportEmails.join(',') || null,
   })
 
-  finishScheduleSetup({
+  if (!data.monthlyAssessmentId) {
+    finishScheduleSetup({
     interview,
     candidateEmail,
     candidateName,
     data,
     token,
     windowDays,
-  }).catch(err => console.error('finishScheduleSetup failed:', err))
+    }).catch(err => console.error('finishScheduleSetup failed:', err))
+  }
 
   return {
     ...interview,
@@ -156,15 +181,27 @@ async function finishScheduleSetup({
   let inviteSent = false
   let inviteFailure = null
   try {
-    await emailService.sendMagicLink(candidateEmail, {
-      candidateName,
-      interviewToken: token,
-      companyName: data.companyName || 'Your company',
-      jobTitle: data.jobTitle || 'Assessment',
-      windowDays,
-      assessmentDate: data.assessmentDate || null,
-      details: data.details || null,
-    })
+    if (data.type === 'offline') {
+      await emailService.sendOfflineInterviewInvite(candidateEmail, {
+        candidateName,
+        clientName: data.companyName || data.clientName || 'Your company',
+        role: data.jobTitle || 'Interview',
+        scheduledAt: data.assessmentDate || data.scheduledAt || null,
+        location: data.location || null,
+        notes: data.details || null,
+      })
+    } else {
+      await emailService.sendMagicLink(candidateEmail, {
+        candidateName,
+        interviewToken: token,
+        companyName: data.companyName || 'Your company',
+        jobTitle: data.jobTitle || 'Assessment',
+        windowDays,
+        assessmentDate: data.assessmentDate || null,
+        scheduleTimezone: data.scheduleTimezone || null,
+        details: data.details || null,
+      })
+    }
     inviteSent = true
   } catch (err) {
     inviteFailure = err.message
@@ -181,16 +218,38 @@ async function finishScheduleSetup({
   }
 }
 
-async function getCalendarEvents(managerId) {
+function weekBounds(weekValue) {
+  if (!weekValue) return null
+  const start = new Date(weekValue)
+  if (Number.isNaN(start.getTime())) return null
+  start.setUTCHours(0, 0, 0, 0)
+  const end = new Date(start)
+  end.setUTCDate(end.getUTCDate() + 7)
+  return { start, end }
+}
+
+async function getCalendarEvents(managerId, weekValue = null) {
   const interviews = await interviewRepository.getByManager(managerId)
-  return interviews.map(interview => ({
+  const bounds = weekBounds(weekValue)
+  return interviews
+    .filter(interview => {
+      if (!bounds) return true
+      const startValue = interview.available_from || interview.scheduled_at || interview.created
+      const start = new Date(startValue)
+      return !Number.isNaN(start.getTime()) && start >= bounds.start && start < bounds.end
+    })
+    .map(interview => ({
     id: interview.id,
     type: interview.type,
     candidateName: `${interview.candidate_first || ''} ${interview.candidate_last || ''}`.trim(),
     status: interview.status,
     result: interview.result,
-    start: interview.scheduled_at || interview.created,
+    start: interview.available_from || interview.scheduled_at || interview.created,
     scheduledAt: interview.scheduled_at || null,
+    scheduled_at: interview.scheduled_at || null,
+    available_from: interview.available_from || null,
+    due_at: interview.due_at || null,
+    schedule_timezone: interview.schedule_timezone || null,
     duration_minutes: interview.duration_minutes || null,
     durationMinutes: interview.duration_minutes || null,
     created: interview.created,
@@ -234,6 +293,8 @@ async function resendMagicLink(interviewId, managerId) {
       companyName: '',
       jobTitle: 'Assessment',
       windowDays,
+      assessmentDate: interview.scheduled_at || null,
+      scheduleTimezone: interview.schedule_timezone || null,
     })
     inviteSent = true
   } catch (err) {
@@ -267,6 +328,106 @@ async function getAvailableSlots(token) {
   }
 }
 
+
+async function getInterviewDetails(interviewId, managerId) {
+  const interview = await interviewRepository.getById(interviewId)
+  if (!interview) throw new Error('Interview not found')
+  if (Number(interview.manager_id) !== Number(managerId)) throw new Error('Forbidden')
+  return interview
+}
+
+async function cancelInterview(interviewId, managerId) {
+  const interview = await interviewRepository.getById(interviewId)
+  if (!interview) throw new Error('Interview not found')
+  if (Number(interview.manager_id) !== Number(managerId)) throw new Error('Forbidden')
+  if (interview.status === 'completed') throw new Error('Cannot cancel an interview that is already completed')
+
+  await interviewRepository.updateStatus(interviewId, 'cancelled')
+  
+  // revoke tokens
+  await interviewRepository.updateTokenHash(interviewId, 'revoked', new Date(0))
+
+  return { status: 'cancelled' }
+}
+
+async function rescheduleInterview(interviewId, managerId, data) {
+  const interview = await interviewRepository.getById(interviewId)
+  if (!interview) throw new Error('Interview not found')
+  if (Number(interview.manager_id) !== Number(managerId)) throw new Error('Forbidden')
+  if (interview.status === 'completed') throw new Error('Cannot reschedule an interview that is already completed')
+  
+  if (!data.scheduledAt) throw new Error('scheduledAt is required for rescheduling')
+
+  const scheduledAt = new Date(data.scheduledAt)
+  if (Number.isNaN(scheduledAt.getTime())) {
+    throw new Error('Invalid scheduled date and time')
+  }
+  if (scheduledAt <= new Date()) {
+    throw new Error('Scheduled time must be in the future')
+  }
+
+  const durationMinutes = Number(interview.duration_minutes) || 60
+  const finalDurationMinutes = durationMinutes
+
+  let availableFrom = null
+  let dueAt = null
+  availableFrom = scheduledAt.toISOString()
+  if (interview.type === 'ai_voice' || interview.type === 'exam') {
+    dueAt = new Date(scheduledAt.getTime() + finalDurationMinutes * 60000).toISOString()
+  } else if (interview.type === 'human') {
+    dueAt = new Date(scheduledAt.getTime() + finalDurationMinutes * 60000).toISOString()
+  }
+
+  const newToken = crypto.randomBytes(32).toString('hex')
+  const newTokenHash = crypto.createHash('sha256').update(newToken).digest('hex')
+  const windowDays = 7
+  const tokenExpires = dueAt 
+    ? new Date(new Date(dueAt).getTime() + windowDays * 24 * 60 * 60 * 1000)
+    : new Date(Date.now() + windowDays * 24 * 60 * 60 * 1000)
+
+  await interviewRepository.updateSchedule(interviewId, {
+    scheduledAt: scheduledAt.toISOString(),
+    scheduleTimezone: data.scheduleTimezone || null,
+    availableFrom,
+    dueAt,
+    tokenHash: newTokenHash,
+    tokenExpires
+  })
+
+  // Re-send magic link
+  const candidateEmail = interview.candidate_email
+  const candidateName = `${interview.candidate_first || ''} ${interview.candidate_last || ''}`.trim()
+
+  let inviteSent = false
+  let inviteFailure = null
+  try {
+    await emailService.sendMagicLink(candidateEmail, {
+      candidateName,
+      interviewToken: newToken,
+      companyName: '',
+      jobTitle: 'Assessment (Rescheduled)',
+      windowDays,
+      assessmentDate: scheduledAt.toISOString(),
+      scheduleTimezone: data.scheduleTimezone || null,
+    })
+    inviteSent = true
+  } catch (err) {
+    inviteFailure = err.message
+    console.error('sendMagicLink (reschedule) failed:', err)
+  }
+
+  await emailDeliveryRepository.create({
+    kind: 'magic_link_reschedule',
+    interviewId,
+    intendedTo: candidateEmail,
+    deliveredTo: emailService.getDeliveredRecipients(candidateEmail).join(','),
+    status: inviteSent ? 'sent' : 'failed',
+    error: inviteFailure,
+  }).catch(err => console.error('resend delivery log failed:', err.message))
+
+  return { status: 'rescheduled' }
+}
+
 module.exports = {
   createSchedule,
   getCalendarEvents,
@@ -274,4 +435,7 @@ module.exports = {
   getEmailDeliveries,
   resendMagicLink,
   getAvailableSlots,
+  getInterviewDetails,
+  cancelInterview,
+  rescheduleInterview,
 }

@@ -47,25 +47,37 @@ router.post('/login', async (req, res) => {
 router.post('/refresh', async (req, res) => {
   try {
     const rawRefresh = req.cookies[COOKIE_NAME]
+    if (!rawRefresh) {
+      return res.status(401).json({ success: false, error: 'NO_REFRESH_TOKEN', message: 'No refresh token provided.' })
+    }
     const { accessToken, refreshToken, user } = await authService.refresh(rawRefresh)
-    res.cookie(COOKIE_NAME, refreshToken, COOKIE_OPTIONS)
+    
+    if (refreshToken) {
+      res.cookie(COOKIE_NAME, refreshToken, COOKIE_OPTIONS)
+    }
+    // If refreshToken is null, we are in a grace period for a rotated token, 
+    // so we just return the new accessToken and leave the cookie alone.
+
     res.json({ success: true, data: { accessToken, user } })
   } catch (err) {
-    console.error('POST /auth/refresh failed:', err)
+    console.error('POST /auth/refresh failed:', err.message)
     res.clearCookie(COOKIE_NAME, COOKIE_OPTIONS)
-    res.status(401).json({ success: false, error: 'Session expired. Please log in again.' })
+    const errCode = err.message.includes('reuse') ? 'TOKEN_REUSE' : 'SESSION_EXPIRED'
+    res.status(401).json({ success: false, error: errCode, message: err.message || 'Session expired. Please log in again.' })
   }
 })
 
 // POST /api/auth/logout
-router.post('/logout', authMiddleware, async (req, res) => {
+router.post('/logout', async (req, res) => {
   try {
     const rawRefresh = req.cookies[COOKIE_NAME]
-    await authService.logout(rawRefresh)
+    if (rawRefresh) {
+      await authService.logout(rawRefresh)
+    }
     res.clearCookie(COOKIE_NAME, COOKIE_OPTIONS)
     res.json({ success: true, data: null })
   } catch (err) {
-    console.error('POST /auth/logout failed:', err)
+    console.error('POST /auth/logout failed:', err.message)
     res.clearCookie(COOKIE_NAME, COOKIE_OPTIONS)
     res.json({ success: true, data: null }) // logout always succeeds from user perspective
   }
@@ -108,25 +120,66 @@ router.post('/reset-password', async (req, res) => {
   }
 })
 
-// POST /api/auth/magic-link/:token
-router.post('/magic-link/:token', async (req, res) => {
+// GET /api/auth/magic-link/:token
+router.get('/magic-link/:token', async (req, res) => {
   try {
     const { token } = req.params
     if (!token) return res.status(400).json({ success: false, error: 'Token is required' })
 
-    const result = await authService.validateMagicLink(token)
+    const result = await authService.previewMagicLink(token)
     res.json({ success: true, data: result })
   } catch (err) {
-    console.error('POST /auth/magic-link failed:', err)
-    const msg = err.message || 'Could not validate link'
-    // Surface specific errors for the candidate (expired, already done)
-    if (['Link has expired', 'Interview already completed', 'Invalid link'].includes(msg)) {
+    console.error('GET /auth/magic-link failed:', err)
+    const msg = err.message || 'Could not preview link'
+    if (['Link has expired', 'Interview already completed', 'Interview has been cancelled', 'Invalid link'].includes(msg)) {
       return res.status(400).json({ success: false, error: msg })
     }
     if (['INTERVIEW_NOT_OPEN', 'INTERVIEW_WINDOW_EXPIRED'].includes(err.code)) {
       return res.status(409).json({ success: false, error: msg, data: err.data || null })
     }
-    res.status(500).json({ success: false, error: 'Could not validate link' })
+    res.status(500).json({ success: false, error: 'Could not preview link' })
+  }
+})
+
+// POST /api/auth/magic-link/:token/claim
+router.post('/magic-link/:token/claim', async (req, res) => {
+  try {
+    const { token } = req.params
+    if (!token) return res.status(400).json({ success: false, error: 'Token is required' })
+
+    const result = await authService.claimMagicLink(token)
+    res.json({ success: true, data: result })
+  } catch (err) {
+    console.error('POST /auth/magic-link/claim failed:', err)
+    const msg = err.message || 'Could not claim link'
+    if (['Link has expired', 'Interview already completed', 'Interview has been cancelled', 'Invalid link'].includes(msg)) {
+      return res.status(400).json({ success: false, error: msg })
+    }
+    if (['INTERVIEW_NOT_OPEN', 'INTERVIEW_WINDOW_EXPIRED'].includes(err.code)) {
+      return res.status(409).json({ success: false, error: msg, data: err.data || null })
+    }
+    res.status(500).json({ success: false, error: 'Could not claim link' })
+  }
+})
+
+// Legacy compatibility: older clients claimed magic links with POST /magic-link/:token.
+router.post('/magic-link/:token', async (req, res) => {
+  try {
+    const { token } = req.params
+    if (!token) return res.status(400).json({ success: false, error: 'Token is required' })
+
+    const result = await authService.claimMagicLink(token)
+    res.json({ success: true, data: result })
+  } catch (err) {
+    console.error('POST /auth/magic-link failed:', err)
+    const msg = err.message || 'Could not claim link'
+    if (['Link has expired', 'Interview already completed', 'Interview has been cancelled', 'Invalid link'].includes(msg)) {
+      return res.status(400).json({ success: false, error: msg })
+    }
+    if (['INTERVIEW_NOT_OPEN', 'INTERVIEW_WINDOW_EXPIRED'].includes(err.code)) {
+      return res.status(409).json({ success: false, error: msg, data: err.data || null })
+    }
+    res.status(500).json({ success: false, error: 'Could not claim link' })
   }
 })
 

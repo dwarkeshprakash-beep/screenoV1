@@ -1,5 +1,5 @@
-import { lazy, Suspense } from 'react'
-import { Navigate, Route, Routes } from 'react-router-dom'
+import { lazy, Suspense, useEffect } from 'react'
+import { Navigate, Route, Routes, useNavigate, useLocation } from 'react-router-dom'
 import AppLayout from './components/layout/AppLayout'
 import CandidateLayout from './components/layout/CandidateLayout'
 import CandidateDashboardLayout from './components/layout/CandidateDashboardLayout'
@@ -27,6 +27,62 @@ const CandidateProfilePage = lazy(() => import('./pages/candidate/CandidateProfi
 const CandidateMandatesPage = lazy(() => import('./pages/candidate/CandidateMandatesPage'))
 const CandidateMonthlyPage = lazy(() => import('./pages/candidate/CandidateMonthlyPage'))
 const CandidateFeedbackPage = lazy(() => import('./pages/candidate/CandidateFeedbackPage'))
+const CandidateClientOutcomesPage = lazy(() => import('./pages/candidate/CandidateClientOutcomesPage'))
+
+// Admin Pages
+const AdminDashboardPage = lazy(() => import('./pages/admin/AdminDashboardPage'))
+const AdminMandatesPage = lazy(() => import('./pages/admin/AdminMandatesPage'))
+const AdminInterviewsPage = lazy(() => import('./pages/admin/AdminInterviewsPage'))
+const AdminBrokenStatesPage = lazy(() => import('./pages/admin/AdminBrokenStatesPage'))
+
+function AuthProvider({ children }) {
+  const navigate = useNavigate()
+  const location = useLocation()
+  
+  useEffect(() => {
+    const channel = new BroadcastChannel('auth_channel')
+    
+    const handleAuthExpired = () => {
+      if (location.pathname !== '/login' && !location.pathname.startsWith('/interview/')) {
+        navigate('/login', { replace: true })
+      }
+    }
+    
+    channel.onmessage = (event) => {
+      if (event.data === 'auth_expired' || event.data === 'logout') {
+        handleAuthExpired()
+      } else if (event.data === 'login') {
+        if (location.pathname === '/login') {
+          navigate('/', { replace: true })
+        }
+      }
+    }
+    
+    const onAuthExpired = () => {
+      channel.postMessage('auth_expired')
+      handleAuthExpired()
+    }
+    
+    const onUserLogin = () => channel.postMessage('login')
+    const onUserLogout = () => {
+      channel.postMessage('logout')
+      handleAuthExpired()
+    }
+    
+    window.addEventListener('auth_expired', onAuthExpired)
+    window.addEventListener('user_login', onUserLogin)
+    window.addEventListener('user_logout', onUserLogout)
+    
+    return () => {
+      channel.close()
+      window.removeEventListener('auth_expired', onAuthExpired)
+      window.removeEventListener('user_login', onUserLogin)
+      window.removeEventListener('user_logout', onUserLogout)
+    }
+  }, [navigate, location.pathname])
+  
+  return children
+}
 
 function RequireAuth({ children, role }) {
   const token = localStorage.getItem('accessToken')
@@ -47,56 +103,71 @@ function RequireAuth({ children, role }) {
 
 function App() {
   return (
-    <Suspense fallback={<Spinner center />}>
-      <Routes>
-        <Route path="/login" element={<LoginPage />} />
+    <AuthProvider>
+      <Suspense fallback={<Spinner center />}>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
 
-      <Route
-        path="/manager"
-        element={<RequireAuth role="manager"><AppLayout role="manager" /></RequireAuth>}
-      >
-        <Route index element={<Navigate to="dashboard" replace />} />
-        <Route path="dashboard" element={<DashboardPage />} />
-        <Route path="team" element={<TeamPage />} />
-        <Route path="team/:id" element={<MemberProfilePage />} />
-        <Route path="monthly" element={<MonthlyAssessmentPage />} />
-        <Route path="monthly/plan" element={<Navigate to="/manager/monthly" replace />} />
-        <Route path="clients" element={<ClientInterviewsPage />} />
-        <Route path="schedule" element={<SchedulePage />} />
-        <Route path="reports" element={<ReportsPage />} />
-        <Route path="resume-analyzer" element={<ResumeAnalyzerPage />} />
-        <Route path="profile" element={<ManagerProfilePage />} />
-      </Route>
+          <Route
+            path="/manager"
+            element={<RequireAuth role="manager"><AppLayout role="manager" /></RequireAuth>}
+          >
+            <Route index element={<Navigate to="dashboard" replace />} />
+            <Route path="dashboard" element={<DashboardPage />} />
+            <Route path="team" element={<TeamPage />} />
+            <Route path="team/:id" element={<MemberProfilePage />} />
+            <Route path="organization/:userId" element={<MemberProfilePage />} />
+            <Route path="monthly" element={<MonthlyAssessmentPage />} />
+            <Route path="monthly/plan" element={<Navigate to="/manager/monthly" replace />} />
+            <Route path="clients" element={<ClientInterviewsPage />} />
+            <Route path="schedule" element={<SchedulePage />} />
+            <Route path="reports" element={<ReportsPage />} />
+            <Route path="resume-analyzer" element={<ResumeAnalyzerPage />} />
+            <Route path="profile" element={<ManagerProfilePage />} />
+          </Route>
 
-      <Route
-        path="/candidate"
-        element={<RequireAuth role="candidate"><CandidateLayout /></RequireAuth>}
-      >
-        <Route index element={<Navigate to="overview" replace />} />
-        <Route path="dashboard" element={<Navigate to="/candidate/overview" replace />} />
-        <Route element={<CandidateDashboardLayout />}>
-          <Route path="overview"   element={<CandidateOverviewPage />} />
-          <Route path="interviews" element={<CandidateInterviewsPage />} />
-          <Route path="monthly"    element={<CandidateMonthlyPage />} />
-          <Route path="feedback"   element={<CandidateFeedbackPage />} />
-          <Route path="mandates"   element={<CandidateMandatesPage />} />
-          <Route path="profile"    element={<CandidateProfilePage />} />
-        </Route>
-      </Route>
+          <Route
+            path="/candidate"
+            element={<RequireAuth role="candidate"><CandidateLayout /></RequireAuth>}
+          >
+            <Route index element={<Navigate to="overview" replace />} />
+            <Route path="dashboard" element={<Navigate to="/candidate/overview" replace />} />
+            <Route element={<CandidateDashboardLayout />}>
+              <Route path="overview"   element={<CandidateOverviewPage />} />
+              <Route path="interviews" element={<CandidateInterviewsPage />} />
+              <Route path="monthly"    element={<CandidateMonthlyPage />} />
+              <Route path="feedback"   element={<CandidateFeedbackPage />} />
+              <Route path="mandates"   element={<CandidateMandatesPage />} />
+              <Route path="outcomes"   element={<CandidateClientOutcomesPage />} />
+              <Route path="profile"    element={<CandidateProfilePage />} />
+            </Route>
+          </Route>
 
-      <Route path="/interview/:token" element={<CandidateLayout />}>
-        <Route index element={<InterviewLandingPage />} />
-        <Route path="device-check" element={<DeviceCheckPage />} />
-        <Route path="consent" element={<ConsentPage />} />
-        <Route path="ai" element={<AIInterviewPage />} />
-        <Route path="exam" element={<ExamPage />} />
-        <Route path="done" element={<DonePage />} />
-      </Route>
+          <Route
+            path="/admin"
+            element={<RequireAuth role="admin"><AppLayout role="admin" /></RequireAuth>}
+          >
+            <Route index element={<Navigate to="dashboard" replace />} />
+            <Route path="dashboard" element={<AdminDashboardPage />} />
+            <Route path="mandates" element={<AdminMandatesPage />} />
+            <Route path="interviews" element={<AdminInterviewsPage />} />
+            <Route path="broken-states" element={<AdminBrokenStatesPage />} />
+          </Route>
 
-      <Route path="/" element={<Navigate to="/login" replace />} />
-        <Route path="*" element={<Navigate to="/login" replace />} />
-      </Routes>
-    </Suspense>
+          <Route path="/interview/:token" element={<CandidateLayout />}>
+            <Route index element={<InterviewLandingPage />} />
+            <Route path="device-check" element={<DeviceCheckPage />} />
+            <Route path="consent" element={<ConsentPage />} />
+            <Route path="ai" element={<AIInterviewPage />} />
+            <Route path="exam" element={<ExamPage />} />
+            <Route path="done" element={<DonePage />} />
+          </Route>
+
+          <Route path="/" element={<Navigate to="/login" replace />} />
+          <Route path="*" element={<Navigate to="/login" replace />} />
+        </Routes>
+      </Suspense>
+    </AuthProvider>
   )
 }
 

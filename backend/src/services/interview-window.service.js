@@ -11,7 +11,10 @@ function durationMinutesFor(interview) {
 }
 
 function launchWindow(interview, now = new Date()) {
-  if (!interview?.scheduled_at) {
+  const configuredStart = interview?.available_from || interview?.availableFrom || interview?.scheduled_at || interview?.scheduledAt
+  const configuredEnd = interview?.due_at || interview?.dueAt
+
+  if (!configuredStart) {
     return {
       state: 'open',
       durationMinutes: durationMinutesFor(interview),
@@ -20,12 +23,15 @@ function launchWindow(interview, now = new Date()) {
     }
   }
 
-  const opensAt = new Date(interview.scheduled_at)
+  const opensAt = new Date(configuredStart)
   const durationMinutes = durationMinutesFor(interview)
-  const closesAt = new Date(opensAt.getTime() + durationMinutes * 60 * 1000)
+  const configuredClosesAt = configuredEnd ? new Date(configuredEnd) : null
+  const closesAt = configuredClosesAt && !Number.isNaN(configuredClosesAt.getTime())
+    ? configuredClosesAt
+    : new Date(opensAt.getTime() + durationMinutes * 60 * 1000)
   const nowDate = now instanceof Date ? now : new Date(now)
 
-  if (Number.isNaN(opensAt.getTime())) {
+  if (Number.isNaN(opensAt.getTime()) || Number.isNaN(closesAt.getTime())) {
     return { state: 'open', durationMinutes, opensAt: null, closesAt: null }
   }
   if (nowDate < opensAt) {

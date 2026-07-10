@@ -13,11 +13,28 @@ function InterviewLandingPage() {
   const [loading, setLoading]     = useState(true)
   const [error, setError]         = useState(null)
 
+  const [claiming, setClaiming]   = useState(false)
+
   const validate = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const res = await api.validateMagicLink(token)
+      const res = await api.previewMagicLink(token)
+      setInterview(res.data)
+    } catch (err) {
+      setError(err.message || 'Could not validate this link.')
+    } finally {
+      setLoading(false)
+    }
+  }, [token])
+
+  useEffect(() => { void validate() }, [validate])
+
+  async function handleStart() {
+    setClaiming(true)
+    setError(null)
+    try {
+      const res = await api.claimMagicLink(token)
       const data = res.data
 
       localStorage.setItem('interviewSession', JSON.stringify({
@@ -35,15 +52,12 @@ function InterviewLandingPage() {
         sessionToken: data.sessionToken,
       }))
       localStorage.setItem('interviewAccessToken', data.sessionToken)
-      setInterview({ ...data.interview, launchToken: data.launchToken || token })
+      navigate(`/interview/${data.launchToken || token}/device-check`)
     } catch (err) {
-      setError(err.message || 'Could not validate this link.')
-    } finally {
-      setLoading(false)
+      setError(err.message || 'Could not claim this link.')
+      setClaiming(false)
     }
-  }, [token])
-
-  useEffect(() => { void validate() }, [validate])
+  }
 
   if (loading) return (
     <div style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -66,11 +80,10 @@ function InterviewLandingPage() {
   const typeLabel = interview.type === 'ai_voice'
     ? interview.interviewMode === 'adaptive' ? 'Adaptive AI Voice Interview' : 'AI Voice Interview'
     : ['exam', 'ai_exam'].includes(interview.type) ? 'Assessment Exam' : 'Interview'
-  const companyName = interview.companyName || 'Your Company'
-  const launchToken = interview.launchToken || token
-  const durationLabel = interview.durationMinutes ? `${interview.durationMinutes} minutes` : '~25 minutes'
-  const scheduleLabel = interview.scheduledAt || interview.scheduled_at
-    ? formatDateTime(interview.scheduledAt || interview.scheduled_at)
+  const companyName = interview.companyName || interview.company_name || 'Your Company'
+  const durationLabel = interview.durationMinutes || interview.duration_minutes ? `${interview.durationMinutes || interview.duration_minutes} minutes` : '~25 minutes'
+  const scheduleLabel = interview.scheduledAt || interview.scheduled_at || interview.availableFrom || interview.available_from
+    ? formatDateTime(interview.scheduledAt || interview.scheduled_at || interview.availableFrom || interview.available_from)
     : 'Available now'
 
   return (
@@ -105,12 +118,13 @@ function InterviewLandingPage() {
         </div>
 
         <button
-          onClick={() => navigate(`/interview/${launchToken}/device-check`)}
-          onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-1px)'}
-          onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
-          style={{ width: '100%', padding: '14px 24px', borderRadius: 12, background: 'linear-gradient(135deg,var(--brand-500),var(--brand-600))', color: 'var(--bg-surface)', border: 0, fontSize: 15, fontWeight: 600, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, boxShadow: '0 8px 24px rgba(91,79,233,0.3)', transition: 'all 120ms' }}
+          onClick={handleStart}
+          disabled={claiming}
+          onMouseEnter={e => !claiming && (e.currentTarget.style.transform = 'translateY(-1px)')}
+          onMouseLeave={e => !claiming && (e.currentTarget.style.transform = 'translateY(0)')}
+          style={{ width: '100%', padding: '14px 24px', borderRadius: 12, background: 'linear-gradient(135deg,var(--brand-500),var(--brand-600))', color: 'var(--bg-surface)', border: 0, fontSize: 15, fontWeight: 600, cursor: claiming ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 8, boxShadow: '0 8px 24px rgba(91,79,233,0.3)', transition: 'all 120ms', opacity: claiming ? 0.7 : 1 }}
         >
-          Check your device and start <ArrowRight size={16} />
+          {claiming ? 'Starting...' : 'Check your device and start'} {!claiming && <ArrowRight size={16} />}
         </button>
         <p style={{ fontSize: 12, color: 'var(--slate-400)', margin: '12px 0 0' }}>This takes about 30 seconds. Make sure you are in a quiet place.</p>
       </div>

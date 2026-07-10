@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowRight, Check, Mic, Monitor, Sparkles } from 'lucide-react'
+import * as api from '../../services/api'
 
 function isTokenExpired(token) {
   try {
@@ -34,8 +35,9 @@ function ConsentPage() {
   const navigate = useNavigate()
   const [agreed, setAgreed] = useState(false)
   const [sessionError, setSessionError] = useState(null)
+  const [joining, setJoining] = useState(false)
 
-  function start() {
+  async function start() {
     const accessToken = localStorage.getItem('interviewAccessToken')
     if (!accessToken || isTokenExpired(accessToken)) {
       setSessionError('Your session has expired. Please use your original magic link to start again.')
@@ -47,7 +49,19 @@ function ConsentPage() {
     } catch {
       session = {}
     }
-    navigate(`/interview/${session.token || token}/${session.type === 'exam' ? 'exam' : 'ai'}`)
+    
+    if (session.type === 'human') {
+      setJoining(true)
+      try {
+        const res = await api.joinCandidateInterview(session.interviewId)
+        window.location.href = res.data.meetingUrl
+      } catch (err) {
+        setSessionError(err.message || 'Could not join meeting.')
+        setJoining(false)
+      }
+    } else {
+      navigate(`/interview/${session.token || token}/${session.type === 'exam' ? 'exam' : 'ai'}`)
+    }
   }
 
   return (
@@ -82,8 +96,8 @@ function ConsentPage() {
           {sessionError}
         </div>
       )}
-      <button type="button" disabled={!agreed} onClick={start} style={{ width: '100%', padding: '13px 20px', borderRadius: 10, border: 0, background: agreed ? 'var(--brand-500)' : 'var(--slate-200)', color: agreed ? 'white' : 'var(--slate-400)', cursor: agreed ? 'pointer' : 'not-allowed', fontWeight: 600 }}>
-        Start assessment <ArrowRight size={14} />
+      <button type="button" disabled={!agreed || joining} onClick={start} style={{ width: '100%', padding: '13px 20px', borderRadius: 10, border: 0, background: agreed ? 'var(--brand-500)' : 'var(--slate-200)', color: agreed ? 'white' : 'var(--slate-400)', cursor: agreed && !joining ? 'pointer' : 'not-allowed', fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+        {joining ? 'Joining meeting...' : 'Start assessment'} {!joining && <ArrowRight size={14} />}
       </button>
     </div>
   )

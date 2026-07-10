@@ -192,20 +192,32 @@ async function sendMagicLink(to, {
   jobTitle,
   windowDays,
   assessmentDate,
+  scheduleTimezone,
   details,
 }) {
-  const link = `${process.env.FRONTEND_URL}/interview/${interviewToken}`
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173'
+  const portalLink = `${frontendUrl}/candidate/interviews`
   const sender = senderLabel(companyName)
   const dateText = assessmentDate
-    ? new Date(assessmentDate).toLocaleString('en-IN', {
-      dateStyle: 'long',
-      timeStyle: 'short',
-    })
+    ? (() => {
+        try {
+          return new Date(assessmentDate).toLocaleString('en-US', {
+            dateStyle: 'long',
+            timeStyle: 'short',
+            timeZone: scheduleTimezone || undefined
+          }) + (scheduleTimezone ? ` (${scheduleTimezone})` : '')
+        } catch {
+          return new Date(assessmentDate).toLocaleString('en-IN', {
+            dateStyle: 'long',
+            timeStyle: 'short',
+          })
+        }
+      })()
     : null
 
   await sendMail({
     to,
-    subject: `Your interview link - ${jobTitle || 'Assessment'} at ${companyName}`,
+    subject: `Interview scheduled - ${jobTitle || 'Assessment'} at ${companyName}`,
     text: [
       `Hi ${candidateName},`,
       '',
@@ -213,9 +225,9 @@ async function sendMagicLink(to, {
       dateText ? `Assessment date: ${dateText}` : '',
       details ? `Details:\n${details}` : '',
       '',
-      `Interview link: ${link}`,
-      '',
-      `This link is valid for ${windowDays || 7} days.`,
+      'Please log in to your Screeno candidate portal and use the Join/Start button from your interviews page when the interview window opens.',
+      `Candidate portal: ${portalLink}`,
+      windowDays ? `The interview window is available for ${windowDays} days once opened by your manager.` : '',
       `This is an automated email from ${sender}. Please do not reply to this email.`,
     ].join('\n'),
     html: `
@@ -224,16 +236,15 @@ async function sendMagicLink(to, {
         <p>You've been invited to complete an interview for <strong>${jobTitle || 'an assessment'}</strong> at <strong>${companyName}</strong>.</p>
         ${dateText ? `<p><strong>Assessment date:</strong> ${escapeHtml(dateText)}</p>` : ''}
         ${details ? `<div style="background:#F8FAFC;border-left:4px solid #5B4FE9;padding:16px;margin:16px 0;font-size:14px;color:#374151;white-space:pre-line">${escapeHtml(details).slice(0, 3000)}</div>` : ''}
+        <div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:10px;padding:14px 16px;margin:20px 0;color:#1E40AF;font-size:14px;line-height:1.6">
+          Please log in to your Screeno candidate portal and use the time-restricted Join/Start button from your interviews page.
+        </div>
         <p style="margin:24px 0">
-          <a href="${link}" style="background:#5B4FE9;color:#fff;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:600">
-            Start Interview &rarr;
+          <a href="${portalLink}" style="background:#5B4FE9;color:#fff;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:600">
+            Open Candidate Portal &rarr;
           </a>
         </p>
-        <p style="color:#475569;font-size:14px;line-height:1.6">
-          If the button does not work, copy and paste this link:<br />
-          <a href="${link}" style="color:#5B4FE9;word-break:break-all">${link}</a>
-        </p>
-        <p style="color:#6B7280;font-size:14px">This link is valid for ${windowDays || 7} days. You can return to it at any time.</p>
+        <p style="color:#6B7280;font-size:14px">${windowDays ? `The interview window is available for ${windowDays} days once opened by your manager.` : 'Your portal will show when the interview is available.'}</p>
         <hr style="border:none;border-top:1px solid #E2E8F0;margin:24px 0" />
         <p style="color:#94A3B8;font-size:12px">This is an automated email from ${escapeHtml(sender)}. Please do not reply to this email.</p>
       </div>
@@ -248,9 +259,20 @@ async function sendMonthlyAssessmentInvite(to, {
   assessmentDate,
   assessmentEndDate,
   durationMonths,
+  scheduleTimezone,
   jdText,
 }) {
-  const dateText = new Date(assessmentDate).toLocaleString('en-IN', { dateStyle: 'long', timeStyle: 'short' })
+  const dateText = (() => {
+    try {
+      return new Date(assessmentDate).toLocaleString('en-US', {
+        dateStyle: 'long',
+        timeStyle: 'short',
+        timeZone: scheduleTimezone || undefined
+      }) + (scheduleTimezone ? ` (${scheduleTimezone})` : '')
+    } catch {
+      return new Date(assessmentDate).toLocaleString('en-IN', { dateStyle: 'long', timeStyle: 'short' })
+    }
+  })()
   const endDate = (() => {
     const d = assessmentEndDate ? new Date(assessmentEndDate) : new Date(assessmentDate)
     if (assessmentEndDate) {
@@ -430,17 +452,18 @@ async function sendRescheduleRequest(to, {
   })
 }
 
-async function sendJDForResumeUpdate(to, { candidateName, clientName, jdText, deadline }) {
+async function sendJDForResumeUpdate(to, { candidateName, clientName, role, jdText, deadline }) {
   const deadlineStr = deadline ? new Date(deadline).toLocaleDateString('en-IN') : 'as soon as possible'
   const sender = senderLabel()
+  const roleText = role || 'the requirement'
 
   await sendMail({
     to,
-    subject: `Action required: Update your resume for ${clientName}`,
+    subject: `Action required: Update your resume for ${roleText} at ${clientName}`,
     text: [
       `Hi ${candidateName},`,
       '',
-      `Your profile is being considered for a requirement at ${clientName}.`,
+      `Your profile is being considered for ${roleText} at ${clientName}.`,
       `Please update your resume to highlight the following skills by ${deadlineStr}.`,
       '',
       jdText ? `Requirement details:\n${jdText}` : '',
@@ -452,9 +475,9 @@ async function sendJDForResumeUpdate(to, { candidateName, clientName, jdText, de
       <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px">
         <h2 style="color:#0F172A">Update your resume</h2>
         <p>Hi <strong>${candidateName}</strong>,</p>
-        <p>Your profile is being considered for a requirement at <strong>${clientName}</strong>.</p>
+        <p>Your profile is being considered for <strong>${escapeHtml(roleText)}</strong> at <strong>${escapeHtml(clientName)}</strong>.</p>
         <p>Please update your resume to highlight the relevant skills and upload it by <strong>${deadlineStr}</strong>.</p>
-        ${jdText ? `<div style="background:#F8FAFC;border-left:4px solid #5B4FE9;padding:16px;margin:16px 0;font-size:14px;color:#374151;white-space:pre-line">${jdText.slice(0, 1500)}</div>` : ''}
+        ${jdText ? `<div style="background:#F8FAFC;border-left:4px solid #5B4FE9;padding:16px;margin:16px 0;font-size:14px;color:#374151;white-space:pre-line">${escapeHtml(jdText).slice(0, 1500)}</div>` : ''}
         <p style="color:#94A3B8;font-size:12px">This is an automated email from ${escapeHtml(sender)}. Please do not reply.</p>
       </div>
     `,
@@ -462,8 +485,9 @@ async function sendJDForResumeUpdate(to, { candidateName, clientName, jdText, de
 }
 
 // JD email with a custom manager message included above the JD text
-async function sendClientJDWithMessage(to, { candidateName, clientName, role, jdText, customMessage, frontendUrl }) {
-  const portalLink = `${frontendUrl || process.env.FRONTEND_URL}/candidate/dashboard`
+async function sendClientJDWithMessage(to, { candidateName, clientName, role, jdText, customMessage, deadline, frontendUrl }) {
+  const portalLink = `${frontendUrl || process.env.FRONTEND_URL || 'http://localhost:5173'}/candidate/mandates`
+  const deadlineText = deadline ? new Date(deadline).toLocaleDateString('en-IN') : null
   await sendMail({
     to,
     subject: `[${clientName}] Job opportunity — ${role || 'see details below'}`,
@@ -471,6 +495,7 @@ async function sendClientJDWithMessage(to, { candidateName, clientName, role, jd
       `Hi ${candidateName},`,
       '',
       customMessage ? customMessage : `Your profile is being considered for a client requirement at ${clientName}.`,
+      deadlineText ? `Please submit your resume by ${deadlineText}.` : '',
       '',
       jdText ? `Job details:\n${'─'.repeat(40)}\n${jdText}\n${'─'.repeat(40)}` : '',
       '',
@@ -493,6 +518,7 @@ async function sendClientJDWithMessage(to, { candidateName, clientName, role, jd
             ? `<div style="background:#F8FAFC;border-left:4px solid #5B4FE9;border-radius:0 8px 8px 0;padding:16px;margin:16px 0;font-size:14px;color:#374151;white-space:pre-line;line-height:1.7">${escapeHtml(customMessage)}</div>`
             : `<p style="font-size:14px;color:#374151">Your profile is being considered for a client requirement at <strong>${escapeHtml(clientName)}</strong>.</p>`
           }
+          ${deadlineText ? `<p style="font-size:14px;color:#374151">Please submit your resume by <strong>${escapeHtml(deadlineText)}</strong>.</p>` : ''}
           ${jdText ? `
           <div style="margin:20px 0">
             <div style="font-size:12px;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px">Job Description</div>

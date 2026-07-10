@@ -1,6 +1,16 @@
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000'
 let refreshPromise = null
 
+export class ApiError extends Error {
+  constructor(message, type, statusCode, data) {
+    super(message)
+    this.name = 'ApiError'
+    this.type = type || 'UNKNOWN_ERROR'
+    this.statusCode = statusCode || 500
+    this.data = data // Store the full response body for structured data (open/close timestamps etc)
+  }
+}
+
 function clearSession() {
   localStorage.removeItem('accessToken')
   localStorage.removeItem('user')
@@ -27,24 +37,148 @@ async function runFetch(endpoint, options, token) {
   })
 }
 
-async function refreshAccessToken() {
-  if (!refreshPromise) {
-    refreshPromise = (async () => {
-      const response = await fetch(`${BASE_URL}/api/auth/refresh`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
-      })
-      if (!response.ok) throw new Error('Session refresh failed')
-      const body = await response.json()
-      if (!body?.data?.accessToken) throw new Error('Session refresh failed')
-      localStorage.setItem('accessToken', body.data.accessToken)
-      if (body.data.user) localStorage.setItem('user', JSON.stringify(body.data.user))
-      return body.data.accessToken
-    })().finally(() => {
-      refreshPromise = null
-    })
+function generateTabId() {
+  const id = Math.random().toString(36).substring(2, 9)
+  sessionStorage.setItem('tabId', id)
+  return id
+}
+const TAB_ID = sessionStorage.getItem('tabId') || generateTabId()
+
+async function acquireFallbackLock(lockName, ttlMs = 10000) {
+  const now = Date.now()
+  const lockDataStr = localStorage.getItem(lockName)
+  let lockData = null
+  try { lockData = JSON.parse(lockDataStr) } catch { /* ignore */ }
+
+  if (lockData && lockData.owner !== TAB_ID && now < lockData.expires) {
+    return false // Locked by another tab, still valid
   }
+
+  // Acquire or renew lock
+  localStorage.setItem(lockName, JSON.stringify({ owner: TAB_ID, expires: now + ttlMs }))
+  
+  // Double-check (prevent race conditions in localStorage)
+  await new Promise(r => setTimeout(r, 20)) 
+  const check = JSON.parse(localStorage.getItem(lockName) || '{}')
+  return check.owner === TAB_ID
+}
+
+function releaseFallbackLock(lockName) {
+  const lockDataStr = localStorage.getItem(lockName)
+  try {
+    const lockData = JSON.parse(lockDataStr)
+    if (lockData && lockData.owner === TAB_ID) {
+      localStorage.removeItem(lockName)
+    }
+  } catch { /* ignore */ }
+}
+
+async function doRefreshFetch() {
+  const response = await fetch(`${BASE_URL}/api/auth/refresh`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: { 'Content-Type': 'application/json' },
+  })
+  if (!response.ok) {
+    if (response.status === 401) {
+      const body = await response.json().catch(() => ({}))
+      if (body.error === 'TOKEN_REUSE') {
+         throw new Error('Token reuse detected')
+      }
+    }
+    throw new Error('Session refresh failed')
+  }
+  const body = await response.json()
+  if (!body?.data?.accessToken) throw new Error('Session refresh failed')
+  localStorage.setItem('accessToken', body.data.accessToken)
+  if (body.data.user) localStorage.setItem('user', JSON.stringify(body.data.user))
+  
+  const channel = new BroadcastChannel('auth_channel')
+  channel.postMessage({ type: 'token_refreshed', accessToken: body.data.accessToken })
+  channel.close()
+  
+  return body.data.accessToken
+}
+
+async function refreshAccessToken() {
+  if (refreshPromise) return refreshPromise
+
+  refreshPromise = new Promise((resolve, reject) => {
+    let resolved = false
+    
+    // Listen for cross-tab refresh completion
+    const channel = new BroadcastChannel('auth_channel')
+    channel.onmessage = (event) => {
+      if (event.data?.type === 'token_refreshed') {
+        if (!resolved) {
+          resolved = true
+          channel.close()
+          resolve(event.data.accessToken)
+        }
+      } else if (event.data === 'auth_expired' && !resolved) {
+        resolved = true
+        channel.close()
+        reject(new Error('Session expired'))
+      }
+    }
+
+    const runRefresh = async () => {
+      try {
+        const token = await doRefreshFetch()
+        if (!resolved) {
+          resolved = true
+          channel.close()
+          resolve(token)
+        }
+      } catch (err) {
+        if (!resolved) {
+          resolved = true
+          channel.close()
+          reject(err)
+        }
+      } finally {
+        refreshPromise = null
+      }
+    }
+
+    if (navigator.locks) {
+      navigator.locks.request('auth_refresh_lock', { ifAvailable: true }, async (lock) => {
+        if (lock) {
+          await runRefresh()
+        } else {
+          // Wait for BroadcastChannel to resolve this promise, or timeout after 10s
+          setTimeout(() => {
+            if (!resolved) {
+              resolved = true
+              channel.close()
+              reject(new Error('Refresh timeout waiting for other tab'))
+            }
+          }, 10000)
+        }
+      }).catch(reject)
+    } else {
+      acquireFallbackLock('auth_refresh_lock_fallback')
+        .then(async gotLock => {
+          if (gotLock) {
+            try {
+              await runRefresh()
+            } finally {
+              releaseFallbackLock('auth_refresh_lock_fallback')
+            }
+          } else {
+            setTimeout(() => {
+              if (!resolved) {
+                resolved = true
+                channel.close()
+                reject(new Error('Refresh timeout waiting for other tab'))
+              }
+            }, 10000)
+          }
+        })
+        .catch(reject)
+    }
+  })
+
   return refreshPromise
 }
 
@@ -76,14 +210,19 @@ async function request(endpoint, options = {}) {
       response = await runFetch(endpoint, fetchOptions, await refreshAccessToken())
     } catch {
       clearSession()
-      window.location.assign('/login')
+      window.dispatchEvent(new CustomEvent('auth_expired'))
       throw new Error('Your session has expired')
     }
   }
 
   if (!response.ok) {
     const body = await response.json().catch(() => ({}))
-    throw new Error(body.error || 'Request failed')
+    throw new ApiError(
+      body.message || body.error || 'Request failed',
+      body.error || 'UNKNOWN_ERROR',
+      response.status,
+      body
+    )
   }
   return response.json()
 }
@@ -109,8 +248,10 @@ export const resetPassword = (token, newPassword) =>
     omitAuth: true,
   })
 export const logout = () => request('/api/auth/logout', { method: 'POST' })
-export const validateMagicLink = token =>
-  request(`/api/auth/magic-link/${token}`, { method: 'POST', skipAuthRedirect: true, omitAuth: true })
+export const previewMagicLink = token =>
+  request(`/api/auth/magic-link/${token}`, { method: 'GET', skipAuthRedirect: true, omitAuth: true })
+export const claimMagicLink = token =>
+  request(`/api/auth/magic-link/${token}/claim`, { method: 'POST', skipAuthRedirect: true, omitAuth: true })
 export const getHealth = () => request('/health', { skipAuthRedirect: true, omitAuth: true })
 
 export const getTeam = (filter = 'all') => request(`/api/team?filter=${filter}`)
@@ -119,6 +260,8 @@ export const getTeamStats = () => request('/api/team/stats')
 export const getTeamActivity = () => request('/api/team/activity')
 export const getMember = id => request(`/api/team/member/${id}`)
 export const getMemberInterviews = id => request(`/api/team/member/${id}/interviews`)
+export const getOrganizationUser = id => request(`/api/team/organization-users/${id}`)
+export const getOrganizationUserInterviews = id => request(`/api/team/organization-users/${id}/interviews`)
 export const addMember = data =>
   request('/api/team/member', { method: 'POST', body: JSON.stringify(data) })
 export const updateMember = (id, data) =>
@@ -133,6 +276,12 @@ export const addExternalCandidate = data =>
 
 export const createSchedule = data =>
   request('/api/schedule', { method: 'POST', body: JSON.stringify(data) })
+export const getInterview = interviewId =>
+  request(`/api/schedule/${interviewId}`)
+export const cancelInterview = interviewId =>
+  request(`/api/schedule/${interviewId}/cancel`, { method: 'POST' })
+export const rescheduleInterview = (interviewId, data) =>
+  request(`/api/schedule/${interviewId}/reschedule`, { method: 'POST', body: JSON.stringify(data) })
 export const getScheduleOrgUsers = () => request('/api/schedule/org-users')
 export const getCalendarEvents = week =>
   request(`/api/schedule/calendar${week ? `?week=${week}` : ''}`)
@@ -252,8 +401,13 @@ export const generateAssessmentJD = data =>
     method: 'POST',
     body: JSON.stringify(data),
   })
+export const getCandidateMonthlyAssessments = () => request('/api/candidate/monthly-assessments')
 
-export const getClientTemplates = () => request('/api/templates/client')
+export const getClientTemplates = (state = 'active') => request(`/api/templates/client?state=${state}`)
+export const archiveClientTemplate = id => request(`/api/templates/client/${id}/archive`, { method: 'POST' })
+export const restoreClientTemplate = id => request(`/api/templates/client/${id}/restore`, { method: 'POST' })
+export const deleteClientTemplate = id => request(`/api/templates/client/${id}`, { method: 'DELETE' })
+export const deleteClientTemplatePreview = id => request(`/api/templates/client/${id}?preview=true`, { method: 'DELETE' })
 export const createClientTemplate = data =>
   request('/api/templates/client', { method: 'POST', body: JSON.stringify(data) })
 export const updateClientTemplate = (id, data) =>
@@ -282,6 +436,8 @@ export const addProspects = (id, data) =>
   request(`/api/templates/client/${id}/team`, { method: 'POST', body: JSON.stringify(data) })
 export const updateClientTeamMember = (id, ctId, data) =>
   request(`/api/templates/client/${id}/team/${ctId}`, { method: 'PATCH', body: JSON.stringify(data) })
+export const updateClientTeamRequirement = (id, ctId, requirementId) =>
+  request(`/api/templates/client/${id}/team/${ctId}/requirement`, { method: 'PATCH', body: JSON.stringify({ requirementId }) })
 export const removeFromClientTeam = (id, ctId) =>
   request(`/api/templates/client/${id}/team/${ctId}`, { method: 'DELETE' })
 export const sendClientJD = (id, ctId, data) =>
@@ -293,6 +449,23 @@ export const getClientInterviewRecord = (id, ctId) =>
 export const saveClientInterviewRecord = (id, ctId, data) =>
   request(`/api/templates/client/${id}/team/${ctId}/client-interview`, { method: 'POST', body: JSON.stringify(data) })
 export const getVideoPlatforms = () => request('/api/templates/client/video-platforms')
+
+// Outcome rounds (new multi-round model)
+export const getOutcomeRounds = (id, ctId) =>
+  request(`/api/templates/client/${id}/team/${ctId}/rounds`)
+export const createOutcomeRound = (id, ctId, data) =>
+  request(`/api/templates/client/${id}/team/${ctId}/rounds`, { method: 'POST', body: JSON.stringify(data) })
+export const updateOutcomeRound = (id, ctId, roundId, data) =>
+  request(`/api/templates/client/${id}/team/${ctId}/rounds/${roundId}`, { method: 'PATCH', body: JSON.stringify(data) })
+export const publishOutcomeRound = (id, ctId, roundId) =>
+  request(`/api/templates/client/${id}/team/${ctId}/rounds/${roundId}/publish`, { method: 'POST' })
+export const unpublishOutcomeRound = (id, ctId, roundId) =>
+  request(`/api/templates/client/${id}/team/${ctId}/rounds/${roundId}/unpublish`, { method: 'POST' })
+
+// Candidate: client outcomes (published rounds only)
+export const getCandidateClientOutcomes = () => request('/api/candidate/client-outcomes')
+export const joinCandidateInterview = interviewId =>
+  request(`/api/candidate/interviews/${interviewId}/join`, { method: 'POST' })
 
 // Candidate: client mandates they've been added to
 export const getCandidateClientMandates = () => request('/api/candidate/client-mandates')
@@ -306,3 +479,10 @@ export const useExistingResumeForClient = ctId =>
     method: 'POST',
     body: JSON.stringify({ useExisting: true }),
   })
+
+export const get = (url, opts) => request(url, { ...opts, method: 'GET' })
+export const post = (url, body, opts) => request(url, { ...opts, method: 'POST', body: body ? JSON.stringify(body) : undefined })
+export const patch = (url, body, opts) => request(url, { ...opts, method: 'PATCH', body: body ? JSON.stringify(body) : undefined })
+const _delete = (url, opts) => request(url, { ...opts, method: 'DELETE' })
+export { _delete as delete }
+

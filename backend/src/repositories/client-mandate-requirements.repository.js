@@ -4,8 +4,8 @@ const db = require('../db/connection')
 async function create(mandateId, data) {
   const rows = await db.query(
     `INSERT INTO client_mandate_requirements
-       (mandate_id, profile_name, years_min, years_max, headcount, notes)
-     VALUES (@mandateId, @profileName, @yearsMin, @yearsMax, @headcount, @notes)
+       (mandate_id, profile_name, years_min, years_max, headcount, notes, jd_text, resume_deadline)
+     VALUES (@mandateId, @profileName, @yearsMin, @yearsMax, @headcount, @notes, @jdText, @resumeDeadline)
      RETURNING *`,
     {
       mandateId,
@@ -14,6 +14,8 @@ async function create(mandateId, data) {
       yearsMax:    data.years_max    != null ? Number(data.years_max)   : null,
       headcount:   data.headcount    != null ? Number(data.headcount)   : 1,
       notes:       data.notes        || null,
+      jdText:      data.jd_text      || null,
+      resumeDeadline: data.resume_deadline || null,
     }
   )
   return rows[0]
@@ -35,7 +37,9 @@ async function update(id, mandateId, data) {
          years_min    = @yearsMin,
          years_max    = @yearsMax,
          headcount    = @headcount,
-         notes        = @notes
+         notes        = @notes,
+         jd_text      = @jdText,
+         resume_deadline = @resumeDeadline
      WHERE id = @id AND mandate_id = @mandateId
      RETURNING *`,
     {
@@ -46,6 +50,8 @@ async function update(id, mandateId, data) {
       yearsMax:    data.years_max    != null ? Number(data.years_max)  : null,
       headcount:   data.headcount    != null ? Number(data.headcount)  : 1,
       notes:       data.notes        || null,
+      jdText:      data.jd_text      || null,
+      resumeDeadline: data.resume_deadline || null,
     }
   )
   return rows[0] || null
@@ -59,4 +65,12 @@ async function deleteReq(id, mandateId) {
   return rows[0] || null
 }
 
-module.exports = { create, getByMandate, update, deleteReq }
+async function getByIdForMandate(id, mandateId) {
+  const rows = await db.query(
+    `SELECT * FROM client_mandate_requirements WHERE id = @id AND mandate_id = @mandateId`,
+    { id, mandateId }
+  )
+  return rows[0] || null
+}
+
+module.exports = { create, getByMandate, getByIdForMandate, update, deleteReq }

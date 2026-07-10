@@ -20,7 +20,9 @@ const uploadRoutes = require('./src/routes/upload.routes')
 const profileRoutes = require('./src/routes/profile.routes')
 const clientTemplateRoutes = require('./src/routes/client-template.routes')
 const monthlyAssessmentRoutes = require('./src/routes/monthly-assessment.routes')
+const adminRoutes = require('./src/routes/admin.routes')
 const reportJobService = require('./src/services/report-job.service')
+const outboxWorker = require('./src/workers/outbox-worker')
 const db = require('./src/db/connection')
 
 const app = express()
@@ -72,6 +74,7 @@ app.use('/api/exam', examRoutes)
 app.use('/api/upload', uploadRoutes)
 app.use('/api/profile', profileRoutes)
 app.use('/api/assessments/monthly', monthlyAssessmentRoutes)
+app.use('/api/admin', adminRoutes)
 
 // Health check — used by uptime monitors and deploy checks
 app.get('/health', async (req, res) => {
@@ -101,6 +104,7 @@ app.use((err, req, res, next) => {
 const server = app.listen(PORT, () => {
   console.log(`[server] Running on http://localhost:${PORT}`)
   reportJobService.startReportJobWorker()
+  outboxWorker.startWorker()
 })
 
 let shuttingDown = false
@@ -112,6 +116,7 @@ async function shutdown(signal, exitCode = 0) {
   forceExit.unref()
   try {
     await reportJobService.stopReportJobWorker()
+    outboxWorker.stopWorker()
   } finally {
     server.close(() => process.exit(exitCode))
   }

@@ -159,6 +159,50 @@ async function createEnrollments(assessmentId, teamMemberIds, data) {
   })
 }
 
+async function getAssignmentRequest(requestKey) {
+  const rows = await db.query(
+    `SELECT * FROM assignment_requests WHERE request_key = @requestKey`,
+    { requestKey }
+  )
+  return rows[0] || null
+}
+
+async function createAssignmentRequest(tx, data) {
+  const rows = await tx.query(
+    `INSERT INTO assignment_requests
+      (request_key, assessment_id, team_member_id, enrollment_id)
+     VALUES
+      (@requestKey, @assessmentId, @teamMemberId, @enrollmentId)
+     RETURNING *`,
+    data
+  )
+  return rows[0]
+}
+
+async function createOccurrences(tx, occurrences) {
+  const inserted = []
+  for (const occ of occurrences) {
+    const rows = await tx.query(
+      `INSERT INTO monthly_assessment_occurrences
+        (enrollment_id, period_month, available_from, due_at, duration_minutes, interview_id, status)
+       VALUES
+        (@enrollmentId, @periodMonth, @availableFrom, @dueAt, @durationMinutes, @interviewId, @status)
+       RETURNING *`,
+      {
+        enrollmentId: occ.enrollment_id,
+        periodMonth: occ.period_month,
+        availableFrom: occ.available_from,
+        dueAt: occ.due_at,
+        durationMinutes: occ.duration_minutes,
+        interviewId: occ.interview_id || null,
+        status: occ.status || 'scheduled',
+      }
+    )
+    inserted.push(rows[0])
+  }
+  return inserted
+}
+
 async function getByManager(managerId) {
   return db.query(
     `SELECT * FROM monthly_assessments WHERE manager_id = @managerId ORDER BY created DESC`,
@@ -206,14 +250,20 @@ async function getCalendarByManager(managerId) {
     `SELECT e.*, a.subject_name, a.difficulty, a.duration_months,
             a.created AS assessment_created,
             tm.user_id, u.first_name, u.last_name,
+            o.id AS occurrence_id,
+            o.period_month,
+            o.available_from AS occurrence_available_from,
+            o.due_at AS occurrence_due_at,
+            o.status AS occurrence_status,
             i.id AS interview_id, i.status AS interview_status, i.result AS interview_result
      FROM monthly_assessment_enrollments e
      JOIN monthly_assessments a ON a.id = e.assessment_id
      JOIN team_members tm ON tm.id = e.team_member_id
      JOIN users u ON u.id = tm.user_id
-     LEFT JOIN interviews i ON i.id = e.interview_id
+     LEFT JOIN monthly_assessment_occurrences o ON o.enrollment_id = e.id
+     LEFT JOIN interviews i ON i.id = o.interview_id
      WHERE a.manager_id = @managerId
-     ORDER BY a.created DESC, u.first_name`,
+     ORDER BY a.created DESC, u.first_name, o.period_month`,
     { managerId }
   )
 }
@@ -253,21 +303,53 @@ async function cancelEnrollment(enrollmentId, managerId) {
       { enrollmentId }
     )
 
-    if (enrollment.interview_id) {
+    const occurrenceInterviews = await tx.query(
+      `SELECT interview_id
+       FROM monthly_assessment_occurrences
+       WHERE enrollment_id = @enrollmentId
+         AND interview_id IS NOT NULL`,
+      { enrollmentId }
+    )
+    const interviewIds = occurrenceInterviews.map(row => row.interview_id).filter(Boolean)
+    if (interviewIds.length > 0) {
       await tx.query(
         `UPDATE interviews
-         SET status = 'cancelled', result = 'cancelled'
-         WHERE id = @interviewId
-           AND status = 'scheduled'`,
-        { interviewId: enrollment.interview_id }
+         SET status = 'cancelled', result = 'cancelled', token = NULL, token_expires = NULL
+         WHERE id = ANY(@interviewIds)
+           AND status <> 'completed'`,
+        { interviewIds }
       )
     }
+
+    // Cancel future/open occurrences
+    await tx.query(
+      `UPDATE monthly_assessment_occurrences
+       SET status = 'cancelled'
+       WHERE enrollment_id = @enrollmentId
+         AND status <> 'completed'`,
+      { enrollmentId }
+    )
+
+    // Mark pending outbox jobs terminal without introducing a DB status not allowed by old constraints.
+    await tx.query(
+      `UPDATE email_outbox_jobs
+       SET status = 'finished',
+           last_error = 'cancelled before delivery',
+           finished_at = CURRENT_TIMESTAMP,
+           updated = CURRENT_TIMESTAMP
+       WHERE event_key LIKE @eventKey
+         AND status = 'pending'`,
+      { eventKey: `monthly_occurrence_${enrollmentId}_%` }
+    )
 
     return { ...updated[0], subject_name: enrollment.subject_name }
   })
 }
 
 module.exports = {
+  getAssignmentRequest,
+  createAssignmentRequest,
+  createOccurrences,
   create, createEnrollment, createWithEnrollments, createTemplate, createEnrollments,
   getByManager, getByIdForManager,
   getEnrollmentsByAssessment, getEnrollmentsByManager,

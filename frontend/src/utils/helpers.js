@@ -90,16 +90,18 @@ export function interviewAvailability(item = {}, now = new Date()) {
   if (item.status === 'in_progress') {
     return { state: 'open', canStart: true, label: 'Resume available' }
   }
-  const scheduledAt = item.scheduled_at || item.scheduledAt
+  const scheduledAt = item.available_from || item.availableFrom || item.scheduled_at || item.scheduledAt
+  const dueAt = item.due_at || item.dueAt
   if (!scheduledAt) {
     return { state: 'open', canStart: true, label: null }
   }
   const start = new Date(scheduledAt)
-  if (Number.isNaN(start.getTime())) {
+  const configuredEnd = dueAt ? new Date(dueAt) : null
+  if (Number.isNaN(start.getTime()) || (configuredEnd && Number.isNaN(configuredEnd.getTime()))) {
     return { state: 'open', canStart: true, label: null }
   }
   const duration = interviewDurationMinutes(item)
-  const end = new Date(start.getTime() + duration * 60 * 1000)
+  const end = configuredEnd || new Date(start.getTime() + duration * 60 * 1000)
   const current = now instanceof Date ? now : new Date(now)
   if (current < start) {
     return {
@@ -129,4 +131,25 @@ export function interviewAvailability(item = {}, now = new Date()) {
     closesAt: end,
     durationMinutes: duration,
   }
+}
+
+/**
+ * Parses a local datetime-local input string into a strict UTC ISO string.
+ * @param {string} value e.g. "2026-07-09T10:30"
+ * @returns {string|null} e.g. "2026-07-09T05:00:00.000Z"
+ */
+export function serializeDatetimeLocal(value) {
+  if (!value) return null
+  
+  // Safely parse "YYYY-MM-DDTHH:mm" as local time across all browsers
+  const [datePart, timePart] = value.split('T')
+  if (!datePart || !timePart) return null
+  
+  const [y, m, d] = datePart.split('-').map(Number)
+  const [h, min] = timePart.split(':').map(Number)
+  
+  const date = new Date(y, m - 1, d, h, min)
+  if (Number.isNaN(date.getTime())) return null
+  
+  return date.toISOString()
 }

@@ -4,10 +4,33 @@ const authMiddleware = require('../middleware/auth')
 const requireRole = require('../middleware/role')
 const reportRepository = require('../repositories/report.repository')
 const reportJobRepository = require('../repositories/report-job.repository')
+const storageService = require('../services/storage.service')
 
 const router = express.Router()
 
 router.use(authMiddleware, requireRole('manager'))
+
+async function attachSignedReportUrl(report) {
+  if (!report || !report.pdf_url) return report
+  if (/^https?:\/\//i.test(report.pdf_url)) return report
+  try {
+    return {
+      ...report,
+      pdf_storage_path: report.pdf_url,
+      pdf_url: await storageService.getSignedUrl(report.pdf_url),
+    }
+  } catch {
+    return {
+      ...report,
+      pdf_storage_path: report.pdf_url,
+      pdf_url: null,
+    }
+  }
+}
+
+async function attachSignedReportUrls(reports) {
+  return Promise.all((reports || []).map(attachSignedReportUrl))
+}
 
 // GET /api/reports/team — all reports for the manager's team
 router.get('/team', async (req, res) => {
@@ -17,7 +40,7 @@ router.get('/team', async (req, res) => {
       reportRepository.getReportsByManager(req.user.id, source),
       reportRepository.getStatsByManager(req.user.id),
     ])
-    res.json({ success: true, data: { reports, stats } })
+    res.json({ success: true, data: { reports: await attachSignedReportUrls(reports), stats } })
   } catch (err) {
     console.error('GET /reports/team failed:', err)
     res.status(500).json({ success: false, error: 'Could not load team reports' })
@@ -51,7 +74,7 @@ router.get('/interview/:id', async (req, res) => {
     const interviewId = parseInt(req.params.id, 10)
     const report = await reportRepository.getDetailByInterviewForManager(interviewId, req.user.id)
     if (!report) return res.status(404).json({ success: false, error: 'Report not found' })
-    res.json({ success: true, data: report })
+    res.json({ success: true, data: await attachSignedReportUrl(report) })
   } catch (err) {
     console.error('GET /reports/interview/:id failed:', err)
     res.status(500).json({ success: false, error: 'Could not load report' })
@@ -64,7 +87,7 @@ router.get('/detail/:id', async (req, res) => {
     const reportId = parseInt(req.params.id, 10)
     const report = await reportRepository.getDetailByIdForManager(reportId, req.user.id)
     if (!report) return res.status(404).json({ success: false, error: 'Report not found' })
-    res.json({ success: true, data: report })
+    res.json({ success: true, data: await attachSignedReportUrl(report) })
   } catch (err) {
     console.error('GET /reports/detail/:id failed:', err)
     res.status(500).json({ success: false, error: 'Could not load report' })
@@ -76,7 +99,7 @@ router.get('/candidate/:userId', async (req, res) => {
   try {
     const userId = parseInt(req.params.userId, 10)
     const report = await reportRepository.getLatestByInternalUserForManager(userId, req.user.id)
-    res.json({ success: true, data: report || null })
+    res.json({ success: true, data: await attachSignedReportUrl(report) || null })
   } catch (err) {
     console.error('GET /reports/candidate/:userId failed:', err)
     res.status(500).json({ success: false, error: 'Could not load report' })
@@ -88,7 +111,7 @@ router.get('/candidate/:userId/history', async (req, res) => {
   try {
     const userId = parseInt(req.params.userId, 10)
     const reports = await reportRepository.getHistoryByUserForManager(userId, req.user.id)
-    res.json({ success: true, data: reports })
+    res.json({ success: true, data: await attachSignedReportUrls(reports) })
   } catch (err) {
     console.error('GET /reports/candidate/:userId/history failed:', err)
     res.status(500).json({ success: false, error: 'Could not load report history' })

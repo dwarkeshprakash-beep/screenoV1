@@ -14,10 +14,56 @@ router.get('/', async (req, res) => {
   try {
     const user = await userRepository.getById(req.user.id)
     if (!user) return res.status(404).json({ success: false, error: 'User not found' })
+    
+    // Generate signed URL if the user has a resume stored as a path
+    if (user.resume_url && !user.resume_url.startsWith('http')) {
+      try {
+        user.resume_url = await storageService.getSignedUrl(user.resume_url)
+      } catch (err) {
+        console.error('Failed to generate signed URL for profile resume:', err.message)
+      }
+    }
+
     res.json({ success: true, data: user })
   } catch (err) {
     console.error('GET /profile failed:', err)
     res.status(500).json({ success: false, error: 'Could not load profile' })
+  }
+})
+
+router.get('/resume-metadata', async (req, res) => {
+  try {
+    const user = await userRepository.getById(req.user.id)
+    if (!user) return res.status(404).json({ success: false, error: 'User not found' })
+
+    let resumeMetadata = null
+    if (user.current_resume_asset_id) {
+      const asset = await resumeRepository.getAssetById(user.current_resume_asset_id)
+      if (asset) {
+        resumeMetadata = {
+          id: asset.id,
+          filename: asset.original_filename,
+          mimeType: asset.mime_type,
+          size: asset.size,
+          uploadedAt: asset.created_at,
+          downloadUrl: await storageService.getSignedUrl(asset.storage_path)
+        }
+      }
+    } else if (user.resume_url) {
+      // Legacy resume without asset record
+      resumeMetadata = {
+        filename: 'resume.pdf',
+        uploadedAt: user.resume_updated,
+        downloadUrl: user.resume_url.startsWith('http') 
+          ? user.resume_url 
+          : await storageService.getSignedUrl(user.resume_url)
+      }
+    }
+
+    res.json({ success: true, data: resumeMetadata })
+  } catch (err) {
+    console.error('GET /profile/resume-metadata failed:', err)
+    res.status(500).json({ success: false, error: 'Could not load resume metadata' })
   }
 })
 
@@ -57,12 +103,34 @@ router.patch('/', async (req, res) => {
   }
 })
 
+const resumeRepository = require('../repositories/resume.repository')
+
 router.post('/resume', documentUpload.single('resume'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ success: false, error: 'No file provided' })
     const buffer = req.file.buffer
-    const uploaded = await storageService.uploadResume(buffer, req.user.id, req.file)
-    await userRepository.updateProfile(req.user.id, { resumeUrl: uploaded.url })
+    
+    // Upload the file to immutable versioned storage
+    const uploaded = await storageService.uploadResumeAsset(buffer, req.user.id, req.file)
+    
+    // Create the resume asset record
+    const asset = await resumeRepository.createAsset({
+      owner_user_id: req.user.id,
+      purpose: 'profile',
+      original_filename: uploaded.originalName,
+      mime_type: uploaded.mimeType,
+      size: uploaded.size,
+      storage_path: uploaded.path,
+    })
+
+    // Update the user profile with the new asset ID
+    // Note: We need a new function in userRepository to update the current_resume_asset_id
+    // Wait, the migration adds current_resume_asset_id, but updateProfile might not support it yet.
+    // For now we'll update resume_url to the path as a fallback or add it to updateProfile.
+    await userRepository.updateProfile(req.user.id, { 
+      resumeUrl: uploaded.path, // keep legacy field for backward compatibility
+      currentResumeAssetId: asset.id 
+    })
 
     async function extractTags() {
       try {
@@ -83,7 +151,10 @@ router.post('/resume', documentUpload.single('resume'), async (req, res) => {
     }
     void extractTags()
 
-    res.json({ success: true, data: { resumeUrl: uploaded.url } })
+    // Generate a signed URL for immediate use
+    const signedUrl = await storageService.getSignedUrl(uploaded.path)
+
+    res.json({ success: true, data: { resumeUrl: signedUrl, asset } })
   } catch (err) {
     console.error('POST /profile/resume failed:', err)
     res.status(500).json({ success: false, error: 'Upload failed' })

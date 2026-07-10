@@ -92,7 +92,9 @@ router.post('/', async (req, res) => {
       'Choose either a client template or a monthly assessment',
       'Question count must be an integer between 1 and 50',
       'Duration must be an integer between 15 and 180 minutes',
+      'scheduledAt is required',
       'Invalid scheduled date and time',
+      'Scheduled time must be in the future',
       'Some report recipients are not in your organization',
     ].includes(err.message)) {
       return res.status(400).json({ success: false, error: err.message })
@@ -112,6 +114,47 @@ router.get('/calendar', async (req, res) => {
   } catch (err) {
     console.error('GET /schedule/calendar failed:', err)
     res.status(500).json({ success: false, error: 'Could not load calendar' })
+  }
+})
+
+router.get('/:interviewId', async (req, res) => {
+  try {
+    const interview = await scheduleService.getInterviewDetails(parseInt(req.params.interviewId, 10), req.user.id)
+    res.json({ success: true, data: interview })
+  } catch (err) {
+    console.error('GET /schedule/:interviewId failed:', err)
+    if (err.message === 'Interview not found') return res.status(404).json({ success: false, error: err.message })
+    if (err.message === 'Forbidden') return res.status(403).json({ success: false, error: err.message })
+    res.status(500).json({ success: false, error: 'Could not load interview' })
+  }
+})
+
+router.post('/:interviewId/cancel', async (req, res) => {
+  try {
+    const result = await scheduleService.cancelInterview(parseInt(req.params.interviewId, 10), req.user.id)
+    res.json({ success: true, data: result })
+  } catch (err) {
+    console.error('POST /schedule/:interviewId/cancel failed:', err)
+    if (err.message === 'Interview not found') return res.status(404).json({ success: false, error: err.message })
+    if (err.message === 'Forbidden') return res.status(403).json({ success: false, error: err.message })
+    if (err.message === 'Cannot cancel an interview that is already completed') return res.status(409).json({ success: false, error: err.message })
+    res.status(500).json({ success: false, error: 'Could not cancel interview' })
+  }
+})
+
+router.post('/:interviewId/reschedule', async (req, res) => {
+  try {
+    const result = await scheduleService.rescheduleInterview(parseInt(req.params.interviewId, 10), req.user.id, req.body)
+    res.json({ success: true, data: result })
+  } catch (err) {
+    console.error('POST /schedule/:interviewId/reschedule failed:', err)
+    if (err.message === 'Interview not found') return res.status(404).json({ success: false, error: err.message })
+    if (err.message === 'Forbidden') return res.status(403).json({ success: false, error: err.message })
+    if (err.message === 'Cannot reschedule an interview that is already completed') return res.status(409).json({ success: false, error: err.message })
+    if (['scheduledAt is required for rescheduling', 'Invalid scheduled date and time', 'Scheduled time must be in the future'].includes(err.message)) {
+      return res.status(400).json({ success: false, error: err.message })
+    }
+    res.status(500).json({ success: false, error: 'Could not reschedule interview' })
   }
 })
 

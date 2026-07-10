@@ -15,6 +15,13 @@ const MIGRATIONS = [
   '006_missing_indexes.sql',
   '007_client_teams.sql',
   '008_state_flow_fixes.sql',
+  '009_flow_integrity.sql',
+  '010_resume_assets_and_delete.sql',
+  '011_interview_windows_and_locations.sql',
+  '012_monthly_occurrences.sql',
+  '013_client_outcome_rounds.sql',
+  '014_refresh_families.sql',
+  '015_role_level_jd_and_deadline.sql',
 ]
 
 async function main() {

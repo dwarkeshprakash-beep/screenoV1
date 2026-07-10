@@ -14,10 +14,12 @@ async function getByEmail(email) {
 
 async function getById(id) {
   const rows = await db.query(
-    `SELECT id, company_id, first_name, last_name, email, role,
-            resume_url, resume_text, tags, availability
-     FROM users
-     WHERE id = @id`,
+    `SELECT u.id, u.company_id, u.first_name, u.last_name, u.email, u.role,
+            u.resume_url, u.resume_text, u.tags, u.availability, u.current_resume_asset_id,
+            ra.original_filename as resume_filename, ra.size as resume_size, ra.mime_type as resume_mime_type, ra.created_at as resume_uploaded_at
+     FROM users u
+     LEFT JOIN resume_assets ra ON ra.id = u.current_resume_asset_id AND ra.deleted_at IS NULL
+     WHERE u.id = @id`,
     { id }
   )
   return rows[0] || null
@@ -30,6 +32,7 @@ async function updateProfile(id, {
   resumeText,
   tags,
   availability,
+  currentResumeAssetId,
 }) {
   const rows = await db.query(
     `UPDATE users
@@ -39,7 +42,8 @@ async function updateProfile(id, {
        resume_url   = COALESCE(@resume_url,   resume_url),
        resume_text  = COALESCE(@resume_text,  resume_text),
        tags         = COALESCE(@tags,         tags),
-       availability = COALESCE(@availability, availability)
+       availability = COALESCE(@availability, availability),
+       current_resume_asset_id = COALESCE(@current_resume_asset_id, current_resume_asset_id)
      WHERE id = @id
      RETURNING *`,
     {
@@ -50,6 +54,7 @@ async function updateProfile(id, {
       resume_text:  resumeText ? String(resumeText).slice(0, 12000) : null,
       tags:         tags ? (typeof tags === 'string' ? tags : JSON.stringify(tags)) : null,
       availability: availability || null,
+      current_resume_asset_id: currentResumeAssetId || null,
     }
   )
   return rows[0]
@@ -297,9 +302,24 @@ async function createMinimal(companyId, { firstName, lastName, email, passwordHa
   return rows[0] || null
 }
 
+async function getOrganizationMemberProfile(userId, companyId) {
+  const rows = await db.query(
+    `SELECT u.id, u.company_id, u.first_name, u.last_name, u.email, u.role,
+            u.emp_number AS employee_id, u.job_title AS current_position,
+            u.location, u.availability, u.tags, u.resume_url, u.resume_text, u.resume_updated,
+            u.current_resume_asset_id, d.name AS department
+     FROM users u
+     LEFT JOIN departments d ON d.id = u.department_id
+     WHERE u.id = @userId AND u.company_id = @companyId
+     LIMIT 1`,
+    { userId, companyId }
+  )
+  return rows[0] || null
+}
+
 module.exports = {
   getByEmail, getByEmailForCompany, getById, getByIdWithPassword, getNotInTeam,
   getByRole, getByCompany, getByIdForCompany, getByIdsForCompany,
   updateProfile, updatePassword, updateOrgProfile,
-  bulkUpsert, createMinimal,
+  bulkUpsert, createMinimal, getOrganizationMemberProfile
 }

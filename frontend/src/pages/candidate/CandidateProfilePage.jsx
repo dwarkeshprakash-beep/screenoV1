@@ -104,13 +104,36 @@ function CandidateProfilePage() {
       {/* Resume */}
       <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderRadius: 12, padding: '20px', boxShadow: 'var(--shadow-sm)', marginBottom: resumeTags.length > 0 ? 14 : 0 }}>
         <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--fg-muted)', margin: '0 0 14px', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Main Resume</p>
+        
+        {user.resume_url && (
+          <div style={{ padding: 14, borderRadius: 8, background: 'var(--bg-surface-alt)', border: '1px solid var(--border-default)', marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div style={{ width: 36, height: 36, borderRadius: 8, background: 'var(--brand-50)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <UploadCloud size={16} color="var(--brand-600)" />
+              </div>
+              <div>
+                <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg-primary)', margin: 0 }}>
+                  {user.resume_filename || 'resume.pdf'}
+                </p>
+                <p style={{ fontSize: 12, color: 'var(--fg-subtle)', margin: '2px 0 0' }}>
+                  {user.resume_size ? `${(user.resume_size / 1024).toFixed(1)} KB` : 'Uploaded file'} 
+                  {user.resume_uploaded_at && ` • ${new Date(user.resume_uploaded_at).toLocaleDateString()}`}
+                </p>
+              </div>
+            </div>
+            <a href={user.resume_url} target="_blank" rel="noreferrer" style={{ fontSize: 13, fontWeight: 600, color: 'var(--brand-600)', textDecoration: 'none', padding: '6px 12px', borderRadius: 6, background: 'var(--brand-50)' }}>
+              View
+            </a>
+          </div>
+        )}
+
         <label style={{ display: 'flex', alignItems: 'center', gap: 14, padding: 16, border: '1.5px dashed var(--border-strong)', borderRadius: 10, cursor: 'pointer', background: 'var(--bg-page)' }}>
-          <div style={{ width: 40, height: 40, borderRadius: 10, background: 'var(--brand-50)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-            <UploadCloud size={18} color="var(--brand-500)" />
+          <div style={{ width: 40, height: 40, borderRadius: 10, background: 'var(--bg-surface-alt)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <UploadCloud size={18} color="var(--fg-muted)" />
           </div>
           <div>
             <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg-primary)', margin: 0 }}>
-              {resumeUploading ? 'Uploading…' : 'Upload or Replace Resume'}
+              {resumeUploading ? 'Uploading…' : (user.resume_url ? 'Replace Resume' : 'Upload Resume')}
             </p>
             <p style={{ fontSize: 12, color: 'var(--fg-subtle)', margin: '2px 0 0' }}>PDF format · Used for all interviews by default</p>
           </div>

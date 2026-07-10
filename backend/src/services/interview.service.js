@@ -311,8 +311,8 @@ async function generateReport(interviewId) {
       interview,
       report: reportData,
     })
-    const uploaded = await storageService.uploadReport(pdfBuffer, savedReport.id)
-    const readyReport = await reportRepository.updateStatus(savedReport.id, 'ready', uploaded.url)
+    const uploaded = await storageService.uploadReportAsset(pdfBuffer, savedReport.id)
+    const readyReport = await reportRepository.updateStatus(savedReport.id, 'ready', uploaded.path)
     await sendReportNotification(interview, interviewId)
     return readyReport
   } catch (err) {

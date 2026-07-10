@@ -17,6 +17,28 @@ const state = {
   templateIds: [],
   departmentName: `Codex QA ${stamp}`,
 }
+const DAY_MS = 24 * 60 * 60 * 1000
+
+function futureDate(daysFromNow) {
+  const date = new Date(Date.now() + daysFromNow * DAY_MS)
+  date.setUTCHours(10, 0, 0, 0)
+  return date.toISOString().slice(0, 10)
+}
+
+function futureIso(secondsFromNow) {
+  return new Date(Date.now() + secondsFromNow * 1000).toISOString()
+}
+
+function monthValue(dateString) {
+  return String(dateString).slice(0, 7)
+}
+
+async function waitUntil(isoString) {
+  const waitMs = new Date(isoString).getTime() - Date.now() + 500
+  if (waitMs > 0) {
+    await new Promise(resolve => setTimeout(resolve, waitMs))
+  }
+}
 
 async function api(path, { method = 'GET', token, cookie, body, form } = {}) {
   const response = await fetch(`${baseUrl}${path}`, {
@@ -126,6 +148,13 @@ async function cleanup() {
 }
 
 async function run() {
+  const assessmentDate = futureDate(7)
+  const conflictAssessmentDate = futureDate(12)
+  const reusableAssessmentDate = futureDate(95)
+  const duplicateAssessmentDate = futureDate(100)
+  const assessmentMonth = monthValue(assessmentDate)
+  const reusableAssessmentMonth = monthValue(reusableAssessmentDate)
+
   const primary = await seedCompany(
     `Screeno API QA ${stamp}`,
     `manager-${stamp}@example.test`,
@@ -275,7 +304,7 @@ async function run() {
       subject: 'Backend Engineering',
       difficulty: 'medium',
       duration_months: 2,
-      assessment_date: '2026-07-15',
+      assessment_date: assessmentDate,
       team_member_ids: [primary.teamMember.id],
       sub_topics: ['Node.js', 'PostgreSQL'],
       jd_text: 'Backend assessment',
@@ -284,19 +313,19 @@ async function run() {
   assert.equal(assessment.status, 201)
   state.assessmentIds.push(assessment.payload.data.id)
   assert.equal(assessment.payload.data.enrollments.length, 1)
-  assert.ok(String(assessment.payload.data.enrollments[0].start_date).startsWith('2026-07-15'))
+  assert.ok(String(assessment.payload.data.enrollments[0].start_date).startsWith(assessmentDate))
 
-  const julyPlan = await api('/api/assessments/monthly/plan?month=2026-07', {
+  const firstAssessmentPlan = await api(`/api/assessments/monthly/plan?month=${assessmentMonth}`, {
     token: managerToken,
   })
-  assert.equal(julyPlan.status, 200)
-  assert.equal(julyPlan.payload.data.teamCount, 2)
-  assert.equal(julyPlan.payload.data.assignedCount, 1)
-  assert.ok(julyPlan.payload.data.subjects.some(subject =>
+  assert.equal(firstAssessmentPlan.status, 200)
+  assert.equal(firstAssessmentPlan.payload.data.teamCount, 2)
+  assert.equal(firstAssessmentPlan.payload.data.assignedCount, 1)
+  assert.ok(firstAssessmentPlan.payload.data.subjects.some(subject =>
     subject.id === assessment.payload.data.id
       && subject.candidates.some(candidate => candidate.team_member_id === primary.teamMember.id)
   ))
-  assert.ok(julyPlan.payload.data.unassigned.some(member => member.id === addedMember.payload.data.id))
+  assert.ok(firstAssessmentPlan.payload.data.unassigned.some(member => member.id === addedMember.payload.data.id))
 
   const reusableTemplate = await api('/api/assessments/monthly', {
     method: 'POST',
@@ -319,7 +348,7 @@ async function run() {
       method: 'POST',
       token: managerToken,
       body: {
-        assessment_date: '2026-07-20',
+        assessment_date: conflictAssessmentDate,
         team_member_ids: [primary.teamMember.id],
       },
     }
@@ -333,7 +362,7 @@ async function run() {
       method: 'POST',
       token: managerToken,
       body: {
-        assessment_date: '2026-10-05',
+        assessment_date: reusableAssessmentDate,
         team_member_ids: [addedMember.payload.data.id],
       },
     }
@@ -347,7 +376,7 @@ async function run() {
       method: 'POST',
       token: managerToken,
       body: {
-        assessment_date: '2026-10-10',
+        assessment_date: duplicateAssessmentDate,
         team_member_ids: [addedMember.payload.data.id],
       },
     }
@@ -355,15 +384,15 @@ async function run() {
   assert.equal(duplicateAssignment.status, 409)
   assert.match(duplicateAssignment.payload.error, /Cloud Fundamentals/)
 
-  const octoberPlan = await api('/api/assessments/monthly/plan?month=2026-10', {
+  const reusablePlan = await api(`/api/assessments/monthly/plan?month=${reusableAssessmentMonth}`, {
     token: managerToken,
   })
-  assert.equal(octoberPlan.status, 200)
-  assert.ok(octoberPlan.payload.data.subjects.some(subject =>
+  assert.equal(reusablePlan.status, 200)
+  assert.ok(reusablePlan.payload.data.subjects.some(subject =>
     subject.id === reusableTemplate.payload.data.id
       && subject.candidates.some(candidate => candidate.team_member_id === addedMember.payload.data.id)
   ))
-  assert.ok(octoberPlan.payload.data.unassigned.some(member => member.id === primary.teamMember.id))
+  assert.ok(reusablePlan.payload.data.unassigned.some(member => member.id === primary.teamMember.id))
 
   const cancelledEnrollment = await api(
     `/api/assessments/monthly/enrollments/${reusableAssignment.payload.data.enrollments[0].id}`,
@@ -373,7 +402,7 @@ async function run() {
   assert.equal(cancelledEnrollment.payload.data.status, 'cancelled')
 
   const octoberPlanAfterCancellation = await api(
-    '/api/assessments/monthly/plan?month=2026-10',
+    `/api/assessments/monthly/plan?month=${reusableAssessmentMonth}`,
     { token: managerToken }
   )
   assert.equal(octoberPlanAfterCancellation.status, 200)
@@ -392,7 +421,7 @@ async function run() {
   assert.equal(monthlyCalendar.status, 200)
   assert.ok(monthlyCalendar.payload.data.some(row =>
     row.assessment_id === assessment.payload.data.id
-      && String(row.start_date).startsWith('2026-07-15')
+      && String(row.start_date).startsWith(assessmentDate)
   ))
 
   const foreignAssessment = await api('/api/assessments/monthly', {
@@ -405,12 +434,14 @@ async function run() {
   })
   assert.equal(foreignAssessment.status, 403)
 
+  const primaryScheduleAt = futureIso(3)
   const schedule = await api('/api/schedule', {
     method: 'POST',
     token: managerToken,
     body: {
       teamMemberId: primary.teamMember.id,
       type: 'ai_voice',
+      scheduledAt: primaryScheduleAt,
       interviewMode: 'simple',
       difficulty: 'medium',
       questionCount: 5,
@@ -428,6 +459,7 @@ async function run() {
     body: {
       userId: organizationOnlyUser.id,
       type: 'ai_voice',
+      scheduledAt: futureIso(24 * 60 * 60),
       interviewMode: 'adaptive',
       difficulty: 'hard',
       questionCount: 7,
@@ -453,6 +485,7 @@ async function run() {
     body: {
       userId: organizationOnlyUser.id,
       type: 'ai_voice',
+      scheduledAt: futureIso(2 * 24 * 60 * 60),
       interviewMode: 'simple',
       difficulty: 'medium',
       questionCount: 6,
@@ -484,6 +517,7 @@ async function run() {
     body: {
       userId: organizationOnlyUser.id,
       type: 'ai_voice',
+      scheduledAt: futureIso(3 * 24 * 60 * 60),
       interviewMode: 'simple',
       difficulty: 'medium',
       questionCount: 5,
@@ -498,6 +532,7 @@ async function run() {
     body: {
       candidateId: external.payload.data.id,
       type: 'exam',
+      scheduledAt: futureIso(4 * 24 * 60 * 60),
       interviewMode: 'simple',
       difficulty: 'easy',
       questionCount: 5,
@@ -529,6 +564,7 @@ async function run() {
   assert.equal(candidateInterviews.status, 200)
   assert.ok(candidateInterviews.payload.data.some(item => item.id === schedule.payload.data.id))
 
+  await waitUntil(primaryScheduleAt)
   const launch = await api(`/api/candidate/interviews/${schedule.payload.data.id}/launch`, {
     method: 'POST',
     token: candidateToken,
@@ -537,15 +573,15 @@ async function run() {
   assert.ok(launch.payload.data.launchToken)
   assert.ok(launch.payload.data.sessionToken)
 
+  const slots = await api(`/api/schedule/slots/${launch.payload.data.launchToken}`)
+  assert.equal(slots.status, 200)
+  assert.equal(slots.payload.data.id, schedule.payload.data.id)
+
   const magicLink = await api(`/api/auth/magic-link/${launch.payload.data.launchToken}`, {
     method: 'POST',
   })
   assert.equal(magicLink.status, 200)
   assert.equal(magicLink.payload.data.interview.id, schedule.payload.data.id)
-
-  const slots = await api(`/api/schedule/slots/${launch.payload.data.launchToken}`)
-  assert.equal(slots.status, 200)
-  assert.equal(slots.payload.data.id, schedule.payload.data.id)
 
   const foreignLogin = await api('/api/auth/login', {
     method: 'POST',

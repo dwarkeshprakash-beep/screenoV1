@@ -26,14 +26,17 @@ async function create(data) {
     `INSERT INTO interviews
      (manager_id, internal_user_id, external_candidate_id, type, interview_mode,
         difficulty, question_count, duration_minutes, token, token_expires,
-        client_template_id, monthly_assessment_id, report_emails, scheduled_at)
+        client_template_id, monthly_assessment_id, report_emails, scheduled_at,
+        available_from, due_at, schedule_timezone, client_team_id, location, meeting_url)
      VALUES
        (@managerId, @internalUserId, @externalCandidateId, @type, @interviewMode,
         @difficulty, @questionCount, @durationMinutes, @tokenHash, @tokenExpires,
-        @clientTemplateId, @monthlyAssessmentId, @reportEmails, @scheduledAt)
+        @clientTemplateId, @monthlyAssessmentId, @reportEmails, @scheduledAt,
+        @availableFrom, @dueAt, @scheduleTimezone, @clientTeamId, @location, @meetingUrl)
      RETURNING id, manager_id, internal_user_id, external_candidate_id, type,
        interview_mode, difficulty, question_count, duration_minutes, token_expires, status,
-       client_template_id, monthly_assessment_id, report_emails, scheduled_at, created`,
+       client_template_id, monthly_assessment_id, report_emails, scheduled_at,
+       available_from, due_at, schedule_timezone, client_team_id, location, meeting_url, created`,
     {
       managerId: data.managerId,
       internalUserId: data.internalUserId || null,
@@ -49,6 +52,12 @@ async function create(data) {
       monthlyAssessmentId: data.monthlyAssessmentId || null,
       reportEmails: data.reportEmails || null,
       scheduledAt: data.scheduledAt || null,
+      availableFrom: data.availableFrom || null,
+      dueAt: data.dueAt || null,
+      scheduleTimezone: data.scheduleTimezone || null,
+      clientTeamId: data.clientTeamId || null,
+      location: data.location || null,
+      meetingUrl: data.meetingUrl || null,
     }
   )
   return rows[0]
@@ -104,6 +113,17 @@ async function getByClientTemplateForManager(clientTemplateId, managerId) {
        AND i.manager_id = @managerId
      ORDER BY i.created DESC`,
     { clientTemplateId, managerId }
+  )
+}
+
+async function getByClientTeamId(clientTeamId) {
+  return db.query(
+    `SELECT i.*, ${INTERVIEW_COLS}
+     FROM interviews i
+     ${INTERVIEW_JOINS}
+     WHERE i.client_team_id = @clientTeamId
+     ORDER BY i.created DESC`,
+    { clientTeamId }
   )
 }
 
@@ -239,12 +259,38 @@ async function updateTokenHash(id, tokenHash, tokenExpires) {
   )
 }
 
+async function updateSchedule(id, data) {
+  const rows = await db.query(
+    `UPDATE interviews
+     SET scheduled_at = COALESCE(@scheduledAt, scheduled_at),
+         available_from = COALESCE(@availableFrom, available_from),
+         due_at = COALESCE(@dueAt, due_at),
+         schedule_timezone = COALESCE(@scheduleTimezone, schedule_timezone),
+         token = COALESCE(@tokenHash, token),
+         token_expires = COALESCE(@tokenExpires, token_expires),
+         status = CASE WHEN status = 'cancelled' THEN 'scheduled' ELSE status END
+     WHERE id = @id
+     RETURNING *`,
+    {
+      id,
+      scheduledAt: data.scheduledAt || null,
+      availableFrom: data.availableFrom || null,
+      dueAt: data.dueAt || null,
+      scheduleTimezone: data.scheduleTimezone || null,
+      tokenHash: data.tokenHash || null,
+      tokenExpires: data.tokenExpires || null,
+    }
+  )
+  return rows[0] || null
+}
+
 module.exports = {
   create,
   getById,
   getByToken,
   getByManager,
   getByClientTemplateForManager,
+  getByClientTeamId,
   cancelScheduledClientInterview,
   getByInternalUser,
   getByInternalUserId,
@@ -257,4 +303,5 @@ module.exports = {
   markStarted,
   markCompleted,
   updateTokenHash,
+  updateSchedule,
 }

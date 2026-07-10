@@ -16,6 +16,10 @@ const PAGE_META = {
   '/manager/templates':        { title: 'Templates',          subtitle: 'Interview and exam templates' },
   '/manager/resume-analyzer':  { title: 'Resume Analyzer',   subtitle: 'JD-match scoring and keyword gap analysis' },
   '/manager/profile':          { title: 'My Profile',         subtitle: 'Account and notification settings' },
+  '/admin/dashboard':          { title: 'Admin Dashboard',     subtitle: 'System-wide overview and controls' },
+  '/admin/mandates':           { title: 'Admin Mandates',      subtitle: 'Inspect and repair client mandates' },
+  '/admin/interviews':         { title: 'Admin Interviews',    subtitle: 'Inspect and repair interview states' },
+  '/admin/broken-states':      { title: 'Broken States',       subtitle: 'Detect and resolve inconsistent data' },
 }
 
 function getPageMeta(pathname) {
@@ -38,6 +42,7 @@ function LogoMark({ size = 22 }) {
 const ROLE_LABELS = {
   manager:     'MANAGER',
   candidate:   'CANDIDATE',
+  admin:       'ADMIN',
 }
 
 function RoleBar({ role, onLogout, onLogoClick }) {
@@ -107,7 +112,7 @@ function AppLayout({ role = 'manager' }) {
   }
 
   function handleLogoClick() {
-    navigate(`/${role}/dashboard`)
+    navigate(role === 'admin' ? '/admin/dashboard' : `/${role}/dashboard`)
   }
 
   return (
@@ -115,7 +120,7 @@ function AppLayout({ role = 'manager' }) {
       <RoleBar role={role} onLogout={handleLogout} onLogoClick={handleLogoClick} />
 
       <div className="app-shell__body">
-        <Sidebar open={sidebarOpen} onNavigate={() => setSidebarOpen(false)} />
+        <Sidebar role={role} open={sidebarOpen} onNavigate={() => setSidebarOpen(false)} />
         {sidebarOpen && (
           <button
             type="button"

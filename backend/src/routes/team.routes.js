@@ -159,4 +159,32 @@ router.post('/external', async (req, res) => {
   }
 })
 
+router.get('/organization-users/:userId', async (req, res) => {
+  try {
+    const profile = await teamService.getOrganizationMemberProfile(
+      parseInt(req.params.userId, 10),
+      req.user.companyId,
+      req.user.id
+    )
+    if (!profile) return res.status(404).json({ success: false, error: 'Member not found' })
+    res.json({ success: true, data: profile })
+  } catch (err) {
+    console.error('GET /team/organization-users/:userId failed:', err.message)
+    res.status(500).json({ success: false, error: 'Could not load organization member' })
+  }
+})
+
+router.get('/organization-users/:userId/interviews', async (req, res) => {
+  try {
+    const interviews = await teamService.getOrganizationMemberInterviews(
+      parseInt(req.params.userId, 10),
+      req.user.id
+    )
+    res.json({ success: true, data: interviews })
+  } catch (err) {
+    console.error('GET /team/organization-users/:userId/interviews failed:', err.message)
+    res.status(500).json({ success: false, error: 'Could not load organization member interviews' })
+  }
+})
+
 module.exports = router

@@ -3,6 +3,7 @@ const crypto = require('crypto')
 const bcrypt = require('bcryptjs')
 const jwt = require('jsonwebtoken')
 
+const db = require('../db/connection')
 const userRepository = require('../repositories/user.repository')
 const refreshTokenRepository = require('../repositories/refresh-token.repository')
 const passwordResetRepository = require('../repositories/password-reset.repository')
@@ -180,21 +181,57 @@ async function refresh(rawRefreshToken) {
   const tokenHash = hashToken(rawRefreshToken)
   const stored = await refreshTokenRepository.getByHash(tokenHash)
 
-  if (!stored) throw new Error('Invalid or expired refresh token')
+  if (!stored) throw new Error('Invalid refresh token')
+
+  const now = new Date()
+
+  if (stored.revoked) {
+    throw new Error('Refresh token revoked')
+  }
+
+  if (stored.expires < now) {
+    throw new Error('Refresh token expired')
+  }
+
+  // Token rotation / reuse detection logic
+  if (stored.replaced_by_token_hash) {
+    if (stored.replacement_grace_expires && new Date(stored.replacement_grace_expires) > now) {
+      // Grace period: concurrent request (e.g. multi-tab refresh).
+      // Issue a new access token, but do NOT rotate the refresh token again.
+      // The client route should maintain the existing refresh cookie.
+      const user = await userRepository.getById(stored.user_id)
+      if (!user) throw new Error('User not found')
+      return {
+        accessToken: signAccessToken(user),
+        refreshToken: null, // Signals route to not set a new cookie
+        user: publicUser(user),
+      }
+    } else {
+      // Token reuse detected! Revoke the entire family.
+      await refreshTokenRepository.revokeFamily(stored.family_id)
+      throw new Error('Token reuse detected. Family revoked.')
+    }
+  }
 
   const user = await userRepository.getById(stored.user_id)
   if (!user) throw new Error('User not found')
 
-  await refreshTokenRepository.revoke(stored.id)
   const nextRefreshToken = crypto.randomBytes(64).toString('hex')
+  const nextTokenHash = hashToken(nextRefreshToken)
+
+  // 1. Issue new token in the same family
   await refreshTokenRepository.create(
     user.id,
-    hashToken(nextRefreshToken),
-    new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+    nextTokenHash,
+    new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    stored.family_id
   )
-  const accessToken = signAccessToken(user)
+
+  // 2. Mark old token as replaced, starting the 30-second grace period
+  await refreshTokenRepository.markReplaced(stored.id, nextTokenHash, 30000)
+
   return {
-    accessToken,
+    accessToken: signAccessToken(user),
     refreshToken: nextRefreshToken,
     user: publicUser(user),
   }
@@ -206,6 +243,7 @@ async function logout(rawRefreshToken) {
   const tokenHash = hashToken(rawRefreshToken)
   const stored = await refreshTokenRepository.getByHash(tokenHash)
   if (stored) {
+    // Revoking just this token is standard.
     await refreshTokenRepository.revoke(stored.id)
   }
 }
@@ -246,8 +284,10 @@ async function resetPassword(token, newPassword) {
 }
 
 async function validateMagicLink(token) {
-  const interview = await interviewRepository.getByToken(token)
+  return claimMagicLink(token)
+}
 
+function assertMagicLinkUsable(interview) {
   if (!interview) throw new Error('Invalid link')
 
   if (!interview.token_expires || new Date() > new Date(interview.token_expires)) {
@@ -257,8 +297,49 @@ async function validateMagicLink(token) {
   if (interview.status === 'completed') {
     throw new Error('Interview already completed')
   }
+  if (interview.status === 'cancelled') {
+    throw new Error('Interview has been cancelled')
+  }
+}
 
-  return createCandidateLaunch(interview)
+async function previewMagicLink(token) {
+  const interview = await interviewRepository.getByToken(token)
+  assertMagicLinkUsable(interview)
+  await ensureLaunchWindow(interview)
+  return candidateInterviewSummary(interview)
+}
+
+async function claimMagicLink(token) {
+  if (!token) throw new Error('Invalid link')
+  const tokenHash = hashToken(token)
+
+  const lockedInterview = await db.transaction(async (tx) => {
+    const rows = await tx.query(
+      `SELECT *
+       FROM interviews
+       WHERE token = @tokenHash
+       FOR UPDATE`,
+      { tokenHash }
+    )
+    const interview = rows[0]
+    if (!interview) return null
+
+    assertMagicLinkUsable(interview)
+    await ensureLaunchWindow(interview)
+
+    await tx.query(
+      `UPDATE interviews
+       SET token = NULL,
+           token_expires = NULL
+       WHERE id = @id`,
+      { id: interview.id }
+    )
+    return interview
+  })
+
+  if (!lockedInterview) throw new Error('Invalid link')
+  const fullInterview = await interviewRepository.getById(lockedInterview.id)
+  return createCandidateLaunch(fullInterview || lockedInterview)
 }
 
 async function createCandidateLaunch(interview) {
@@ -277,6 +358,8 @@ module.exports = {
   logout,
   requestPasswordReset,
   resetPassword,
+  previewMagicLink,
+  claimMagicLink,
   validateMagicLink,
   createCandidateLaunch,
   hashToken,

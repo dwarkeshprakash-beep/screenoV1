@@ -227,9 +227,29 @@ function CandidateOverviewPage() {
                     </p>
                   )}
                   {u.type === 'human' && (
-                    <p style={{ fontSize: 12, color: 'var(--fg-muted)', margin: 0, display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <Clock size={11} />Your interviewer will share the video link via email.
-                    </p>
+                    <>
+                      {availability.canStart ? (
+                        <button disabled={launchingId === u.id} onClick={async () => {
+                          try {
+                            setLaunchingId(u.id)
+                            const res = await api.joinCandidateInterview(u.id)
+                            if (res?.data?.meetingUrl) window.open(res.data.meetingUrl, '_blank')
+                            else setError('No meeting link available.')
+                          } catch (err) {
+                            setError(err.message || 'Could not join meeting.')
+                          } finally {
+                            setLaunchingId(null)
+                          }
+                        }}
+                        style={{ width: '100%', padding: '9px 14px', background: 'var(--brand-50)', border: '1px solid var(--brand-200)', borderRadius: 7, fontSize: 12, fontWeight: 700, color: 'var(--brand-700)', cursor: launchingId === u.id ? 'not-allowed' : 'pointer', opacity: launchingId === u.id ? 0.6 : 1 }}>
+                          {launchingId === u.id ? 'Joining…' : 'Join Google Meet'}
+                        </button>
+                      ) : (
+                        <p style={{ fontSize: 12, color: 'var(--fg-muted)', margin: 0, display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <Clock size={11} />Meeting link will be active closer to the scheduled time.
+                        </p>
+                      )}
+                    </>
                   )}
                 </div>
               </div>

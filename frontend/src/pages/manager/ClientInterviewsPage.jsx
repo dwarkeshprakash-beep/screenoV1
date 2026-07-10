@@ -2,19 +2,26 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, ArrowRight, BriefcaseBusiness, Calendar, CheckCircle2,
-  Clock, FileText, Mail, Plus, Search, Sparkles, Trash2, Upload,
-  UserCheck, Users, X, AlertCircle, Video,
+  Clock, FileText, Mail, Plus,
+  Search, Sparkles, Trash2, Upload, UserCheck, Users, X, AlertCircle, Video,
 } from 'lucide-react'
 import Avatar from '../../components/shared/Avatar'
 import Button from '../../components/shared/Button'
 import EmptyState from '../../components/shared/EmptyState'
 import ErrorMessage from '../../components/shared/ErrorMessage'
 import Modal from '../../components/shared/Modal'
+import ConfirmDialog from '../../components/shared/ConfirmDialog'
+import DeleteMandateModal from '../../components/manager/DeleteMandateModal'
 import Spinner from '../../components/shared/Spinner'
 import * as api from '../../services/api'
-import { formatDate, formatDateTime, parseStoredArray } from '../../utils/helpers'
+import { formatDate, formatDateTime, parseStoredArray, serializeDatetimeLocal } from '../../utils/helpers'
 
 const parseTags = parseStoredArray
+const MANDATE_FILTERS = [
+  { value: 'active', label: 'Active' },
+  { value: 'archived', label: 'Archived' },
+  { value: 'all', label: 'All' },
+]
 
 function Field({ label, help, full = false, children }) {
   return (
@@ -37,6 +44,24 @@ function requirementMeta(item) {
   return parts.join(' | ')
 }
 
+function toDatetimeInputValue(value) {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  const pad = number => String(number).padStart(2, '0')
+  return [
+    date.getFullYear(),
+    '-',
+    pad(date.getMonth() + 1),
+    '-',
+    pad(date.getDate()),
+    'T',
+    pad(date.getHours()),
+    ':',
+    pad(date.getMinutes()),
+  ].join('')
+}
+
 function newRequirementProfile(seed = {}) {
   return {
     key: seed.key || seed.id || `new-${Date.now()}-${Math.random().toString(36).slice(2)}`,
@@ -46,6 +71,8 @@ function newRequirementProfile(seed = {}) {
     years_max: seed.years_max ?? '',
     headcount: seed.headcount || 1,
     notes: seed.notes || '',
+    jd_text: seed.jd_text || '',
+    resume_deadline: toDatetimeInputValue(seed.resume_deadline),
   }
 }
 
@@ -58,6 +85,8 @@ function normalizeRequirementProfilesForSave(profiles) {
       years_max: profile.years_max === '' ? null : Number(profile.years_max),
       headcount: Number(profile.headcount) || 1,
       notes: String(profile.notes || '').trim() || null,
+      jd_text: String(profile.jd_text || '').trim() || null,
+      resume_deadline: profile.resume_deadline ? serializeDatetimeLocal(profile.resume_deadline) : null,
     }))
     .filter(profile => profile.profile_name)
 }
@@ -71,6 +100,7 @@ function validateRequirementProfilesForSave(profiles) {
     if (profile.years_min != null && (!Number.isInteger(profile.years_min) || profile.years_min < 0)) return 'Minimum experience must be a non-negative whole number.'
     if (profile.years_max != null && (!Number.isInteger(profile.years_max) || profile.years_max < 0)) return 'Maximum experience must be a non-negative whole number.'
     if (profile.years_min != null && profile.years_max != null && profile.years_min > profile.years_max) return 'Minimum experience cannot be greater than maximum experience.'
+    if (profile.resume_deadline && Number.isNaN(new Date(profile.resume_deadline).getTime())) return 'Role resume deadline is invalid.'
     const key = profile.profile_name.toLowerCase()
     if (seen.has(key)) return `Duplicate role: ${profile.profile_name}`
     seen.add(key)
@@ -155,7 +185,6 @@ function RequirementProfilesEditor({ profiles, setProfiles }) {
 function CreateMandateModal({ open, onClose, onCreated }) {
   const [step, setStep] = useState(1)
   const [form, setForm] = useState({ clientName: '', clientEmail: '', requirements: '', headcount: 1, jdText: '', customInfo: '' })
-  const [profiles, setProfiles] = useState(() => [newRequirementProfile()])
   const [tags, setTags] = useState([])
   const [customTag, setCustomTag] = useState('')
   const [fileName, setFileName] = useState('')
@@ -168,7 +197,6 @@ function CreateMandateModal({ open, onClose, onCreated }) {
     if (!open) return
     setStep(1)
     setForm({ clientName: '', clientEmail: '', requirements: '', headcount: 1, jdText: '', customInfo: '' })
-    setProfiles([newRequirementProfile()])
     setTags([])
     setCustomTag('')
     setFileName('')
@@ -195,8 +223,6 @@ function CreateMandateModal({ open, onClose, onCreated }) {
 
   async function continueToTags() {
     if (!form.clientName.trim()) { setError('Client name is required.'); return }
-    const profileError = validateRequirementProfilesForSave(profiles)
-    if (profileError) { setError(profileError); return }
     setExtractingTags(true)
     setError(null)
     try {
@@ -222,9 +248,8 @@ function CreateMandateModal({ open, onClose, onCreated }) {
       await api.createClientTemplate({
         client_name: form.clientName.trim(),
         client_email: form.clientEmail.trim() || null,
-        requirements: requirementProfilesSummary(profiles),
-        headcount: requirementProfilesHeadcount(profiles),
-        requirement_profiles: normalizeRequirementProfilesForSave(profiles),
+        requirements: form.requirements.trim(),
+        headcount: Number(form.headcount) || 1,
         jd_text: form.jdText.trim(),
         custom_info: form.customInfo.trim() || null,
         tags: JSON.stringify(tags),
@@ -239,7 +264,7 @@ function CreateMandateModal({ open, onClose, onCreated }) {
     <Modal open={open} onClose={onClose} title="Create client mandate" size="lg">
       <div className="workspace-stack">
         <div className="workspace-tabs" aria-label="Mandate creation progress">
-          {[['1. Mandate details', 1], ['2. Matching skills', 2]].map(([label, s]) => (
+          {[['1. Mandate brief', 1], ['2. Matching skills', 2]].map(([label, s]) => (
             <button key={s} type="button" className={`workspace-tabs__button${step === s ? ' is-active' : ''}`}
               onClick={() => s === 1 ? setStep(1) : (form.clientName.trim() && setStep(2))}>
               {label}
@@ -255,7 +280,17 @@ function CreateMandateModal({ open, onClose, onCreated }) {
             <Field label="Client email" help="Optional contact for the mandate.">
               <input className="form-input" type="email" value={form.clientEmail} onChange={e => update('clientEmail', e.target.value)} placeholder="contact@client.com" />
             </Field>
-            <RequirementProfilesEditor profiles={profiles} setProfiles={setProfiles} />
+            <Field label="Mandate summary" full help="Optional high-level summary. Add exact roles, each with its own JD and resume deadline, inside the mandate after creation.">
+              <textarea className="form-input" rows={3} value={form.requirements} onChange={e => update('requirements', e.target.value)} placeholder="Example: Engineering hiring for backend and frontend roles" style={{ resize: 'vertical' }} />
+            </Field>
+            <Field label="Initial headcount estimate" help="This is replaced by the total from role profiles once you add roles inside the mandate.">
+              <input className="form-input" type="number" min="1" value={form.headcount} onChange={e => update('headcount', e.target.value)} />
+            </Field>
+            <div className="form-field">
+              <div style={{ padding: 12, borderRadius: 10, border: '1px solid var(--brand-100)', background: 'var(--brand-50)', color: 'var(--brand-700)', fontSize: 12, lineHeight: 1.5 }}>
+                Roles are no longer forced in this setup wizard. Create the mandate first, then add one or more role profiles inside it so every role can keep its own JD, headcount, and resume deadline.
+              </div>
+            </div>
             <Field label="Job description source" help="Paste the JD below or upload PDF, DOC, DOCX, or TXT.">
               <input id="client-jd-file" type="file" accept=".pdf,.doc,.docx,.txt" onChange={readJdFile} style={{ display: 'none' }} />
               <label htmlFor="client-jd-file" className="product-button product-button--secondary product-button--md" style={{ alignSelf: 'flex-start', cursor: extractingFile ? 'wait' : 'pointer' }}>
@@ -431,15 +466,23 @@ function EditMandateModal({ open, template, requirements = [], onClose, onSaved 
 // ── Requirement profile modal ─────────────────────────────────────────────────
 
 function RequirementModal({ open, onClose, onSaved, existing, mandateId }) {
-  const [form, setForm] = useState({ profile_name: '', years_min: '', years_max: '', headcount: 1, notes: '' })
+  const [form, setForm] = useState({ profile_name: '', years_min: '', years_max: '', headcount: 1, jd_text: '', resume_deadline: '', notes: '' })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
 
   useEffect(() => {
     if (!open) return
     setForm(existing
-      ? { profile_name: existing.profile_name || '', years_min: existing.years_min ?? '', years_max: existing.years_max ?? '', headcount: existing.headcount || 1, notes: existing.notes || '' }
-      : { profile_name: '', years_min: '', years_max: '', headcount: 1, notes: '' })
+      ? {
+        profile_name: existing.profile_name || '',
+        years_min: existing.years_min ?? '',
+        years_max: existing.years_max ?? '',
+        headcount: existing.headcount || 1,
+        jd_text: existing.jd_text || '',
+        resume_deadline: toDatetimeInputValue(existing.resume_deadline),
+        notes: existing.notes || '',
+      }
+      : { profile_name: '', years_min: '', years_max: '', headcount: 1, jd_text: '', resume_deadline: '', notes: '' })
     setError(null)
   }, [open, existing])
 
@@ -454,7 +497,14 @@ function RequirementModal({ open, onClose, onSaved, existing, mandateId }) {
     setSaving(true)
     setError(null)
     try {
-      const data = { ...form, years_min: minYears, years_max: maxYears, headcount: Number(form.headcount) || 1 }
+      const data = {
+        ...form,
+        years_min: minYears,
+        years_max: maxYears,
+        headcount: Number(form.headcount) || 1,
+        jd_text: form.jd_text.trim() || null,
+        resume_deadline: form.resume_deadline ? serializeDatetimeLocal(form.resume_deadline) : null,
+      }
       const response = existing
         ? await api.updateMandateRequirement(mandateId, existing.id, data)
         : await api.createMandateRequirement(mandateId, data)
@@ -464,7 +514,7 @@ function RequirementModal({ open, onClose, onSaved, existing, mandateId }) {
   }
 
   return (
-    <Modal open={open} onClose={onClose} title={existing ? 'Edit requirement profile' : 'Add requirement profile'} size="md">
+    <Modal open={open} onClose={onClose} title={existing ? 'Edit role profile' : 'Add role profile'} size="lg">
       <div className="workspace-stack">
         <div className="form-grid">
           <Field label="Profile name" full help="e.g. Senior Backend Engineer, Junior Frontend Developer">
@@ -478,6 +528,12 @@ function RequirementModal({ open, onClose, onSaved, existing, mandateId }) {
           </Field>
           <Field label="Headcount for this profile">
             <input className="form-input" type="number" min="1" value={form.headcount} onChange={e => setForm(c => ({ ...c, headcount: e.target.value }))} />
+          </Field>
+          <Field label="Resume deadline" help="Optional candidate deadline for this specific role.">
+            <input className="form-input" type="datetime-local" value={form.resume_deadline} onChange={e => setForm(c => ({ ...c, resume_deadline: e.target.value }))} />
+          </Field>
+          <Field label="Role-specific JD" full help="Used when sending the JD to candidates assigned to this role. Falls back to mandate JD if blank.">
+            <textarea className="form-input" rows={8} value={form.jd_text} onChange={e => setForm(c => ({ ...c, jd_text: e.target.value }))} placeholder="Paste the JD for this role..." style={{ resize: 'vertical' }} />
           </Field>
           <Field label="Notes" full>
             <textarea className="form-input" rows={3} value={form.notes} onChange={e => setForm(c => ({ ...c, notes: e.target.value }))} placeholder="Additional notes for this profile..." style={{ resize: 'vertical' }} />
@@ -537,7 +593,12 @@ function AddProspectsModal({ open, onClose, onAdded, mandateId, requirements }) 
     setAdding(true)
     setError(null)
     try {
-      await api.addProspects(mandateId, { userIds: selectedIds, requirementId: requirementId ? Number(requirementId) : null })
+      await api.addProspects(mandateId, {
+        userIds: selectedIds.map(userId => ({
+          userId,
+          requirementId: requirementId ? Number(requirementId) : null,
+        })),
+      })
       await onAdded()
       onClose()
     } catch (err) { setError(err.message || 'Could not add prospects.') }
@@ -557,9 +618,9 @@ function AddProspectsModal({ open, onClose, onAdded, mandateId, requirements }) 
         </div>
 
         {requirements.length > 0 && (
-          <Field label="Assign to requirement profile" help="Optional — helps track which profile each prospect is for.">
+          <Field label="Assign to requirement profile" help="Required — tracks which profile each prospect is for.">
             <select className="form-input" value={requirementId} onChange={e => setRequirementId(e.target.value)}>
-              <option value="">No specific profile</option>
+              <option value="">Select a profile...</option>
               {requirements.map(r => <option key={r.id} value={r.id}>{r.profile_name}{r.years_min != null ? ` (${r.years_min}–${r.years_max ?? '+'} yrs)` : ''}</option>)}
             </select>
           </Field>
@@ -614,7 +675,7 @@ function AddProspectsModal({ open, onClose, onAdded, mandateId, requirements }) 
         {error && <ErrorMessage message={error} />}
         <div className="form-actions">
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button onClick={addProspects} loading={adding} disabled={selectedIds.length === 0}>
+          <Button onClick={addProspects} loading={adding} disabled={selectedIds.length === 0 || (requirements.length > 0 && !requirementId)}>
             <UserCheck size={14} />Add {selectedIds.length > 0 ? selectedIds.length : ''} to client team
           </Button>
         </div>
@@ -623,7 +684,10 @@ function AddProspectsModal({ open, onClose, onAdded, mandateId, requirements }) 
   )
 }
 
-function CandidateActionModal({ candidate, onClose, onViewProfile, onAdd, adding, error }) {
+function CandidateActionModal({ candidate, requirements, onClose, onViewProfile, onAdd, adding, error }) {
+  const [requirementId, setRequirementId] = useState('')
+  useEffect(() => { setRequirementId('') }, [candidate])
+
   if (!candidate) return null
   const name = `${candidate.first_name || ''} ${candidate.last_name || ''}`.trim() || candidate.email
   const suggestedRequirement = candidate.matching_requirements?.[0]
@@ -647,13 +711,23 @@ function CandidateActionModal({ candidate, onClose, onViewProfile, onAdd, adding
             Suggested: {suggestedRequirement.profile_name}{requirementMeta(suggestedRequirement) ? ` | ${requirementMeta(suggestedRequirement)}` : ''}
           </span>
         )}
+        {requirements && requirements.length > 0 && (
+          <Field label="Assign to requirement profile" help="Required — tracks which profile each prospect is for.">
+            <select className="form-input" value={requirementId} onChange={e => setRequirementId(e.target.value)}>
+              <option value="">Select a profile...</option>
+              {requirements.map(r => <option key={r.id} value={r.id}>{r.profile_name}</option>)}
+            </select>
+          </Field>
+        )}
         {error && <ErrorMessage message={error} />}
         <div className="form-actions" style={{ justifyContent: 'flex-end' }}>
-          <Button variant="secondary" onClick={onViewProfile} disabled={!candidate.team_member_id}>View profile</Button>
-          <Button onClick={onAdd} loading={adding}><UserCheck size={14} />Add candidate</Button>
+          <Button variant="secondary" onClick={onViewProfile} disabled={!candidate.team_member_id && !candidate.role && candidate.employee_id === undefined}>View profile</Button>
+          <Button onClick={() => onAdd(requirementId)} loading={adding} disabled={requirements && requirements.length > 0 && !requirementId}>
+            <UserCheck size={14} />Add candidate
+          </Button>
         </div>
-        {!candidate.team_member_id && (
-          <p style={{ fontSize: 12, color: 'var(--fg-subtle)', margin: 0 }}>Profile page is available after the candidate is in your team.</p>
+        {!candidate.team_member_id && !candidate.role && candidate.employee_id === undefined && (
+          <p style={{ fontSize: 12, color: 'var(--fg-subtle)', margin: 0 }}>Profile page is only available for organization users or team members.</p>
         )}
       </div>
     </Modal>
@@ -717,8 +791,10 @@ function SendJDModal({ open, onClose, onSent, member, template }) {
 
   useEffect(() => { if (open) { setCustomMessage(''); setError(null) } }, [open])
 
+  const roleName = member?.requirement_name || template?.requirements || 'Role'
+  const jdSource = member?.requirement_jd_text || template?.jd_text || template?.requirements || ''
   const previewText = customMessage.trim() || `Your profile is being considered for a client requirement at ${template?.client_name || 'our client'}.`
-  const jdPreview = (template?.jd_text || template?.requirements || '').slice(0, 600)
+  const jdPreview = jdSource.slice(0, 600)
 
   async function send() {
     setSending(true)
@@ -737,7 +813,7 @@ function SendJDModal({ open, onClose, onSent, member, template }) {
         <div className="detail-facts">
           <div className="detail-fact"><div className="detail-fact__label">Candidate</div><div className="detail-fact__value">{member?.first_name} {member?.last_name}</div></div>
           <div className="detail-fact"><div className="detail-fact__label">Client</div><div className="detail-fact__value">{template?.client_name}</div></div>
-          <div className="detail-fact"><div className="detail-fact__label">Role</div><div className="detail-fact__value">{template?.requirements}</div></div>
+          <div className="detail-fact"><div className="detail-fact__label">Role</div><div className="detail-fact__value">{roleName}</div></div>
         </div>
 
         <Field label="Custom message (optional)" help="Appears above the JD in the email. Leave blank to use the default.">
@@ -747,12 +823,12 @@ function SendJDModal({ open, onClose, onSent, member, template }) {
         <div>
           <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg-muted)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Email preview</p>
           <div style={{ border: '1px solid var(--border-default)', borderRadius: 10, padding: 18, background: 'var(--bg-page)', fontSize: 13, color: 'var(--fg-body)' }}>
-            <p style={{ margin: '0 0 10px', fontWeight: 600, color: 'var(--fg-primary)' }}>Subject: [{template?.client_name}] Job opportunity — {template?.requirements}</p>
+            <p style={{ margin: '0 0 10px', fontWeight: 600, color: 'var(--fg-primary)' }}>Subject: [{template?.client_name}] Job opportunity — {roleName}</p>
             <p style={{ margin: '0 0 8px' }}>Hi <strong>{member?.first_name}</strong>,</p>
             <p style={{ margin: '0 0 12px', color: 'var(--fg-muted)' }}>{previewText}</p>
             {jdPreview && (
               <div style={{ background: 'var(--brand-50)', borderLeft: '3px solid var(--brand-500)', padding: '10px 14px', borderRadius: '0 6px 6px 0', fontSize: 12, color: 'var(--fg-body)', whiteSpace: 'pre-wrap' }}>
-                {jdPreview}{(template?.jd_text?.length || 0) > 600 ? '...' : ''}
+                {jdPreview}{jdSource.length > 600 ? '...' : ''}
               </div>
             )}
             <p style={{ margin: '12px 0 0', fontSize: 12, color: 'var(--fg-subtle)' }}>Log in to Screeno portal to submit your resume for this opportunity.</p>
@@ -773,9 +849,9 @@ function SendJDModal({ open, onClose, onSent, member, template }) {
 
 const INTERVIEW_TYPES = [
   { value: 'ai_voice', label: 'AI Voice Interview', desc: 'Automated voice interview with AI-generated questions' },
-  { value: 'exam',     label: 'Coding Exam',         desc: 'Coding or multiple-choice assessment' },
-  { value: 'human',   label: 'Human Video Interview', desc: 'Live video interview with a managed meeting link' },
-  { value: 'offline', label: 'Offline Interview',     desc: 'In-person interview — sends email with date and location' },
+  { value: 'exam', label: 'Coding Exam', desc: 'Coding or multiple-choice assessment' },
+  { value: 'human', label: 'Human Video Interview', desc: 'Live video interview with a managed meeting link' },
+  { value: 'offline', label: 'Offline Interview', desc: 'In-person interview — sends email with date and location' },
 ]
 
 const HUMAN_VIDEO_PLATFORMS = [
@@ -812,12 +888,21 @@ function ScheduleClientTeamModal({ open, onClose, onScheduled, member, template 
     // Load which platforms are configured
     api.getVideoPlatforms()
       .then(r => setPlatformStatus(r.data || {}))
-      .catch(() => {})
+      .catch(() => { })
   }, [open])
 
   async function schedule() {
     if (!scheduledAt) {
       setError('Choose the scheduled date and time.')
+      return
+    }
+    const serializedScheduledAt = serializeDatetimeLocal(scheduledAt)
+    if (!serializedScheduledAt) {
+      setError('Invalid scheduled date and time.')
+      return
+    }
+    if (new Date(serializedScheduledAt) <= new Date()) {
+      setError('Scheduled time must be in the future.')
       return
     }
     if (type === 'human') {
@@ -844,9 +929,10 @@ function ScheduleClientTeamModal({ open, onClose, onScheduled, member, template 
         difficulty,
         questionCount: Number(questionCount),
         durationMinutes: type === 'ai_voice' || type === 'exam' ? Number(durationMinutes) : null,
-        scheduledAt,
-        location:      location.trim() || null,
-        notes:         notes.trim() || null,
+        scheduledAt: serializedScheduledAt,
+        scheduleTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        location: location.trim() || null,
+        notes: notes.trim() || null,
       })
       onScheduled()
       onClose()
@@ -993,79 +1079,185 @@ function ScheduleClientTeamModal({ open, onClose, onScheduled, member, template 
   )
 }
 
-// ── Client interview record modal (outcome tracking) ──────────────────────────
+// ── Mandate detail ─────────────────────────────────────────────────────────────
 
-function ClientInterviewOutcomeModal({ open, onClose, onSaved, member, template, existing }) {
-  const [form, setForm] = useState({ outcome: 'pending', feedback: '', interview_date: '' })
+const EMPTY_OUTCOME_ROUND_FORM = { interview_at: '', outcome: 'pending', feedback: '', manager_notes: '' }
+
+function freshOutcomeRoundForm() {
+  return { ...EMPTY_OUTCOME_ROUND_FORM }
+}
+
+function OutcomeRoundsModal({ open, onClose, onSaved, member, template }) {
+  const [rounds, setRounds] = useState([])
+  const [editingRound, setEditingRound] = useState(null)
+  const [form, setForm] = useState(freshOutcomeRoundForm)
+  const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
+  const memberId = member?.id
+  const templateId = template?.id
+
+  const loadRounds = useCallback(async () => {
+    if (!open || !memberId || !templateId) return
+    setLoading(true)
+    setError(null)
+    try {
+      const response = await api.getOutcomeRounds(templateId, memberId)
+      setRounds(response.data || [])
+    } catch (err) {
+      setError(err.message || 'Could not load outcome rounds.')
+      setRounds([])
+    } finally {
+      setLoading(false)
+    }
+  }, [open, memberId, templateId])
 
   useEffect(() => {
     if (!open) return
-    setForm({
-      outcome: existing?.outcome || 'pending',
-      feedback: existing?.feedback || '',
-      interview_date: existing?.interview_date ? existing.interview_date.split('T')[0] : '',
-    })
-    setError(null)
-  }, [open, existing])
+    setEditingRound(null)
+    setForm(freshOutcomeRoundForm())
+    void loadRounds()
+  }, [open, loadRounds])
 
-  async function save() {
+  function editRound(round) {
+    setEditingRound(round)
+    setForm({
+      interview_at: round.interview_at ? String(round.interview_at).slice(0, 16) : '',
+      outcome: round.outcome || 'pending',
+      feedback: round.feedback || '',
+      manager_notes: round.manager_notes || '',
+    })
+  }
+
+  async function saveRound() {
+    if (!memberId || !templateId) return
     setSaving(true)
     setError(null)
     try {
-      await api.saveClientInterviewRecord(template.id, member.id, form)
-      onSaved()
-      onClose()
-    } catch (err) { setError(err.message || 'Could not save outcome.') }
-    finally { setSaving(false) }
+      const payload = {
+        ...form,
+        interview_at: form.interview_at ? serializeDatetimeLocal(form.interview_at) : null,
+      }
+      if (editingRound) await api.updateOutcomeRound(templateId, memberId, editingRound.id, payload)
+      else await api.createOutcomeRound(templateId, memberId, payload)
+      setEditingRound(null)
+      setForm(freshOutcomeRoundForm())
+      await loadRounds()
+      await onSaved?.()
+    } catch (err) {
+      setError(err.message || 'Could not save round.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  async function togglePublish(round) {
+    if (!memberId || !templateId) return
+    setSaving(true)
+    setError(null)
+    try {
+      if (round.candidate_visible) await api.unpublishOutcomeRound(templateId, memberId, round.id)
+      else await api.publishOutcomeRound(templateId, memberId, round.id)
+      await loadRounds()
+      await onSaved?.()
+    } catch (err) {
+      setError(err.message || 'Could not update publish state.')
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Client interview outcome" size="md">
+    <Modal open={open} onClose={onClose} title="Client outcome rounds" size="lg">
       <div className="workspace-stack">
         <div className="detail-facts">
           <div className="detail-fact"><div className="detail-fact__label">Candidate</div><div className="detail-fact__value">{member?.first_name} {member?.last_name}</div></div>
           <div className="detail-fact"><div className="detail-fact__label">Client</div><div className="detail-fact__value">{template?.client_name}</div></div>
         </div>
-        <div className="form-grid">
-          <Field label="Interview date">
-            <input className="form-input" type="date" value={form.interview_date} onChange={e => setForm(c => ({ ...c, interview_date: e.target.value }))} />
-          </Field>
-          <Field label="Outcome">
-            <select className="form-input" value={form.outcome} onChange={e => setForm(c => ({ ...c, outcome: e.target.value }))}>
-              <option value="pending">Pending</option>
-              <option value="passed">Passed</option>
-              <option value="failed">Did not clear</option>
-              <option value="on_hold">On hold</option>
-            </select>
-          </Field>
-          <Field label="Feedback / reason" full>
-            <textarea className="form-input" rows={4} value={form.feedback} onChange={e => setForm(c => ({ ...c, feedback: e.target.value }))} placeholder="Feedback from the client or notes on the outcome..." style={{ resize: 'vertical' }} />
-          </Field>
+
+        {loading ? <Spinner center /> : (
+          <div className="assignment-list">
+            {rounds.length === 0 ? (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '18px 20px', border: '1px dashed var(--border-default)', borderRadius: 12, background: 'var(--bg-surface-alt)', color: 'var(--fg-muted)' }}>
+                <span style={{ width: 34, height: 34, borderRadius: 999, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'var(--brand-50)', color: 'var(--brand-600)', flexShrink: 0 }}>
+                  <AlertCircle size={17} />
+                </span>
+                <div>
+                  <strong style={{ display: 'block', color: 'var(--fg-primary)', fontSize: 13 }}>No client outcome rounds yet</strong>
+                  <span style={{ display: 'block', fontSize: 12, marginTop: 3 }}>Add the first client-side round below, then publish it when candidates should see the update.</span>
+                </div>
+              </div>
+            ) : rounds.map(round => (
+              <div className="assignment-row" key={round.id}>
+                <div className="assignment-row__content">
+                  <strong>Round {round.round_number}: {round.outcome?.replace(/_/g, ' ') || 'pending'}</strong>
+                  <span>{round.interview_at ? formatDateTime(round.interview_at) : 'Date not set'}{round.candidate_visible ? ' | visible to candidate' : ' | manager-only draft'}</span>
+                  {round.feedback && <span>{round.feedback}</span>}
+                </div>
+                <Button size="sm" variant="secondary" disabled={saving || round.candidate_visible} onClick={() => editRound(round)}>Edit</Button>
+                <Button size="sm" variant={round.candidate_visible ? 'secondary' : 'primary'} disabled={saving} onClick={() => togglePublish(round)}>
+                  {round.candidate_visible ? 'Unpublish' : 'Publish'}
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="workspace-panel" style={{ borderRadius: 14, borderColor: 'var(--brand-100)', background: 'linear-gradient(180deg, var(--bg-surface) 0%, var(--bg-surface-alt) 100%)' }}>
+          <div className="workspace-section-heading" style={{ marginBottom: 12 }}>
+            <div>
+              <h3 style={{ fontSize: 15 }}>{editingRound ? `Edit round ${editingRound.round_number}` : 'Add client round'}</h3>
+              <p>Only published rounds are visible to candidates. Manager notes stay private.</p>
+            </div>
+            {editingRound && <Button size="sm" variant="secondary" onClick={() => { setEditingRound(null); setForm(freshOutcomeRoundForm()) }}>Cancel edit</Button>}
+          </div>
+          <div className="form-grid">
+            <Field label="Interview date">
+              <input className="form-input" type="datetime-local" value={form.interview_at} onChange={e => setForm(c => ({ ...c, interview_at: e.target.value }))} />
+            </Field>
+            <Field label="Outcome">
+              <select className="form-input" value={form.outcome} onChange={e => setForm(c => ({ ...c, outcome: e.target.value }))}>
+                <option value="pending">Pending</option>
+                <option value="passed">Passed</option>
+                <option value="failed">Failed</option>
+                <option value="on_hold">On hold</option>
+                <option value="offer_made">Offer made</option>
+                <option value="hired">Hired</option>
+                <option value="withdrawn">Withdrawn</option>
+              </select>
+            </Field>
+            <Field label="Candidate-visible feedback" full>
+              <textarea className="form-input" rows={3} value={form.feedback} onChange={e => setForm(c => ({ ...c, feedback: e.target.value }))} style={{ resize: 'vertical' }} />
+            </Field>
+            <Field label="Private manager notes" full>
+              <textarea className="form-input" rows={3} value={form.manager_notes} onChange={e => setForm(c => ({ ...c, manager_notes: e.target.value }))} style={{ resize: 'vertical' }} />
+            </Field>
+          </div>
+          <div className="form-actions" style={{ justifyContent: 'flex-end' }}>
+            <Button onClick={saveRound} loading={saving}>{editingRound ? 'Save changes' : 'Add round'}</Button>
+          </div>
         </div>
+
         {error && <ErrorMessage message={error} />}
-        <div className="form-actions" style={{ justifyContent: 'flex-end' }}>
-          <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button onClick={save} loading={saving}>Save outcome</Button>
-        </div>
       </div>
     </Modal>
   )
 }
-
-// ── Mandate detail ─────────────────────────────────────────────────────────────
 
 function MandateDetail({ initialTemplate, onBack }) {
   const navigate = useNavigate()
   const [template, setTemplate] = useState(initialTemplate)
   const [tab, setTab] = useState('overview')
   const [requirements, setRequirements] = useState([])
+  const [requirementsError, setRequirementsError] = useState(null)
   const [reqModal, setReqModal] = useState(null)
   const [members, setMembers] = useState([])
   const [clientTeam, setClientTeam] = useState([])
   const [assignments, setAssignments] = useState([])
+  const [loadCandidatesError, setLoadCandidatesError] = useState(null)
+  const [loadClientTeamError, setLoadClientTeamError] = useState(null)
   const [reports, setReports] = useState([])
+  const [reportsError, setReportsError] = useState(null)
   const [selectedReport, setSelectedReport] = useState(null)
   const [reportDetailLoading, setReportDetailLoading] = useState(false)
   const [reportDetailError, setReportDetailError] = useState(null)
@@ -1074,28 +1266,60 @@ function MandateDetail({ initialTemplate, onBack }) {
   const [candidateSection, setCandidateSection] = useState('team')
   const [query, setQuery] = useState('')
   const [memberLimit, setMemberLimit] = useState(30)
-  const [message, setMessage] = useState(null)
+  const [message, setMessage] = useState(null) // { text: string, type: 'success' | 'error' }
   const [editOpen, setEditOpen] = useState(false)
+  const [deleteMandateOpen, setDeleteMandateOpen] = useState(false)
   const [addProspectsOpen, setAddProspectsOpen] = useState(false)
   const [candidateActionTarget, setCandidateActionTarget] = useState(null)
   const [addingCandidateId, setAddingCandidateId] = useState(null)
   const [candidateActionError, setCandidateActionError] = useState(null)
   const [sendJdTarget, setSendJdTarget] = useState(null)
   const [scheduleTarget, setScheduleTarget] = useState(null)
-  const [outcomeTarget, setOutcomeTarget] = useState(null)
-  const [outcomeExisting, setOutcomeExisting] = useState(null)
+  const [roundsTarget, setRoundsTarget] = useState(null)
   const [cancellingId, setCancellingId] = useState(null)
   const [removingId, setRemovingId] = useState(null)
+  const [confirmDialog, setConfirmDialog] = useState({ open: false, title: '', message: '', onConfirm: () => { } })
   const tags = parseTags(template.tags)
+  const isArchived = !!template.archived_at
+
+  function handleArchive() {
+    setConfirmDialog({
+      open: true,
+      title: 'Archive Mandate',
+      message: 'Archive this client mandate? It will become read-only, but existing interviews will continue.',
+      danger: true,
+      confirmText: 'Archive',
+      onConfirm: async () => {
+        try {
+          const res = await api.archiveClientTemplate(template.id)
+          setTemplate(res.data)
+          setMessage({ text: 'Mandate archived.', type: 'success' })
+        } catch (err) { setMessage({ text: err.message || 'Could not archive mandate.', type: 'error' }) }
+      }
+    })
+  }
+
+  async function handleRestore() {
+    try {
+      const res = await api.restoreClientTemplate(template.id)
+      setTemplate(res.data)
+      setMessage({ text: 'Mandate restored.', type: 'success' })
+    } catch (err) { setMessage({ text: err.message || 'Could not restore mandate.', type: 'error' }) }
+  }
 
   const loadRequirements = useCallback(async () => {
+    setRequirementsError(null)
     try {
       const r = await api.getMandateRequirements(template.id)
       setRequirements(r.data || [])
-    } catch { setRequirements([]) }
+    } catch (err) {
+      setRequirementsError(err.message || 'Failed to load requirement profiles')
+      // Keep previous data if exists instead of clearing
+    }
   }, [template.id])
 
   const loadCandidates = useCallback(async () => {
+    setLoadCandidatesError(null)
     setLoadingCandidates(true)
     try {
       const [memberRes, assignmentRes] = await Promise.all([
@@ -1104,16 +1328,23 @@ function MandateDetail({ initialTemplate, onBack }) {
       ])
       setMembers(memberRes.data || [])
       setAssignments(assignmentRes.data || [])
-    } catch { setMembers([]); setAssignments([]) }
+    } catch (err) {
+      setLoadCandidatesError(err.message || 'Failed to load candidates')
+      // Keep previous data
+    }
     finally { setLoadingCandidates(false) }
   }, [template.id])
 
   const loadClientTeam = useCallback(async () => {
+    setLoadClientTeamError(null)
     setLoadingTeam(true)
     try {
       const r = await api.getClientTeam(template.id)
       setClientTeam(r.data || [])
-    } catch { setClientTeam([]) }
+    } catch (err) {
+      setLoadClientTeamError(err.message || 'Failed to load client team')
+      // Keep previous data
+    }
     finally { setLoadingTeam(false) }
   }, [template.id])
 
@@ -1121,10 +1352,13 @@ function MandateDetail({ initialTemplate, onBack }) {
   useEffect(() => { if (tab === 'candidates') void loadCandidates() }, [tab, loadCandidates])
   useEffect(() => { if (tab === 'team') void loadClientTeam() }, [tab, loadClientTeam])
   useEffect(() => {
+    setReportsError(null)
     if (tab !== 'reports') return
     api.getTeamReports('client')
       .then(r => setReports((r.data?.reports || []).filter(rp => Number(rp.client_template_id) === Number(template.id))))
-      .catch(() => setReports([]))
+      .catch(err => {
+        setReportsError(err.message || 'Failed to load reports')
+      })
   }, [tab, template.id])
 
   const teamMembers = useMemo(() => members.filter(m => m.in_team), [members])
@@ -1144,52 +1378,67 @@ function MandateDetail({ initialTemplate, onBack }) {
 
   useEffect(() => { setMemberLimit(30) }, [query, candidateSection, template.id])
 
-  async function removeFromTeam(member) {
-    if (!window.confirm(`Remove ${member.first_name} ${member.last_name} from the client team?`)) return
-    setRemovingId(member.id)
-    try {
-      await api.removeFromClientTeam(template.id, member.id)
-      await loadClientTeam()
-      setMessage(`${member.first_name} ${member.last_name} removed from client team.`)
-    } catch (err) { setMessage(err.message || 'Could not remove from team.') }
-    finally { setRemovingId(null) }
+  function removeFromTeam(member) {
+    setConfirmDialog({
+      open: true,
+      title: 'Remove Team Member',
+      message: `Remove ${member.first_name} ${member.last_name} from the client team?`,
+      danger: true,
+      confirmText: 'Remove',
+      onConfirm: async () => {
+        setRemovingId(member.id)
+        try {
+          await api.removeFromClientTeam(template.id, member.id)
+          await loadClientTeam()
+          setMessage({ text: `${member.first_name} ${member.last_name} removed from client team.`, type: 'success' })
+        } catch (err) { setMessage({ text: err.message || 'Could not remove from team.', type: 'error' }) }
+        finally { setRemovingId(null) }
+      }
+    })
   }
 
-  async function cancelAssignment(assignment) {
+  function cancelAssignment(assignment) {
     const name = `${assignment.candidate_first || ''} ${assignment.candidate_last || ''}`.trim()
-    if (!window.confirm(`Cancel the scheduled interview for ${name}?`)) return
-    setCancellingId(assignment.id)
-    try {
-      await api.cancelTemplateAssignment(template.id, assignment.id)
-      await loadCandidates()
-      setMessage(`Scheduled interview for ${name} was cancelled.`)
-    } catch (err) { setMessage(err.message || 'Could not cancel the interview.') }
-    finally { setCancellingId(null) }
-  }
-
-  async function openOutcomeModal(member) {
-    const r = await api.getClientInterviewRecord(template.id, member.id).catch(() => ({ data: null }))
-    setOutcomeExisting(r.data)
-    setOutcomeTarget(member)
+    setConfirmDialog({
+      open: true,
+      title: 'Cancel Interview',
+      message: `Cancel the scheduled interview for ${name}?`,
+      danger: true,
+      confirmText: 'Cancel Interview',
+      onConfirm: async () => {
+        setCancellingId(assignment.id)
+        try {
+          await api.cancelTemplateAssignment(template.id, assignment.id)
+          await loadCandidates()
+          setMessage({ text: `Scheduled interview for ${name} was cancelled.`, type: 'success' })
+        } catch (err) { setMessage({ text: err.message || 'Could not cancel the interview.', type: 'error' }) }
+        finally { setCancellingId(null) }
+      }
+    })
   }
 
   function viewCandidateProfile(candidate) {
-    if (!candidate?.team_member_id) return
-    navigate(`/manager/team/${candidate.team_member_id}`)
+    if (!candidate) return
+    if (candidate.team_member_id) {
+      navigate(`/manager/team/${candidate.team_member_id}`)
+    } else if (candidate.role || candidate.employee_id !== undefined) {
+      navigate(`/manager/organization/${candidate.id}`)
+    }
   }
 
-  async function addCandidateFromBrowse(candidate) {
+  async function addCandidateFromBrowse(candidate, requirementId) {
     if (!candidate?.id) return
-    const requirementId = candidate.matching_requirements?.[0]?.id || requirements[0]?.id || null
     setAddingCandidateId(candidate.id)
     setCandidateActionError(null)
     try {
       await api.addProspects(template.id, {
-        userIds: [candidate.id],
-        requirementId: requirementId ? Number(requirementId) : null,
+        userIds: [{
+          userId: candidate.id,
+          requirementId: requirementId ? Number(requirementId) : null,
+        }],
       })
       setCandidateActionTarget(null)
-      setMessage(`${candidate.first_name || 'Candidate'} added to the client team.`)
+      setMessage({ text: `${candidate.first_name || 'Candidate'} added to the client team.`, type: 'success' })
       await Promise.all([loadClientTeam(), loadCandidates()])
     } catch (err) {
       setCandidateActionError(err.message || 'Could not add candidate.')
@@ -1220,11 +1469,26 @@ function MandateDetail({ initialTemplate, onBack }) {
         <div className="detail-header__identity">
           <button type="button" className="detail-header__back" onClick={onBack}><ArrowLeft size={15} />Mandates</button>
           <div className="detail-header__title">
-            <h2>{template.client_name}</h2>
+            <h2>
+              {template.client_name}
+              {isArchived && <span className="status-pill" style={{ marginLeft: 8, background: 'var(--slate-100)' }}>Archived</span>}
+            </h2>
             <p>{template.requirements || 'Client hiring mandate'}</p>
           </div>
         </div>
-        <Button variant="secondary" onClick={() => setEditOpen(true)}>Edit mandate</Button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          {isArchived ? (
+            <>
+              <Button variant="secondary" onClick={() => handleRestore()}>Restore mandate</Button>
+              <Button variant="danger" onClick={() => setDeleteMandateOpen(true)}>Delete mandate</Button>
+            </>
+          ) : (
+            <>
+              <Button variant="secondary" onClick={() => setEditOpen(true)}>Edit mandate</Button>
+              <Button variant="secondary" onClick={() => handleArchive()}>Archive</Button>
+            </>
+          )}
+        </div>
       </div>
 
       <div className="workspace-tabs" aria-label="Mandate sections" style={{ alignSelf: 'flex-start' }}>
@@ -1233,7 +1497,19 @@ function MandateDetail({ initialTemplate, onBack }) {
         ))}
       </div>
 
-      {message && <div style={{ padding: 11, borderRadius: 8, background: 'var(--success-50)', color: 'var(--success-700)', fontSize: 12 }} onClick={() => setMessage(null)}>{message}</div>}
+      {message && <div
+        style={{
+          padding: 11,
+          borderRadius: 8,
+          background: message.type === 'error' ? 'var(--danger-50)' : 'var(--success-50)',
+          color: message.type === 'error' ? 'var(--danger-700)' : 'var(--success-700)',
+          fontSize: 12,
+          cursor: 'pointer'
+        }}
+        onClick={() => setMessage(null)}
+      >
+        {message.text}
+      </div>}
 
       <div className="workspace-panel detail-panel">
 
@@ -1241,7 +1517,7 @@ function MandateDetail({ initialTemplate, onBack }) {
         {tab === 'overview' && (
           <div className="workspace-stack">
             <div className="detail-facts">
-              {[['Client', template.client_name], ['Role', template.requirements || 'Not set'], ['Total headcount', template.headcount || 1], ['Client email', template.client_email || 'Not provided'], ['Created', formatDate(template.created)], ['Skills', tags.length]].map(([label, value]) => (
+              {[['Client', template.client_name], ['Role', template.requirements || 'Not set'], ['Openings', template.headcount ?? 1], ['Hired', template.hired_count ?? 0], ['Pipeline', template.pipeline_count ?? 0], ['Client email', template.client_email || 'Not provided'], ['Created', formatDate(template.created)], ['Skills', tags.length]].map(([label, value]) => (
                 <div className="detail-fact" key={label}><div className="detail-fact__label">{label}</div><div className="detail-fact__value">{value}</div></div>
               ))}
             </div>
@@ -1266,9 +1542,10 @@ function MandateDetail({ initialTemplate, onBack }) {
             <section>
               <div className="workspace-section-heading" style={{ marginBottom: 12 }}>
                 <div><h3 style={{ fontSize: 15 }}>Requirement profiles</h3><p>Define multiple profiles for this mandate (e.g. junior vs senior).</p></div>
-                <Button size="sm" onClick={() => setReqModal('new')}><Plus size={13} />Add profile</Button>
+                <Button size="sm" onClick={() => setReqModal('new')} disabled={isArchived}><Plus size={13} />Add profile</Button>
               </div>
-              {requirements.length === 0 ? (
+              {requirementsError && <ErrorMessage message={requirementsError} />}
+              {requirements.length === 0 && !requirementsError ? (
                 <span style={{ color: 'var(--fg-muted)', fontSize: 12 }}>No requirement profiles yet. Add profiles to distinguish between different experience levels or roles within this mandate.</span>
               ) : (
                 <div className="assignment-list">
@@ -1277,12 +1554,16 @@ function MandateDetail({ initialTemplate, onBack }) {
                       <div className="assignment-row__content">
                         <strong>{r.profile_name}</strong>
                         <span>
-                          {r.years_min != null ? `${r.years_min}–${r.years_max ?? '+'}  yrs exp` : 'Experience not specified'} &middot; {r.headcount || 1} position{(r.headcount || 1) !== 1 ? 's' : ''}
+                          {r.years_min != null ? `${r.years_min}–${r.years_max ?? '+'}  yrs exp` : 'Experience not specified'} &middot; {r.hired_count ?? 0} hired / {r.headcount ?? 1} openings &middot; {r.pipeline_count ?? 0} pipeline
                           {r.notes ? ` · ${r.notes}` : ''}
+                        </span>
+                        <span>
+                          {r.jd_text ? 'Role JD attached' : 'Uses mandate JD'}
+                          {r.resume_deadline ? ` | Resume deadline ${formatDateTime(r.resume_deadline)}` : ' | No role resume deadline'}
                         </span>
                       </div>
                       <button type="button" className="danger-icon-button" style={{ background: 'transparent', border: '1px solid var(--border-default)', borderRadius: 6, padding: '4px 10px', fontSize: 11, color: 'var(--fg-muted)', cursor: 'pointer' }}
-                        onClick={() => setReqModal(r)}>
+                        onClick={() => setReqModal(r)} disabled={isArchived}>
                         Edit
                       </button>
                     </div>
@@ -1310,6 +1591,7 @@ function MandateDetail({ initialTemplate, onBack }) {
         {tab === 'candidates' && (
           loadingCandidates ? <Spinner center /> : (
             <div className="workspace-stack">
+              {loadCandidatesError && <ErrorMessage message={loadCandidatesError} />}
               <div className="workspace-section-heading">
                 <div>
                   <h3 style={{ fontSize: 16 }}>Browse candidates</h3>
@@ -1343,7 +1625,7 @@ function MandateDetail({ initialTemplate, onBack }) {
                           </div>
                           <span className={`status-pill${assignment.status === 'completed' ? ' status-pill--success' : assignment.status === 'cancelled' ? ' status-pill--danger' : ' status-pill--brand'}`}>{assignment.status}</span>
                           {assignment.status === 'scheduled' && (
-                            <button type="button" className="danger-icon-button" disabled={cancellingId === assignment.id} onClick={() => cancelAssignment(assignment)}><Trash2 size={14} /></button>
+                            <button type="button" className="danger-icon-button" disabled={isArchived || cancellingId === assignment.id} onClick={() => cancelAssignment(assignment)}><Trash2 size={14} /></button>
                           )}
                         </div>
                       )
@@ -1366,7 +1648,7 @@ function MandateDetail({ initialTemplate, onBack }) {
                   {displayedMembers.map(member => {
                     const name = `${member.first_name || ''} ${member.last_name || ''}`.trim()
                     return (
-                      <button type="button" className="workspace-card" key={member.id} onClick={() => { setCandidateActionTarget(member); setCandidateActionError(null) }} style={{ textAlign: 'left' }}>
+                      <button type="button" className="workspace-card" key={member.id} disabled={isArchived} onClick={() => { setCandidateActionTarget(member); setCandidateActionError(null) }} style={{ textAlign: 'left' }}>
                         <div className="workspace-card__body" style={{ padding: 16 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
                             <Avatar name={name} size={34} />
@@ -1395,7 +1677,7 @@ function MandateDetail({ initialTemplate, onBack }) {
               )}
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: 8, borderTop: '1px solid var(--border-default)' }}>
-                <Button onClick={() => setAddProspectsOpen(true)}>
+                <Button onClick={() => setAddProspectsOpen(true)} disabled={isArchived}>
                   <UserCheck size={14} />Add prospects to client team
                 </Button>
               </div>
@@ -1412,10 +1694,11 @@ function MandateDetail({ initialTemplate, onBack }) {
                   <h3 style={{ fontSize: 16 }}>Client team</h3>
                   <p>Prospects added to this mandate. Send the JD, schedule interviews, and track client interview outcomes.</p>
                 </div>
-                <Button onClick={() => setAddProspectsOpen(true)}><Plus size={14} />Add prospects</Button>
+                <Button onClick={() => setAddProspectsOpen(true)} disabled={isArchived}><Plus size={14} />Add prospects</Button>
               </div>
 
-              {clientTeam.length === 0 ? (
+              {loadClientTeamError && <ErrorMessage message={loadClientTeamError} />}
+              {clientTeam.length === 0 && !loadClientTeamError ? (
                 <EmptyState message="No prospects added yet. Go to the Candidates tab to select and add team members or other org members." />
               ) : (
                 <div className="assignment-list" style={{ gap: 0 }}>
@@ -1451,10 +1734,10 @@ function MandateDetail({ initialTemplate, onBack }) {
                           </div>
 
                           <div style={{ display: 'flex', gap: 6 }}>
-                            <Button size="sm" variant="secondary" onClick={() => setSendJdTarget(member)}><Mail size={12} />Send JD</Button>
-                            <Button size="sm" variant="secondary" onClick={() => setScheduleTarget(member)}><Calendar size={12} />Schedule</Button>
-                            <Button size="sm" variant="secondary" onClick={() => openOutcomeModal(member)}><AlertCircle size={12} />Client outcome</Button>
-                            <button type="button" className="danger-icon-button" disabled={removingId === member.id}
+                            <Button size="sm" variant="secondary" onClick={() => setSendJdTarget(member)} disabled={isArchived}><Mail size={12} />Send JD</Button>
+                            <Button size="sm" variant="secondary" onClick={() => setScheduleTarget(member)} disabled={isArchived}><Calendar size={12} />Schedule</Button>
+                            <Button size="sm" variant="secondary" onClick={() => setRoundsTarget(member)}><AlertCircle size={12} />Rounds</Button>
+                            <button type="button" className="danger-icon-button" disabled={isArchived || removingId === member.id}
                               onClick={() => removeFromTeam(member)} style={{ padding: '5px 8px' }}>
                               <Trash2 size={13} />
                             </button>
@@ -1477,23 +1760,27 @@ function MandateDetail({ initialTemplate, onBack }) {
 
         {/* ── Reports tab ── */}
         {tab === 'reports' && (
-          reports.length === 0
-            ? <EmptyState message="Reports for this mandate will appear after interviews are completed." />
-            : (
-              <div className="assignment-list">
-                {reports.map(report => (
-                  <div className="assignment-row" key={report.id} role="button" tabIndex={0} onClick={() => openMandateReport(report)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') openMandateReport(report) }} style={{ cursor: 'pointer' }}>
-                    <Avatar name={`${report.candidate_first || ''} ${report.candidate_last || ''}`.trim()} size={30} />
-                    <div className="assignment-row__content">
-                      <strong>{report.candidate_first} {report.candidate_last}</strong>
-                      <span>Overall score: {report.overall_score ?? 'Not scored'}</span>
+          <div className="workspace-stack">
+            {reportsError && <ErrorMessage message={reportsError} />}
+            {reports.length === 0 && !reportsError
+              ? <EmptyState message="Reports for this mandate will appear after interviews are completed." />
+              : (
+                <div className="assignment-list">
+                  {reports.map(report => (
+                    <div className="assignment-row" key={report.id} role="button" tabIndex={0} onClick={() => openMandateReport(report)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') openMandateReport(report) }} style={{ cursor: 'pointer' }}>
+                      <Avatar name={`${report.candidate_first || ''} ${report.candidate_last || ''}`.trim()} size={30} />
+                      <div className="assignment-row__content">
+                        <strong>{report.candidate_first} {report.candidate_last}</strong>
+                        <span>Overall score: {report.overall_score ?? 'Not scored'}</span>
+                      </div>
+                      <span className={`status-pill${report.decision === 'pass' ? ' status-pill--success' : ' status-pill--warning'}`}>{report.decision || 'Review'}</span>
+                      <Button size="sm" variant="secondary" onClick={event => { event.stopPropagation(); openMandateReport(report) }}>View</Button>
                     </div>
-                    <span className={`status-pill${report.decision === 'pass' ? ' status-pill--success' : ' status-pill--warning'}`}>{report.decision || 'Review'}</span>
-                    <Button size="sm" variant="secondary" onClick={event => { event.stopPropagation(); openMandateReport(report) }}>View</Button>
-                  </div>
-                ))}
-              </div>
-            )
+                  ))}
+                </div>
+              )
+            }
+          </div>
         )}
       </div>
 
@@ -1503,6 +1790,13 @@ function MandateDetail({ initialTemplate, onBack }) {
         requirements={requirements}
         onClose={() => setEditOpen(false)}
         onSaved={updated => { setTemplate(updated); setEditOpen(false); void loadRequirements() }}
+      />
+
+      <DeleteMandateModal
+        open={deleteMandateOpen}
+        template={template}
+        onClose={() => setDeleteMandateOpen(false)}
+        onSuccess={() => { setDeleteMandateOpen(false); navigate('/manager/clients') }}
       />
 
       <RequirementModal
@@ -1523,9 +1817,10 @@ function MandateDetail({ initialTemplate, onBack }) {
 
       <CandidateActionModal
         candidate={candidateActionTarget}
+        requirements={requirements}
         onClose={() => { setCandidateActionTarget(null); setCandidateActionError(null) }}
         onViewProfile={() => viewCandidateProfile(candidateActionTarget)}
-        onAdd={() => addCandidateFromBrowse(candidateActionTarget)}
+        onAdd={(reqId) => addCandidateFromBrowse(candidateActionTarget, reqId)}
         adding={addingCandidateId === candidateActionTarget?.id}
         error={candidateActionError}
       />
@@ -1543,7 +1838,7 @@ function MandateDetail({ initialTemplate, onBack }) {
           onClose={() => setSendJdTarget(null)}
           member={sendJdTarget}
           template={template}
-          onSent={() => { setSendJdTarget(null); loadClientTeam(); setMessage(`JD sent to ${sendJdTarget.first_name}.`) }}
+          onSent={() => { setSendJdTarget(null); loadClientTeam(); setMessage({ text: `JD sent to ${sendJdTarget.first_name}.`, type: 'success' }) }}
         />
       )}
 
@@ -1553,20 +1848,29 @@ function MandateDetail({ initialTemplate, onBack }) {
           onClose={() => setScheduleTarget(null)}
           member={scheduleTarget}
           template={template}
-          onScheduled={() => { setScheduleTarget(null); loadClientTeam(); setMessage('Interview scheduled successfully.') }}
+          onScheduled={() => { setScheduleTarget(null); loadClientTeam(); setMessage({ text: 'Interview scheduled successfully.', type: 'success' }) }}
         />
       )}
 
-      {outcomeTarget && (
-        <ClientInterviewOutcomeModal
-          open={!!outcomeTarget}
-          onClose={() => { setOutcomeTarget(null); setOutcomeExisting(null) }}
-          member={outcomeTarget}
+      {roundsTarget && (
+        <OutcomeRoundsModal
+          open={!!roundsTarget}
+          onClose={() => setRoundsTarget(null)}
+          member={roundsTarget}
           template={template}
-          existing={outcomeExisting}
-          onSaved={() => { setOutcomeTarget(null); setOutcomeExisting(null); loadClientTeam(); setMessage('Outcome saved.') }}
+          onSaved={() => { loadClientTeam(); setMessage({ text: 'Outcome rounds updated.', type: 'success' }) }}
         />
       )}
+
+      <ConfirmDialog
+        open={confirmDialog.open}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        danger={confirmDialog.danger}
+        confirmText={confirmDialog.confirmText}
+        onClose={() => setConfirmDialog(prev => ({ ...prev, open: false }))}
+        onConfirm={confirmDialog.onConfirm}
+      />
     </div>
   )
 }
@@ -1580,16 +1884,17 @@ function ClientInterviewsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [query, setQuery] = useState('')
+  const [listState, setListState] = useState('active')
 
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const response = await api.getClientTemplates()
+      const response = await api.getClientTemplates(listState)
       setTemplates(response.data || [])
     } catch (err) { setError(err.message || 'Could not load client mandates.') }
     finally { setLoading(false) }
-  }, [])
+  }, [listState])
 
   useEffect(() => { void load() }, [load])
 
@@ -1618,9 +1923,34 @@ function ClientInterviewsPage() {
       </div>
 
       <div className="workspace-toolbar">
-        <div className="workspace-search">
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flex: 1, minWidth: 260, flexWrap: 'wrap' }}>
+          <div className="workspace-search" style={{ flex: '1 1 280px' }}>
           <Search size={16} />
           <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search clients, roles, or skills..." />
+          </div>
+          <div style={{ display: 'inline-flex', gap: 4, padding: 4, border: '1px solid var(--border-default)', borderRadius: 999, background: 'var(--bg-surface)' }} aria-label="Mandate status filter">
+            {MANDATE_FILTERS.map(filter => (
+              <button
+                key={filter.value}
+                type="button"
+                onClick={() => setListState(filter.value)}
+                aria-pressed={listState === filter.value}
+                style={{
+                  border: 0,
+                  borderRadius: 999,
+                  padding: '7px 12px',
+                  background: listState === filter.value ? 'var(--brand-500)' : 'transparent',
+                  color: listState === filter.value ? 'white' : 'var(--fg-muted)',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  boxShadow: listState === filter.value ? 'var(--shadow-xs)' : 'none',
+                }}
+              >
+                {filter.label}
+              </button>
+            ))}
+          </div>
         </div>
         <Button onClick={() => setWizardOpen(true)}><Plus size={15} />New mandate</Button>
       </div>
@@ -1638,7 +1968,7 @@ function ClientInterviewsPage() {
                 <div className="workspace-card__body">
                   <div className="workspace-card__topline">
                     <div className="workspace-card__icon"><BriefcaseBusiness size={20} /></div>
-                    <span className="status-pill status-pill--brand">{template.headcount || 1} needed</span>
+                    <span className="status-pill status-pill--brand">{template.headcount ?? 1} needed</span>
                   </div>
                   <div style={{ marginTop: 18 }}>
                     <div className="workspace-card__eyebrow">{template.client_name}</div>
@@ -1647,7 +1977,7 @@ function ClientInterviewsPage() {
                   </div>
                   <div className="workspace-card__meta">
                     <span><Mail size={13} /> {template.client_email || 'No client email'}</span>
-                    <span><Users size={13} /> {template.headcount || 1} positions</span>
+                    <span><Users size={13} /> {template.hired_count ?? 0} hired / {template.headcount ?? 1} positions</span>
                     <span><FileText size={13} /> {template.jd_text ? 'JD ready' : 'JD missing'}</span>
                   </div>
                   {tags.length > 0 && (

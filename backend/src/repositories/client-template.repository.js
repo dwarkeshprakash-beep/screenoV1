@@ -23,11 +23,15 @@ async function create(data) {
   return rows[0]
 }
 
-async function getByManager(managerId) {
-  return db.query(
-    `SELECT * FROM client_templates WHERE manager_id = @managerId ORDER BY created DESC`,
-    { managerId }
-  )
+async function getByManager(managerId, state = 'active') {
+  let query = `SELECT * FROM client_templates WHERE manager_id = @managerId`
+  if (state === 'active') {
+    query += ` AND archived_at IS NULL`
+  } else if (state === 'archived') {
+    query += ` AND archived_at IS NOT NULL`
+  }
+  query += ` ORDER BY created DESC`
+  return db.query(query, { managerId })
 }
 
 async function getById(id, managerId) {
@@ -67,4 +71,20 @@ async function update(id, managerId, data) {
   return rows[0]
 }
 
-module.exports = { create, getByManager, getById, update }
+async function archive(id, managerId) {
+  const rows = await db.query(
+    `UPDATE client_templates SET archived_at = NOW() WHERE id = @id AND manager_id = @managerId RETURNING *`,
+    { id, managerId }
+  )
+  return rows[0] || null
+}
+
+async function restore(id, managerId) {
+  const rows = await db.query(
+    `UPDATE client_templates SET archived_at = NULL WHERE id = @id AND manager_id = @managerId RETURNING *`,
+    { id, managerId }
+  )
+  return rows[0] || null
+}
+
+module.exports = { create, getByManager, getById, update, archive, restore }

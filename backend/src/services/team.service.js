@@ -238,9 +238,29 @@ async function getOrgUsersNotInTeam(companyId, managerId) {
   return userRepository.getNotInTeam(companyId, managerId)
 }
 
+async function getOrganizationMemberProfile(userId, companyId, managerId) {
+  const profile = await userRepository.getOrganizationMemberProfile(userId, companyId)
+  if (!profile) return null
+  
+  // Determine if this user is in the manager's team
+  const tmRows = await require('../db/connection').query(
+    `SELECT id FROM team_members WHERE manager_id = @managerId AND user_id = @userId LIMIT 1`,
+    { managerId, userId }
+  )
+  profile.in_team = tmRows.length > 0
+  profile.team_member_id = tmRows[0]?.id || null
+
+  return profile
+}
+
+async function getOrganizationMemberInterviews(userId, managerId) {
+  return interviewRepository.getByInternalUserForManager(userId, managerId)
+}
+
 module.exports = {
   getTeam, getMember, getOrgUsersNotInTeam, addMember, updateMember,
   removeMember, getStats, getActivity, importFromCSV, getMemberInterviews,
   parseCSV,
   getExternalCandidates, addExternalCandidate,
+  getOrganizationMemberProfile, getOrganizationMemberInterviews
 }

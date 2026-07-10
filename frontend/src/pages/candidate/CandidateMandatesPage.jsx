@@ -97,7 +97,8 @@ function CandidateMandatesPage() {
             const clientRecord = mandate.client_interview_record
             const outcome = clientRecord?.outcome
             const outcomeConf = OUTCOME_CONFIG[outcome] || OUTCOME_CONFIG.pending
-            const needsAction = !mandate.client_resume_url && mandate.jd_sent
+            const resumeUrl = mandate.client_resume_download_url || mandate.client_resume_url
+            const needsAction = !resumeUrl && mandate.jd_sent
             const profileMeta = requirementMeta(mandate)
             const mandateTags = parseStoredArray(mandate.mandate_tags)
 
@@ -129,9 +130,12 @@ function CandidateMandatesPage() {
                       {mandate.jd_sent ? <CheckCircle2 size={11} /> : <XCircle size={11} />}
                       JD {mandate.jd_sent ? 'Received' : 'Pending'}
                     </span>
-                    <span style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 999, fontWeight: 600, border: `1px solid ${mandate.client_resume_url ? 'var(--success-100)' : 'var(--border-default)'}`, background: mandate.client_resume_url ? 'var(--success-50)' : 'var(--bg-surface-alt)', color: mandate.client_resume_url ? 'var(--success-700)' : 'var(--fg-subtle)' }}>
-                      {mandate.client_resume_url ? <CheckCircle2 size={11} /> : <FileText size={11} />}
-                      Resume {mandate.client_resume_url ? 'Submitted' : 'Pending'}
+                    <span style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 999, fontWeight: 600, border: `1px solid ${resumeUrl ? 'var(--success-100)' : 'var(--border-default)'}`, background: resumeUrl ? 'var(--success-50)' : 'var(--bg-surface-alt)', color: resumeUrl ? 'var(--success-700)' : 'var(--fg-subtle)' }}>
+                      {resumeUrl ? <CheckCircle2 size={11} /> : <FileText size={11} />}
+                      Resume {resumeUrl ? 'Submitted' : 'Pending'}
+                      {resumeUrl && (
+                        <a href={resumeUrl} target="_blank" rel="noreferrer" style={{ marginLeft: 4, color: 'inherit', textDecoration: 'underline' }}>View</a>
+                      )}
                     </span>
                     {clientRecord && (
                       <span style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 999, fontWeight: 600, border: `1px solid ${outcomeConf.border}`, background: outcomeConf.bg, color: outcomeConf.color }}>

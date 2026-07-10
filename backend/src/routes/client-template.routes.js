@@ -1,4 +1,3 @@
-// backend/src/routes/client-template.routes.js
 const crypto = require('crypto')
 const express = require('express')
 const authMiddleware = require('../middleware/auth')
@@ -7,12 +6,15 @@ const clientTemplateRepo = require('../repositories/client-template.repository')
 const clientTeamRepo = require('../repositories/client-team.repository')
 const clientRequirementsRepo = require('../repositories/client-mandate-requirements.repository')
 const clientInterviewRecordsRepo = require('../repositories/client-interview-records.repository')
+const clientOutcomeRoundsRepo = require('../repositories/client-outcome-rounds.repository')
 const userRepository = require('../repositories/user.repository')
 const interviewRepository = require('../repositories/interview.repository')
 const emailService = require('../services/email.service')
 const scheduleService = require('../services/schedule.service')
 const googleMeetService = require('../services/google-meet.service')
 const llmService = require('../services/llm.service')
+const storageService = require('../services/storage.service')
+const mandateLifecycleService = require('../services/mandate-lifecycle.service')
 const { parseStoredArray } = require('../utils/parse')
 
 const router = express.Router()
@@ -64,6 +66,15 @@ function optionalYear(value) {
   return parsed
 }
 
+function optionalDateTime(value) {
+  if (value === '' || value === undefined || value === null) return null
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    throw new Error('Resume deadline must be a valid date/time')
+  }
+  return date.toISOString()
+}
+
 function normalizeRequirementPayload(input = {}) {
   const profileName = String(input.profile_name ?? input.profileName ?? '').trim()
   if (!profileName) throw new Error('profile_name is required')
@@ -83,6 +94,8 @@ function normalizeRequirementPayload(input = {}) {
     years_max: yearsMax,
     headcount,
     notes: String(input.notes || '').trim() || null,
+    jd_text: String(input.jd_text ?? input.jdText ?? '').trim() || null,
+    resume_deadline: optionalDateTime(input.resume_deadline ?? input.resumeDeadline),
   }
 }
 
@@ -106,6 +119,7 @@ function isRequirementValidationError(err) {
     'Experience years must be a non-negative whole number',
     'Minimum experience cannot be greater than maximum experience',
     'Headcount must be at least 1',
+    'Resume deadline must be a valid date/time',
   ].includes(err.message) || err.message.startsWith('Duplicate requirement profile')
     || err.message.startsWith('Requirement profile "')
 }
@@ -123,6 +137,14 @@ async function assertUniqueRequirementName(mandateId, profileName, excludeId = n
   if (duplicate) throw new Error(`Requirement profile "${profileName}" already exists`)
 }
 
+function checkNotArchived(template, res) {
+  if (template.archived_at) {
+    res.status(409).json({ success: false, error: 'Mandate is archived and read-only' })
+    return false
+  }
+  return true
+}
+
 async function syncMandateHeadcount(mandateId, managerId) {
   const profiles = await clientRequirementsRepo.getByMandate(mandateId)
   if (profiles.length > 0) {
@@ -132,6 +154,22 @@ async function syncMandateHeadcount(mandateId, managerId) {
     })
   }
   return profiles
+}
+
+async function assertRequirementCapacity(mandateId, requirementId, excludeClientTeamId = null) {
+  if (!requirementId) return
+  const requirements = await clientRequirementsRepo.getByMandate(mandateId)
+  const requirement = requirements.find(item => Number(item.id) === Number(requirementId))
+  if (!requirement) throw new Error('Requirement profile not found on this mandate')
+
+  const team = await clientTeamRepo.getByMandate(mandateId)
+  const currentCount = team.filter(item =>
+    Number(item.requirement_id) === Number(requirementId)
+    && Number(item.id) !== Number(excludeClientTeamId)
+  ).length
+  if (currentCount + 1 > Number(requirement.headcount || 1)) {
+    throw new Error(`Role capacity is full for ${requirement.profile_name}`)
+  }
 }
 
 async function syncRequirementProfiles(mandateId, managerId, profiles) {
@@ -188,11 +226,61 @@ router.post('/', async (req, res) => {
 
 router.get('/', async (req, res) => {
   try {
-    const templates = await clientTemplateRepo.getByManager(req.user.id)
+    const requestedState = String(req.query.state || 'active')
+    const state = ['active', 'archived', 'all'].includes(requestedState) ? requestedState : 'active'
+    const templates = await clientTemplateRepo.getByManager(req.user.id, state)
     res.json({ success: true, data: templates })
   } catch (err) {
     console.error('GET /client-templates failed:', err.message)
     res.status(500).json({ success: false, error: 'Could not load templates' })
+  }
+})
+
+router.post('/:id/archive', async (req, res) => {
+  try {
+    const template = await clientTemplateRepo.archive(parseInt(req.params.id, 10), req.user.id)
+    if (!template) return res.status(404).json({ success: false, error: 'Template not found' })
+    res.json({ success: true, data: template })
+  } catch (err) {
+    console.error('POST /client-templates/:id/archive failed:', err.message)
+    res.status(500).json({ success: false, error: 'Could not archive template' })
+  }
+})
+
+router.post('/:id/restore', async (req, res) => {
+  try {
+    const template = await clientTemplateRepo.restore(parseInt(req.params.id, 10), req.user.id)
+    if (!template) return res.status(404).json({ success: false, error: 'Template not found' })
+    res.json({ success: true, data: template })
+  } catch (err) {
+    console.error('POST /client-templates/:id/restore failed:', err.message)
+    res.status(500).json({ success: false, error: 'Could not restore template' })
+  }
+})
+
+router.delete('/:id', async (req, res) => {
+  try {
+    const mandateId = parseInt(req.params.id, 10)
+    const preview = req.query.preview === 'true'
+
+    const impact = await mandateLifecycleService.getDeletionImpact(mandateId, req.user.id)
+
+    if (preview) {
+      return res.json({ success: true, data: impact })
+    }
+
+    if (!impact.canDelete) {
+      return res.status(409).json({ success: false, error: 'Cannot delete mandate while interviews are in_progress' })
+    }
+
+    await mandateLifecycleService.permanentlyDeleteMandate(mandateId, req.user.id)
+    res.json({ success: true, data: { deleted: true } })
+  } catch (err) {
+    console.error('DELETE /client-templates/:id failed:', err.message)
+    if (err.message.includes('not found')) {
+      return res.status(404).json({ success: false, error: 'Template not found' })
+    }
+    res.status(500).json({ success: false, error: 'Could not permanently delete template' })
   }
 })
 
@@ -224,6 +312,7 @@ router.patch('/:id', async (req, res) => {
     const templateId = parseInt(req.params.id, 10)
     const existing = await clientTemplateRepo.getById(templateId, req.user.id)
     if (!existing) return res.status(404).json({ success: false, error: 'Template not found' })
+    if (!checkNotArchived(existing, res)) return
     const requirementProfiles = normalizeRequirementProfiles(req.body.requirement_profiles ?? req.body.requirementProfiles)
     const data = { ...req.body }
     delete data.requirement_profiles
@@ -284,6 +373,7 @@ router.post('/:id/requirements', async (req, res) => {
     const mandateId = parseInt(req.params.id, 10)
     const template = await clientTemplateRepo.getById(mandateId, req.user.id)
     if (!template) return res.status(404).json({ success: false, error: 'Mandate not found' })
+    if (!checkNotArchived(template, res)) return
     const payload = normalizeRequirementPayload(req.body)
     await assertUniqueRequirementName(mandateId, payload.profile_name)
     const req_ = await clientRequirementsRepo.create(mandateId, payload)
@@ -302,6 +392,7 @@ router.patch('/:id/requirements/:rqId', async (req, res) => {
     const rqId = parseInt(req.params.rqId, 10)
     const template = await clientTemplateRepo.getById(mandateId, req.user.id)
     if (!template) return res.status(404).json({ success: false, error: 'Mandate not found' })
+    if (!checkNotArchived(template, res)) return
     const payload = normalizeRequirementPayload({ ...req.body, id: rqId })
     await assertUniqueRequirementName(mandateId, payload.profile_name, rqId)
     const updated = await clientRequirementsRepo.update(rqId, mandateId, payload)
@@ -321,6 +412,12 @@ router.delete('/:id/requirements/:rqId', async (req, res) => {
     const rqId = parseInt(req.params.rqId, 10)
     const template = await clientTemplateRepo.getById(mandateId, req.user.id)
     if (!template) return res.status(404).json({ success: false, error: 'Mandate not found' })
+    if (!checkNotArchived(template, res)) return
+    const team = await clientTeamRepo.getByMandate(mandateId)
+    if (team.some(m => m.requirement_id === rqId)) {
+      return res.status(409).json({ success: false, error: 'Cannot delete a requirement profile that is assigned to candidates.' })
+    }
+
     const deleted = await clientRequirementsRepo.deleteReq(rqId, mandateId)
     if (!deleted) return res.status(404).json({ success: false, error: 'Requirement not found' })
     await syncMandateHeadcount(mandateId, req.user.id)
@@ -427,6 +524,21 @@ router.get('/:id/team', async (req, res) => {
         { ctId: member.id }
       )
       if (rows[0]) interviewMap[member.id] = rows[0]
+      if (member.client_resume_url && !member.client_resume_url.startsWith('http')) {
+        const storagePath = member.client_resume_url
+        try {
+          member.client_resume_url = await storageService.getSignedUrl(member.client_resume_url)
+          member.client_resume_download_url = member.client_resume_url
+          member.client_resume_storage_path = storagePath
+        } catch (e) {
+          console.error('Failed to sign client resume url for team member:', e.message)
+          member.client_resume_url = null
+          member.client_resume_download_url = null
+          member.client_resume_storage_path = storagePath
+        }
+      } else if (member.client_resume_url) {
+        member.client_resume_download_url = member.client_resume_url
+      }
     }))
 
     const result = team.map(m => ({ ...m, latest_interview: interviewMap[m.id] || null }))
@@ -442,64 +554,174 @@ router.post('/:id/team', async (req, res) => {
     const mandateId = parseInt(req.params.id, 10)
     const template = await clientTemplateRepo.getById(mandateId, req.user.id)
     if (!template) return res.status(404).json({ success: false, error: 'Mandate not found' })
-
-    const { userIds, requirementId } = req.body
+    if (!checkNotArchived(template, res)) return
+    const { userIds } = req.body
     if (!Array.isArray(userIds) || userIds.length === 0) {
       return res.status(400).json({ success: false, error: 'userIds array is required' })
     }
 
-    // Verify all users belong to this company
+    const requirements = await clientRequirementsRepo.getByMandate(mandateId)
+    const currentTeam = await clientTeamRepo.getByMandate(mandateId)
+
+    const requirementUsage = new Map()
+    for (const m of currentTeam) {
+      if (m.requirement_id) {
+        requirementUsage.set(m.requirement_id, (requirementUsage.get(m.requirement_id) || 0) + 1)
+      }
+    }
+
+    const additionsByRequirement = new Map()
+    const membersToAdd = []
+
+    const normalizedItems = userIds.map(u => ({
+      memberId: Number(typeof u === 'object' ? (u.user_id || u.userId) : u),
+      reqId: (() => {
+        const raw = typeof u === 'object'
+          ? (u.requirement_id || u.requirementId)
+          : (req.body.requirement_id || req.body.requirementId)
+        return raw == null || raw === '' ? null : Number(raw)
+      })(),
+    })).filter(item => Number.isInteger(item.memberId))
+
+    if (normalizedItems.length !== userIds.length) {
+      return res.status(400).json({ success: false, error: 'Every userIds entry must include a valid user_id' })
+    }
+
     const companyMembers = await userRepository.getByIdsForCompany(
-      [...new Set(userIds.map(Number).filter(Number.isInteger))],
+      normalizedItems.map(item => item.memberId),
       req.user.companyId
     )
-    const validIds = new Set(companyMembers.map(m => m.id))
+    const companyMemberIds = new Set(companyMembers.map(member => Number(member.id)))
+    if (companyMemberIds.size !== normalizedItems.length) {
+      return res.status(404).json({ success: false, error: 'One or more users are not in your organization' })
+    }
 
-    const added = await Promise.all(
-      userIds
-        .map(Number)
-        .filter(id => validIds.has(id))
-        .map(uid => clientTeamRepo.add(mandateId, uid, requirementId || null))
-    )
+    if (requirements.length === 0 && currentTeam.length + normalizedItems.length > Number(template.headcount || 1)) {
+      return res.status(409).json({ success: false, error: 'Adding these candidates exceeds mandate headcount capacity' })
+    }
 
-    res.status(201).json({ success: true, data: added.filter(Boolean) })
+    for (const { memberId, reqId } of normalizedItems) {
+      if (requirements.length > 0 && !reqId) {
+        return res.status(400).json({ success: false, error: 'Each user must specify a requirement_id (role)' })
+      }
+
+      if (reqId) {
+        const reqInfo = requirements.find(r => Number(r.id) === Number(reqId))
+        if (!reqInfo) {
+          return res.status(404).json({ success: false, error: `Requirement profile ${reqId} not found on this mandate` })
+        }
+      }
+
+      const existing = await clientTeamRepo.getByUserAndMandate(memberId, mandateId)
+      if (!existing) {
+        membersToAdd.push({ memberId, reqId })
+        if (reqId) additionsByRequirement.set(reqId, (additionsByRequirement.get(reqId) || 0) + 1)
+      }
+    }
+
+    for (const [reqId, numToAdd] of additionsByRequirement.entries()) {
+      const reqInfo = requirements.find(r => Number(r.id) === Number(reqId))
+      const currentCount = requirementUsage.get(reqId) || 0
+      if (currentCount + numToAdd > reqInfo.headcount) {
+        return res.status(409).json({ success: false, error: `Adding these candidates exceeds headcount capacity for role: ${reqInfo.profile_name}` })
+      }
+    }
+
+    const added = []
+    for (const item of membersToAdd) {
+      const created = await clientTeamRepo.create({
+        user_id: item.memberId,
+        mandate_id: mandateId,
+        requirement_id: item.reqId,
+      })
+      added.push(created)
+    }
+    res.status(201).json({ success: true, data: added })
   } catch (err) {
-    console.error('POST /client-templates/:id/team failed:', err.message)
-    res.status(500).json({ success: false, error: 'Could not add prospects' })
+    console.error('POST /team failed:', err.message)
+    res.status(500).json({ success: false, error: 'Could not add members to client team' })
   }
 })
 
 router.patch('/:id/team/:ctId', async (req, res) => {
   try {
-    const mandateId = parseInt(req.params.id, 10)
     const ctId = parseInt(req.params.ctId, 10)
+    const mandateId = parseInt(req.params.id, 10)
     const template = await clientTemplateRepo.getById(mandateId, req.user.id)
     if (!template) return res.status(404).json({ success: false, error: 'Mandate not found' })
-    const updated = await clientTeamRepo.updateStatus(ctId, req.body.status, req.body.notes)
-    if (!updated) return res.status(404).json({ success: false, error: 'Team member not found' })
+    if (!checkNotArchived(template, res)) return
+    // Check that the ctId belongs to the mandate
+    const teamMember = await clientTeamRepo.getByIdForMandate(ctId, mandateId)
+    if (!teamMember) {
+      return res.status(404).json({ success: false, error: 'Client team member not found' })
+    }
+    const requirementId = req.body.requirement_id || req.body.requirementId || null
+    await assertRequirementCapacity(mandateId, requirementId, ctId)
+    const updated = await clientTeamRepo.update(ctId, mandateId, { 
+      requirement_id: requirementId,
+    })
     res.json({ success: true, data: updated })
   } catch (err) {
     console.error('PATCH /team/:ctId failed:', err.message)
-    res.status(500).json({ success: false, error: 'Could not update team member' })
+    if (err.message === 'Requirement profile not found on this mandate') {
+      return res.status(404).json({ success: false, error: err.message })
+    }
+    if (err.message.startsWith('Role capacity is full')) {
+      return res.status(409).json({ success: false, error: err.message })
+    }
+    res.status(500).json({ success: false, error: 'Could not update client team member' })
+  }
+})
+
+// Move role endpoint (as mentioned in audit)
+router.patch('/:id/team/:ctId/requirement', async (req, res) => {
+  try {
+    const ctId = parseInt(req.params.ctId, 10)
+    const mandateId = parseInt(req.params.id, 10)
+    const template = await clientTemplateRepo.getById(mandateId, req.user.id)
+    if (!template) return res.status(404).json({ success: false, error: 'Mandate not found' })
+    if (!checkNotArchived(template, res)) return
+    const requirementId = req.body.requirement_id || req.body.requirementId || null
+    await assertRequirementCapacity(mandateId, requirementId, ctId)
+    const updated = await clientTeamRepo.updateRequirement(ctId, mandateId, requirementId)
+    if (!updated) return res.status(404).json({ success: false, error: 'Client team member not found' })
+    res.json({ success: true, data: updated })
+  } catch (err) {
+    console.error('PATCH /team/:ctId/requirement failed:', err.message)
+    if (err.message === 'Requirement profile not found on this mandate') {
+      return res.status(404).json({ success: false, error: err.message })
+    }
+    if (err.message.startsWith('Role capacity is full')) {
+      return res.status(409).json({ success: false, error: err.message })
+    }
+    res.status(500).json({ success: false, error: 'Could not update requirement for client team member' })
   }
 })
 
 router.delete('/:id/team/:ctId', async (req, res) => {
   try {
-    const mandateId = parseInt(req.params.id, 10)
     const ctId = parseInt(req.params.ctId, 10)
+    const mandateId = parseInt(req.params.id, 10)
     const template = await clientTemplateRepo.getById(mandateId, req.user.id)
     if (!template) return res.status(404).json({ success: false, error: 'Mandate not found' })
-    const removed = await clientTeamRepo.remove(ctId, mandateId)
-    if (!removed) return res.status(404).json({ success: false, error: 'Team member not found' })
+    if (!checkNotArchived(template, res)) return
+    const member = await clientTeamRepo.getByIdForMandate(ctId, mandateId)
+    if (!member) {
+      return res.status(404).json({ success: false, error: 'Client team member not found' })
+    }
+    const interviews = await interviewRepository.getByClientTeamId(ctId)
+    if (interviews.some(i => i.status !== 'completed' && i.status !== 'cancelled')) {
+      return res.status(409).json({ success: false, error: 'Cannot remove member with active scheduled interviews' })
+    }
+    await clientTeamRepo.remove(ctId, mandateId)
     res.json({ success: true })
   } catch (err) {
     console.error('DELETE /team/:ctId failed:', err.message)
-    res.status(500).json({ success: false, error: 'Could not remove from team' })
+    res.status(500).json({ success: false, error: 'Could not remove member from client team' })
   }
 })
 
-// ── Send JD with custom message to a specific client team member ──────────────
+// ── Actions ───────────────────────────────────────────────────────────────────
 
 router.post('/:id/team/:ctId/send-jd', async (req, res) => {
   try {
@@ -507,90 +729,55 @@ router.post('/:id/team/:ctId/send-jd', async (req, res) => {
     const ctId = parseInt(req.params.ctId, 10)
     const template = await clientTemplateRepo.getById(mandateId, req.user.id)
     if (!template) return res.status(404).json({ success: false, error: 'Mandate not found' })
-
-    const teamMember = await clientTeamRepo.getById(ctId)
-    if (!teamMember || teamMember.mandate_id !== mandateId) {
+    if (!checkNotArchived(template, res)) return
+    const member = await clientTeamRepo.getByIdForMandate(ctId, mandateId)
+    if (!member) {
       return res.status(404).json({ success: false, error: 'Team member not found' })
     }
+    const [user] = await userRepository.getByIdsForCompany([member.user_id], req.user.companyId)
+    if (!user) return res.status(404).json({ success: false, error: 'User not found' })
+    const roleName = requirementDisplay(member, template.requirements)
+    const jdText = member.requirement_jd_text || template.jd_text || template.requirements || ''
+    const deadline = req.body.deadline || member.requirement_resume_deadline || template.resume_deadline
 
-    const { customMessage } = req.body
-    const roleLabel = requirementDisplay(teamMember, template.requirements)
-    await emailService.sendClientJDWithMessage(teamMember.email, {
-      candidateName: `${teamMember.first_name} ${teamMember.last_name}`.trim(),
-      clientName:    template.client_name,
-      role:          roleLabel,
-      jdText:        template.jd_text || template.requirements,
-      customMessage: customMessage || '',
-      frontendUrl:   process.env.FRONTEND_URL,
+    await emailService.sendClientJDWithMessage(user.email, {
+      candidateName: `${user.first_name} ${user.last_name}`,
+      clientName: template.client_name,
+      role: roleName,
+      jdText,
+      customMessage: String(req.body.customMessage || '').trim(),
+      deadline,
+      frontendUrl: process.env.FRONTEND_URL,
     })
-    await clientTeamRepo.markJdSent(ctId)
-    res.json({ success: true })
+    
+    const updated = await clientTeamRepo.update(ctId, mandateId, {
+      jd_sent: true,
+      jd_sent_at: new Date().toISOString()
+    })
+    
+    res.json({ success: true, data: updated })
   } catch (err) {
     console.error('POST /team/:ctId/send-jd failed:', err.message)
     res.status(500).json({ success: false, error: 'Could not send JD' })
   }
 })
 
-// ── Schedule an interview for a client team member ───────────────────────────
-
 router.post('/:id/team/:ctId/schedule', async (req, res) => {
   try {
     const mandateId = parseInt(req.params.id, 10)
     const ctId = parseInt(req.params.ctId, 10)
+    const { type, mode, difficulty, questionCount, scheduledAt, location, videoPlatform, durationMinutes, notes } = req.body
+
     const template = await clientTemplateRepo.getById(mandateId, req.user.id)
     if (!template) return res.status(404).json({ success: false, error: 'Mandate not found' })
-
-    const teamMember = await clientTeamRepo.getById(ctId)
-    if (!teamMember || teamMember.mandate_id !== mandateId) {
+    if (!checkNotArchived(template, res)) return
+    
+    const teamMember = await clientTeamRepo.getByIdForMandate(ctId, mandateId)
+    if (!teamMember) {
       return res.status(404).json({ success: false, error: 'Team member not found' })
     }
 
-    const { type, videoPlatform, scheduledAt, location, notes, mode, difficulty, questionCount, durationMinutes } = req.body
-    const validTypes = ['ai_voice', 'exam', 'human', 'offline']
-    if (!validTypes.includes(type)) {
-      return res.status(400).json({ success: false, error: 'Invalid interview type' })
-    }
-    if (!scheduledAt) {
-      return res.status(400).json({ success: false, error: 'scheduledAt is required' })
-    }
-    const scheduledDate = new Date(scheduledAt)
-    if (Number.isNaN(scheduledDate.getTime())) {
-      return res.status(400).json({ success: false, error: 'Invalid scheduled date and time' })
-    }
-
-    // "offline" type → interview row + email (no magic link needed)
-    if (type === 'offline') {
-      const rawToken = crypto.randomBytes(32).toString('hex')
-      const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex')
-      const tokenExpires = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
-
-      const interview = await require('../db/connection').query(
-        `INSERT INTO interviews
-           (manager_id, internal_user_id, type, interview_mode, difficulty, question_count,
-            token, token_expires, client_template_id, client_team_id, scheduled_at, location, status)
-         VALUES
-           (@managerId, @userId, 'offline', 'simple', 'medium', 1,
-            @token, @tokenExpires, @mandateId, @ctId, @scheduledAt, @location, 'scheduled')
-         RETURNING *`,
-        { managerId: req.user.id, userId: teamMember.user_id, token: tokenHash, tokenExpires, mandateId, ctId, scheduledAt, location: location || null }
-      )
-
-      emailService.sendOfflineInterviewInvite(teamMember.email, {
-        candidateName: `${teamMember.first_name} ${teamMember.last_name}`.trim(),
-        clientName: template.client_name,
-        role: requirementDisplay(teamMember, template.requirements),
-        scheduledAt, location, notes,
-      }).catch(err => console.error('[email] offline invite failed:', err.message))
-
-      return res.status(201).json({ success: true, data: interview[0] })
-    }
-
-    // ai_voice / exam / human → use schedule service
-    // For human interviews, optionally create a video meeting link
-    if (type === 'human') {
-      if (!['google_meet', 'teams'].includes(videoPlatform)) {
-        return res.status(400).json({ success: false, error: 'Choose Google Meet or Microsoft Teams for human interviews' })
-      }
+    if (type === 'human' && scheduledAt) {
       if (videoPlatform === 'teams') {
         return res.status(400).json({
           success: false,
@@ -616,11 +803,11 @@ router.post('/:id/team/:ctId/schedule', async (req, res) => {
           summary: meetingTopic,
           startAt: scheduledAt,
           endAt,
-          attendeeEmails: [teamMember.email],
+          attendeeEmails: [req.user.email],
         })
         if (meeting) videoLink = meeting.joinUrl
       }
-      // 'teams' → disabled, skip
+      // 'teams' is disabled, skip
     }
 
     if (type === 'human' && !videoLink) {
@@ -637,11 +824,17 @@ router.post('/:id/team/:ctId/schedule', async (req, res) => {
         interviewMode:    mode || 'simple',
         difficulty:       difficulty || 'medium',
         questionCount:    questionCount || 10,
-        durationMinutes:   durationMinutes || null,
+        durationMinutes:  durationMinutes || null,
         clientTemplateId: mandateId,
+        clientTeamId:     ctId,
         scheduledAt,
         assessmentDate:   scheduledAt,
-        details:          videoLink ? `Google Meet: ${videoLink}` : notes || null,
+        scheduleTimezone: req.body.scheduleTimezone || null,
+        companyName:      template.client_name,
+        jobTitle:         requirementDisplay(teamMember, template.requirements),
+        location:         location || null,
+        meetingUrl:       videoLink || null,
+        details:          notes || null,
       },
       req.user.id,
       req.user.companyId
@@ -650,8 +843,8 @@ router.post('/:id/team/:ctId/schedule', async (req, res) => {
     // Link interview back to the client team row and store scheduled time + video link
     if (interview?.id) {
       await require('../db/connection').query(
-        `UPDATE interviews SET client_team_id = @ctId, scheduled_at = @scheduledAt, location = @location WHERE id = @id`,
-        { id: interview.id, ctId, scheduledAt, location: videoLink || location || null }
+        `UPDATE interviews SET client_team_id = @ctId, scheduled_at = @scheduledAt, location = @location, meeting_url = @meetingUrl WHERE id = @id`,
+        { id: interview.id, ctId, scheduledAt, location: location || null, meetingUrl: videoLink || null }
       )
     }
 
@@ -662,7 +855,7 @@ router.post('/:id/team/:ctId/schedule', async (req, res) => {
   }
 })
 
-// ── Client interview records (real client-side interview outcome) ──────────────
+// ── Client interview records (real client-side interview outcome) ────────────
 
 router.get('/:id/team/:ctId/client-interview', async (req, res) => {
   try {
@@ -670,6 +863,8 @@ router.get('/:id/team/:ctId/client-interview', async (req, res) => {
     const ctId = parseInt(req.params.ctId, 10)
     const template = await clientTemplateRepo.getById(mandateId, req.user.id)
     if (!template) return res.status(404).json({ success: false, error: 'Mandate not found' })
+    const teamMember = await clientTeamRepo.getByIdForMandate(ctId, mandateId)
+    if (!teamMember) return res.status(404).json({ success: false, error: 'Team member not found' })
     const record = await clientInterviewRecordsRepo.getByClientTeamId(ctId)
     res.json({ success: true, data: record || null })
   } catch (err) {
@@ -684,6 +879,8 @@ router.post('/:id/team/:ctId/client-interview', async (req, res) => {
     const ctId = parseInt(req.params.ctId, 10)
     const template = await clientTemplateRepo.getById(mandateId, req.user.id)
     if (!template) return res.status(404).json({ success: false, error: 'Mandate not found' })
+    const teamMember = await clientTeamRepo.getByIdForMandate(ctId, mandateId)
+    if (!teamMember) return res.status(404).json({ success: false, error: 'Team member not found' })
 
     const existing = await clientInterviewRecordsRepo.getByClientTeamId(ctId)
     let record
@@ -703,12 +900,13 @@ router.post('/:id/team/:ctId/client-interview', async (req, res) => {
   }
 })
 
-// ── Legacy: send JD to multiple org members ───────────────────────────────────
+// ── Legacy: send JD to multiple org members ──────────────────────────────────
 
 router.post('/:id/send-jd', async (req, res) => {
   try {
     const template = await clientTemplateRepo.getById(parseInt(req.params.id, 10), req.user.id)
     if (!template) return res.status(404).json({ success: false, error: 'Template not found' })
+    if (!checkNotArchived(template, res)) return
     const { userIds, deadline } = req.body
     if (!Array.isArray(userIds) || userIds.length === 0) {
       return res.status(400).json({ success: false, error: 'userIds array is required' })
@@ -727,6 +925,7 @@ router.post('/:id/send-jd', async (req, res) => {
           await emailService.sendJDForResumeUpdate(user.email, {
             candidateName: `${user.first_name} ${user.last_name}`,
             clientName: template.client_name,
+            role: template.requirements || 'the requirement',
             jdText: template.jd_text || template.requirements || '',
             deadline: deadline || template.resume_deadline,
           })
@@ -741,7 +940,7 @@ router.post('/:id/send-jd', async (req, res) => {
   }
 })
 
-// ── Assignments (legacy schedule view) ────────────────────────────────────────
+// ── Assignments (legacy schedule view) ───────────────────────────────────────
 
 router.get('/:id/assignments', async (req, res) => {
   try {
@@ -762,12 +961,94 @@ router.delete('/:id/assignments/:interviewId', async (req, res) => {
     const interviewId = parseInt(req.params.interviewId, 10)
     const template = await clientTemplateRepo.getById(templateId, req.user.id)
     if (!template) return res.status(404).json({ success: false, error: 'Template not found' })
+    if (!checkNotArchived(template, res)) return
     const cancelled = await interviewRepository.cancelScheduledClientInterview(interviewId, templateId, req.user.id)
     if (!cancelled) return res.status(409).json({ success: false, error: 'Only scheduled client interviews can be cancelled' })
     res.json({ success: true, data: cancelled })
   } catch (err) {
     console.error('DELETE /assignments/:interviewId failed:', err.message)
     res.status(500).json({ success: false, error: 'Could not cancel client assignment' })
+  }
+})
+
+// ── Client outcome rounds (replaces single-record model) ────────────────────────────
+// Access pattern: /:id/team/:ctId/rounds/*
+// Only the owning manager may access these routes (enforced via template lookup).
+
+router.get('/:id/team/:ctId/rounds', async (req, res) => {
+  try {
+    const template = await clientTemplateRepo.getById(parseInt(req.params.id, 10), req.user.id)
+    if (!template) return res.status(404).json({ success: false, error: 'Mandate not found' })
+    const rounds = await clientOutcomeRoundsRepo.listByClientTeamId(
+      parseInt(req.params.ctId, 10),
+      parseInt(req.params.id, 10)
+    )
+    res.json({ success: true, data: rounds })
+  } catch (err) {
+    console.error('GET /:id/team/:ctId/rounds failed:', err.message)
+    res.status(500).json({ success: false, error: 'Could not load outcome rounds' })
+  }
+})
+
+router.post('/:id/team/:ctId/rounds', async (req, res) => {
+  try {
+    const mandateId = parseInt(req.params.id, 10)
+    const ctId = parseInt(req.params.ctId, 10)
+    const template = await clientTemplateRepo.getById(mandateId, req.user.id)
+    if (!template) return res.status(404).json({ success: false, error: 'Mandate not found' })
+    if (template.archived_at) return res.status(409).json({ success: false, error: 'Mandate is archived' })
+    const round = await clientOutcomeRoundsRepo.create(ctId, mandateId, req.user.id, req.body)
+    res.status(201).json({ success: true, data: round })
+  } catch (err) {
+    console.error('POST /:id/team/:ctId/rounds failed:', err.message)
+    const status = err.message.includes('Invalid outcome') ? 400 : 500
+    res.status(status).json({ success: false, error: err.message || 'Could not create round' })
+  }
+})
+
+router.patch('/:id/team/:ctId/rounds/:roundId', async (req, res) => {
+  try {
+    const mandateId = parseInt(req.params.id, 10)
+    const ctId = parseInt(req.params.ctId, 10)
+    const roundId = parseInt(req.params.roundId, 10)
+    const template = await clientTemplateRepo.getById(mandateId, req.user.id)
+    if (!template) return res.status(404).json({ success: false, error: 'Mandate not found' })
+    const round = await clientOutcomeRoundsRepo.update(roundId, ctId, mandateId, req.user.id, req.body)
+    res.json({ success: true, data: round })
+  } catch (err) {
+    console.error('PATCH /:id/team/:ctId/rounds/:roundId failed:', err.message)
+    const status = err.message.includes('published') ? 409 : err.message.includes('Invalid') ? 400 : 500
+    res.status(status).json({ success: false, error: err.message || 'Could not update round' })
+  }
+})
+
+router.post('/:id/team/:ctId/rounds/:roundId/publish', async (req, res) => {
+  try {
+    const mandateId = parseInt(req.params.id, 10)
+    const ctId = parseInt(req.params.ctId, 10)
+    const roundId = parseInt(req.params.roundId, 10)
+    const template = await clientTemplateRepo.getById(mandateId, req.user.id)
+    if (!template) return res.status(404).json({ success: false, error: 'Mandate not found' })
+    const round = await clientOutcomeRoundsRepo.publish(roundId, ctId, mandateId)
+    res.json({ success: true, data: round })
+  } catch (err) {
+    console.error('POST /:id/team/:ctId/rounds/:roundId/publish failed:', err.message)
+    res.status(err.message === 'Round not found' ? 404 : 500).json({ success: false, error: err.message })
+  }
+})
+
+router.post('/:id/team/:ctId/rounds/:roundId/unpublish', async (req, res) => {
+  try {
+    const mandateId = parseInt(req.params.id, 10)
+    const ctId = parseInt(req.params.ctId, 10)
+    const roundId = parseInt(req.params.roundId, 10)
+    const template = await clientTemplateRepo.getById(mandateId, req.user.id)
+    if (!template) return res.status(404).json({ success: false, error: 'Mandate not found' })
+    const round = await clientOutcomeRoundsRepo.unpublish(roundId, ctId, mandateId)
+    res.json({ success: true, data: round })
+  } catch (err) {
+    console.error('POST /:id/team/:ctId/rounds/:roundId/unpublish failed:', err.message)
+    res.status(err.message === 'Round not found' ? 404 : 500).json({ success: false, error: err.message })
   }
 })
 

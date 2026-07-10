@@ -86,6 +86,7 @@ function TopBar({ title = '', subtitle = '', action = null, role = 'manager', on
   const [notifFetched, setNotifFetched] = useState(false)
   const notifRef = useRef(null)
   const isManager = role === 'manager'
+  const hasSidebar = role === 'manager' || role === 'admin'
 
   function submitSearch(e) {
     e.preventDefault()
@@ -129,7 +130,7 @@ function TopBar({ title = '', subtitle = '', action = null, role = 'manager', on
       padding: '0 1.5rem', flexShrink: 0,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, minWidth: 0 }}>
-        {isManager && (
+        {hasSidebar && (
           <button
             type="button"
             className="icon-button topbar-menu-button"
@@ -161,7 +162,7 @@ function TopBar({ title = '', subtitle = '', action = null, role = 'manager', on
           </form>
         )}
 
-        <div ref={notifRef} style={{ position: 'relative' }}>
+        {isManager && <div ref={notifRef} style={{ position: 'relative' }}>
           <button
             type="button"
             aria-label="Open notifications"
@@ -188,7 +189,7 @@ function TopBar({ title = '', subtitle = '', action = null, role = 'manager', on
               onViewAll={() => { setNotifOpen(false); navigate('/manager/reports') }}
             />
           )}
-        </div>
+        </div>}
 
         {action}
       </div>

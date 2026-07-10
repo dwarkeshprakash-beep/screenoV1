@@ -64,7 +64,11 @@ function ReportTable({ reports, onOpenReport, btnSecondary, thStyle }) {
               </td>
               <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--border-default)' }}><DecisionBadge decision={r.decision} /></td>
               <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--border-default)' }}>
-                <button type="button" onClick={event => { event.stopPropagation(); onOpenReport(r) }} style={btnSecondary}>View</button>
+                {r.team_member_id != null ? (
+                  <button type="button" onClick={event => { event.stopPropagation(); onOpenReport(r) }} style={btnSecondary}>View</button>
+                ) : (
+                  <span style={{ fontSize: 12, color: 'var(--fg-muted)', fontStyle: 'italic' }}>External</span>
+                )}
               </td>
             </tr>
           )

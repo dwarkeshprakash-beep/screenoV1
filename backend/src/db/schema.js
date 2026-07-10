@@ -33,7 +33,7 @@ const SCHEMA = {
   client_mandate_requirements: {
     columns: [
       'id', 'mandate_id', 'profile_name', 'years_min', 'years_max',
-      'headcount', 'notes', 'created',
+      'headcount', 'notes', 'jd_text', 'resume_deadline', 'created',
     ],
   },
   client_teams: {
@@ -66,6 +66,9 @@ const SCHEMA = {
       'interview_mode', 'difficulty', 'status', 'result', 'token',
       'token_expires', 'question_count', 'client_template_id',
       'monthly_assessment_id', 'report_emails', 'scheduled_at',
+      'available_from', 'due_at', 'schedule_timezone', 'schedule_version',
+      'meeting_url', 'meeting_provider', 'meeting_provider_event_id',
+      'expired_notification_version', 'client_team_id', 'location',
       'duration_minutes', 'started_at', 'ended_at', 'created',
     ],
   },

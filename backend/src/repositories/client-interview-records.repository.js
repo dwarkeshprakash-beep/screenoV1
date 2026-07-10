@@ -4,14 +4,16 @@ const db = require('../db/connection')
 async function create(data) {
   const rows = await db.query(
     `INSERT INTO client_interview_records
-       (mandate_id, client_team_id, interview_date, notes)
-     VALUES (@mandateId, @clientTeamId, @interviewDate, @notes)
+       (mandate_id, client_team_id, interview_date, notes, outcome, feedback)
+     VALUES (@mandateId, @clientTeamId, @interviewDate, @notes, @outcome, @feedback)
      RETURNING *`,
     {
       mandateId:     data.mandate_id,
       clientTeamId:  data.client_team_id,
       interviewDate: data.interview_date || null,
       notes:         data.notes         || null,
+      outcome:       data.outcome       || null,
+      feedback:      data.feedback      !== undefined ? (data.feedback || null) : null,
     }
   )
   return rows[0]
@@ -39,6 +41,16 @@ async function getByClientTeamId(clientTeamId) {
   return rows[0] || null
 }
 
+async function getOutcomeForMandate(clientTeamId, mandateId) {
+  const rows = await db.query(
+    `SELECT * FROM client_interview_records
+     WHERE client_team_id = @clientTeamId AND mandate_id = @mandateId
+     ORDER BY created DESC`,
+    { clientTeamId, mandateId }
+  )
+  return rows[0] || null
+}
+
 async function update(id, data) {
   const rows = await db.query(
     `UPDATE client_interview_records
@@ -60,4 +72,27 @@ async function update(id, data) {
   return rows[0] || null
 }
 
-module.exports = { create, getByMandate, getByClientTeamId, update }
+async function updateOutcomeForMandate(id, clientTeamId, mandateId, data) {
+  const rows = await db.query(
+    `UPDATE client_interview_records
+     SET outcome        = COALESCE(@outcome,       outcome),
+         feedback       = COALESCE(@feedback,      feedback),
+         interview_date = COALESCE(@interviewDate, interview_date),
+         notes          = COALESCE(@notes,         notes),
+         updated        = NOW()
+     WHERE id = @id AND client_team_id = @clientTeamId AND mandate_id = @mandateId
+     RETURNING *`,
+    {
+      id,
+      clientTeamId,
+      mandateId,
+      outcome:       data.outcome        || null,
+      feedback:      data.feedback       !== undefined ? (data.feedback || null) : null,
+      interviewDate: data.interview_date || null,
+      notes:         data.notes          !== undefined ? (data.notes    || null) : null,
+    }
+  )
+  return rows[0] || null
+}
+
+module.exports = { create, getByMandate, getByClientTeamId, getOutcomeForMandate, update, updateOutcomeForMandate }

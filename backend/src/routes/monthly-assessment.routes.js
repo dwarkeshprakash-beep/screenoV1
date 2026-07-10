@@ -27,6 +27,9 @@ router.post('/', async (req, res) => {
       'Subject is required',
       'Assessment date is required',
       'Assessment date is invalid',
+      'Assessment date must be in the future',
+      'Due date is invalid',
+      'Due date must be after the available date',
       'Question count must be an integer between 1 and 50',
       'Duration must be an integer between 15 and 180 minutes',
     ].includes(err.message)) {
@@ -98,6 +101,9 @@ router.post('/:id/assign', async (req, res) => {
       'At least one team member is required',
       'Assessment date is required',
       'Assessment date is invalid',
+      'Assessment date must be in the future',
+      'Due date is invalid',
+      'Due date must be after the available date',
       'Question count must be an integer between 1 and 50',
       'Duration must be an integer between 15 and 180 minutes',
     ].includes(err.message)) {

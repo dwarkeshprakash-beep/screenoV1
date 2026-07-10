@@ -8,6 +8,7 @@ import * as api from '../../services/api'
 import { formatDate } from '../../utils/helpers'
 import ScheduleModal from '../../components/manager/ScheduleModal'
 import EditMemberModal from '../../components/manager/EditMemberModal'
+import { UserCheck } from 'lucide-react'
 
 const SKILL_COLORS = {
   '.NET': { bg: 'var(--brand-50)', fg: 'var(--brand-700)' }, 'C#': { bg: 'var(--brand-50)', fg: 'var(--brand-700)' },
@@ -36,7 +37,9 @@ const TABS = [
 ]
 
 function MemberProfilePage() {
-  const { id } = useParams()
+  const { id, userId } = useParams()
+  const isOrgProfile = !!userId
+  const profileId = id || userId
   const navigate  = useNavigate()
 
   const [member, setMember]         = useState(null)
@@ -48,6 +51,7 @@ function MemberProfilePage() {
   const [editOpen, setEditOpen]     = useState(false)
   const [uploading, setUploading]   = useState(false)
   const [uploadError, setUploadError] = useState(null)
+  const [addingToTeam, setAddingToTeam] = useState(false)
   const fileInputRef                = useRef(null)
 
   const [transcript, setTranscript]         = useState(null)
@@ -63,13 +67,17 @@ function MemberProfilePage() {
     setLoading(true)
     setError(null)
     try {
-      const memberRes = await api.getMember(id)
+      const memberRes = isOrgProfile
+        ? await api.getOrganizationUser(profileId)
+        : await api.getMember(profileId)
+      
       const loadedMember = memberRes.data
-      const userId = loadedMember?.user_id
-      const [reportRes, historyRes] = userId
+      const targetUserId = isOrgProfile ? loadedMember.id : loadedMember?.user_id
+
+      const [reportRes, historyRes] = targetUserId
         ? await Promise.all([
-          api.getCandidateReport(userId),
-          api.getCandidateReportHistory(userId),
+          api.getCandidateReport(targetUserId),
+          api.getCandidateReportHistory(targetUserId),
         ])
         : [{ data: null }, { data: [] }]
 
@@ -83,7 +91,7 @@ function MemberProfilePage() {
     } finally {
       setLoading(false)
     }
-  }, [id])
+  }, [profileId, isOrgProfile])
 
   useEffect(() => {
     void load()
@@ -92,7 +100,7 @@ function MemberProfilePage() {
     setSelectedInterviewId(null)
     setReportHistory([])
     setSelectedReportId(null)
-  }, [id, load])
+  }, [profileId, load])
 
   const selectedReport = reportHistory.find(r => r.id === selectedReportId) || report
 
@@ -101,7 +109,9 @@ function MemberProfilePage() {
     async function loadInterviews() {
       setTranscriptLoading(true)
       try {
-        const r = await api.getMemberInterviews(id)
+        const r = isOrgProfile
+          ? await api.getOrganizationUserInterviews(profileId)
+          : await api.getMemberInterviews(profileId)
         const completed = (r.data || [])
           .filter(i => i.type === 'ai_voice' && i.status === 'completed')
           .sort((a, b) => new Date(b.created) - new Date(a.created))
@@ -112,7 +122,7 @@ function MemberProfilePage() {
       finally { setTranscriptLoading(false) }
     }
     loadInterviews()
-  }, [tab, id, aiInterviews, transcript])
+  }, [tab, profileId, aiInterviews, transcript, isOrgProfile])
 
   useEffect(() => {
     if (!selectedInterviewId) return
@@ -135,6 +145,28 @@ function MemberProfilePage() {
     try { await api.uploadResume(member.id, file); await load() }
     catch (err) { setUploadError('Upload failed: ' + err.message) }
     finally { setUploading(false); e.target.value = '' }
+  }
+
+  async function handleAddToTeam() {
+    setAddingToTeam(true)
+    setError(null)
+    try {
+      await api.addMember({
+        existingId: member.id,
+        firstName: member.first_name,
+        lastName: member.last_name,
+        email: member.email,
+        employeeId: member.employee_id,
+        department: member.department,
+        position: member.current_position,
+        location: member.location,
+      })
+      await load()
+    } catch (err) {
+      setError(err.message || 'Could not add to team.')
+    } finally {
+      setAddingToTeam(false)
+    }
   }
 
   const strengthsList = (() => { try { return JSON.parse(report?.strengths || '[]') } catch { return [] } })()
@@ -166,7 +198,9 @@ function MemberProfilePage() {
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 4, flexWrap: 'wrap' }}>
                 <h1 style={{ fontFamily: "var(--font-display,'Inter')", fontSize: 22, fontWeight: 700, color: 'var(--slate-900)', margin: 0, letterSpacing: '-0.02em' }}>{fullName}</h1>
-                <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 9999, background: 'var(--success-50)', color: 'var(--success-600)' }}>Team Member</span>
+                <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 9999, background: member.in_team === false ? 'var(--slate-100)' : 'var(--success-50)', color: member.in_team === false ? 'var(--slate-600)' : 'var(--success-600)' }}>
+                  {member.in_team === false ? 'Organization Member' : 'Team Member'}
+                </span>
                 {member.availability && (
                   <span style={{
                     fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 9999,
@@ -194,12 +228,21 @@ function MemberProfilePage() {
               )}
             </div>
             <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
-              <button onClick={() => setEditOpen(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: 'var(--bg-surface)', border: '1px solid var(--slate-300)', borderRadius: 8, fontSize: 12, fontWeight: 600, color: 'var(--slate-900)', cursor: 'pointer' }}>
-                <Pencil size={12} /> Edit
-              </button>
-              <button onClick={() => setScheduleOpen(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: 'var(--brand-500)', border: 0, borderRadius: 8, fontSize: 12, fontWeight: 600, color: 'var(--bg-surface)', cursor: 'pointer' }}>
-                <CalendarPlus size={12} /> Schedule
-              </button>
+              {member.in_team === false ? (
+                <button onClick={handleAddToTeam} disabled={addingToTeam} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: 'var(--brand-500)', border: 0, borderRadius: 8, fontSize: 12, fontWeight: 600, color: 'var(--bg-surface)', cursor: 'pointer' }}>
+                  {addingToTeam ? <Spinner size={12} color="currentcolor" /> : <UserCheck size={12} />}
+                  Add to my team
+                </button>
+              ) : (
+                <>
+                  <button onClick={() => setEditOpen(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: 'var(--bg-surface)', border: '1px solid var(--slate-300)', borderRadius: 8, fontSize: 12, fontWeight: 600, color: 'var(--slate-900)', cursor: 'pointer' }}>
+                    <Pencil size={12} /> Edit
+                  </button>
+                  <button onClick={() => setScheduleOpen(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: 'var(--brand-500)', border: 0, borderRadius: 8, fontSize: 12, fontWeight: 600, color: 'var(--bg-surface)', cursor: 'pointer' }}>
+                    <CalendarPlus size={12} /> Schedule
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>
