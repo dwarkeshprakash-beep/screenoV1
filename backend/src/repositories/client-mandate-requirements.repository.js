@@ -4,8 +4,8 @@ const db = require('../db/connection')
 async function create(mandateId, data) {
   const rows = await db.query(
     `INSERT INTO client_mandate_requirements
-       (mandate_id, profile_name, years_min, years_max, headcount, notes, jd_text, resume_deadline)
-     VALUES (@mandateId, @profileName, @yearsMin, @yearsMax, @headcount, @notes, @jdText, @resumeDeadline)
+       (mandate_id, profile_name, years_min, years_max, headcount, notes, jd_text, tags, resume_deadline)
+     VALUES (@mandateId, @profileName, @yearsMin, @yearsMax, @headcount, @notes, @jdText, @tags, @resumeDeadline)
      RETURNING *`,
     {
       mandateId,
@@ -15,6 +15,7 @@ async function create(mandateId, data) {
       headcount:   data.headcount    != null ? Number(data.headcount)   : 1,
       notes:       data.notes        || null,
       jdText:      data.jd_text      || null,
+      tags:        data.tags ? (typeof data.tags === 'string' ? data.tags : JSON.stringify(data.tags)) : null,
       resumeDeadline: data.resume_deadline || null,
     }
   )
@@ -39,6 +40,7 @@ async function update(id, mandateId, data) {
          headcount    = @headcount,
          notes        = @notes,
          jd_text      = @jdText,
+         tags         = @tags,
          resume_deadline = @resumeDeadline
      WHERE id = @id AND mandate_id = @mandateId
      RETURNING *`,
@@ -51,6 +53,7 @@ async function update(id, mandateId, data) {
       headcount:   data.headcount    != null ? Number(data.headcount)  : 1,
       notes:       data.notes        || null,
       jdText:      data.jd_text      || null,
+      tags:        data.tags ? (typeof data.tags === 'string' ? data.tags : JSON.stringify(data.tags)) : null,
       resumeDeadline: data.resume_deadline || null,
     }
   )

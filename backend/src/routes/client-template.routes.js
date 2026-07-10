@@ -95,6 +95,7 @@ function normalizeRequirementPayload(input = {}) {
     headcount,
     notes: String(input.notes || '').trim() || null,
     jd_text: String(input.jd_text ?? input.jdText ?? '').trim() || null,
+    tags: input.tags || null,
     resume_deadline: optionalDateTime(input.resume_deadline ?? input.resumeDeadline),
   }
 }
@@ -208,8 +209,17 @@ router.post('/', async (req, res) => {
       if (!String(data.requirements || '').trim()) {
         data.requirements = requirementProfiles.map(profile => profile.profile_name).join(', ')
       }
+      
+      // Extract tags for each role if not already provided
+      for (const profile of requirementProfiles) {
+        if (profile.jd_text && (!profile.tags || !hasTags(profile.tags))) {
+          profile.tags = await llmService.extractTagsFromText(profile.jd_text)
+        }
+      }
     }
-    if (data.jd_text && !hasTags(data.tags)) {
+    
+    // Extract global mandate tags if jd_text exists
+    if (data.jd_text && (!data.tags || !hasTags(data.tags))) {
       data.tags = await llmService.extractTagsFromText(data.jd_text)
     }
     const template = await clientTemplateRepo.create(data)
@@ -320,11 +330,18 @@ router.patch('/:id', async (req, res) => {
     if (requirementProfiles?.length) {
       data.headcount = requirementHeadcount(requirementProfiles)
       data.requirements = requirementProfiles.map(profile => profile.profile_name).join(', ')
+      
+      for (const profile of requirementProfiles) {
+        // If jd_text exists and tags are not provided or are empty, extract them.
+        if (profile.jd_text && (!profile.tags || !hasTags(profile.tags))) {
+          profile.tags = await llmService.extractTagsFromText(profile.jd_text)
+        }
+      }
     }
     const jdChanged = data.jd_text !== undefined
       && String(data.jd_text || '').trim()
       && String(data.jd_text || '') !== String(existing.jd_text || '')
-    if (jdChanged && data.tags === undefined) {
+    if (jdChanged && (!data.tags || !hasTags(data.tags))) {
       data.tags = await llmService.extractTagsFromText(data.jd_text)
     }
     const template = await clientTemplateRepo.update(templateId, req.user.id, data)
@@ -376,6 +393,9 @@ router.post('/:id/requirements', async (req, res) => {
     if (!checkNotArchived(template, res)) return
     const payload = normalizeRequirementPayload(req.body)
     await assertUniqueRequirementName(mandateId, payload.profile_name)
+    if (payload.jd_text && (!payload.tags || !hasTags(payload.tags))) {
+      payload.tags = await llmService.extractTagsFromText(payload.jd_text)
+    }
     const req_ = await clientRequirementsRepo.create(mandateId, payload)
     await syncMandateHeadcount(mandateId, req.user.id)
     res.status(201).json({ success: true, data: req_ })
@@ -395,6 +415,17 @@ router.patch('/:id/requirements/:rqId', async (req, res) => {
     if (!checkNotArchived(template, res)) return
     const payload = normalizeRequirementPayload({ ...req.body, id: rqId })
     await assertUniqueRequirementName(mandateId, payload.profile_name, rqId)
+    
+    // Determine if jd_text changed to trigger tag extraction
+    const existingReq = await clientRequirementsRepo.getByIdForMandate(rqId, mandateId)
+    const jdChanged = payload.jd_text !== undefined
+      && String(payload.jd_text || '').trim()
+      && String(payload.jd_text || '') !== String(existingReq.jd_text || '')
+      
+    if (jdChanged && (!payload.tags || !hasTags(payload.tags))) {
+      payload.tags = await llmService.extractTagsFromText(payload.jd_text)
+    }
+    
     const updated = await clientRequirementsRepo.update(rqId, mandateId, payload)
     if (!updated) return res.status(404).json({ success: false, error: 'Requirement not found' })
     await syncMandateHeadcount(mandateId, req.user.id)
@@ -467,11 +498,22 @@ router.get('/:id/matches', async (req, res) => {
       .map(m => {
         let memberTags = []
         try { memberTags = JSON.parse(m.tags || '[]').map(t => t.toLowerCase()) } catch { memberTags = [] }
-        const overlap = templateTags.filter(t => memberTags.includes(t))
+        
         const experienceYears = extractExperienceYears(m)
         const matchingRequirements = openRequirements.filter(requirement =>
           requirementMatchesExperience(requirement, experienceYears)
         )
+        
+        // Collect tags from matching requirements and template
+        const applicableTags = new Set(templateTags)
+        for (const req of matchingRequirements) {
+          try {
+            const reqTags = JSON.parse(req.tags || '[]').map(t => t.toLowerCase())
+            for (const t of reqTags) applicableTags.add(t)
+          } catch { /* ignore */ }
+        }
+        
+        const overlap = [...applicableTags].filter(t => memberTags.includes(t))
         const profileScore = requirements.length > 0 ? matchingRequirements.length : 0
         return {
           ...m,

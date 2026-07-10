@@ -33,7 +33,7 @@ const SCHEMA = {
   client_mandate_requirements: {
     columns: [
       'id', 'mandate_id', 'profile_name', 'years_min', 'years_max',
-      'headcount', 'notes', 'jd_text', 'resume_deadline', 'created',
+      'headcount', 'notes', 'jd_text', 'tags', 'resume_deadline', 'created',
     ],
   },
   client_teams: {

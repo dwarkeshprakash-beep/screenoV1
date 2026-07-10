@@ -131,7 +131,23 @@ function RequirementProfilesEditor({ profiles, setProfiles, allowEmpty = false, 
   }
 
   const totalHeadcount = requirementProfilesHeadcount(profiles)
-  const canApplySharedJd = Boolean(String(sharedJdText || '').trim())
+  const [extractingFiles, setExtractingFiles] = useState({})
+
+  async function readRoleJdFile(event, profileKey) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+    setExtractingFiles(c => ({ ...c, [profileKey]: true }))
+    try {
+      const response = await api.extractTextFromFile(file)
+      const text = response.data?.text || ''
+      if (text.trim()) updateProfile(profileKey, 'jd_text', text)
+    } catch (err) {
+      console.error('Could not read JD document', err)
+    } finally {
+      setExtractingFiles(c => ({ ...c, [profileKey]: false }))
+    }
+  }
 
   return (
     <div className="form-field form-field--full">
@@ -173,14 +189,13 @@ function RequirementProfilesEditor({ profiles, setProfiles, allowEmpty = false, 
               <Field label="Resume deadline">
                 <input className="form-input" type="datetime-local" value={profile.resume_deadline} onChange={e => updateProfile(profile.key, 'resume_deadline', e.target.value)} />
               </Field>
-              <Field label="Role JD" full help="Optional. If blank, the mandate/shared JD is used as fallback.">
+              <Field label="Role JD" full help="Paste JD below or upload PDF/DOC/DOCX/TXT.">
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <input id={`role-jd-file-${profile.key}`} type="file" accept=".pdf,.doc,.docx,.txt" onChange={e => readRoleJdFile(e, profile.key)} style={{ display: 'none' }} />
+                  <label htmlFor={`role-jd-file-${profile.key}`} className="product-button product-button--secondary product-button--md" style={{ alignSelf: 'flex-start', cursor: extractingFiles[profile.key] ? 'wait' : 'pointer' }}>
+                    <Upload size={14} />{extractingFiles[profile.key] ? 'Reading...' : 'Upload JD file'}
+                  </label>
                   <textarea className="form-input" rows={5} value={profile.jd_text} onChange={e => updateProfile(profile.key, 'jd_text', e.target.value)} placeholder="Paste JD for this role..." style={{ resize: 'vertical' }} />
-                  {canApplySharedJd && (
-                    <button type="button" className="product-button product-button--secondary product-button--sm" style={{ alignSelf: 'flex-start' }} onClick={() => updateProfile(profile.key, 'jd_text', sharedJdText)}>
-                      Use shared uploaded JD
-                    </button>
-                  )}
                 </div>
               </Field>
               <Field label="Notes" full>
@@ -203,87 +218,26 @@ function RequirementProfilesEditor({ profiles, setProfiles, allowEmpty = false, 
 
 function CreateMandateModal({ open, onClose, onCreated }) {
   const [step, setStep] = useState(1)
-  const [form, setForm] = useState({ clientName: '', clientEmail: '', requirements: '', headcount: 1, jdText: '', customInfo: '' })
-  const [profiles, setProfiles] = useState([])
-  const [tags, setTags] = useState([])
-  const [customTag, setCustomTag] = useState('')
-  const [fileName, setFileName] = useState('')
-  const [extractingFile, setExtractingFile] = useState(false)
-  const [extractingTags, setExtractingTags] = useState(false)
+  const [form, setForm] = useState({ clientName: '', clientEmail: '', requirements: '', customInfo: '' })
+  const [profiles, setProfiles] = useState([newRequirementProfile()])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
 
   useEffect(() => {
     if (!open) return
     setStep(1)
-    setForm({ clientName: '', clientEmail: '', requirements: '', headcount: 1, jdText: '', customInfo: '' })
-    setProfiles([])
-    setTags([])
-    setCustomTag('')
-    setFileName('')
+    setForm({ clientName: '', clientEmail: '', requirements: '', customInfo: '' })
+    setProfiles([newRequirementProfile()])
     setError(null)
   }, [open])
 
   function update(key, value) { setForm(c => ({ ...c, [key]: value })) }
 
-  async function readJdFile(event) {
-    const file = event.target.files?.[0]
-    event.target.value = ''
-    if (!file) return
-    setExtractingFile(true)
-    setError(null)
-    try {
-      const response = await api.extractTextFromFile(file)
-      const text = response.data?.text || ''
-      if (!text.trim()) throw new Error('No readable text was found in this document.')
-      update('jdText', text)
-      setFileName(file.name)
-    } catch (err) { setError(err.message || 'Could not read the JD document.') }
-    finally { setExtractingFile(false) }
-  }
-
-  async function continueToTags() {
-    if (!form.clientName.trim()) { setError('Client name is required.'); return }
-    const hasRoleDraft = profiles.some(profile => (
-      String(profile.profile_name || '').trim()
-      || String(profile.jd_text || '').trim()
-      || String(profile.notes || '').trim()
-      || profile.years_min !== ''
-      || profile.years_max !== ''
-      || profile.resume_deadline
-    ))
-    if (hasRoleDraft) {
-      const profileError = validateRequirementProfilesForSave(profiles)
-      if (profileError) { setError(profileError); return }
-    }
-    setExtractingTags(true)
-    setError(null)
-    try {
-      if (form.jdText.trim()) {
-        const response = await api.extractTemplateTags(form.jdText)
-        setTags(Array.isArray(response.data) ? response.data : [])
-      }
-      setStep(2)
-    } catch { setStep(2) }
-    finally { setExtractingTags(false) }
-  }
-
-  function addTag() {
-    const t = customTag.trim()
-    if (t && !tags.includes(t)) setTags(c => [...c, t])
-    setCustomTag('')
-  }
-
   async function saveMandate() {
     setSaving(true)
     setError(null)
     try {
-      const sharedJd = form.jdText.trim()
       const normalizedProfiles = normalizeRequirementProfilesForSave(profiles)
-        .map(profile => ({
-          ...profile,
-          jd_text: profile.jd_text || sharedJd || null,
-        }))
       await api.createClientTemplate({
         client_name: form.clientName.trim(),
         client_email: form.clientEmail.trim() || null,
@@ -292,11 +246,11 @@ function CreateMandateModal({ open, onClose, onCreated }) {
           : form.requirements.trim(),
         headcount: normalizedProfiles.length
           ? normalizedProfiles.reduce((sum, profile) => sum + Number(profile.headcount || 0), 0)
-          : Number(form.headcount) || 1,
+          : 1,
         requirement_profiles: normalizedProfiles,
-        jd_text: sharedJd,
+        jd_text: null,
         custom_info: form.customInfo.trim() || null,
-        tags: JSON.stringify(tags),
+        tags: null,
       })
       await onCreated()
       onClose()
@@ -307,201 +261,25 @@ function CreateMandateModal({ open, onClose, onCreated }) {
   return (
     <Modal open={open} onClose={onClose} title="Create client mandate" size="lg">
       <div className="workspace-stack">
-        <div className="workspace-tabs" aria-label="Mandate creation progress">
-          {[['1. Mandate brief', 1], ['2. Matching skills', 2]].map(([label, s]) => (
-            <button key={s} type="button" className={`workspace-tabs__button${step === s ? ' is-active' : ''}`}
-              onClick={() => s === 1 ? setStep(1) : (form.clientName.trim() && setStep(2))}>
-              {label}
-            </button>
-          ))}
-        </div>
-
-        {step === 1 ? (
-          <div className="form-grid">
-            <Field label="Client name">
-              <input className="form-input" value={form.clientName} onChange={e => update('clientName', e.target.value)} placeholder="Client company name" />
-            </Field>
-            <Field label="Client email" help="Optional contact for the mandate.">
-              <input className="form-input" type="email" value={form.clientEmail} onChange={e => update('clientEmail', e.target.value)} placeholder="contact@client.com" />
-            </Field>
-            <Field label="Mandate summary" full help="Optional high-level summary. Add exact roles, each with its own JD and resume deadline, inside the mandate after creation.">
-              <textarea className="form-input" rows={3} value={form.requirements} onChange={e => update('requirements', e.target.value)} placeholder="Example: Engineering hiring for backend and frontend roles" style={{ resize: 'vertical' }} />
-            </Field>
-            <Field label="Initial headcount estimate" help="This is replaced by the total from role profiles once you add roles inside the mandate.">
-              <input className="form-input" type="number" min="1" value={form.headcount} onChange={e => update('headcount', e.target.value)} />
-            </Field>
-            <div className="form-field">
-              <div style={{ padding: 12, borderRadius: 10, border: '1px solid var(--brand-100)', background: 'var(--brand-50)', color: 'var(--brand-700)', fontSize: 12, lineHeight: 1.5 }}>
-                Roles are no longer forced in this setup wizard. Create the mandate first, then add one or more role profiles inside it so every role can keep its own JD, headcount, and resume deadline.
-              </div>
-            </div>
-            <Field label="Job description source" help="Paste the JD below or upload PDF, DOC, DOCX, or TXT.">
-              <input id="client-jd-file" type="file" accept=".pdf,.doc,.docx,.txt" onChange={readJdFile} style={{ display: 'none' }} />
-              <label htmlFor="client-jd-file" className="product-button product-button--secondary product-button--md" style={{ alignSelf: 'flex-start', cursor: extractingFile ? 'wait' : 'pointer' }}>
-                <Upload size={14} />{extractingFile ? 'Reading document...' : 'Upload JD file'}
-              </label>
-              {fileName && <span className="form-help">{fileName}</span>}
-            </Field>
-            <Field label="Job description" full>
-              <textarea className="form-input" rows={9} value={form.jdText} onChange={e => update('jdText', e.target.value)} placeholder="Paste the client JD here..." style={{ resize: 'vertical' }} />
-            </Field>
-            <RequirementProfilesEditor profiles={profiles} setProfiles={setProfiles} allowEmpty sharedJdText={form.jdText} />
-            <Field label="Internal notes" full help="Visible to managers, not candidates.">
-              <textarea className="form-input" rows={4} value={form.customInfo} onChange={e => update('customInfo', e.target.value)} placeholder="Interview process, client expectations, or other context..." style={{ resize: 'vertical' }} />
-            </Field>
-          </div>
-        ) : (
-          <div className="workspace-stack" style={{ gap: 16 }}>
-            <div className="workspace-section-heading">
-              <div><h3 style={{ fontSize: 16 }}>Review matching skills</h3><p>These tags are used for AI recommendations. Team members whose skills match will appear first.</p></div>
-              <Sparkles size={20} color="var(--brand-500)" />
-            </div>
-            <div className="tag-list" style={{ minHeight: 34 }}>
-              {tags.length === 0 && <span style={{ color: 'var(--fg-muted)', fontSize: 12 }}>No tags extracted. Add skills manually.</span>}
-              {tags.map(tag => (
-                <span className="tag" key={tag}>{tag}
-                  <button type="button" onClick={() => setTags(c => c.filter(t => t !== tag))} style={{ display: 'inline-flex', marginLeft: 5, border: 0, background: 'transparent', color: 'inherit' }}><X size={12} /></button>
-                </span>
-              ))}
-            </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <input className="form-input" value={customTag} onChange={e => setCustomTag(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addTag() } }}
-                placeholder="Add a skill tag" />
-              <Button variant="secondary" onClick={addTag}>Add</Button>
-            </div>
-          </div>
-        )}
-
-        {error && <div style={{ padding: 11, borderRadius: 8, background: 'var(--danger-50)', color: 'var(--danger-700)', fontSize: 12 }}>{error}</div>}
-        <div className="form-actions">
-          <Button variant="secondary" onClick={step === 1 ? onClose : () => setStep(1)}>{step === 1 ? 'Cancel' : 'Back'}</Button>
-          {step === 1
-            ? <Button onClick={continueToTags} loading={extractingTags}>Review skills</Button>
-            : <Button onClick={saveMandate} loading={saving}>Save mandate</Button>}
-        </div>
-      </div>
-    </Modal>
-  )
-}
-
-// ── Edit mandate ──────────────────────────────────────────────────────────────
-
-function EditMandateModal({ open, template, requirements = [], onClose, onSaved }) {
-  const [form, setForm] = useState({})
-  const [profiles, setProfiles] = useState(() => [newRequirementProfile()])
-  const [tags, setTags] = useState([])
-  const [customTag, setCustomTag] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [readingFile, setReadingFile] = useState(false)
-  const [extractingTags, setExtractingTags] = useState(false)
-  const [fileName, setFileName] = useState('')
-  const [error, setError] = useState(null)
-
-  useEffect(() => {
-    if (!open) return
-    setForm({ client_name: template.client_name || '', client_email: template.client_email || '', requirements: template.requirements || '', headcount: template.headcount || 1, jd_text: template.jd_text || '', custom_info: template.custom_info || '' })
-    setProfiles(requirements.length > 0
-      ? requirements.map(item => newRequirementProfile(item))
-      : [newRequirementProfile({ profile_name: template.requirements || '', headcount: template.headcount || 1 })])
-    setTags(parseTags(template.tags))
-    setCustomTag('')
-    setFileName('')
-    setError(null)
-  }, [open, template, requirements])
-
-  async function readFile(event) {
-    const file = event.target.files?.[0]
-    event.target.value = ''
-    if (!file) return
-    setReadingFile(true)
-    try {
-      const response = await api.extractTextFromFile(file)
-      const text = response.data?.text || ''
-      if (!text.trim()) throw new Error('No readable text was found in this document.')
-      setForm(c => ({ ...c, jd_text: text }))
-      setFileName(file.name)
-    } catch (err) { setError(err.message || 'Could not read the JD document.') }
-    finally { setReadingFile(false) }
-  }
-
-  function addTag() {
-    const t = customTag.trim()
-    if (t && !tags.some(tag => tag.toLowerCase() === t.toLowerCase())) setTags(c => [...c, t])
-    setCustomTag('')
-  }
-
-  async function regenerateTags() {
-    const jd = String(form.jd_text || '').trim()
-    if (!jd) { setError('Add a job description before regenerating skills.'); return }
-    setExtractingTags(true)
-    setError(null)
-    try {
-      const response = await api.extractTemplateTags(jd)
-      setTags(Array.isArray(response.data) ? response.data : [])
-    } catch (err) { setError(err.message || 'Could not regenerate matching skills.') }
-    finally { setExtractingTags(false) }
-  }
-
-  async function save() {
-    const profileError = validateRequirementProfilesForSave(profiles)
-    if (profileError) { setError(profileError); return }
-    setSaving(true)
-    setError(null)
-    try {
-      const response = await api.updateClientTemplate(template.id, {
-        ...form,
-        requirements: requirementProfilesSummary(profiles),
-        headcount: requirementProfilesHeadcount(profiles),
-        requirement_profiles: normalizeRequirementProfilesForSave(profiles),
-        tags: JSON.stringify(tags),
-      })
-      onSaved(response.data || { ...template, ...form })
-    } catch (err) { setError(err.message || 'Could not update the mandate.') }
-    finally { setSaving(false) }
-  }
-
-  return (
-    <Modal open={open} onClose={onClose} title="Edit client mandate" size="lg">
-      <div className="workspace-stack">
         <div className="form-grid">
-          <Field label="Client name"><input className="form-input" value={form.client_name || ''} onChange={e => setForm(c => ({ ...c, client_name: e.target.value }))} /></Field>
-          <Field label="Client email"><input className="form-input" type="email" value={form.client_email || ''} onChange={e => setForm(c => ({ ...c, client_email: e.target.value }))} /></Field>
-          <RequirementProfilesEditor profiles={profiles} setProfiles={setProfiles} sharedJdText={form.jd_text || ''} />
-          <Field label="Replace JD from file">
-            <input id="edit-jd-file" type="file" accept=".pdf,.doc,.docx,.txt" onChange={readFile} style={{ display: 'none' }} />
-            <label htmlFor="edit-jd-file" className="product-button product-button--secondary product-button--md" style={{ alignSelf: 'flex-start' }}>
-              <Upload size={14} />{readingFile ? 'Reading...' : 'Choose document'}
-            </label>
-            {fileName && <span className="form-help">{fileName}</span>}
+          <Field label="Client name">
+            <input className="form-input" value={form.clientName} onChange={e => update('clientName', e.target.value)} placeholder="Client company name" />
           </Field>
-          <Field label="Job description" full><textarea className="form-input" rows={9} value={form.jd_text || ''} onChange={e => setForm(c => ({ ...c, jd_text: e.target.value }))} style={{ resize: 'vertical' }} /></Field>
-          <Field label="Internal notes" full><textarea className="form-input" rows={4} value={form.custom_info || ''} onChange={e => setForm(c => ({ ...c, custom_info: e.target.value }))} style={{ resize: 'vertical' }} /></Field>
-          <div className="form-field form-field--full">
-            <div className="workspace-section-heading" style={{ marginBottom: 8 }}>
-              <div><h3 style={{ fontSize: 15 }}>Matching skills</h3><p>Used for AI recommendations in the candidates tab.</p></div>
-              <Button variant="secondary" size="sm" onClick={regenerateTags} loading={extractingTags}><Sparkles size={13} />Regenerate</Button>
-            </div>
-            <div className="tag-list" style={{ minHeight: 30 }}>
-              {tags.length === 0 && <span className="form-help">No matching skills saved yet.</span>}
-              {tags.map(tag => (
-                <span className="tag" key={tag}>{tag}
-                  <button type="button" onClick={() => setTags(c => c.filter(t => t !== tag))} style={{ display: 'inline-flex', marginLeft: 5, border: 0, background: 'transparent', color: 'inherit' }}><X size={12} /></button>
-                </span>
-              ))}
-            </div>
-            <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-              <input className="form-input" value={customTag} onChange={e => setCustomTag(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addTag() } }}
-                placeholder="Add a skill tag" />
-              <Button variant="secondary" onClick={addTag}>Add</Button>
-            </div>
-          </div>
+          <Field label="Client email" help="Optional contact for the mandate.">
+            <input className="form-input" type="email" value={form.clientEmail} onChange={e => update('clientEmail', e.target.value)} placeholder="contact@client.com" />
+          </Field>
+          <Field label="Mandate summary" full help="Optional high-level summary. Add exact roles, each with its own JD and resume deadline below.">
+            <textarea className="form-input" rows={3} value={form.requirements} onChange={e => update('requirements', e.target.value)} placeholder="Example: Engineering hiring for backend and frontend roles" style={{ resize: 'vertical' }} />
+          </Field>
+          <RequirementProfilesEditor profiles={profiles} setProfiles={setProfiles} allowEmpty={false} />
+          <Field label="Internal notes" full help="Visible to managers, not candidates.">
+            <textarea className="form-input" rows={3} value={form.customInfo} onChange={e => update('customInfo', e.target.value)} style={{ resize: 'vertical' }} />
+          </Field>
         </div>
         {error && <ErrorMessage message={error} />}
         <div className="form-actions" style={{ justifyContent: 'flex-end' }}>
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button onClick={save} loading={saving}>Save changes</Button>
+          <Button onClick={saveMandate} loading={saving}>Save mandate</Button>
         </div>
       </div>
     </Modal>
@@ -513,6 +291,7 @@ function EditMandateModal({ open, template, requirements = [], onClose, onSaved 
 function RequirementModal({ open, onClose, onSaved, existing, mandateId }) {
   const [form, setForm] = useState({ profile_name: '', years_min: '', years_max: '', headcount: 1, jd_text: '', resume_deadline: '', notes: '' })
   const [saving, setSaving] = useState(false)
+  const [extractingFile, setExtractingFile] = useState(false)
   const [error, setError] = useState(null)
 
   useEffect(() => {
@@ -530,6 +309,20 @@ function RequirementModal({ open, onClose, onSaved, existing, mandateId }) {
       : { profile_name: '', years_min: '', years_max: '', headcount: 1, jd_text: '', resume_deadline: '', notes: '' })
     setError(null)
   }, [open, existing])
+
+  async function readJdFile(event) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+    setExtractingFile(true)
+    setError(null)
+    try {
+      const response = await api.extractTextFromFile(file)
+      const text = response.data?.text || ''
+      if (text.trim()) setForm(c => ({ ...c, jd_text: text }))
+    } catch (err) { setError(err.message || 'Could not read the JD document.') }
+    finally { setExtractingFile(false) }
+  }
 
   async function save() {
     if (!form.profile_name.trim()) { setError('Profile name is required.'); return }
@@ -577,8 +370,14 @@ function RequirementModal({ open, onClose, onSaved, existing, mandateId }) {
           <Field label="Resume deadline" help="Optional candidate deadline for this specific role.">
             <input className="form-input" type="datetime-local" value={form.resume_deadline} onChange={e => setForm(c => ({ ...c, resume_deadline: e.target.value }))} />
           </Field>
-          <Field label="Role-specific JD" full help="Used when sending the JD to candidates assigned to this role. Falls back to mandate JD if blank.">
-            <textarea className="form-input" rows={8} value={form.jd_text} onChange={e => setForm(c => ({ ...c, jd_text: e.target.value }))} placeholder="Paste the JD for this role..." style={{ resize: 'vertical' }} />
+          <Field label="Role-specific JD" full help="Paste JD below or upload PDF/DOC/DOCX/TXT.">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <input id={`role-modal-jd-file`} type="file" accept=".pdf,.doc,.docx,.txt" onChange={readJdFile} style={{ display: 'none' }} />
+              <label htmlFor={`role-modal-jd-file`} className="product-button product-button--secondary product-button--md" style={{ alignSelf: 'flex-start', cursor: extractingFile ? 'wait' : 'pointer' }}>
+                <Upload size={14} />{extractingFile ? 'Reading...' : 'Upload JD file'}
+              </label>
+              <textarea className="form-input" rows={8} value={form.jd_text} onChange={e => setForm(c => ({ ...c, jd_text: e.target.value }))} placeholder="Paste the JD for this role..." style={{ resize: 'vertical' }} />
+            </div>
           </Field>
           <Field label="Notes" full>
             <textarea className="form-input" rows={3} value={form.notes} onChange={e => setForm(c => ({ ...c, notes: e.target.value }))} placeholder="Additional notes for this profile..." style={{ resize: 'vertical' }} />
