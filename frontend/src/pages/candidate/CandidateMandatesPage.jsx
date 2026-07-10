@@ -15,6 +15,9 @@ const OUTCOME_CONFIG = {
   passed:  { label: 'Passed',        color: 'var(--success-600)', bg: 'var(--success-50)', border: 'var(--success-100)' },
   failed:  { label: 'Did not clear', color: 'var(--danger-600)',  bg: 'var(--danger-50)',  border: 'var(--danger-100)' },
   on_hold: { label: 'On hold',       color: 'var(--warning-600)', bg: 'var(--warning-50)', border: 'var(--warning-100)' },
+  offer_made: { label: 'Offer made', color: 'var(--success-600)', bg: 'var(--success-50)', border: 'var(--success-100)' },
+  hired: { label: 'Hired', color: 'var(--success-600)', bg: 'var(--success-50)', border: 'var(--success-100)' },
+  withdrawn: { label: 'Withdrawn', color: 'var(--fg-muted)', bg: 'var(--bg-surface-alt)', border: 'var(--border-default)' },
   pending: { label: 'Pending',       color: 'var(--fg-muted)',    bg: 'var(--bg-surface-alt)', border: 'var(--border-default)' },
 }
 
@@ -94,8 +97,9 @@ function CandidateMandatesPage() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {mandates.map(mandate => {
             const isExpanded = expandedMandate === mandate.id
-            const clientRecord = mandate.client_interview_record
-            const outcome = clientRecord?.outcome
+            const publishedRounds = mandate.published_rounds || []
+            const latestRound = mandate.latest_published_round || publishedRounds[publishedRounds.length - 1]
+            const outcome = latestRound?.outcome
             const outcomeConf = OUTCOME_CONFIG[outcome] || OUTCOME_CONFIG.pending
             const resumeUrl = mandate.client_resume_download_url || mandate.client_resume_url
             const needsAction = !resumeUrl && mandate.jd_sent
@@ -137,9 +141,9 @@ function CandidateMandatesPage() {
                         <a href={resumeUrl} target="_blank" rel="noreferrer" style={{ marginLeft: 4, color: 'inherit', textDecoration: 'underline' }}>View</a>
                       )}
                     </span>
-                    {clientRecord && (
+                    {latestRound && (
                       <span style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 999, fontWeight: 600, border: `1px solid ${outcomeConf.border}`, background: outcomeConf.bg, color: outcomeConf.color }}>
-                        <AlertTriangle size={11} />{outcomeConf.label}
+                        <AlertTriangle size={11} />Latest round: {outcomeConf.label}
                       </span>
                     )}
                   </div>
@@ -164,15 +168,24 @@ function CandidateMandatesPage() {
                     </details>
                   )}
 
-                  {/* Client interview outcome */}
-                  {clientRecord && outcome !== 'pending' && (
-                    <div style={{ padding: '12px 14px', borderRadius: 8, background: outcomeConf.bg, border: `1px solid ${outcomeConf.border}`, marginBottom: 14 }}>
-                      <p style={{ fontSize: 12, fontWeight: 700, color: outcomeConf.color, margin: '0 0 4px' }}>
-                        {clientRecord.interview_date ? formatDate(clientRecord.interview_date) + ' · ' : ''}{outcomeConf.label}
-                      </p>
-                      {clientRecord.feedback && (
-                        <p style={{ fontSize: 12, color: 'var(--fg-body)', margin: 0 }}>{clientRecord.feedback}</p>
-                      )}
+                  {/* Client interview outcomes */}
+                  {publishedRounds.length > 0 && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 14 }}>
+                      {publishedRounds.map(round => {
+                        const roundConf = OUTCOME_CONFIG[round.outcome] || OUTCOME_CONFIG.pending
+                        return (
+                          <div key={round.id} style={{ padding: '12px 14px', borderRadius: 8, background: roundConf.bg, border: `1px solid ${roundConf.border}` }}>
+                            <p style={{ fontSize: 12, fontWeight: 700, color: roundConf.color, margin: '0 0 4px' }}>
+                              Round {round.round_number}
+                              {round.interview_at ? ` | ${formatDate(round.interview_at)}` : ''}
+                              {` | ${roundConf.label}`}
+                            </p>
+                            {round.feedback && (
+                              <p style={{ fontSize: 12, color: 'var(--fg-body)', margin: 0 }}>{round.feedback}</p>
+                            )}
+                          </div>
+                        )
+                      })}
                     </div>
                   )}
 

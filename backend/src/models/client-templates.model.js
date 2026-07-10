@@ -10,6 +10,7 @@
  * @property {string|null} custom_info
  * @property {string|null} tags
  * @property {Date|null} resume_deadline
+ * @property {Date|null} archived_at
  * @property {Date|null} created
  */
 module.exports = {}

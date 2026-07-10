@@ -12,7 +12,8 @@ const SCHEMA = {
     columns: [
       'id', 'emp_number', 'first_name', 'last_name', 'email', 'department_id',
       'job_title', 'location', 'role', 'password', 'company_id', 'resume_url',
-      'resume_text', 'resume_updated', 'tags', 'availability', 'created',
+      'resume_text', 'resume_updated', 'current_resume_asset_id', 'tags',
+      'availability', 'created',
     ],
   },
   team_members: {
@@ -27,7 +28,8 @@ const SCHEMA = {
   client_templates: {
     columns: [
       'id', 'manager_id', 'client_name', 'client_email', 'headcount',
-      'requirements', 'jd_text', 'custom_info', 'tags', 'resume_deadline', 'created',
+      'requirements', 'jd_text', 'custom_info', 'tags', 'resume_deadline',
+      'archived_at', 'created',
     ],
   },
   client_mandate_requirements: {
@@ -39,13 +41,15 @@ const SCHEMA = {
   client_teams: {
     columns: [
       'id', 'mandate_id', 'user_id', 'requirement_id', 'status', 'notes',
-      'jd_sent', 'jd_sent_at', 'client_resume_url', 'resume_updated_at', 'created',
+      'jd_sent', 'jd_sent_at', 'client_resume_url', 'submitted_resume_asset_id',
+      'resume_updated_at', 'created',
     ],
   },
-  client_interview_records: {
+  client_interview_rounds: {
     columns: [
-      'id', 'mandate_id', 'client_team_id', 'interview_date', 'outcome',
-      'feedback', 'notes', 'created', 'updated',
+      'id', 'client_team_id', 'round_number', 'interview_at', 'outcome',
+      'feedback', 'manager_notes', 'candidate_visible', 'published_at',
+      'created_by_manager_id', 'created', 'updated',
     ],
   },
   monthly_assessments: {
@@ -56,8 +60,27 @@ const SCHEMA = {
   },
   monthly_assessment_enrollments: {
     columns: [
-      'id', 'assessment_id', 'team_member_id', 'interview_id', 'start_date',
-      'end_date', 'month_progress', 'status', 'created',
+      'id', 'assessment_id', 'team_member_id', 'start_date',
+      'end_date', 'status', 'created',
+    ],
+  },
+  monthly_assessment_occurrences: {
+    columns: [
+      'id', 'enrollment_id', 'period_month', 'available_from', 'due_at',
+      'duration_minutes', 'interview_id', 'status', 'created', 'updated',
+    ],
+  },
+  assignment_requests: {
+    columns: [
+      'id', 'request_key', 'assessment_id', 'team_member_id',
+      'enrollment_id', 'created',
+    ],
+  },
+  email_outbox_jobs: {
+    columns: [
+      'id', 'event_key', 'interview_id', 'recipient', 'payload', 'send_after',
+      'status', 'attempts', 'last_error', 'claimed_at', 'finished_at',
+      'created', 'updated',
     ],
   },
   interviews: {
@@ -104,6 +127,13 @@ const SCHEMA = {
   },
   password_reset_tokens: {
     columns: ['id', 'user_id', 'token_hash', 'expires', 'used', 'created'],
+  },
+  resume_assets: {
+    columns: [
+      'id', 'owner_user_id', 'purpose', 'client_team_id', 'mandate_id',
+      'original_filename', 'mime_type', 'size', 'storage_path', 'created_at',
+      'deleted_at',
+    ],
   },
 }
 

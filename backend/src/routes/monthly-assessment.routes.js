@@ -9,6 +9,38 @@ const router = express.Router()
 
 router.use(authMiddleware, requireRole('manager'))
 
+const VALIDATION_ERRORS = new Set([
+  'At least one team member is required',
+  'Subject is required',
+  'Assessment date is required',
+  'Assessment date is invalid',
+  'Assessment date must be in the future',
+  'Due date is invalid',
+  'Due date must be after the available date',
+  'Question count must be an integer between 1 and 50',
+  'Duration must be an integer between 15 and 180 minutes',
+])
+
+function handleMonthlyError(res, err, fallbackMessage) {
+  if (err.message?.startsWith('Forbidden')) {
+    return res.status(403).json({ success: false, error: err.message })
+  }
+  if (err.message === 'Monthly assessment not found' || err.message === 'Monthly enrollment not found') {
+    return res.status(404).json({ success: false, error: err.message })
+  }
+  if (err.message === 'Month must use YYYY-MM format' || VALIDATION_ERRORS.has(err.message)) {
+    return res.status(400).json({ success: false, error: err.message })
+  }
+  if (err.code === 'MONTHLY_ASSESSMENT_CONFLICT') {
+    return res.status(409).json({
+      success: false,
+      error: err.message,
+      data: { conflict: err.conflict },
+    })
+  }
+  return res.status(500).json({ success: false, error: fallbackMessage })
+}
+
 router.post('/', async (req, res) => {
   try {
     const assessment = await monthlyAssessmentService.createAssessment(
@@ -19,23 +51,7 @@ router.post('/', async (req, res) => {
     res.status(201).json({ success: true, data: assessment })
   } catch (err) {
     console.error('POST /monthly-assessments failed:', err)
-    if (err.message.startsWith('Forbidden')) {
-      return res.status(403).json({ success: false, error: err.message })
-    }
-    if ([
-      'At least one team member is required',
-      'Subject is required',
-      'Assessment date is required',
-      'Assessment date is invalid',
-      'Assessment date must be in the future',
-      'Due date is invalid',
-      'Due date must be after the available date',
-      'Question count must be an integer between 1 and 50',
-      'Duration must be an integer between 15 and 180 minutes',
-    ].includes(err.message)) {
-      return res.status(400).json({ success: false, error: err.message })
-    }
-    res.status(500).json({ success: false, error: 'Could not create assessment' })
+    handleMonthlyError(res, err, 'Could not create assessment')
   }
 })
 
@@ -66,177 +82,7 @@ router.get('/plan', async (req, res) => {
     res.json({ success: true, data: plan })
   } catch (err) {
     console.error('GET /monthly-assessments/plan failed:', err)
-    if (err.message === 'Month must use YYYY-MM format') {
-const express = require('express')
-const authMiddleware = require('../middleware/auth')
-const requireRole = require('../middleware/role')
-const monthlyAssessmentRepository = require('../repositories/monthly-assessment.repository')
-const monthlyAssessmentService = require('../services/monthly-assessment.service')
-const llmService = require('../services/llm.service')
-
-const router = express.Router()
-
-router.use(authMiddleware, requireRole('manager'))
-
-router.post('/', async (req, res) => {
-  try {
-    const assessment = await monthlyAssessmentService.createAssessment(
-      req.body,
-      req.user.id,
-      req.user.companyId
-    )
-    res.status(201).json({ success: true, data: assessment })
-  } catch (err) {
-    console.error('POST /monthly-assessments failed:', err)
-    if (err.message.startsWith('Forbidden')) {
-      return res.status(403).json({ success: false, error: err.message })
-    }
-    if ([
-      'At least one team member is required',
-      'Subject is required',
-      'Assessment date is required',
-      'Assessment date is invalid',
-      'Assessment date must be in the future',
-      'Due date is invalid',
-      'Due date must be after the available date',
-      'Question count must be an integer between 1 and 50',
-      'Duration must be an integer between 15 and 180 minutes',
-    ].includes(err.message)) {
-      return res.status(400).json({ success: false, error: err.message })
-    }
-    res.status(500).json({ success: false, error: 'Could not create assessment' })
-  }
-})
-
-router.get('/', async (req, res) => {
-  try {
-    const assessments = await monthlyAssessmentService.getAssessments(req.user.id)
-    res.json({ success: true, data: assessments })
-  } catch (err) {
-    console.error('GET /monthly-assessments failed:', err)
-    res.status(500).json({ success: false, error: 'Could not load assessments' })
-  }
-})
-
-router.get('/calendar', async (req, res) => {
-  try {
-    const rows = await monthlyAssessmentRepository.getCalendarByManager(req.user.id)
-    res.json({ success: true, data: rows })
-  } catch (err) {
-    console.error('GET /monthly-assessments/calendar failed:', err)
-    res.status(500).json({ success: false, error: 'Could not load calendar' })
-  }
-})
-
-router.get('/plan', async (req, res) => {
-  try {
-    const month = req.query.month || new Date().toISOString().slice(0, 7)
-    const plan = await monthlyAssessmentService.getMonthPlan(req.user.id, month)
-    res.json({ success: true, data: plan })
-  } catch (err) {
-    console.error('GET /monthly-assessments/plan failed:', err)
-    if (err.message === 'Month must use YYYY-MM format') {
-      return res.status(400).json({ success: false, error: err.message })
-    }
-    res.status(500).json({ success: false, error: 'Could not load monthly plan' })
-  }
-})
-
-router.post('/:id/assign', async (req, res) => {
-  try {
-    const assignment = await monthlyAssessmentService.assignCandidates(
-      Number(req.params.id),
-      req.body,
-      req.user.id,
-      req.user.companyId
-    )
-    res.status(201).json({ success: true, data: assignment })
-  } catch (err) {
-    console.error('POST /monthly-assessments/:id/assign failed:', err)
-    if (err.message.startsWith('Forbidden')) {
-      return res.status(403).json({ success: false, error: err.message })
-    }
-    if (err.message === 'Monthly assessment not found') {
-      return res.status(404).json({ success: false, error: err.message })
-    }
-    if (err.code === 'MONTHLY_ASSESSMENT_CONFLICT') {
-      return res.status(409).json({
-        success: false,
-        error: err.message,
-        data: { conflict: err.conflict },
-      })
-    }
-    if ([
-      'At least one team member is required',
-      'Assessment date is required',
-      'Assessment date is invalid',
-      'Assessment date must be in the future',
-      'Due date is invalid',
-      'Due date must be after the available date',
-      'Question count must be an integer between 1 and 50',
-      'Duration must be an integer between 15 and 180 minutes',
-    ].includes(err.message)) {
-      return res.status(400).json({ success: false, error: err.message })
-    }
-    res.status(500).json({ success: false, error: 'Could not assign assessment' })
-  }
-})
-
-router.put('/:id', async (req, res) => {
-  try {
-    const data = {
-      subjectName: req.body.subject_name || req.body.subject,
-      difficulty: req.body.difficulty,
-      subTopics: req.body.sub_topics,
-      jd: req.body.ai_generated_jd || req.body.jd_text,
-      durationMonths: req.body.duration_months,
-      interviewType: req.body.interview_type,
-      interviewMode: req.body.interview_mode,
-    }
-    const assessment = await monthlyAssessmentService.updateAssessment(
-      req.params.id,
-      req.user.id,
-      data
-    )
-    res.json({ success: true, data: assessment })
-  } catch (err) {
-    console.error('PUT /monthly-assessments/:id failed:', err)
-    if (err.message === 'Monthly assessment not found') {
-      return res.status(404).json({ success: false, error: err.message })
-    }
-    res.status(500).json({ success: false, error: 'Could not update assessment' })
-  }
-})
-
-router.delete('/:id', async (req, res) => {
-  try {
-    const assessment = await monthlyAssessmentService.deleteAssessment(
-      req.params.id,
-      req.user.id
-    )
-    res.json({ success: true, data: assessment })
-  } catch (err) {
-    console.error('DELETE /monthly-assessments/:id failed:', err)
-    if (err.message === 'Monthly assessment not found') {
-      return res.status(404).json({ success: false, error: err.message })
-    }
-    res.status(500).json({ success: false, error: 'Could not delete assessment' })
-  }
-})
-
-router.delete('/enrollments/:id', async (req, res) => {
-  try {
-    const enrollment = await monthlyAssessmentService.deleteEnrollment(
-      Number(req.params.id),
-      req.user.id
-    )
-    res.json({ success: true, data: enrollment })
-  } catch (err) {
-    console.error('DELETE /monthly-assessments/enrollments/:id failed:', err)
-    if (err.message === 'Monthly enrollment not found') {
-      return res.status(404).json({ success: false, error: err.message })
-    }
-    res.status(500).json({ success: false, error: 'Could not remove monthly assessment plan' })
+    handleMonthlyError(res, err, 'Could not load monthly plan')
   }
 })
 
@@ -268,6 +114,57 @@ router.post('/generate-jd', async (req, res) => {
   }
 })
 
+router.post('/:id/assign', async (req, res) => {
+  try {
+    const assignment = await monthlyAssessmentService.assignCandidates(
+      Number(req.params.id),
+      req.body,
+      req.user.id,
+      req.user.companyId
+    )
+    res.status(201).json({ success: true, data: assignment })
+  } catch (err) {
+    console.error('POST /monthly-assessments/:id/assign failed:', err)
+    handleMonthlyError(res, err, 'Could not assign assessment')
+  }
+})
+
+router.put('/:id', async (req, res) => {
+  try {
+    const data = {
+      subjectName: req.body.subject_name || req.body.subject,
+      difficulty: req.body.difficulty,
+      subTopics: req.body.sub_topics,
+      jd: req.body.ai_generated_jd || req.body.jd_text,
+      durationMonths: req.body.duration_months,
+      interviewType: req.body.interview_type,
+      interviewMode: req.body.interview_mode,
+    }
+    const assessment = await monthlyAssessmentService.updateAssessment(
+      req.params.id,
+      req.user.id,
+      data
+    )
+    res.json({ success: true, data: assessment })
+  } catch (err) {
+    console.error('PUT /monthly-assessments/:id failed:', err)
+    handleMonthlyError(res, err, 'Could not update assessment')
+  }
+})
+
+router.delete('/enrollments/:id', async (req, res) => {
+  try {
+    const enrollment = await monthlyAssessmentService.deleteEnrollment(
+      Number(req.params.id),
+      req.user.id
+    )
+    res.json({ success: true, data: enrollment })
+  } catch (err) {
+    console.error('DELETE /monthly-assessments/enrollments/:id failed:', err)
+    handleMonthlyError(res, err, 'Could not remove monthly assessment plan')
+  }
+})
+
 router.delete('/:id', async (req, res) => {
   try {
     const assessment = await monthlyAssessmentService.deleteAssessment(
@@ -277,10 +174,7 @@ router.delete('/:id', async (req, res) => {
     res.json({ success: true, data: assessment })
   } catch (err) {
     console.error('DELETE /monthly-assessments/:id failed:', err)
-    if (err.message === 'Monthly assessment not found') {
-      return res.status(404).json({ success: false, error: err.message })
-    }
-    res.status(500).json({ success: false, error: 'Could not delete assessment' })
+    handleMonthlyError(res, err, 'Could not delete assessment')
   }
 })
 

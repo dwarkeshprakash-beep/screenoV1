@@ -1,6 +1,6 @@
 # Screeno V2 Open Issues
 
-Last reviewed: 2026-07-08
+Last reviewed: 2026-07-10
 
 Blocking database/runtime items from the V2 audit are mostly implemented, but several UI workflow items still need end-to-end verification before a public handoff.
 
@@ -28,14 +28,14 @@ Acceptance:
 - ✓ Fixed 2026-06-18: Completing an interview now creates exactly one scorecard, one report, and one report job (all three upserts converted to `INSERT … ON CONFLICT DO UPDATE`).
 - Failed email and report jobs are visible and retryable from manager UI.
 
-### Run migrations 006-008 on existing databases
+### Run migrations 009-016 on existing databases
 
-Migrations `006_missing_indexes.sql`, `007_client_teams.sql`, and `008_state_flow_fixes.sql` add the current indexes, client-team tables, password reset token storage, exam duration, and resume text fields.
+Migrations `009_flow_integrity.sql` through `016_monthly_and_mandate_cleanup.sql` add current mandate integrity, resume assets, interview windows, monthly occurrences, outcome rounds, refresh-token families, role-level JD/deadlines, and legacy monthly/mandate cleanup.
 
 Acceptance:
 
 - Pending migrations run without error.
-- New databases created via `setup-db.js` already include migrations 001-008.
+- New databases created via `setup-db.js` already include migrations 001-016.
 
 ### Consent and AI policy review
 
@@ -55,13 +55,11 @@ Acceptance:
 
 ## P3 - Maintainability
 
-### Remove unused prototype pages
-
-`frontend/src/pages/v2-app.jsx` and `frontend/src/pages/v2-manager.jsx` are not imported by the active application and still describe prototype behavior.
+### Remove unused prototype/scratch artifacts
 
 Acceptance:
 
-- Confirm no design reference still depends on them.
+- Confirm no design reference still depends on root-level scratch files or old page dumps.
 - Remove them in a dedicated cleanup commit.
 
 ## Implemented / Needs Regression Verification

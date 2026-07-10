@@ -67,12 +67,16 @@ The active schema includes the V2 core tables plus client mandate workflow table
 - `client_templates`
 - `monthly_assessments`
 - `monthly_assessment_enrollments`
+- `monthly_assessment_occurrences`
 - `client_mandate_requirements`
 - `client_teams`
-- `client_interview_records`
+- `client_interview_rounds`
 - `password_reset_tokens`
+- `assignment_requests`
+- `email_outbox_jobs`
+- `resume_assets`
 
-`backend/migrations/004_v2_schema_cleanup.sql` is the cleanup migration. `backend/src/db/schema.js`, `backend/schema.json`, and generated model references must agree with it.
+`backend/migrations/016_monthly_and_mandate_cleanup.sql` is the latest cleanup migration. `backend/src/db/schema.js`, `docs/database-schema.md`, and generated model references must agree with it.
 
 ## Critical Flows
 
@@ -139,4 +143,4 @@ The canonical acceptance record is `docs/AUDIT-AND-TESTING.md`. The database-bac
 - Consent copy requires product/legal approval before public launch.
 - Production deployment requires valid SMTP, AI, storage, database, and JWT secrets.
 - Notification preferences (email/in-app) are stored in `localStorage` only; they are not persisted to the backend and reset when browser data is cleared.
-- Migrations 006-008 must be applied on existing databases.
+- Migrations 009-016 must be applied on existing databases.

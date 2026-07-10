@@ -22,6 +22,7 @@ const MIGRATIONS = [
   '013_client_outcome_rounds.sql',
   '014_refresh_families.sql',
   '015_role_level_jd_and_deadline.sql',
+  '016_monthly_and_mandate_cleanup.sql',
 ]
 
 async function main() {

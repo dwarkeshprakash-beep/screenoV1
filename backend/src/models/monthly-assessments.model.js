@@ -9,6 +9,8 @@
  * @property {string|null} ai_generated_jd
  * @property {number|null} duration_months
  * @property {string|null} status
+ * @property {string|null} interview_type
+ * @property {string|null} interview_mode
  * @property {Date|null} created
  */
 module.exports = {}

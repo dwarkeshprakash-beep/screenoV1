@@ -449,10 +449,6 @@ export const sendClientJD = (id, ctId, data) =>
   request(`/api/templates/client/${id}/team/${ctId}/send-jd`, { method: 'POST', body: JSON.stringify(data) })
 export const scheduleClientTeamInterview = (id, ctId, data) =>
   request(`/api/templates/client/${id}/team/${ctId}/schedule`, { method: 'POST', body: JSON.stringify(data) })
-export const getClientInterviewRecord = (id, ctId) =>
-  request(`/api/templates/client/${id}/team/${ctId}/client-interview`)
-export const saveClientInterviewRecord = (id, ctId, data) =>
-  request(`/api/templates/client/${id}/team/${ctId}/client-interview`, { method: 'POST', body: JSON.stringify(data) })
 export const getVideoPlatforms = () => request('/api/templates/client/video-platforms')
 
 // Outcome rounds (new multi-round model)

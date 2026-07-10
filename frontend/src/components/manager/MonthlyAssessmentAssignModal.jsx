@@ -34,7 +34,7 @@ function generateRequestKey() {
 }
 
 const DURATION_PRESETS = [
-  { label: '2 min', amount: 2, unit: 'minutes' },
+  { label: '15 min', amount: 15, unit: 'minutes' },
   { label: '30 min', amount: 30, unit: 'minutes' },
   { label: '1 hr', amount: 1, unit: 'hours' },
   { label: '3 hr', amount: 3, unit: 'hours' },
@@ -183,8 +183,8 @@ function MonthlyAssessmentAssignModal({
       setError('Question count must be between 1 and 50.')
       return
     }
-    if (!Number.isInteger(Number(durationMinutes)) || Number(durationMinutes) < 1 || Number(durationMinutes) > 180) {
-      setError('Exam duration must be between 1 and 180 minutes.')
+    if (!Number.isInteger(Number(durationMinutes)) || Number(durationMinutes) < 15 || Number(durationMinutes) > 180) {
+      setError('Exam duration must be between 15 and 180 minutes.')
       return
     }
     setSaving(true)
@@ -324,7 +324,7 @@ function MonthlyAssessmentAssignModal({
             <input
               id="monthly-duration-min"
               type="number"
-              min="1"
+              min="15"
               max="180"
               value={durationMinutes}
               onChange={event => setDurationMinutes(event.target.value)}

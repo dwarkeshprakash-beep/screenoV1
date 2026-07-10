@@ -7,6 +7,8 @@ Scope: close the audit gaps from the July 2026 recheck and verify the main app f
 
 The major audit gaps are now implemented and verified locally. I do not see any remaining P0/P1 blockers from the recheck after this pass.
 
+Update later on 2026-07-10: a follow-up cleanup found drift in this workspace after the original handoff. The monthly route file had a duplicated paste/syntax break, monthly assignment still wrote legacy enrollment fields, role-level resume deadlines were not persisted, and candidate mandate outcomes still read the legacy single-record table. These were corrected by the migration/code cleanup ending at `016_monthly_and_mandate_cleanup.sql`.
+
 ## Implemented fixes
 
 ### Auth, magic links, and interview windows

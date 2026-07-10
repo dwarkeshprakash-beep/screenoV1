@@ -141,27 +141,17 @@ router.get('/client-mandates', async (req, res) => {
   try {
     const rows = await clientTeamRepo.getByUser(req.user.id)
 
-    // Attach any scheduled interviews and client interview records for each mandate
+    // Attach scheduled interviews and published client outcome rounds for each mandate.
     const enriched = await Promise.all(rows.map(async row => {
       const db = require('../db/connection')
-      const [interviews, clientRecord] = await Promise.all([
-        db.query(
-          `SELECT id, type, status, scheduled_at, duration_minutes, location, created
-           FROM interviews
-           WHERE client_team_id = @ctId
-           ORDER BY created DESC LIMIT 5`,
-          { ctId: row.id }
-        ),
-        db.query(
-          `SELECT * FROM client_interview_records WHERE client_team_id = @ctId ORDER BY created DESC LIMIT 1`,
-          { ctId: row.id }
-        ),
-      ])
-      let safeRecord = null
-      if (clientRecord[0]) {
-        const { notes, ...rest } = clientRecord[0]
-        safeRecord = rest
-      }
+      const interviews = await db.query(
+        `SELECT id, type, status, scheduled_at, duration_minutes, location, created
+         FROM interviews
+         WHERE client_team_id = @ctId
+         ORDER BY created DESC LIMIT 5`,
+        { ctId: row.id }
+      )
+      const publishedRounds = await clientOutcomeRoundsRepo.listVisibleByClientTeamId(row.id)
       const resumeDownloadUrl = await safeSignedResumeUrl(row.client_resume_url)
       return {
         ...row,
@@ -173,7 +163,8 @@ router.get('/client-mandates', async (req, res) => {
         client_resume_url: resumeDownloadUrl,
         client_resume_download_url: resumeDownloadUrl,
         interviews,
-        client_interview_record: safeRecord,
+        published_rounds: publishedRounds,
+        latest_published_round: publishedRounds[publishedRounds.length - 1] || null,
       }
     }))
 

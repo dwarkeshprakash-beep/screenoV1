@@ -5,7 +5,6 @@ const requireRole = require('../middleware/role')
 const clientTemplateRepo = require('../repositories/client-template.repository')
 const clientTeamRepo = require('../repositories/client-team.repository')
 const clientRequirementsRepo = require('../repositories/client-mandate-requirements.repository')
-const clientInterviewRecordsRepo = require('../repositories/client-interview-records.repository')
 const clientOutcomeRoundsRepo = require('../repositories/client-outcome-rounds.repository')
 const userRepository = require('../repositories/user.repository')
 const interviewRepository = require('../repositories/interview.repository')
@@ -95,8 +94,8 @@ function normalizeRequirementPayload(input = {}) {
     headcount,
     notes: String(input.notes || '').trim() || null,
     jd_text: String(input.jd_text ?? input.jdText ?? '').trim() || null,
+    resume_deadline: optionalDateTime(input.resume_deadline ?? input.resumeDeadline),
     tags: input.tags || null,
-
   }
 }
 
@@ -897,52 +896,7 @@ router.post('/:id/team/:ctId/schedule', async (req, res) => {
   }
 })
 
-// ── Client interview records (real client-side interview outcome) ────────────
-
-router.get('/:id/team/:ctId/client-interview', async (req, res) => {
-  try {
-    const mandateId = parseInt(req.params.id, 10)
-    const ctId = parseInt(req.params.ctId, 10)
-    const template = await clientTemplateRepo.getById(mandateId, req.user.id)
-    if (!template) return res.status(404).json({ success: false, error: 'Mandate not found' })
-    const teamMember = await clientTeamRepo.getByIdForMandate(ctId, mandateId)
-    if (!teamMember) return res.status(404).json({ success: false, error: 'Team member not found' })
-    const record = await clientInterviewRecordsRepo.getByClientTeamId(ctId)
-    res.json({ success: true, data: record || null })
-  } catch (err) {
-    console.error('GET /team/:ctId/client-interview failed:', err.message)
-    res.status(500).json({ success: false, error: 'Could not load client interview record' })
-  }
-})
-
-router.post('/:id/team/:ctId/client-interview', async (req, res) => {
-  try {
-    const mandateId = parseInt(req.params.id, 10)
-    const ctId = parseInt(req.params.ctId, 10)
-    const template = await clientTemplateRepo.getById(mandateId, req.user.id)
-    if (!template) return res.status(404).json({ success: false, error: 'Mandate not found' })
-    const teamMember = await clientTeamRepo.getByIdForMandate(ctId, mandateId)
-    if (!teamMember) return res.status(404).json({ success: false, error: 'Team member not found' })
-
-    const existing = await clientInterviewRecordsRepo.getByClientTeamId(ctId)
-    let record
-    if (existing) {
-      record = await clientInterviewRecordsRepo.update(existing.id, req.body)
-    } else {
-      record = await clientInterviewRecordsRepo.create({
-        mandate_id:     mandateId,
-        client_team_id: ctId,
-        ...req.body,
-      })
-    }
-    res.json({ success: true, data: record })
-  } catch (err) {
-    console.error('POST /team/:ctId/client-interview failed:', err.message)
-    res.status(500).json({ success: false, error: 'Could not save client interview record' })
-  }
-})
-
-// ── Legacy: send JD to multiple org members ──────────────────────────────────
+// Legacy: send JD to multiple org members
 
 router.post('/:id/send-jd', async (req, res) => {
   try {

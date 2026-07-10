@@ -1,6 +1,9 @@
 -- Migration: 015_role_level_jd_and_deadline.sql
 -- Store JD text and resume deadlines on each mandate role/profile.
 
+ALTER TABLE client_templates
+ADD COLUMN IF NOT EXISTS resume_deadline TIMESTAMPTZ;
+
 ALTER TABLE client_mandate_requirements
 ADD COLUMN IF NOT EXISTS jd_text TEXT,
 ADD COLUMN IF NOT EXISTS resume_deadline TIMESTAMPTZ;

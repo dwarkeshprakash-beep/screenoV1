@@ -85,6 +85,10 @@ async function createAssessment(body, managerId, companyId) {
     subTopics: parseArray(body.sub_topics),
     jd: String(body.ai_generated_jd || body.jd_text || ''),
     durationMonths,
+    interviewType: body.interview_type === 'ai_voice' ? 'ai_voice' : 'exam',
+    interviewMode: body.interview_type === 'ai_voice'
+      ? (['simple', 'adaptive'].includes(body.interview_mode) ? body.interview_mode : 'simple')
+      : 'simple',
   })
 
   if (teamMemberIds.length === 0) {
@@ -101,6 +105,8 @@ async function createAssessment(body, managerId, companyId) {
       schedule_timezone: body.schedule_timezone || body.scheduleTimezone,
       question_count: body.question_count || body.questionCount,
       duration_minutes: body.duration_minutes || body.durationMinutes,
+      interview_type: body.interview_type,
+      interview_mode: body.interview_mode,
     },
     managerId,
     companyId
@@ -167,9 +173,12 @@ async function assignCandidates(assessmentId, body, managerId, companyId) {
   
   const db = require('../db/connection')
   const scheduledEnrollments = await db.transaction(async (tx) => {
-    const monthProgress = JSON.stringify(new Array(Number(assessment.duration_months) || 1).fill('pending'))
     const enrollments = []
     const memberByTeamMemberId = new Map(ownedMembers.map(member => [Number(member.id), member]))
+    const interviewType = assessment.interview_type === 'ai_voice' ? 'ai_voice' : 'exam'
+    const interviewMode = interviewType === 'ai_voice'
+      ? (assessment.interview_mode || 'simple')
+      : 'simple'
 
     for (const teamMemberId of teamMemberIds) {
       const overlapping = await tx.query(
@@ -205,16 +214,15 @@ async function assignCandidates(assessmentId, body, managerId, companyId) {
 
       const eRows = await tx.query(
         `INSERT INTO monthly_assessment_enrollments
-          (assessment_id, team_member_id, start_date, end_date, month_progress)
+          (assessment_id, team_member_id, start_date, end_date, status)
          VALUES
-          (@assessmentId, @teamMemberId, @startDate, @endDate, @monthProgress)
+          (@assessmentId, @teamMemberId, @startDate, @endDate, 'scheduled')
          RETURNING *`,
         {
           assessmentId: assessment.id,
           teamMemberId,
           startDate,
           endDate,
-          monthProgress,
         }
       )
       const enrollment = eRows[0]
@@ -245,6 +253,8 @@ async function assignCandidates(assessmentId, body, managerId, companyId) {
           {
             managerId,
             internalUserId: member.user_id,
+            interviewType,
+            interviewMode,
             difficulty: assessment.difficulty || 'medium',
             questionCount,
             durationMinutes,
@@ -297,16 +307,9 @@ async function assignCandidates(assessmentId, body, managerId, companyId) {
         }
       }
 
-      await tx.query(
-        `UPDATE monthly_assessment_enrollments
-         SET interview_id = @interviewId, status = 'scheduled'
-         WHERE id = @enrollmentId`,
-        { interviewId: firstInterviewId, enrollmentId: enrollment.id }
-      )
-
       enrollments.push({
         ...enrollment,
-        interview_id: firstInterviewId,
+        first_interview_id: firstInterviewId,
         status: 'scheduled',
         candidate_email: member?.email || null,
         occurrence_ids: occurrenceIds,
@@ -367,9 +370,8 @@ async function getMonthPlan(managerId, monthValue) {
   ])
   const activeEnrollments = enrollments.filter(enrollment => {
     const index = monthIndexForDate(enrollment.start_date, year, monthIndex)
-    const progress = parseArray(enrollment.month_progress)
     const assessment = assessments.find(item => item.id === enrollment.assessment_id)
-    const duration = Number(assessment?.duration_months) || progress.length || 1
+    const duration = Number(assessment?.duration_months) || 1
     return index >= 0 && index < duration
   })
   const assignedTeamMemberIds = new Set(
@@ -438,7 +440,6 @@ module.exports = {
   assignCandidates,
   getAssessments,
   getMonthPlan,
-  cancelEnrollment,
   cancelEnrollment,
   deleteEnrollment,
   updateAssessment,

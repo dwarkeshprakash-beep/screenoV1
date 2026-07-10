@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import * as api from '../../services/api'
 import { ReportTable, ReportDetailModal } from '../../pages/manager/ReportsPage'
 import Spinner from '../shared/Spinner'

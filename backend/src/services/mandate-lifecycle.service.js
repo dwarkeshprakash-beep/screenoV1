@@ -88,11 +88,6 @@ async function permanentlyDeleteMandate(mandateId, managerId) {
       { mandateId }
     )
     await tx.query(
-      `DELETE FROM client_interview_records
-       WHERE client_team_id IN (SELECT id FROM client_teams WHERE mandate_id = @mandateId)`,
-      { mandateId }
-    )
-    await tx.query(
       `UPDATE client_teams SET submitted_resume_asset_id = NULL WHERE mandate_id = @mandateId`,
       { mandateId }
     )

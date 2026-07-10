@@ -113,13 +113,7 @@ function requirementProfilesHeadcount(profiles) {
     .reduce((sum, profile) => sum + Number(profile.headcount || 0), 0)
 }
 
-function requirementProfilesSummary(profiles) {
-  return normalizeRequirementProfilesForSave(profiles)
-    .map(profile => profile.profile_name)
-    .join(', ')
-}
-
-function RequirementProfilesEditor({ profiles, setProfiles, allowEmpty = false, sharedJdText = '' }) {
+function RequirementProfilesEditor({ profiles, setProfiles, allowEmpty = false }) {
   function updateProfile(key, field, value) {
     setProfiles(current => current.map(profile => (
       profile.key === key ? { ...profile, [field]: value } : profile
@@ -251,7 +245,7 @@ function CreateMandateModal({ open, onClose, onCreated }) {
           try {
             const response = await api.extractTemplateTags(jd)
             newTagsByRole[profile.key] = Array.isArray(response.data) ? response.data : []
-          } catch (e) {
+          } catch {
             newTagsByRole[profile.key] = []
           }
         } else {

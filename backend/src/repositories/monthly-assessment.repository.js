@@ -4,9 +4,9 @@ const db = require('../db/connection')
 async function create(data) {
   const rows = await db.query(
     `INSERT INTO monthly_assessments 
-      (manager_id, subject_name, difficulty, topics, sub_topics, ai_generated_jd, duration_months)
+      (manager_id, subject_name, difficulty, topics, sub_topics, ai_generated_jd, duration_months, interview_type, interview_mode)
      VALUES 
-      (@manager_id, @subject_name, @difficulty, @topics, @sub_topics, @ai_generated_jd, @duration_months)
+      (@manager_id, @subject_name, @difficulty, @topics, @sub_topics, @ai_generated_jd, @duration_months, @interview_type, @interview_mode)
      RETURNING *`,
     {
       manager_id: data.manager_id,
@@ -15,7 +15,9 @@ async function create(data) {
       topics: JSON.stringify(data.topics || []),
       sub_topics: JSON.stringify(data.sub_topics || []),
       ai_generated_jd: data.ai_generated_jd || '',
-      duration_months: data.duration_months || 1
+      duration_months: data.duration_months || 1,
+      interview_type: data.interview_type || 'exam',
+      interview_mode: data.interview_mode || 'simple',
     }
   )
   return rows[0]
@@ -24,16 +26,15 @@ async function create(data) {
 async function createEnrollment(data) {
   const rows = await db.query(
     `INSERT INTO monthly_assessment_enrollments 
-      (assessment_id, team_member_id, start_date, end_date, month_progress)
+      (assessment_id, team_member_id, start_date, end_date)
      VALUES 
-      (@assessment_id, @team_member_id, @start_date, @end_date, @month_progress)
+      (@assessment_id, @team_member_id, @start_date, @end_date)
      RETURNING *`,
     {
       assessment_id: data.assessment_id,
       team_member_id: data.team_member_id,
       start_date: data.start_date || null,
       end_date: data.end_date || null,
-      month_progress: JSON.stringify(data.month_progress || [])
     }
   )
   return rows[0]
@@ -43,9 +44,9 @@ async function createWithEnrollments(data, teamMemberIds) {
   return db.transaction(async (tx) => {
     const assessments = await tx.query(
       `INSERT INTO monthly_assessments
-        (manager_id, subject_name, difficulty, topics, sub_topics, ai_generated_jd, duration_months)
+        (manager_id, subject_name, difficulty, topics, sub_topics, ai_generated_jd, duration_months, interview_type, interview_mode)
        VALUES
-        (@managerId, @subjectName, @difficulty, @topics, @subTopics, @jd, @durationMonths)
+        (@managerId, @subjectName, @difficulty, @topics, @subTopics, @jd, @durationMonths, @interviewType, @interviewMode)
        RETURNING *`,
       {
         managerId: data.managerId,
@@ -55,25 +56,25 @@ async function createWithEnrollments(data, teamMemberIds) {
         subTopics: JSON.stringify(data.subTopics),
         jd: data.jd,
         durationMonths: data.durationMonths,
+        interviewType: data.interviewType || 'exam',
+        interviewMode: data.interviewMode || 'simple',
       }
     )
     const assessment = assessments[0]
-    const monthProgress = JSON.stringify(new Array(data.durationMonths).fill('pending'))
     const enrollments = []
 
     for (const teamMemberId of teamMemberIds) {
       const rows = await tx.query(
         `INSERT INTO monthly_assessment_enrollments
-          (assessment_id, team_member_id, start_date, end_date, month_progress)
+          (assessment_id, team_member_id, start_date, end_date)
          VALUES
-          (@assessmentId, @teamMemberId, @startDate, @endDate, @monthProgress)
+          (@assessmentId, @teamMemberId, @startDate, @endDate)
          RETURNING *`,
         {
           assessmentId: assessment.id,
           teamMemberId,
           startDate: data.startDate,
           endDate: data.endDate,
-          monthProgress,
         }
       )
       enrollments.push(rows[0])
@@ -86,9 +87,9 @@ async function createWithEnrollments(data, teamMemberIds) {
 async function createTemplate(data) {
   const rows = await db.query(
     `INSERT INTO monthly_assessments
-      (manager_id, subject_name, difficulty, topics, sub_topics, ai_generated_jd, duration_months)
+      (manager_id, subject_name, difficulty, topics, sub_topics, ai_generated_jd, duration_months, interview_type, interview_mode)
      VALUES
-      (@managerId, @subjectName, @difficulty, @topics, @subTopics, @jd, @durationMonths)
+      (@managerId, @subjectName, @difficulty, @topics, @subTopics, @jd, @durationMonths, @interviewType, @interviewMode)
      RETURNING *`,
     {
       managerId: data.managerId,
@@ -98,6 +99,8 @@ async function createTemplate(data) {
       subTopics: JSON.stringify(data.subTopics),
       jd: data.jd,
       durationMonths: data.durationMonths,
+      interviewType: data.interviewType || 'exam',
+      interviewMode: data.interviewMode || 'simple',
     }
   )
   return rows[0]
@@ -105,7 +108,6 @@ async function createTemplate(data) {
 
 async function createEnrollments(assessmentId, teamMemberIds, data) {
   return db.transaction(async (tx) => {
-    const monthProgress = JSON.stringify(new Array(data.durationMonths).fill('pending'))
     const enrollments = []
     for (const teamMemberId of teamMemberIds) {
       const overlapping = await tx.query(
@@ -141,16 +143,15 @@ async function createEnrollments(assessmentId, teamMemberIds, data) {
 
       const rows = await tx.query(
         `INSERT INTO monthly_assessment_enrollments
-          (assessment_id, team_member_id, start_date, end_date, month_progress)
+          (assessment_id, team_member_id, start_date, end_date)
          VALUES
-          (@assessmentId, @teamMemberId, @startDate, @endDate, @monthProgress)
+          (@assessmentId, @teamMemberId, @startDate, @endDate)
          RETURNING *`,
         {
           assessmentId,
           teamMemberId,
           startDate: data.startDate,
           endDate: data.endDate,
-          monthProgress,
         }
       )
       enrollments.push(rows[0])
@@ -272,10 +273,10 @@ async function getCalendarByManager(managerId) {
 async function updateEnrollmentInterview(enrollmentId, interviewId) {
   const rows = await db.query(
     `UPDATE monthly_assessment_enrollments
-     SET interview_id = @interviewId, status = 'scheduled'
+     SET status = 'scheduled'
      WHERE id = @id
      RETURNING *`,
-    { id: enrollmentId, interviewId }
+    { id: enrollmentId }
   )
   return rows[0] || null
 }
@@ -312,7 +313,6 @@ async function cancelEnrollment(enrollmentId, managerId) {
     )
     const interviewIds = [
       ...occurrenceInterviews.map(row => row.interview_id),
-      enrollment.interview_id,
     ].filter(Boolean)
     if (interviewIds.length > 0) {
       await tx.query(
@@ -389,7 +389,6 @@ async function deleteEnrollment(enrollmentId, managerId) {
       await tx.query(`DELETE FROM reports WHERE interview_id = ANY(@interviewIds)`, { interviewIds })
       await tx.query(`DELETE FROM scorecards WHERE interview_id = ANY(@interviewIds)`, { interviewIds })
       await tx.query(`DELETE FROM transcripts WHERE interview_id = ANY(@interviewIds)`, { interviewIds })
-      await tx.query(`DELETE FROM qa_history WHERE interview_id = ANY(@interviewIds)`, { interviewIds })
       await tx.query(`DELETE FROM interviews WHERE id = ANY(@interviewIds)`, { interviewIds })
     }
 
@@ -438,11 +437,56 @@ async function updateTemplate(id, managerId, data) {
 }
 
 async function deleteTemplate(id, managerId) {
-  const rows = await db.query(
-    `DELETE FROM monthly_assessments WHERE id = @id AND manager_id = @managerId RETURNING *`,
-    { id, managerId }
-  )
-  return rows[0] || null
+  return db.transaction(async tx => {
+    const existingRows = await tx.query(
+      `SELECT * FROM monthly_assessments WHERE id = @id AND manager_id = @managerId`,
+      { id, managerId }
+    )
+    const assessment = existingRows[0]
+    if (!assessment) return null
+
+    const interviewRows = await tx.query(
+      `SELECT o.interview_id
+       FROM monthly_assessment_occurrences o
+       JOIN monthly_assessment_enrollments e ON e.id = o.enrollment_id
+       WHERE e.assessment_id = @id
+         AND o.interview_id IS NOT NULL`,
+      { id }
+    )
+    const interviewIds = interviewRows.map(row => row.interview_id).filter(Boolean)
+
+    if (interviewIds.length > 0) {
+      await tx.query(`DELETE FROM email_outbox_jobs WHERE interview_id = ANY(@interviewIds)`, { interviewIds })
+      await tx.query(`DELETE FROM email_deliveries WHERE interview_id = ANY(@interviewIds)`, { interviewIds })
+      await tx.query(`DELETE FROM report_jobs WHERE interview_id = ANY(@interviewIds)`, { interviewIds })
+      await tx.query(`DELETE FROM reports WHERE interview_id = ANY(@interviewIds)`, { interviewIds })
+      await tx.query(`DELETE FROM scorecards WHERE interview_id = ANY(@interviewIds)`, { interviewIds })
+      await tx.query(`DELETE FROM transcripts WHERE interview_id = ANY(@interviewIds)`, { interviewIds })
+      await tx.query(`DELETE FROM interviews WHERE id = ANY(@interviewIds)`, { interviewIds })
+    }
+
+    await tx.query(
+      `DELETE FROM assignment_requests
+       WHERE assessment_id = @id
+          OR enrollment_id IN (
+            SELECT id FROM monthly_assessment_enrollments WHERE assessment_id = @id
+          )`,
+      { id }
+    )
+    await tx.query(
+      `DELETE FROM monthly_assessment_occurrences
+       WHERE enrollment_id IN (
+         SELECT id FROM monthly_assessment_enrollments WHERE assessment_id = @id
+       )`,
+      { id }
+    )
+    await tx.query(`DELETE FROM monthly_assessment_enrollments WHERE assessment_id = @id`, { id })
+    const deleted = await tx.query(
+      `DELETE FROM monthly_assessments WHERE id = @id AND manager_id = @managerId RETURNING *`,
+      { id, managerId }
+    )
+    return deleted[0] || null
+  })
 }
 
 module.exports = {
