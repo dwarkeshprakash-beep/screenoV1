@@ -16,6 +16,9 @@ backend/dist/
 
 # Logs
 *.log
+*.err
+*.out.log
+*.err.log
 npm-debug.log*
 logs/
 
@@ -25,6 +28,7 @@ Thumbs.db
 desktop.ini
 
 # Editor
+.vs/
 .vscode/settings.json
 .idea/
 *.suo

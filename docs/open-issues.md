@@ -2,50 +2,87 @@
 
 Last reviewed: 2026-07-10
 
-Blocking database/runtime items from the V2 audit are mostly implemented, but several UI workflow items still need end-to-end verification before a public handoff.
+The current code builds, lints, passes backend unit tests, and passes the API regression suite against a fresh local backend. The items below are the remaining product and release-readiness gaps after the July cleanup.
 
 ## P1 - Before Public Production
 
+### Run migration 017 on existing databases
+
+Migration `017_drop_unused_runtime_columns.sql` removes columns no longer used by the current app:
+
+- `companies.logo_url`
+- `interviews.schedule_version`
+- `interviews.meeting_provider`
+- `interviews.meeting_provider_event_id`
+- `interviews.expired_notification_version`
+
+Acceptance:
+
+- Migration runs successfully on staging and production-like databases.
+- `backend/src/db/schema.js` and `docs/database-schema.md` match the live schema after migration.
+
 ### Real-device candidate matrix
 
-Run the complete candidate flow on supported desktop Chrome and Edge with real camera, microphone, speakers, speech recognition, permission denial, device loss, and network interruption.
+Run the complete candidate flow on supported desktop Chrome and Edge with real camera, microphone, speakers, permission denial, device loss, and network interruption.
 
 Acceptance:
 
 - Device checks accurately report failures.
-- ✓ Fixed 2026-06-18: Permission denial now shows actionable recovery copy (browser icon + specific steps for mic/network/screen in `DeviceCheckPage.jsx`).
-- A refresh resumes the same interview without duplicating transcript rows.
-- The second tab-visibility violation completes with `cheating_attempt`.
+- Refresh resumes an interview without duplicating transcript rows.
+- A repeated tab/fullscreen violation completes with `cheating_attempt`.
 
 ### Production delivery drill
 
-Deploy to a staging environment using production-equivalent database, SMTP/Brevo, AI, and storage configuration.
+Deploy to staging with production-equivalent database, SMTP/Brevo, AI, and storage configuration.
 
 Acceptance:
 
 - A real candidate receives a magic link.
-- Fixed: Magic link validation now swaps the emailed token for a short-lived launch token, so the original email link cannot be replayed. Exam token expiry is mandatory.
-- ✓ Fixed 2026-06-18: Completing an interview now creates exactly one scorecard, one report, and one report job (all three upserts converted to `INSERT … ON CONFLICT DO UPDATE`).
-- Failed email and report jobs are visible and retryable from manager UI.
-
-### Run migrations 009-016 on existing databases
-
-Migrations `009_flow_integrity.sql` through `016_monthly_and_mandate_cleanup.sql` add current mandate integrity, resume assets, interview windows, monthly occurrences, outcome rounds, refresh-token families, role-level JD/deadlines, and legacy monthly/mandate cleanup.
-
-Acceptance:
-
-- Pending migrations run without error.
-- New databases created via `setup-db.js` already include migrations 001-016.
+- Magic-link preview and claim work once and reject replay.
+- Failed email and report jobs are visible and retryable.
 
 ### Consent and AI policy review
 
-Product/legal must approve the consent wording, recording/transcription notice, data retention expectations, and the statement that AI output is advisory.
+Product/legal must approve consent wording, recording/transcription notice, data-retention expectations, and the statement that AI output is advisory.
 
-## P2 - Performance and Automation
+## P2 - Product Flow Gaps
+
+### Monthly assessment occurrence actions
+
+Managers can assign recurring monthly plans, but they still need per-occurrence controls.
+
+Acceptance:
+
+- Manager can resend an occurrence invite.
+- Manager can reschedule one occurrence without changing the whole plan.
+- Manager can cancel one future occurrence while preserving completed history.
+- Candidate and manager views show delivery/status history clearly.
+
+### Client mandate lifecycle clarity
+
+Client mandates support role profiles, JD sends, resumes, interviews, and outcome rounds, but the manager workflow should present one clear lifecycle per candidate.
+
+Acceptance:
+
+- Each candidate row shows: added, JD sent, resume submitted, interview scheduled, latest round, final outcome.
+- Candidate mandate and outcome views share the same source of truth.
+- Outcome rounds are covered by browser regression tests.
+
+### Admin workflow regression
+
+Admin routes and pages exist, but admin repair flows need explicit regression coverage.
+
+Acceptance:
+
+- Admin login reaches `/admin/dashboard`.
+- Mandate/interview force-status actions are tested against fixture data.
+- Broken-state repair actions are covered by API or browser tests.
+
+## P3 - Maintainability
 
 ### Browser regression automation
 
-The current browser smoke test is interactive and the API regression is automated. Add repeatable browser tests for login, team tabs, schedule wizard, client mandate dialog, monthly-assessment dialog, and candidate launch.
+Add repeatable browser tests for login, team tabs, schedule wizard, client mandate dialog, monthly-assessment dialog, and candidate launch.
 
 Acceptance:
 
@@ -53,41 +90,11 @@ Acceptance:
 - Failed tests retain screenshots/traces.
 - Test cleanup does not remove non-fixture data.
 
-## P3 - Maintainability
+### Legacy data model consolidation
 
-### Remove unused prototype/scratch artifacts
+Several legacy columns are still kept as compatibility fallbacks and should not be dropped until data is backfilled.
 
-Acceptance:
+Candidates:
 
-- Confirm no design reference still depends on root-level scratch files or old page dumps.
-- Remove them in a dedicated cleanup commit.
-
-## Implemented / Needs Regression Verification
-
-- Compact 15-table schema and migration verification.
-- Manager/candidate-only role surface.
-- LiveKit and interviewer route/page/package removal.
-- Report detail modal for internal and external candidates.
-- Report-ready email query handling for `/manager/reports?interview=...`.
-- Forgot-password and reset-password flow with hashed single-use reset tokens.
-- Candidate feedback/tips views without candidate-visible scores.
-- Backend-configured exam/AI duration and blank-timeout completion.
-- Route-level lazy loading.
-- Internal and external candidate identity handling.
-- Resume URL/update time and tags on internal users.
-- Ownership checks for monthly assessments and delivery history.
-- Refresh-token rotation and server-side storage.
-- Health database liveness check.
-- Graceful report-worker shutdown.
-- Central frontend token refresh.
-- AI exam answer-key redaction.
-- Tab-switch warning and cheating completion.
-- External provider request timeouts.
-- Unit, API, lint, build, security audit, and browser smoke coverage.
-
-## Still Open / Partial
-
-- Exam answer autosave needs a browser regression test.
-- Server-side coding submission judge is still not wired as the primary candidate-code grading path.
-- Monthly assessment and client-mandate scheduling need real-device candidate launch verification with specific start/end windows.
-- Prototype/backup folders still need a dedicated cleanup pass before handoff.
+- `users.resume_url` and `client_teams.client_resume_url` after all rows use `resume_assets`.
+- `client_templates.requirements`, `jd_text`, `tags`, `resume_deadline`, and `headcount` after all active UI/API paths use `client_mandate_requirements`.

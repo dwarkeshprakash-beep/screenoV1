@@ -1,5 +1,7 @@
 # Screeno Implementation Gaps and Flow Test
 
+Historical note: this handoff captured the July 9 state and is now superseded by `docs/open-issues.md` and current test results. Several failures listed here have since been fixed.
+
 Date: 2026-07-09  
 Branch: `dev`  
 Baseline: `1ea936c`  
@@ -100,4 +102,3 @@ Still wrong or regressed: source-bundled demo credentials, incomplete device per
 5. Implement monthly occurrences/outbox/idempotency as one coherent transaction.
 6. Finish scheduling/window/join/session contracts.
 7. Add API and browser regression tests before visual polish.
-

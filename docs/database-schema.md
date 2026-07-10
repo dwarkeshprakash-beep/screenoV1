@@ -1,6 +1,6 @@
 # Screeno V2 Database Schema
 
-This is the compact PostgreSQL schema used by the current V2 app. Current numbered migrations: `001` through `016`.
+This is the compact PostgreSQL schema used by the current V2 app. Current numbered migrations: `001` through `017`.
 
 Relationships are partly enforced by database constraints and partly by repositories/services for ownership checks.
 
@@ -8,7 +8,7 @@ Relationships are partly enforced by database constraints and partly by reposito
 
 ### `companies`
 
-`id`, `name`, `logo_url`, `created`
+`id`, `name`, `created`
 
 ### `departments`
 
@@ -88,7 +88,7 @@ One scheduled monthly occurrence per enrollment month. This table owns the inter
 
 One row per interview or exam attempt.
 
-`id`, `manager_id`, `internal_user_id`, `external_candidate_id`, `type`, `interview_mode`, `difficulty`, `status`, `result`, `token`, `token_expires`, `question_count`, `client_template_id`, `monthly_assessment_id`, `report_emails`, `scheduled_at`, `available_from`, `due_at`, `schedule_timezone`, `schedule_version`, `meeting_url`, `meeting_provider`, `meeting_provider_event_id`, `expired_notification_version`, `client_team_id`, `location`, `duration_minutes`, `started_at`, `ended_at`, `created`
+`id`, `manager_id`, `internal_user_id`, `external_candidate_id`, `type`, `interview_mode`, `difficulty`, `status`, `result`, `token`, `token_expires`, `question_count`, `client_template_id`, `monthly_assessment_id`, `report_emails`, `scheduled_at`, `available_from`, `due_at`, `schedule_timezone`, `meeting_url`, `client_team_id`, `location`, `duration_minutes`, `started_at`, `ended_at`, `created`
 
 ## Reporting And Delivery
 
@@ -122,7 +122,7 @@ Durable delayed email queue for monthly occurrences.
 
 ### `refresh_tokens`
 
-`id`, `user_id`, `token_hash`, `expires`, `revoked`, `created`
+`id`, `user_id`, `token_hash`, `expires`, `revoked`, `created`, `family_id`, `replaced_by_token_hash`, `replacement_grace_expires`
 
 ### `password_reset_tokens`
 

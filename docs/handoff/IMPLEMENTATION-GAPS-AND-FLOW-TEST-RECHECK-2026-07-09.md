@@ -1,5 +1,7 @@
 # Screeno Implementation Gaps and Flow Test — Recheck
 
+Historical note: this handoff captured the July 9 state and is now superseded by `docs/open-issues.md` and current test results. Several failures listed here have since been fixed.
+
 Date: 2026-07-09  
 Branch: `dev`  
 Baseline: `1ea936c` plus the current dirty worktree  
@@ -116,4 +118,3 @@ Still incomplete: device permission/speaker state, route logging cleanup, promis
 5. Fix candidate monthly and human-join APIs.
 6. Finish scheduling/storage/migration/session correctness.
 7. Reach zero lint errors and add passing API/browser regression suites.
-

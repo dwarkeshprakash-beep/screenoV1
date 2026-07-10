@@ -15,7 +15,7 @@ Live interviewer consoles and LiveKit room flows remain out of the active route 
 
 ## Database Decision
 
-Migrations `001` through `016` are the current schema source of truth.
+Migrations `001` through `017` are the current schema source of truth.
 
 The active schema has 23 tables:
 
@@ -51,6 +51,7 @@ Important choices:
 - Client mandates use `client_templates`; role/year bands, role JD text, role tags, and role resume deadlines live in `client_mandate_requirements`.
 - `client_teams` tracks candidates attached to mandates, JD delivery, submitted client-specific resumes, and status.
 - Client-side outcomes are logged as multi-round history in `client_interview_rounds`; the legacy `client_interview_records` table was removed after migration `016`.
+- Migration `017` removes runtime-unused interview/provider version columns and `companies.logo_url`.
 - Monthly assessment assignment creates `monthly_assessment_enrollments`, monthly occurrence rows, assignment requests, and linked interview rows through occurrence links.
 - `monthly_assessment_enrollments` no longer stores `interview_id` or `month_progress`; plan/progress views are derived from `monthly_assessment_occurrences`.
 - `interviews` stores candidate reference, manager, type, lifecycle status, token hash/expiry, schedule time, duration, context ids, and final result.

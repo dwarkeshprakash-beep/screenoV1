@@ -36,9 +36,9 @@ function parseDemoAccounts() {
   }
 }
 
-const configuredDemoAccounts = parseDemoAccounts()
-// Product owner requested quick access on the login page for production too.
-// Do not remove or hide these quick-access buttons unless Dwarkesh explicitly asks to remove them.
+const configuredDemoAccounts = import.meta.env.VITE_SHOW_DEMO_ACCOUNTS === 'true'
+  ? parseDemoAccounts()
+  : []
 const QUICK_ACCESS_ACCOUNTS = [
   {
     role: 'manager',
@@ -46,7 +46,7 @@ const QUICK_ACCESS_ACCOUNTS = [
     sub: 'Manager quick access',
     initials: 'KO',
     email: 'kiran.oza@prakashinfotech.com',
-    password: import.meta.env.VITE_QUICK_LOGIN_KIRAN_PASSWORD || import.meta.env.VITE_QUICK_LOGIN_MANAGER_PASSWORD || 'Test@1234',
+    password: import.meta.env.VITE_QUICK_LOGIN_KIRAN_PASSWORD || import.meta.env.VITE_QUICK_LOGIN_MANAGER_PASSWORD || '',
     bgColor: '#EDE9FE',
     fgColor: '#5B21B6',
     badgeBg: '#3730A3',
@@ -58,7 +58,7 @@ const QUICK_ACCESS_ACCOUNTS = [
     sub: 'Candidate quick access',
     initials: 'DV',
     email: 'dwarkesh.vajjala@prakashinfotech.com',
-    password: import.meta.env.VITE_QUICK_LOGIN_DWARKESH_PASSWORD || import.meta.env.VITE_QUICK_LOGIN_CANDIDATE_PASSWORD || 'Test@1234',
+    password: import.meta.env.VITE_QUICK_LOGIN_DWARKESH_PASSWORD || import.meta.env.VITE_QUICK_LOGIN_CANDIDATE_PASSWORD || '',
     bgColor: '#FEE2E2',
     fgColor: '#B91C1C',
     badgeBg: '#7F1D1D',

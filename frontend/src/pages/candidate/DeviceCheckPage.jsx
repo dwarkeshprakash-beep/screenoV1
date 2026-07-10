@@ -216,16 +216,6 @@ function DeviceCheckPage() {
       >
         Continue <ArrowRight size={14} />
       </button>
-      <button
-        type="button"
-        onClick={continueToConsent}
-        style={{ width: '100%', marginTop: 10, padding: '11px 20px', borderRadius: 10, border: '1px dashed var(--warning-400)', background: 'var(--warning-50)', color: 'var(--warning-700)', cursor: 'pointer', fontWeight: 700 }}
-      >
-        Skip device check for testing
-      </button>
-      <p style={{ margin: '8px 0 0', fontSize: 12, color: 'var(--slate-500)', lineHeight: 1.5, textAlign: 'center' }}>
-        Internal testing only. Candidates should use Continue after the required checks pass.
-      </p>
       <style>{`@keyframes deviceSpin { to { transform: rotate(360deg); } }`}</style>
     </div>
   )

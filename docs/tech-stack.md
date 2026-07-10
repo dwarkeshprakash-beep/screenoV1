@@ -14,7 +14,6 @@ What's actually running and why. Updated to reflect current implementation.
 | **CSS Variables (tokens.css)** | Design tokens defined once, referenced everywhere — no UI library needed |
 | **speechSynthesis** | Browser built-in TTS — free, cross-browser, zero latency, no API key |
 | **MediaRecorder** | Browser built-in audio capture — cross-browser, works on all major browsers |
-| **LiveKit** | Best-in-class WebRTC SDK, free tier, handles reconnect/rejoin |
 | **@uiw/react-codemirror** | Syntax-highlighting code editor for LeetCode questions in ExamPage (only sanctioned exception to build-from-scratch rule) |
 | **lucide-react** | Tree-shakable icon library, already installed |
 
@@ -32,7 +31,6 @@ Rejected: TypeScript (friction), Tailwind (tokens.css already exists), Redux (ov
 | **multer** | Standard file upload parsing in Express (memory storage — no disk writes) |
 | **nodemailer** | Transactional email over Brevo SMTP — simple, no vendor lock-in |
 | **@supabase/supabase-js** | File storage only (resumes/reports to bucket "files") |
-| **livekit-server-sdk** | Generate LiveKit room tokens server-side |
 | **pdfkit + pdf-parse + mammoth** | PDF generation (reports), PDF/docx parsing (resume analysis) |
 
 All LLM, STT, and Piston calls use plain `fetch()` — no SDK packages for Groq, Gemini, or Cloudinary.
@@ -74,7 +72,7 @@ Audio strategy: `MediaRecorder` → backend → Groq Whisper → text saved → 
 | Technology | Why |
 |---|---|
 | **Supabase Storage** | Resumes + PDF reports, same project as DB, simple SDK |
-| **LiveKit** | Open source WebRTC, 10K free minutes/month, self-hostable if needed |
+| **Google Meet links** | Human interviews use manager-created Google Meet links when Calendar credentials are configured |
 | **Brevo SMTP** | Transactional email, free tier, nodemailer compatible |
 
 ---
@@ -88,6 +86,6 @@ Audio strategy: `MediaRecorder` → backend → Groq Whisper → text saved → 
 | Piston (code judge) | Free, no key |
 | Browser APIs (TTS, MediaRecorder) | Free |
 | Supabase (DB + Storage) | Free tier |
-| LiveKit | Free (10K min/month) |
+| Google Meet | Included with existing Google Workspace setup |
 | Brevo SMTP | Free tier |
 | **Total** | **$0** at current scale |

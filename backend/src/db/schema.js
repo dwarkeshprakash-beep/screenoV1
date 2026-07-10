@@ -3,7 +3,7 @@
 
 const SCHEMA = {
   companies: {
-    columns: ['id', 'name', 'logo_url', 'created'],
+    columns: ['id', 'name', 'created'],
   },
   departments: {
     columns: ['id', 'name'],
@@ -89,9 +89,8 @@ const SCHEMA = {
       'interview_mode', 'difficulty', 'status', 'result', 'token',
       'token_expires', 'question_count', 'client_template_id',
       'monthly_assessment_id', 'report_emails', 'scheduled_at',
-      'available_from', 'due_at', 'schedule_timezone', 'schedule_version',
-      'meeting_url', 'meeting_provider', 'meeting_provider_event_id',
-      'expired_notification_version', 'client_team_id', 'location',
+      'available_from', 'due_at', 'schedule_timezone',
+      'meeting_url', 'client_team_id', 'location',
       'duration_minutes', 'started_at', 'ended_at', 'created',
     ],
   },
@@ -123,7 +122,10 @@ const SCHEMA = {
     ],
   },
   refresh_tokens: {
-    columns: ['id', 'user_id', 'token_hash', 'expires', 'revoked', 'created'],
+    columns: [
+      'id', 'user_id', 'token_hash', 'expires', 'revoked', 'created',
+      'family_id', 'replaced_by_token_hash', 'replacement_grace_expires',
+    ],
   },
   password_reset_tokens: {
     columns: ['id', 'user_id', 'token_hash', 'expires', 'used', 'created'],

@@ -56,8 +56,15 @@ function normalizeWindow(body, fallbackDurationMinutes) {
     : new Date(startDate.getTime() + fallbackDurationMinutes * 60000)
   if (Number.isNaN(dueAt.getTime())) throw new Error('Due date is invalid')
   if (dueAt <= startDate) throw new Error('Due date must be after the available date')
+  if (dueAt <= new Date()) throw new Error('Due date must be in the future')
 
   return { startDate, dueAt }
+}
+
+function normalizeRequestKey(value) {
+  const key = String(value || '').trim()
+  if (!key) return null
+  return key.length > 180 ? key.slice(0, 180) : key
 }
 
 async function createAssessment(body, managerId, companyId) {
@@ -168,8 +175,10 @@ async function assignCandidates(assessmentId, body, managerId, companyId) {
   const { startDate, dueAt: firstDueAt } = normalizeWindow(body, durationMinutes)
   const scheduleTimezone = body.schedule_timezone || body.scheduleTimezone || 'UTC'
   const endDate = addMonths(startDate, Number(assessment.duration_months) || 1)
+  const requestKey = normalizeRequestKey(body.request_key || body.requestKey)
   
   const company = await companyRepository.getById(companyId)
+  const newlyAssignedTeamMemberIds = new Set()
   
   const db = require('../db/connection')
   const scheduledEnrollments = await db.transaction(async (tx) => {
@@ -181,6 +190,62 @@ async function assignCandidates(assessmentId, body, managerId, companyId) {
       : 'simple'
 
     for (const teamMemberId of teamMemberIds) {
+      const memberRequestKey = requestKey ? `${requestKey}:${teamMemberId}` : null
+      const member = memberByTeamMemberId.get(Number(teamMemberId))
+
+      if (memberRequestKey) {
+        const requestRows = await tx.query(
+          `INSERT INTO assignment_requests
+             (request_key, assessment_id, team_member_id)
+           VALUES
+             (@requestKey, @assessmentId, @teamMemberId)
+           ON CONFLICT (request_key) DO NOTHING
+           RETURNING *`,
+          {
+            requestKey: memberRequestKey,
+            assessmentId: assessment.id,
+            teamMemberId,
+          }
+        )
+
+        if (requestRows.length === 0) {
+          const existingRows = await tx.query(
+            `SELECT ar.enrollment_id, e.*
+             FROM assignment_requests ar
+             LEFT JOIN monthly_assessment_enrollments e ON e.id = ar.enrollment_id
+             WHERE ar.request_key = @requestKey
+               AND ar.assessment_id = @assessmentId
+               AND ar.team_member_id = @teamMemberId
+             LIMIT 1`,
+            {
+              requestKey: memberRequestKey,
+              assessmentId: assessment.id,
+              teamMemberId,
+            }
+          )
+          const existing = existingRows[0]
+          if (existing?.enrollment_id) {
+            const occurrenceRows = await tx.query(
+              `SELECT id, interview_id
+               FROM monthly_assessment_occurrences
+               WHERE enrollment_id = @enrollmentId
+               ORDER BY period_month ASC`,
+              { enrollmentId: existing.enrollment_id }
+            )
+            enrollments.push({
+              ...existing,
+              first_interview_id: occurrenceRows.find(row => row.interview_id)?.interview_id || null,
+              status: existing.status || 'scheduled',
+              candidate_email: member?.email || null,
+              occurrence_ids: occurrenceRows.map(row => row.id),
+              idempotent: true,
+            })
+            continue
+          }
+          throw new Error('Assignment request is already being processed. Please refresh and try again.')
+        }
+      }
+
       const overlapping = await tx.query(
         `SELECT e.id, e.assessment_id, e.start_date, e.end_date,
                 a.subject_name, a.duration_months
@@ -226,7 +291,6 @@ async function assignCandidates(assessmentId, body, managerId, companyId) {
         }
       )
       const enrollment = eRows[0]
-      const member = memberByTeamMemberId.get(Number(enrollment.team_member_id))
       const occurrenceIds = []
       let firstInterviewId = null
       const durationMonths = Number(assessment.duration_months) || 1
@@ -314,13 +378,26 @@ async function assignCandidates(assessmentId, body, managerId, companyId) {
         candidate_email: member?.email || null,
         occurrence_ids: occurrenceIds,
       })
+      newlyAssignedTeamMemberIds.add(Number(teamMemberId))
+
+      if (memberRequestKey) {
+        await tx.query(
+          `UPDATE assignment_requests
+           SET enrollment_id = @enrollmentId
+           WHERE request_key = @requestKey`,
+          {
+            enrollmentId: enrollment.id,
+            requestKey: memberRequestKey,
+          }
+        )
+      }
     }
     return enrollments
   })
 
   const invitations = await sendAssignmentInvitations({
     assessment,
-    members: ownedMembers,
+    members: ownedMembers.filter(member => newlyAssignedTeamMemberIds.has(Number(member.id))),
     companyId,
     startDate,
     endDate,

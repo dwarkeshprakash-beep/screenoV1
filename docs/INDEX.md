@@ -63,7 +63,7 @@ sync-docs.md            Audit and update all MD files to match current implement
 ### .claude/senior/ — Senior/Junior agent system
 ```
 agents/core.md          Universal agent definitions (Security, Architecture, DB, React, UX, Backend, Product, etc.)
-agents/evolved.md       Stack-specific agents — auto-updated when new tech detected (LiveKit, LLM, Supabase, Auth, Piston, PDF)
+agents/evolved.md       Stack-specific agents — auto-updated when new tech detected (Google Meet, LLM, Supabase, Auth, Piston, PDF)
 baseline.md             First-run knowledge baseline — populated on first /senior run
 sessions/               Per-run session reports written by /senior (YYYY-MM-DD-HH-MM.md)
 ```
