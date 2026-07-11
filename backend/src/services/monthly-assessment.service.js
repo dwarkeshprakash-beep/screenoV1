@@ -193,6 +193,14 @@ async function assignCandidates(assessmentId, body, managerId, companyId) {
       const memberRequestKey = requestKey ? `${requestKey}:${teamMemberId}` : null
       const member = memberByTeamMemberId.get(Number(teamMemberId))
 
+      await tx.query(
+        `SELECT id
+         FROM team_members
+         WHERE id = @teamMemberId
+         FOR UPDATE`,
+        { teamMemberId }
+      )
+
       if (memberRequestKey) {
         const requestRows = await tx.query(
           `INSERT INTO assignment_requests
@@ -485,7 +493,7 @@ async function cancelEnrollment(enrollmentId, managerId) {
 }
 
 async function deleteEnrollment(enrollmentId, managerId) {
-  const enrollment = await monthlyAssessmentRepository.deleteEnrollment(
+  const enrollment = await monthlyAssessmentRepository.cancelEnrollment(
     Number(enrollmentId),
     managerId
   )

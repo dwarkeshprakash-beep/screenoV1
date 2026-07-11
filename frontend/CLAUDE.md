@@ -12,7 +12,7 @@
 - `fetch()` for API calls — all requests go through `src/services/api.js` (no axios dependency; a hand-rolled
   client handles JWT bearer headers, HttpOnly refresh cookies, 401 refresh-and-retry, and redirect-to-login)
 - `lucide-react` for icons
-- LiveKit (`@livekit/components-react`, `@livekit/components-styles`, `livekit-client`) for human-interview video rooms
+- Human interviews use Google Meet or manager-provided meeting links; LiveKit is not part of the active V2 runtime
 - `@uiw/react-codemirror` + `@codemirror/lang-javascript` / `@codemirror/lang-python` — code editor for
   LeetCode-style coding questions in `ExamPage.jsx` (the one sanctioned exception to "build from scratch",
   since a syntax-highlighting editor is impractical to hand-roll)
@@ -30,7 +30,7 @@ frontend/
 │   │   │   ├── Avatar.jsx, Badge.jsx, Button.jsx, Card.jsx, EmptyState.jsx,
 │   │   │   │   ErrorBoundary.jsx, ErrorMessage.jsx, Input.jsx, Modal.jsx, Spinner.jsx
 │   │   ├── layout/
-│   │   │   ├── AppLayout.jsx       ← sidebar + topbar for manager/interviewer
+│   │   │   ├── AppLayout.jsx       ← sidebar + topbar for manager/admin
 │   │   │   ├── Sidebar.jsx
 │   │   │   ├── TopBar.jsx
 │   │   │   └── CandidateLayout.jsx ← minimal layout for candidate/interview screens
@@ -42,10 +42,12 @@ frontend/
 │   │   │                 ClientInterviewsPage, MonthlyAssessmentPage, ManagerProfilePage,
 │   │   │                 ResumeAnalyzerPage
 │   │   ├── candidate/    InterviewLandingPage, DeviceCheckPage, ConsentPage, AIInterviewPage,
-│   │   │                 ExamPage, DonePage, CandidateDashboardPage
-│   │   └── interviewer/  (paused in V2 — pages exist but are NOT in App.jsx route tree)
+│   │   │                 ExamPage, DonePage, CandidateOverviewPage, CandidateInterviewsPage,
+│   │   │                 CandidateMonthlyPage, CandidateFeedbackPage, CandidateMandatesPage,
+│   │   │                 CandidateClientOutcomesPage, CandidateProfilePage
+│   │   ├── admin/        AdminDashboardPage, AdminMandatesPage, AdminInterviewsPage,
+│   │   │                 AdminBrokenStatesPage
 │   ├── hooks/
-│   │   ├── useAuth.js
 │   │   ├── useInterview.js   ← AI-interview state machine (phases: loading|ai_speaking|listening|
 │   │   │                        recording|processing|paused|ended|error); MediaRecorder + speechSynthesis
 │   │   └── useProctoring.js
@@ -60,11 +62,8 @@ frontend/
 └── .env
 ```
 
-**Legacy/unused — do not extend or import:** `src/screens/`, `src/layouts/`, `src/data.jsx`, `src/shared.jsx`,
-and loose `src/pages/*.jsx` files (`v2-*.jsx`, `ai-room.jsx`, `candidate-flow.jsx`, `exam-runner.jsx`,
-`helpers.jsx`, `hr.jsx`, `interviewer.jsx`). These are earlier-iteration prototypes kept for visual/behavioral
-reference only — `App.jsx` does not import any of them. There is no `components/interview/` folder; the
-interview UI lives directly in `pages/candidate/` + `hooks/useInterview.js`.
+Legacy prototype screens, old layouts, and loose v2 page dumps have been removed. There is no
+`components/interview/` folder; the interview UI lives directly in `pages/candidate/` + `hooks/useInterview.js`.
 
 ---
 
@@ -123,14 +122,14 @@ Before writing any new component, ask:
 > "Will this component be used by more than one role or page?"
 
 If YES → put it in `src/components/shared/`
-If NO → put it in the role-specific folder (`manager/`, `candidate/`, `interviewer/`)
+If NO → put it in the role-specific folder (`manager/`, `candidate/`, `admin/`)
 
 Examples:
 - A button? → shared (every role uses buttons)
 - A modal? → shared
 - A team member table? → manager/ (only manager sees this)
 - A device check screen? → candidate/ (used by candidate interview flow — there is no `components/interview/`)
-- A scorecard form? → interviewer/ (only interviewers fill this)
+- An admin repair table? → admin/ (only admin users see this)
 
 ---
 
@@ -186,7 +185,7 @@ The module exposes three layers:
   then redirects to `/login` and clears `localStorage` if that also fails
 - `authFetch(endpoint, options)` — same refresh-and-retry/redirect behavior but for raw `fetch`
   calls that need to send `FormData` (multipart uploads) without a `Content-Type` header
-- Named exports per resource (`login`, `getTeam`, `saveAnswer`, `uploadResume`, `getInterviewerSchedule`, …)
+- Named exports per resource (`login`, `getTeam`, `saveAnswer`, `uploadResume`, `getCandidateClientMandates`, ...)
   — these are what components actually import
 
 ```js
@@ -237,9 +236,21 @@ if (window.innerWidth < 768) {
 
 // Candidate dashboard — CandidateLayout, RequireAuth role="candidate"
 /candidate                      → redirect to dashboard
-/candidate/dashboard            → CandidateDashboardPage
+/candidate/dashboard            → redirect to /candidate/overview
+/candidate/overview             → CandidateOverviewPage
+/candidate/interviews           → CandidateInterviewsPage
+/candidate/monthly              → CandidateMonthlyPage
+/candidate/feedback             → CandidateFeedbackPage
+/candidate/mandates             → CandidateMandatesPage
+/candidate/outcomes             → CandidateClientOutcomesPage
+/candidate/profile              → CandidateProfilePage
 
-// Interviewer routes — PAUSED in V2, not in active App.jsx route tree
+// Admin — AppLayout, RequireAuth role="admin"
+/admin                           → redirect to dashboard
+/admin/dashboard                 → AdminDashboardPage
+/admin/mandates                  → AdminMandatesPage
+/admin/interviews                → AdminInterviewsPage
+/admin/broken-states             → AdminBrokenStatesPage
 
 // Candidate interview flow — CandidateLayout, no auth (magic-link token validates on landing)
 /interview/:token               → InterviewLandingPage
@@ -247,7 +258,6 @@ if (window.innerWidth < 768) {
 /interview/:token/consent       → ConsentPage
 /interview/:token/ai            → AIInterviewPage
 /interview/:token/exam          → ExamPage
-/interview/:token/human         → HumanInterviewPage
 /interview/:token/done          → DonePage
 
 /                               → redirect to /login

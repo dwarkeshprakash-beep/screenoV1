@@ -105,6 +105,9 @@ function CandidateMandatesPage() {
             const needsAction = !resumeUrl && mandate.jd_sent
             const profileMeta = requirementMeta(mandate)
             const mandateTags = parseStoredArray(mandate.mandate_tags)
+            const deadlineDate = mandate.resume_deadline ? new Date(mandate.resume_deadline) : null
+            const hasDeadline = deadlineDate && !Number.isNaN(deadlineDate.getTime())
+            const deadlinePassed = hasDeadline && deadlineDate < new Date()
 
             return (
               <div key={mandate.id} style={{ background: 'var(--bg-surface)', border: `1px solid ${needsAction ? 'var(--warning-500)' : 'var(--border-default)'}`, borderRadius: 12, overflow: 'hidden', boxShadow: 'var(--shadow-sm)' }}>
@@ -144,6 +147,11 @@ function CandidateMandatesPage() {
                     {latestRound && (
                       <span style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 999, fontWeight: 600, border: `1px solid ${outcomeConf.border}`, background: outcomeConf.bg, color: outcomeConf.color }}>
                         <AlertTriangle size={11} />Latest round: {outcomeConf.label}
+                      </span>
+                    )}
+                    {hasDeadline && (
+                      <span style={{ fontSize: 11, display: 'flex', alignItems: 'center', gap: 4, padding: '4px 10px', borderRadius: 999, fontWeight: 600, border: `1px solid ${deadlinePassed ? 'var(--danger-100)' : 'var(--warning-100)'}`, background: deadlinePassed ? 'var(--danger-50)' : 'var(--warning-50)', color: deadlinePassed ? 'var(--danger-700)' : 'var(--warning-700)' }}>
+                        <Clock size={11} />Resume due {formatDateTime(mandate.resume_deadline)}
                       </span>
                     )}
                   </div>
@@ -193,18 +201,18 @@ function CandidateMandatesPage() {
                   {needsAction && (
                     <div style={{ padding: '14px 16px', borderRadius: 8, background: 'var(--warning-50)', border: '1px solid var(--warning-100)', marginBottom: 14 }}>
                       <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--warning-700)', margin: '0 0 10px' }}>
-                        Action needed — submit your resume for this client
+                        {deadlinePassed ? 'Resume deadline passed' : 'Action needed - submit your resume for this client'}
                       </p>
                       <div style={{ display: 'flex', gap: 8 }}>
-                        <button disabled={resumeSubmitting === mandate.id} onClick={() => submitClientResume(mandate.id, null)}
-                          style={{ flex: 1, padding: '8px 12px', background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderRadius: 7, fontSize: 12, fontWeight: 600, color: 'var(--fg-body)', cursor: 'pointer' }}>
+                        <button disabled={deadlinePassed || resumeSubmitting === mandate.id} onClick={() => submitClientResume(mandate.id, null)}
+                          style={{ flex: 1, padding: '8px 12px', background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderRadius: 7, fontSize: 12, fontWeight: 600, color: deadlinePassed ? 'var(--fg-subtle)' : 'var(--fg-body)', cursor: deadlinePassed ? 'not-allowed' : 'pointer' }}>
                           {resumeSubmitting === mandate.id ? 'Submitting…' : 'Use My Main Resume'}
                         </button>
-                        <label style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '8px 12px', background: 'var(--fg-primary)', borderRadius: 7, fontSize: 12, fontWeight: 600, color: 'var(--bg-surface)', cursor: 'pointer' }}>
+                        <label style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '8px 12px', background: deadlinePassed ? 'var(--slate-300)' : 'var(--fg-primary)', borderRadius: 7, fontSize: 12, fontWeight: 600, color: 'var(--bg-surface)', cursor: deadlinePassed ? 'not-allowed' : 'pointer' }}>
                           <UploadCloud size={13} />Upload Custom
                           <input type="file" accept=".pdf,.doc,.docx" style={{ display: 'none' }}
                             onChange={e => { const f = e.target.files?.[0]; if (f) submitClientResume(mandate.id, f); e.target.value = '' }}
-                            disabled={resumeSubmitting === mandate.id} />
+                            disabled={deadlinePassed || resumeSubmitting === mandate.id} />
                         </label>
                       </div>
                     </div>

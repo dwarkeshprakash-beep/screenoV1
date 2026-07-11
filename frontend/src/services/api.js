@@ -465,8 +465,12 @@ export const unpublishOutcomeRound = (id, ctId, roundId) =>
 
 // Candidate: client outcomes (published rounds only)
 export const getCandidateClientOutcomes = () => request('/api/candidate/client-outcomes')
-export const joinCandidateInterview = interviewId =>
-  request(`/api/candidate/interviews/${interviewId}/join`, { method: 'POST' })
+export const joinCandidateInterview = (interviewId, interviewScoped = false) =>
+  request(`/api/candidate/interviews/${interviewId}/join`, {
+    method: 'POST',
+    useInterviewAuth: interviewScoped,
+    skipAuthRedirect: interviewScoped,
+  })
 
 // Candidate: client mandates they've been added to
 export const getCandidateClientMandates = () => request('/api/candidate/client-mandates')

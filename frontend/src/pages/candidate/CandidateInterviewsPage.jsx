@@ -12,12 +12,14 @@ const INTERVIEW_TYPE_LABEL = {
 const TYPE_COLOR = { ai_voice: 'var(--brand-500)', exam: 'var(--info-500)', human: 'var(--success-500)', offline: 'var(--warning-500)' }
 const TYPE_BG    = { ai_voice: 'var(--brand-50)',  exam: 'var(--info-50)',  human: 'var(--success-50)', offline: 'var(--warning-50)' }
 
-function InterviewCard({ iv, onLaunch, launchingId }) {
+function InterviewCard({ iv, onLaunch, onJoinHuman, launchingId }) {
   const tColor = TYPE_COLOR[iv.type] || 'var(--border-strong)'
   const tBg    = TYPE_BG[iv.type]    || 'var(--bg-surface-alt)'
   const availability = interviewAvailability(iv)
   const launchableType = iv.type === 'ai_voice' || iv.type === 'exam'
+  const isHuman = iv.type === 'human'
   const canLaunch = launchableType && ['scheduled', 'in_progress'].includes(iv.status) && availability.canStart
+  const canJoinHuman = isHuman && ['scheduled', 'in_progress'].includes(iv.status) && availability.canStart
 
   return (
     <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderLeft: `3px solid ${tColor}`, borderRadius: 10, boxShadow: 'var(--shadow-xs)' }}>
@@ -36,7 +38,7 @@ function InterviewCard({ iv, onLaunch, launchingId }) {
           </div>
         </div>
 
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: canLaunch ? 12 : 0 }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: canLaunch || canJoinHuman ? 12 : 0 }}>
           <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--fg-muted)' }}>
             <Clock size={11} />{iv.scheduled_at ? formatDateTime(iv.scheduled_at) : formatDate(iv.created)}
           </span>
@@ -58,14 +60,20 @@ function InterviewCard({ iv, onLaunch, launchingId }) {
             {launchingId === iv.id ? 'Preparing…' : 'Start Interview'}
           </button>
         )}
+        {canJoinHuman && (
+          <button disabled={launchingId === iv.id} onClick={() => onJoinHuman(iv)}
+            style={{ width: '100%', padding: '9px 14px', background: 'var(--brand-50)', border: '1px solid var(--brand-200)', borderRadius: 7, fontSize: 12, fontWeight: 700, color: 'var(--brand-700)', cursor: launchingId === iv.id ? 'not-allowed' : 'pointer', opacity: launchingId === iv.id ? 0.6 : 1 }}>
+            {launchingId === iv.id ? 'Joining...' : 'Join Meeting'}
+          </button>
+        )}
         {launchableType && ['scheduled', 'in_progress'].includes(iv.status) && !canLaunch && availability.label && (
           <p style={{ fontSize: 12, color: availability.state === 'expired' ? 'var(--danger-700)' : 'var(--fg-muted)', margin: 0, display: 'flex', alignItems: 'center', gap: 4 }}>
             <Clock size={11} />{availability.label}
           </p>
         )}
-        {iv.type === 'human' && ['scheduled', 'in_progress'].includes(iv.status) && (
+        {iv.type === 'human' && ['scheduled', 'in_progress'].includes(iv.status) && !canJoinHuman && (
           <p style={{ fontSize: 12, color: 'var(--fg-muted)', margin: 0, display: 'flex', alignItems: 'center', gap: 4 }}>
-            <Clock size={11} />Your interviewer will share the video link via email.
+            <Clock size={11} />Meeting link will be active closer to the scheduled time.
           </p>
         )}
       </div>
@@ -111,6 +119,16 @@ function CandidateInterviewsPage() {
       }))
       navigate(`/interview/${launch.launchToken}/device-check`)
     } catch (err) { setError(err.message || 'Could not launch interview.') }
+    finally { setLaunchingId(null) }
+  }
+
+  async function joinHumanInterview(interview) {
+    setLaunchingId(interview.id)
+    try {
+      const res = await api.joinCandidateInterview(interview.id)
+      if (res?.data?.meetingUrl) window.open(res.data.meetingUrl, '_blank')
+      else setError('No meeting link available.')
+    } catch (err) { setError(err.message || 'Could not join meeting.') }
     finally { setLaunchingId(null) }
   }
 
@@ -170,7 +188,7 @@ function CandidateInterviewsPage() {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           {activeList.map(iv => (
-            <InterviewCard key={iv.id} iv={iv} onLaunch={launchInterview} launchingId={launchingId} />
+            <InterviewCard key={iv.id} iv={iv} onLaunch={launchInterview} onJoinHuman={joinHumanInterview} launchingId={launchingId} />
           ))}
         </div>
       )}

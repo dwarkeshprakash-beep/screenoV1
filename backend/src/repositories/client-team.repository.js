@@ -56,6 +56,7 @@ async function getByUser(userId) {
   return db.query(
     `SELECT ct.*,
             ctm.client_name, ctm.requirements AS mandate_role, ctm.jd_text, ctm.tags AS mandate_tags,
+            ctm.resume_deadline AS mandate_resume_deadline,
             cmr.profile_name AS requirement_name,
             cmr.years_min AS requirement_years_min,
             cmr.years_max AS requirement_years_max,
@@ -74,6 +75,7 @@ async function getByUser(userId) {
 async function getByUserAndMandate(userId, mandateId) {
   const rows = await db.query(
     `SELECT ct.*, u.first_name, u.last_name, u.email, u.resume_url,
+            ctm.resume_deadline AS mandate_resume_deadline,
             cmr.profile_name AS requirement_name,
             cmr.years_min AS requirement_years_min,
             cmr.years_max AS requirement_years_max,
@@ -82,6 +84,7 @@ async function getByUserAndMandate(userId, mandateId) {
             cmr.resume_deadline AS requirement_resume_deadline
      FROM client_teams ct
      JOIN users u ON u.id = ct.user_id
+     JOIN client_templates ctm ON ctm.id = ct.mandate_id
      LEFT JOIN client_mandate_requirements cmr ON cmr.id = ct.requirement_id
      WHERE ct.user_id = @userId AND ct.mandate_id = @mandateId`,
     { userId, mandateId }
@@ -92,6 +95,7 @@ async function getByUserAndMandate(userId, mandateId) {
 async function getById(id) {
   const rows = await db.query(
     `SELECT ct.*, u.first_name, u.last_name, u.email, u.resume_url,
+            ctm.resume_deadline AS mandate_resume_deadline,
             cmr.profile_name AS requirement_name,
             cmr.years_min AS requirement_years_min,
             cmr.years_max AS requirement_years_max,
@@ -100,6 +104,7 @@ async function getById(id) {
             cmr.resume_deadline AS requirement_resume_deadline
      FROM client_teams ct
      JOIN users u ON u.id = ct.user_id
+     JOIN client_templates ctm ON ctm.id = ct.mandate_id
      LEFT JOIN client_mandate_requirements cmr ON cmr.id = ct.requirement_id
      WHERE ct.id = @id`,
     { id }

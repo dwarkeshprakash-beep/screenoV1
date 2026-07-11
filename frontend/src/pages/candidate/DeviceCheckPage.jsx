@@ -147,6 +147,10 @@ function DeviceCheckPage() {
   const finished = CHECKS
     .filter(check => check.id !== 'speaker')
     .every(check => ['pass', 'fail'].includes(statuses[check.id]))
+  const hasFailedAutomatedCheck = CHECKS
+    .filter(check => check.id !== 'speaker')
+    .some(check => statuses[check.id] === 'fail')
+  const speakerPending = finished && statuses.speaker !== 'pass' && !hasFailedAutomatedCheck
 
   return (
     <div style={{ padding: '40px 24px', maxWidth: 560, margin: '0 auto' }}>
@@ -202,10 +206,15 @@ function DeviceCheckPage() {
         })}
       </div>
 
-      {finished && !requiredPassed && (
+      {finished && hasFailedAutomatedCheck && !requiredPassed && (
         <button type="button" onClick={runChecks} style={{ width: '100%', marginTop: 14, padding: 10, border: '1px solid var(--slate-300)', borderRadius: 9, background: 'var(--bg-surface)', cursor: 'pointer', fontWeight: 600 }}>
           Retry failed checks
         </button>
+      )}
+      {speakerPending && (
+        <p style={{ margin: '12px 0 0', fontSize: 12, color: 'var(--fg-muted)', textAlign: 'center' }}>
+          Play the speaker test tone and confirm that you heard it to continue.
+        </p>
       )}
 
       <button

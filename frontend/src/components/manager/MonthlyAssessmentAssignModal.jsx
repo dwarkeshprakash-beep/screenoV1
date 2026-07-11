@@ -18,6 +18,15 @@ function nowDateTime() {
   return toDateTimeLocalValue(new Date())
 }
 
+function defaultOpenDateTime(defaultDate) {
+  const now = new Date()
+  const date = defaultDate ? new Date(defaultDate) : now
+  if (Number.isNaN(date.getTime())) return toDateTimeLocalValue(now)
+  date.setHours(9, 0, 0, 0)
+  if (date <= now) return toDateTimeLocalValue(now)
+  return toDateTimeLocalValue(date)
+}
+
 function addOffset(baseStr, amount, unit) {
   const base = new Date(baseStr)
   if (Number.isNaN(base.getTime())) return baseStr
@@ -67,7 +76,7 @@ function MonthlyAssessmentAssignModal({
   useEffect(() => {
     if (!open) return
     setSelectedIds(new Set())
-    const base = nowDateTime()
+    const base = defaultOpenDateTime(defaultDate)
     setAvailableFrom(base)
     setDueAt(addOffset(base, 3, 'hours'))
     setQuestionCount(10)

@@ -1,4 +1,4 @@
-// Applies latest migrations 009 through 017 securely.
+// Applies latest migrations 009 through 018 securely.
 // Run: node run-migration-latest.js
 require('dotenv').config()
 const fs = require('fs')
@@ -15,6 +15,7 @@ const MIGRATIONS = [
   '015_role_level_jd_and_deadline.sql',
   '016_monthly_and_mandate_cleanup.sql',
   '017_drop_unused_runtime_columns.sql',
+  '018_integrity_cleanup_and_indexes.sql',
 ]
 
 function isObsoleteBackfillDependency(file, err) {

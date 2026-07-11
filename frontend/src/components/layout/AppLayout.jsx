@@ -25,6 +25,7 @@ const PAGE_META = {
 function getPageMeta(pathname) {
   if (PAGE_META[pathname]) return PAGE_META[pathname]
   if (pathname.startsWith('/manager/team/')) return { title: 'Member Profile', subtitle: 'Team member details and history' }
+  if (pathname.startsWith('/manager/organization/')) return { title: 'Organization Profile', subtitle: 'Company user details and history' }
   return { title: '', subtitle: '' }
 }
 
@@ -108,6 +109,7 @@ function AppLayout({ role = 'manager' }) {
     api.logout().catch(() => {})
     localStorage.removeItem('accessToken')
     localStorage.removeItem('user')
+    window.dispatchEvent(new Event('user_logout'))
     navigate('/login')
   }
 

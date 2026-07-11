@@ -538,18 +538,18 @@ function MonthlyAssessmentPage() {
     const name = `${enrollment.first_name || ''} ${enrollment.last_name || ''}`.trim()
     setConfirmDialog({
       open: true,
-      title: 'Remove monthly plan',
-      message: `Remove ${name}'s ${enrollment.subject_name || 'monthly assessment'} plan? This deletes the full ${enrollment.duration_months || ''} month assignment and all generated monthly slots for this plan.`,
+      title: 'Cancel monthly plan',
+      message: `Cancel ${name}'s ${enrollment.subject_name || 'monthly assessment'} plan? Future slots and pending invites will be cancelled, while completed interviews and reports stay in history.`,
       danger: true,
-      confirmText: 'Remove Plan',
+      confirmText: 'Cancel Plan',
       onConfirm: async () => {
         setCancellingEnrollmentId(enrollment.id)
         setPlanError(null)
         try {
-          await api.removeMonthlyEnrollment(enrollment.id)
+          await api.cancelMonthlyEnrollment(enrollment.id)
           await refreshAll()
         } catch (cancelError) {
-          setPlanError(cancelError.message || 'Could not remove the monthly assessment plan.')
+          setPlanError(cancelError.message || 'Could not cancel the monthly assessment plan.')
         } finally {
           setCancellingEnrollmentId(null)
         }
@@ -606,8 +606,7 @@ function MonthlyAssessmentPage() {
         }
       } else {
         // Fallback: no occurrence rows yet — show enrollment span from start_date
-        const progress = parseStoredArray(row.month_progress)
-        const duration = Number(row.duration_months) || progress.length || 1
+        const duration = Number(row.duration_months) || 1
         const startDate = new Date(row.start_date || row.assessment_created || row.created)
         if (!Number.isNaN(startDate.getTime())) {
           for (let i = 0; i < duration; i++) {
@@ -620,7 +619,7 @@ function MonthlyAssessmentPage() {
               candidate.months[monthIdx].push({
                 id: `enroll-${row.id}-${i}`,
                 subject: row.subject_name || 'Assessment',
-                status: row.status === 'cancelled' ? 'cancelled' : (progress[i] || 'pending'),
+                status: row.status === 'cancelled' ? 'cancelled' : 'pending',
               })
             }
           }
@@ -837,8 +836,8 @@ function MonthlyAssessmentPage() {
                                       className="danger-icon-button"
                                       disabled={cancellingEnrollmentId === candidate.id}
                                       onClick={() => removeEnrollment({ ...candidate, subject_name: subject.subject_name, duration_months: subject.duration_months })}
-                                      aria-label={`Remove ${name}'s full monthly plan`}
-                                      title="Remove full plan"
+                                      aria-label={`Cancel ${name}'s full monthly plan`}
+                                      title="Cancel full plan"
                                     >
                                       <Trash2 size={14} />
                                     </button>

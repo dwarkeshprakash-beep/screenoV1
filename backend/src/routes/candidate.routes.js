@@ -156,7 +156,7 @@ router.get('/client-mandates', async (req, res) => {
       return {
         ...row,
         jd_text: row.requirement_jd_text || row.jd_text,
-        resume_deadline: row.requirement_resume_deadline || row.resume_deadline,
+        resume_deadline: row.requirement_resume_deadline || row.mandate_resume_deadline || null,
         client_resume_storage_path: row.client_resume_url && !isHttpUrl(row.client_resume_url)
           ? row.client_resume_url
           : null,
@@ -187,6 +187,11 @@ router.post(
       const entry = await clientTeamRepo.getById(ctId)
       if (!entry || entry.user_id !== req.user.id) {
         return res.status(404).json({ success: false, error: 'Client mandate entry not found' })
+      }
+
+      const resumeDeadline = entry.requirement_resume_deadline || entry.mandate_resume_deadline || null
+      if (resumeDeadline && new Date(resumeDeadline) < new Date()) {
+        return res.status(409).json({ success: false, error: 'The resume submission deadline has passed' })
       }
 
       const resumeRepository = require('../repositories/resume.repository')

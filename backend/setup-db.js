@@ -24,6 +24,7 @@ const MIGRATIONS = [
   '015_role_level_jd_and_deadline.sql',
   '016_monthly_and_mandate_cleanup.sql',
   '017_drop_unused_runtime_columns.sql',
+  '018_integrity_cleanup_and_indexes.sql',
 ]
 
 async function main() {

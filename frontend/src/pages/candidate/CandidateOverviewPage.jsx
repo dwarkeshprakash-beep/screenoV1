@@ -87,7 +87,10 @@ function CandidateOverviewPage() {
   const feedbackTips = parseStoredArray(latestReport?.strengths)
   const firstName = user.first_name || user.name?.split(' ')[0] || 'there'
   const initials = [user.first_name, user.last_name].filter(Boolean).map(n => n[0]?.toUpperCase()).join('') || firstName[0]?.toUpperCase() || '?'
-  const nextLaunchable = upcoming.find(i => i.type === 'ai_voice' || i.type === 'exam')
+  const launchableUpcoming = upcoming.filter(i => i.type === 'ai_voice' || i.type === 'exam')
+  const nextLaunchable = launchableUpcoming.find(i => interviewAvailability(i).canStart)
+    || launchableUpcoming.find(i => interviewAvailability(i).state !== 'expired')
+    || launchableUpcoming[0]
   const nextAvailability = nextLaunchable ? interviewAvailability(nextLaunchable) : null
 
   if (loading) return <div style={{ padding: 40, display: 'flex', justifyContent: 'center' }}><Spinner /></div>

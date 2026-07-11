@@ -7,13 +7,6 @@ import { defineConfig, globalIgnores } from 'eslint/config'
 export default defineConfig([
   globalIgnores([
     'dist',
-    'src/pages/*.jsx',
-    'src/layouts/**',
-    'src/screens/**',
-    'src/data.jsx',
-    'src/hooks/useAuth.js',
-    'src/shared.jsx',
-    'tweaks-panel.jsx',
   ]),
   {
     files: ['**/*.{js,jsx}'],

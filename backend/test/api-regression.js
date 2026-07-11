@@ -399,7 +399,7 @@ async function run() {
     { method: 'DELETE', token: managerToken }
   )
   assert.equal(removedEnrollment.status, 200)
-  assert.equal(removedEnrollment.payload.data.deleted, true)
+  assert.equal(removedEnrollment.payload.data.status, 'cancelled')
 
   const octoberPlanAfterRemoval = await api(
     `/api/assessments/monthly/plan?month=${reusableAssessmentMonth}`,

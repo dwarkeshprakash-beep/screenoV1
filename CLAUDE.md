@@ -24,9 +24,9 @@ cd backend && npx nodemon server.js    # auto-reload on file change
 ---
 ## What this project is
 
-AI interview platform. Managers schedule AI voice interviews and exams for team members. Candidates take them from a browser via magic link. Interviewers conduct live human video interviews.
+AI interview platform. Managers schedule AI voice interviews, exams, Google Meet-backed human interviews, client mandate work, and monthly assessments. Candidates take work from a browser dashboard or a magic link.
 
-**Status:** Core build is complete and functional for all 3 roles (Manager, Candidate, Interviewer). Now in hardening/audit-fix mode — see `docs/AUDIT-BACKLOG.md` for tracked issues.
+**Status:** Core build is complete for the active V2 surface: Manager, Candidate, and Admin repair pages. Interviewer/LiveKit runtime pages are no longer mounted. Current gaps are tracked in `docs/open-issues.md`.
 
 ---
 
@@ -39,7 +39,7 @@ Backend     Node.js 20 + Express 5 (single service)
 Database    Supabase (PostgreSQL) — current. SQL Server (SSMS) — future option.
             Two DB connection files exist — switch via DB_TYPE env var.
 Files       Supabase Storage (bucket "files") — resumes and reports only (no audio stored)
-Video       LiveKit — human interviews (livekit-server-sdk backend, @livekit/components-react frontend)
+Video       Human interviews use manager-provided or Google Meet links; LiveKit is not part of the active V2 runtime
 Auth        JWT access token (15 min) + HttpOnly cookie refresh token (7 days)
 LLM         Groq Llama 3.3 70B → Gemini 2.0 Flash fallback, called via plain fetch() to REST endpoints
             (no SDK packages — see backend/src/services/llm.service.js)
@@ -66,9 +66,9 @@ Full connection setup: `.claude/skills/db-access.md`
 
 ## Build state
 
-The real implementation is built and wired end-to-end: `backend/src/` has routes/services/repositories/middleware/db/jobs for all 3 roles, and `frontend/src/App.jsx` is the real role-based router (not the Vite placeholder). See `frontend/CLAUDE.md` and `backend/CLAUDE.md` for the actual current file layout and routes.
+The real implementation is built and wired end-to-end: `backend/src/` has routes/services/repositories/middleware/db/workers for the active roles, and `frontend/src/App.jsx` is the real role-based router (not the Vite placeholder). See `frontend/CLAUDE.md` and `backend/CLAUDE.md` for the actual current file layout and routes.
 
-**Legacy/prototype files still present but unused** — `frontend/src/screens/`, `frontend/src/layouts/`, and several loose files directly under `frontend/src/pages/` (e.g. `v2-manager.jsx`, `v2-candidate.jsx`, `ai-room.jsx`, `hr.jsx`, `interviewer.jsx`, `candidate-flow.jsx`, `exam-runner.jsx`, `helpers.jsx`) are earlier-iteration/v2 prototype screens using inline styles and `window.V2` globals — not imported by `App.jsx`. Treat them as **reference only, do not extend, copy from, or import them**. The real pages live in `frontend/src/pages/{manager,candidate,interviewer,auth}/`.
+Legacy prototype screens and page dumps have been removed from the active repo. The real pages live in `frontend/src/pages/{manager,candidate,admin,auth}/`.
 
 ---
 

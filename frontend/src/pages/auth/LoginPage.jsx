@@ -36,10 +36,11 @@ function parseDemoAccounts() {
   }
 }
 
-const configuredDemoAccounts = import.meta.env.VITE_SHOW_DEMO_ACCOUNTS === 'true'
+const showDemoAccounts = import.meta.env.VITE_SHOW_DEMO_ACCOUNTS === 'true'
+const configuredDemoAccounts = showDemoAccounts
   ? parseDemoAccounts()
   : []
-const QUICK_ACCESS_ACCOUNTS = [
+const QUICK_ACCESS_ACCOUNTS = showDemoAccounts ? [
   {
     role: 'manager',
     name: 'Kiran Oza',
@@ -64,7 +65,7 @@ const QUICK_ACCESS_ACCOUNTS = [
     badgeBg: '#7F1D1D',
     badgeFg: '#FECACA',
   },
-].filter(account => account.password)
+].filter(account => account.password) : []
 
 function mergeDemoAccounts(accounts) {
   const byEmail = new Map()
@@ -122,6 +123,7 @@ function LoginPage() {
       }
       localStorage.setItem('accessToken', result.data.accessToken)
       localStorage.setItem('user', JSON.stringify(result.data.user))
+      window.dispatchEvent(new Event('user_login'))
       navigate(roleRedirect(result.data.user.role))
     } catch (err) {
       setError(err.message || 'Could not sign in. Please try again.')

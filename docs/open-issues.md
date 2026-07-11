@@ -6,7 +6,7 @@ The current code builds, lints, passes backend unit tests, and passes the API re
 
 ## P1 - Before Public Production
 
-### Run migration 017 on existing databases
+### Run migrations 017-018 on existing databases
 
 Migration `017_drop_unused_runtime_columns.sql` removes columns no longer used by the current app:
 
@@ -18,8 +18,9 @@ Migration `017_drop_unused_runtime_columns.sql` removes columns no longer used b
 
 Acceptance:
 
-- Migration runs successfully on staging and production-like databases.
+- Migrations run successfully on staging and production-like databases.
 - `backend/src/db/schema.js` and `docs/database-schema.md` match the live schema after migration.
+- `client_mandate_requirements.tags`, hot-path indexes, and accidental-FK cleanup from migration 018 are present.
 
 ### Real-device candidate matrix
 
@@ -45,6 +46,10 @@ Acceptance:
 
 Product/legal must approve consent wording, recording/transcription notice, data-retention expectations, and the statement that AI output is advisory.
 
+### Server-side interview gate state
+
+Device check and consent are enforced in the frontend today. Persist candidate device-check/consent completion server-side before public launch so interview APIs can reject skipped flows.
+
 ## P2 - Product Flow Gaps
 
 ### Monthly assessment occurrence actions
@@ -65,6 +70,7 @@ Client mandates support role profiles, JD sends, resumes, interviews, and outcom
 Acceptance:
 
 - Each candidate row shows: added, JD sent, resume submitted, interview scheduled, latest round, final outcome.
+- Manager can delete unused role profiles and move candidates between mandate role profiles with capacity errors surfaced.
 - Candidate mandate and outcome views share the same source of truth.
 - Outcome rounds are covered by browser regression tests.
 

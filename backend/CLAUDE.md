@@ -17,7 +17,7 @@ cookie-parser       refresh-token cookie
 cors                CORS (origin allowlist from FRONTEND_URL)
 multer              file uploads (memory storage — buffers only)
 @supabase/supabase-js  file storage (resumes/reports — bucket "files" in the same Supabase project as the DB)
-livekit-server-sdk  LiveKit room tokens for human interviews
+Human interview links are stored on interviews as Google Meet or manager-provided URLs; LiveKit is not part of the active V2 runtime.
 nodemailer          transactional email over SMTP (Brevo)
 pdfkit / pdf-parse / mammoth   PDF & docx generation/parsing (reports, resume analysis)
 dotenv              .env loading
@@ -66,7 +66,6 @@ backend/
 │   │   ├── auth.routes.js          /api/auth
 │   │   ├── team.routes.js          /api/team
 │   │   ├── interview.routes.js     /api/interviews
-│   │   ├── interviewer.routes.js   /api/interviewer
 │   │   ├── candidate.routes.js     /api/candidate
 │   │   ├── report.routes.js        /api/reports
 │   │   ├── schedule.routes.js      /api/schedule
@@ -105,7 +104,7 @@ backend/
 │   │   └── department.repository.js
 │   ├── middleware/
 │   │   ├── auth.js         ← validate JWT access token
-│   │   ├── role.js         ← requireRole('manager'|'candidate'|'interviewer')
+│   │   ├── role.js         ← requireRole('manager'|'candidate'|'admin')
 │   │   ├── upload.js       ← multer config (memory storage) for file uploads
 │   │   └── rate-limit.js   ← in-memory rate limiter (auth + write limiters in server.js)
 │   ├── utils/
@@ -115,7 +114,7 @@ backend/
 │       ├── connection.js           ← factory (import this everywhere)
 │       ├── supabase.connection.js  ← PostgreSQL
 │       └── sqlserver.connection.js ← SQL Server
-├── migrations/   ← 001–006 numbered SQL files; apply via setup-db.js (new DBs) or
+├── migrations/   ← 001-018 numbered SQL files; apply via setup-db.js (new DBs) or
 │                    run-migration-NNN.js scripts (existing DBs)
 ├── server.js   ← mounts routes, security headers, CORS, rate limits, starts report-job worker
 ├── package.json
@@ -160,10 +159,6 @@ GEMINI_API_KEY=      # aistudio.google.com
 SUPABASE_URL=
 SUPABASE_SERVICE_ROLE_KEY=
 
-# Video
-LIVEKIT_API_KEY=
-LIVEKIT_API_SECRET=
-
 # Email — SMTP (Brevo) via nodemailer, NOT Resend
 SMTP_HOST=
 SMTP_PORT=587
@@ -203,7 +198,6 @@ POST   /api/team/import                       ← bulk CSV
 POST   /api/schedule                          ← create interview schedule
 GET    /api/schedule/calendar
 GET    /api/schedule/slots/:token
-GET    /api/schedule/interviewers
 GET    /api/schedule/org-users                ← all active company users (for report-recipient suggestions)
 GET    /api/schedule/email-deliveries/:interviewId
 POST   /api/schedule/email-deliveries/:interviewId/resend
@@ -216,16 +210,10 @@ POST   /api/interviews/:id/complete           ← candidate: finish, queue repor
 
 GET    /api/candidate/interviews
 GET    /api/candidate/report
-POST   /api/candidate/livekit-token
-
-GET    /api/interviewer/schedule
-GET    /api/interviewer/scorecards
-POST   /api/interviewer/scorecard/:interviewId
-GET    /api/interviewer/scorecard-data/:interviewId
-GET    /api/interviewer/live-room/:interviewId
-PATCH  /api/interviewer/live-room/:interviewId/notes
-POST   /api/interviewer/live-room/:interviewId/end
-POST   /api/interviewer/livekit-token
+GET    /api/candidate/reports
+GET    /api/candidate/monthly-assessments
+GET    /api/candidate/client-mandates
+GET    /api/candidate/client-outcomes
 
 GET    /api/reports/team
 GET    /api/reports/candidate/:id
@@ -282,4 +270,4 @@ async function getByCompany(companyId) {
 }
 ```
 
-Full service/repository examples: `docs/backend-prompt.md`
+Use the live routes/services/repositories in `backend/src/` as the source of truth for service/repository examples.

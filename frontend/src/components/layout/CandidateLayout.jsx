@@ -38,6 +38,7 @@ function CandidateLayout() {
     localStorage.removeItem('user')
     localStorage.removeItem('interviewAccessToken')
     localStorage.removeItem('interviewSession')
+    window.dispatchEvent(new Event('user_logout'))
     navigate('/login', { replace: true })
   }
 

@@ -1,8 +1,8 @@
 # Screeno V2 Database Schema
 
-This is the compact PostgreSQL schema used by the current V2 app. Current numbered migrations: `001` through `017`.
+This is the compact PostgreSQL schema used by the current V2 app. Current numbered migrations: `001` through `018`.
 
-Relationships are partly enforced by database constraints and partly by repositories/services for ownership checks.
+Relationships are enforced by repositories/services for ownership checks and lifecycle cleanup; migrations avoid foreign key constraints in the active schema.
 
 ## People And Organization
 

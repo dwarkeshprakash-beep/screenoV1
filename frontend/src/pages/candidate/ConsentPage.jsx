@@ -53,7 +53,7 @@ function ConsentPage() {
     if (session.type === 'human') {
       setJoining(true)
       try {
-        const res = await api.joinCandidateInterview(session.interviewId)
+        const res = await api.joinCandidateInterview(session.interviewId, true)
         window.location.href = res.data.meetingUrl
       } catch (err) {
         setSessionError(err.message || 'Could not join meeting.')
