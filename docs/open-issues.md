@@ -6,7 +6,7 @@ The current code builds, lints, passes backend unit tests, and passes the API re
 
 ## P1 - Before Public Production
 
-### Run migrations 017-018 on existing databases
+### Run migrations 017-019 on existing databases
 
 Migration `017_drop_unused_runtime_columns.sql` removes columns no longer used by the current app:
 
@@ -20,7 +20,7 @@ Acceptance:
 
 - Migrations run successfully on staging and production-like databases.
 - `backend/src/db/schema.js` and `docs/database-schema.md` match the live schema after migration.
-- `client_mandate_requirements.tags`, hot-path indexes, and accidental-FK cleanup from migration 018 are present.
+- `client_mandate_requirements.tags`, hot-path indexes, accidental-FK cleanup from migration 018, and manual-mapping policy cleanup from migration 019 are present.
 
 ### Real-device candidate matrix
 

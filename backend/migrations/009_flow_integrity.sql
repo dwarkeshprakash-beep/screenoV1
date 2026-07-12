@@ -14,26 +14,15 @@ WHERE ct.requirement_id IS NOT NULL
     WHERE cmr.id = ct.requirement_id AND cmr.mandate_id = ct.mandate_id
   );
 
--- Add composite foreign key from client_teams to client_mandate_requirements
--- Use NOT VALID initially, then validate it
+-- Manual mapping policy: clean invalid role links, but do not add DB foreign keys.
+-- The backend validates mandate/profile ownership in repositories and routes.
 ALTER TABLE client_teams 
 DROP CONSTRAINT IF EXISTS fk_client_teams_requirement;
 
--- Add unique constraint required for composite foreign key
+-- Drop the old composite uniqueness that only existed to support the FK.
+-- `id` is already unique via the primary key.
 ALTER TABLE client_mandate_requirements 
 DROP CONSTRAINT IF EXISTS client_mandate_requirements_mandate_id_id_key;
-
-ALTER TABLE client_mandate_requirements 
-ADD CONSTRAINT client_mandate_requirements_mandate_id_id_key UNIQUE (mandate_id, id);
-
-ALTER TABLE client_teams 
-ADD CONSTRAINT fk_client_teams_requirement 
-FOREIGN KEY (mandate_id, requirement_id) 
-REFERENCES client_mandate_requirements(mandate_id, id) 
-ON DELETE RESTRICT 
-NOT VALID;
-
-ALTER TABLE client_teams VALIDATE CONSTRAINT fk_client_teams_requirement;
 
 -- Add missing indexes for parent/child lookups
 CREATE INDEX IF NOT EXISTS idx_client_teams_req ON client_teams(requirement_id);

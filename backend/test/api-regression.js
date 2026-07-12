@@ -108,6 +108,8 @@ async function cleanup() {
     }
     const interviewIds = [...new Set(state.interviewIds)]
     if (interviewIds.length > 0) {
+      await tx.query(`DELETE FROM email_outbox_jobs WHERE interview_id = ANY(@ids)`, { ids: interviewIds })
+      await tx.query(`DELETE FROM monthly_assessment_occurrences WHERE interview_id = ANY(@ids)`, { ids: interviewIds })
       await tx.query(`DELETE FROM report_jobs WHERE interview_id = ANY(@ids)`, { ids: interviewIds })
       await tx.query(`DELETE FROM reports WHERE interview_id = ANY(@ids)`, { ids: interviewIds })
       await tx.query(`DELETE FROM scorecards WHERE interview_id = ANY(@ids)`, { ids: interviewIds })
@@ -116,6 +118,28 @@ async function cleanup() {
       await tx.query(`DELETE FROM interviews WHERE id = ANY(@ids)`, { ids: interviewIds })
     }
     if (state.assessmentIds.length > 0) {
+      await tx.query(
+        `DELETE FROM email_outbox_jobs
+         WHERE event_key LIKE 'monthly_occurrence_%'
+           AND interview_id IN (
+             SELECT interview_id
+             FROM monthly_assessment_occurrences
+             WHERE enrollment_id IN (
+               SELECT id FROM monthly_assessment_enrollments WHERE assessment_id = ANY(@ids)
+             )
+           )`,
+        { ids: state.assessmentIds }
+      )
+      await tx.query(
+        `DELETE FROM monthly_assessment_occurrences
+         WHERE enrollment_id IN (
+           SELECT id FROM monthly_assessment_enrollments WHERE assessment_id = ANY(@ids)
+         )`,
+        { ids: state.assessmentIds }
+      )
+      await tx.query(`DELETE FROM assignment_requests WHERE assessment_id = ANY(@ids)`, {
+        ids: state.assessmentIds,
+      })
       await tx.query(
         `DELETE FROM monthly_assessment_enrollments WHERE assessment_id = ANY(@ids)`,
         { ids: state.assessmentIds }

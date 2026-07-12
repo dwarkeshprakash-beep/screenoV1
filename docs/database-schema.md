@@ -1,8 +1,8 @@
 # Screeno V2 Database Schema
 
-This is the compact PostgreSQL schema used by the current V2 app. Current numbered migrations: `001` through `018`.
+This is the compact PostgreSQL schema used by the current V2 app. Current numbered migrations: `001` through `019`.
 
-Relationships are enforced by repositories/services for ownership checks and lifecycle cleanup; migrations avoid foreign key constraints in the active schema.
+Relationships are enforced by repositories/services for ownership checks and lifecycle cleanup. Migrations avoid foreign key constraints in the active schema, and business value/window checks are validated in backend services rather than DB check constraints.
 
 ## People And Organization
 
@@ -139,3 +139,13 @@ Monthly assignment idempotency records.
 Profile and mandate-specific resume asset metadata.
 
 `id`, `owner_user_id`, `purpose`, `client_team_id`, `mandate_id`, `original_filename`, `mime_type`, `size`, `storage_path`, `created_at`, `deleted_at`
+
+## Dev Data Reset
+
+Use `backend/reset-dev-data.js` for dev/staging cleanup instead of ad hoc table deletes.
+
+- Dry-run: `node reset-dev-data.js`
+- Apply workflow cleanup: `CONFIRM_RESET_SCREENO_DEV_DATA=DELETE_WORKFLOW_DATA DRY_RUN=false node reset-dev-data.js`
+- Apply master-only cleanup: `CONFIRM_RESET_SCREENO_DEV_DATA=DELETE_WORKFLOW_DATA DRY_RUN=false RESET_MODE=master-only node reset-dev-data.js`
+
+`clean-workflows` preserves `companies`, `departments`, `users`, `team_members`, and profile resume metadata. `master-only` preserves only `companies`, `departments`, and `users`, and clears user resume/tag runtime artifacts.

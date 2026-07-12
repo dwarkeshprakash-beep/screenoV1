@@ -114,7 +114,7 @@ backend/
 │       ├── connection.js           ← factory (import this everywhere)
 │       ├── supabase.connection.js  ← PostgreSQL
 │       └── sqlserver.connection.js ← SQL Server
-├── migrations/   ← 001-018 numbered SQL files; apply via setup-db.js (new DBs) or
+├── migrations/   ← 001-019 numbered SQL files; apply via setup-db.js (new DBs) or
 │                    run-migration-NNN.js scripts (existing DBs)
 ├── server.js   ← mounts routes, security headers, CORS, rate limits, starts report-job worker
 ├── package.json

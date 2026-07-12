@@ -3,17 +3,16 @@
 -- 1. Monthly Occurrences Table
 CREATE TABLE IF NOT EXISTS monthly_assessment_occurrences (
   id SERIAL PRIMARY KEY,
-  enrollment_id INT NOT NULL REFERENCES monthly_assessment_enrollments(id) ON DELETE CASCADE,
+  enrollment_id INT NOT NULL,
   period_month DATE NOT NULL, -- Stored as YYYY-MM-01
   available_from TIMESTAMPTZ NOT NULL,
   due_at TIMESTAMPTZ NOT NULL,
   duration_minutes INT NOT NULL DEFAULT 60,
-  interview_id INT UNIQUE REFERENCES interviews(id) ON DELETE SET NULL,
+  interview_id INT UNIQUE,
   status VARCHAR(50) NOT NULL DEFAULT 'scheduled', 
   created TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
   updated TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT uq_monthly_occurrence_period UNIQUE (enrollment_id, period_month),
-  CONSTRAINT chk_monthly_occurrence_status CHECK (status IN ('scheduled', 'in_progress', 'completed', 'cancelled'))
+  CONSTRAINT uq_monthly_occurrence_period UNIQUE (enrollment_id, period_month)
 );
 
 CREATE INDEX IF NOT EXISTS idx_monthly_occurrence_interview ON monthly_assessment_occurrences(interview_id);
@@ -51,9 +50,9 @@ WHERE NOT EXISTS (
 CREATE TABLE IF NOT EXISTS assignment_requests (
   id SERIAL PRIMARY KEY,
   request_key VARCHAR(255) NOT NULL UNIQUE,
-  assessment_id INT NOT NULL REFERENCES monthly_assessments(id) ON DELETE CASCADE,
-  team_member_id INT NOT NULL REFERENCES team_members(id) ON DELETE CASCADE,
-  enrollment_id INT REFERENCES monthly_assessment_enrollments(id) ON DELETE SET NULL,
+  assessment_id INT NOT NULL,
+  team_member_id INT NOT NULL,
+  enrollment_id INT,
   created TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_assignment_requests_member ON assignment_requests(team_member_id);
@@ -62,7 +61,7 @@ CREATE INDEX IF NOT EXISTS idx_assignment_requests_member ON assignment_requests
 CREATE TABLE IF NOT EXISTS email_outbox_jobs (
   id SERIAL PRIMARY KEY,
   event_key VARCHAR(255) UNIQUE, -- Prevent duplicate jobs for the same logical event
-  interview_id INT REFERENCES interviews(id) ON DELETE CASCADE,
+  interview_id INT,
   recipient VARCHAR(255) NOT NULL,
   payload JSONB NOT NULL,
   send_after TIMESTAMPTZ NOT NULL,
@@ -72,8 +71,6 @@ CREATE TABLE IF NOT EXISTS email_outbox_jobs (
   claimed_at TIMESTAMPTZ,
   finished_at TIMESTAMPTZ,
   created TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-  updated TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT chk_outbox_status CHECK (status IN ('pending', 'claimed', 'finished', 'failed'))
+  updated TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS idx_email_outbox_jobs_pending ON email_outbox_jobs(status, send_after);
-

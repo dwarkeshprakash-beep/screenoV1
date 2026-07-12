@@ -22,16 +22,14 @@ SET
   schedule_timezone = 'UTC'
 WHERE available_from IS NULL;
 
--- 3. Ensure due_at > available_from constraint
+-- 3. Ensure window validation remains backend-owned
 -- In rare cases where the backfill creates equal timestamps, push due_at forward slightly.
 UPDATE interviews
 SET due_at = available_from + interval '1 hour'
 WHERE due_at <= available_from;
 
+-- Manual mapping policy: service validation owns date-window rules.
 ALTER TABLE interviews DROP CONSTRAINT IF EXISTS chk_interviews_window;
-ALTER TABLE interviews
-  ADD CONSTRAINT chk_interviews_window
-  CHECK (due_at > available_from);
 
 -- 4. Add index for fast window lookups
 CREATE INDEX IF NOT EXISTS idx_interviews_windows ON interviews(available_from, due_at);

@@ -76,7 +76,7 @@ The active schema includes the V2 core tables plus client mandate workflow table
 - `email_outbox_jobs`
 - `resume_assets`
 
-`backend/migrations/018_integrity_cleanup_and_indexes.sql` is the latest cleanup migration. `backend/src/db/schema.js` and `docs/database-schema.md` must agree with it.
+`backend/migrations/019_manual_mapping_policy.sql` is the latest cleanup migration. `backend/src/db/schema.js` and `docs/database-schema.md` must agree with it.
 
 ## Critical Flows
 
@@ -143,4 +143,4 @@ The canonical acceptance record is `docs/AUDIT-AND-TESTING.md`. The database-bac
 - Consent copy requires product/legal approval before public launch.
 - Production deployment requires valid SMTP, AI, storage, database, and JWT secrets.
 - Notification preferences (email/in-app) are stored in `localStorage` only; they are not persisted to the backend and reset when browser data is cleared.
-- Migrations 009-018 must be applied on existing databases.
+- Migrations 009-019 must be applied on existing databases.
