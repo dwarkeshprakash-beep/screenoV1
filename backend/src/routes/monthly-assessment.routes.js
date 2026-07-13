@@ -162,7 +162,7 @@ router.delete('/enrollments/:id', async (req, res) => {
     res.json({ success: true, data: enrollment })
   } catch (err) {
     console.error('DELETE /monthly-assessments/enrollments/:id failed:', err)
-    handleMonthlyError(res, err, 'Could not cancel monthly assessment plan')
+    handleMonthlyError(res, err, 'Could not delete monthly assessment plan')
   }
 })
 

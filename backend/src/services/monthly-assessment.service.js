@@ -493,7 +493,7 @@ async function cancelEnrollment(enrollmentId, managerId) {
 }
 
 async function deleteEnrollment(enrollmentId, managerId) {
-  const enrollment = await monthlyAssessmentRepository.cancelEnrollment(
+  const enrollment = await monthlyAssessmentRepository.deleteEnrollment(
     Number(enrollmentId),
     managerId
   )

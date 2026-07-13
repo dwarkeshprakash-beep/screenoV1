@@ -44,24 +44,6 @@ function requirementMeta(item) {
   return parts.join(' | ')
 }
 
-function toDatetimeInputValue(value) {
-  if (!value) return ''
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return ''
-  const pad = number => String(number).padStart(2, '0')
-  return [
-    date.getFullYear(),
-    '-',
-    pad(date.getMonth() + 1),
-    '-',
-    pad(date.getDate()),
-    'T',
-    pad(date.getHours()),
-    ':',
-    pad(date.getMinutes()),
-  ].join('')
-}
-
 function newRequirementProfile(seed = {}) {
   return {
     key: seed.key || seed.id || `new-${Date.now()}-${Math.random().toString(36).slice(2)}`,
@@ -72,7 +54,6 @@ function newRequirementProfile(seed = {}) {
     headcount: seed.headcount || 1,
     notes: seed.notes || '',
     jd_text: seed.jd_text || '',
-    resume_deadline: toDatetimeInputValue(seed.resume_deadline),
   }
 }
 
@@ -86,7 +67,6 @@ function normalizeRequirementProfilesForSave(profiles) {
       headcount: Number(profile.headcount) || 1,
       notes: String(profile.notes || '').trim() || null,
       jd_text: String(profile.jd_text || '').trim() || null,
-      resume_deadline: profile.resume_deadline ? serializeDatetimeLocal(profile.resume_deadline) : null,
     }))
     .filter(profile => profile.profile_name)
 }
@@ -100,7 +80,6 @@ function validateRequirementProfilesForSave(profiles) {
     if (profile.years_min != null && (!Number.isInteger(profile.years_min) || profile.years_min < 0)) return 'Minimum experience must be a non-negative whole number.'
     if (profile.years_max != null && (!Number.isInteger(profile.years_max) || profile.years_max < 0)) return 'Maximum experience must be a non-negative whole number.'
     if (profile.years_min != null && profile.years_max != null && profile.years_min > profile.years_max) return 'Minimum experience cannot be greater than maximum experience.'
-    if (profile.resume_deadline && Number.isNaN(new Date(profile.resume_deadline).getTime())) return 'Role resume deadline is invalid.'
     const key = profile.profile_name.toLowerCase()
     if (seen.has(key)) return `Duplicate role: ${profile.profile_name}`
     seen.add(key)
@@ -1611,7 +1590,6 @@ function MandateDetail({ initialTemplate, onBack }) {
                         </span>
                         <span>
                           {r.jd_text ? 'Role JD attached' : 'Uses mandate JD'}
-                          {r.resume_deadline ? ` | Resume deadline ${formatDateTime(r.resume_deadline)}` : ' | No role resume deadline'}
                         </span>
                       </div>
                       <button type="button" className="danger-icon-button" style={{ background: 'transparent', border: '1px solid var(--border-default)', borderRadius: 6, padding: '4px 10px', fontSize: 11, color: 'var(--fg-muted)', cursor: 'pointer' }}
@@ -1628,13 +1606,24 @@ function MandateDetail({ initialTemplate, onBack }) {
 
         {/* ── JD tab ── */}
         {tab === 'jd' && (
-          template.jd_text
+          (template.jd_text || requirements.some(r => r.jd_text))
             ? <div className="workspace-stack" style={{ gap: 14 }}>
               <div className="workspace-section-heading">
                 <div><h3 style={{ fontSize: 16 }}>Job description</h3><p>Used for matching, communication, and AI interview context.</p></div>
                 <FileText size={20} color="var(--brand-500)" />
               </div>
-              <div style={{ padding: 18, border: '1px solid var(--border-default)', borderRadius: 10, background: 'var(--slate-50)', fontSize: 13, lineHeight: 1.75, whiteSpace: 'pre-wrap' }}>{template.jd_text}</div>
+              {template.jd_text && (
+                <section>
+                  <h4 style={{ fontSize: 13, margin: '0 0 8px', color: 'var(--fg-primary)' }}>Mandate JD</h4>
+                  <div style={{ padding: 18, border: '1px solid var(--border-default)', borderRadius: 10, background: 'var(--slate-50)', fontSize: 13, lineHeight: 1.75, whiteSpace: 'pre-wrap' }}>{template.jd_text}</div>
+                </section>
+              )}
+              {requirements.filter(r => r.jd_text).map(r => (
+                <section key={r.id}>
+                  <h4 style={{ fontSize: 13, margin: '0 0 8px', color: 'var(--fg-primary)' }}>{r.profile_name || 'Role'} JD</h4>
+                  <div style={{ padding: 18, border: '1px solid var(--border-default)', borderRadius: 10, background: 'var(--slate-50)', fontSize: 13, lineHeight: 1.75, whiteSpace: 'pre-wrap' }}>{r.jd_text}</div>
+                </section>
+              ))}
             </div>
             : <EmptyState message="No JD text attached. Edit the mandate to paste text or upload a document." />
         )}

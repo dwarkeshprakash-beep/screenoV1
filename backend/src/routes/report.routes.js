@@ -75,7 +75,7 @@ router.get('/interview/:id', async (req, res) => {
     const interviewId = parseInt(req.params.id, 10)
     const report = await reportRepository.getDetailByInterviewForManager(interviewId, req.user.id)
     if (!report) return res.status(404).json({ success: false, error: 'Report not found' })
-    report.transcripts = await transcriptRepository.getByInterviewId(interviewId)
+    report.transcripts = await transcriptRepository.getByInterview(interviewId)
     res.json({ success: true, data: await attachSignedReportUrl(report) })
   } catch (err) {
     console.error('GET /reports/interview/:id failed:', err)
@@ -89,7 +89,7 @@ router.get('/detail/:id', async (req, res) => {
     const reportId = parseInt(req.params.id, 10)
     const report = await reportRepository.getDetailByIdForManager(reportId, req.user.id)
     if (!report) return res.status(404).json({ success: false, error: 'Report not found' })
-    report.transcripts = await transcriptRepository.getByInterviewId(report.interview_id)
+    report.transcripts = await transcriptRepository.getByInterview(report.interview_id)
     res.json({ success: true, data: await attachSignedReportUrl(report) })
   } catch (err) {
     console.error('GET /reports/detail/:id failed:', err)
@@ -115,7 +115,7 @@ router.get('/interview/:id', async (req, res) => {
     const interviewId = parseInt(req.params.id, 10)
     const report = await reportRepository.getDetailByInterviewForManager(interviewId, req.user.id)
     if (!report) return res.status(404).json({ success: false, error: 'Report not found' })
-    report.transcripts = await transcriptRepository.getByInterviewId(interviewId)
+    report.transcripts = await transcriptRepository.getByInterview(interviewId)
     res.json({ success: true, data: await attachSignedReportUrl(report) })
   } catch (err) {
     console.error('GET /reports/interview/:id failed:', err)
@@ -129,7 +129,7 @@ router.get('/detail/:id', async (req, res) => {
     const reportId = parseInt(req.params.id, 10)
     const report = await reportRepository.getDetailByIdForManager(reportId, req.user.id)
     if (!report) return res.status(404).json({ success: false, error: 'Report not found' })
-    report.transcripts = await transcriptRepository.getByInterviewId(report.interview_id)
+    report.transcripts = await transcriptRepository.getByInterview(report.interview_id)
     res.json({ success: true, data: await attachSignedReportUrl(report) })
   } catch (err) {
     console.error('GET /reports/detail/:id failed:', err)

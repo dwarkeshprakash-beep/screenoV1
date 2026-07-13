@@ -538,18 +538,18 @@ function MonthlyAssessmentPage() {
     const name = `${enrollment.first_name || ''} ${enrollment.last_name || ''}`.trim()
     setConfirmDialog({
       open: true,
-      title: 'Cancel monthly plan',
-      message: `Cancel ${name}'s ${enrollment.subject_name || 'monthly assessment'} plan? Future slots and pending invites will be cancelled, while completed interviews and reports stay in history.`,
+      title: 'Delete monthly plan',
+      message: `Delete ${name}'s ${enrollment.subject_name || 'monthly assessment'} plan? This removes its future slots, pending invites, interviews, and reports for this plan.`,
       danger: true,
-      confirmText: 'Cancel Plan',
+      confirmText: 'Delete',
       onConfirm: async () => {
         setCancellingEnrollmentId(enrollment.id)
         setPlanError(null)
         try {
-          await api.cancelMonthlyEnrollment(enrollment.id)
+          await api.removeMonthlyEnrollment(enrollment.id)
           await refreshAll()
         } catch (cancelError) {
-          setPlanError(cancelError.message || 'Could not cancel the monthly assessment plan.')
+          setPlanError(cancelError.message || 'Could not delete the monthly assessment plan.')
         } finally {
           setCancellingEnrollmentId(null)
         }
@@ -754,7 +754,7 @@ function MonthlyAssessmentPage() {
           <div className="month-navigator">
             <div className="workspace-intro">
               <h2>{monthLabel(month)}</h2>
-              <p>See assigned candidates, open capacity, and remove full monthly plans when needed.</p>
+              <p>See assigned candidates, open capacity, and delete full monthly plans when needed.</p>
             </div>
             <div className="month-navigator__actions">
               <button type="button" className="icon-button" onClick={() => setMonth(value => shiftMonth(value, -1))} aria-label="Previous month">
@@ -836,8 +836,8 @@ function MonthlyAssessmentPage() {
                                       className="danger-icon-button"
                                       disabled={cancellingEnrollmentId === candidate.id}
                                       onClick={() => removeEnrollment({ ...candidate, subject_name: subject.subject_name, duration_months: subject.duration_months })}
-                                      aria-label={`Cancel ${name}'s full monthly plan`}
-                                      title="Cancel full plan"
+                                      aria-label={`Delete ${name}'s full monthly plan`}
+                                      title="Delete full plan"
                                     >
                                       <Trash2 size={14} />
                                     </button>

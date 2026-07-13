@@ -8,6 +8,8 @@ const monthlyAssessmentRepository = require('../repositories/monthly-assessment.
 const emailDeliveryRepository = require('../repositories/email-delivery.repository')
 const emailService = require('./email.service')
 
+const inviteWindowDays = Number(process.env.INVITE_WINDOW_DAYS || 14)
+
 async function validateContext(data, managerId) {
   if (data.clientTemplateId && data.monthlyAssessmentId) {
     throw new Error('Choose either a client template or a monthly assessment')
@@ -123,7 +125,7 @@ async function createSchedule(data, managerId, companyId) {
 
   const token = crypto.randomBytes(32).toString('hex')
   const tokenHash = crypto.createHash('sha256').update(token).digest('hex')
-  const windowDays = 7
+  const windowDays = inviteWindowDays
   const tokenExpires = dueAt 
     ? new Date(new Date(dueAt).getTime() + windowDays * 24 * 60 * 60 * 1000)
     : new Date(Date.now() + windowDays * 24 * 60 * 60 * 1000)
@@ -280,7 +282,7 @@ async function resendMagicLink(interviewId, managerId) {
 
   const newToken = crypto.randomBytes(32).toString('hex')
   const newTokenHash = crypto.createHash('sha256').update(newToken).digest('hex')
-  const windowDays = 7
+  const windowDays = inviteWindowDays
   const tokenExpires = new Date(Date.now() + windowDays * 24 * 60 * 60 * 1000)
   await interviewRepository.updateTokenHash(interviewId, newTokenHash, tokenExpires)
 
@@ -380,7 +382,7 @@ async function rescheduleInterview(interviewId, managerId, data) {
 
   const newToken = crypto.randomBytes(32).toString('hex')
   const newTokenHash = crypto.createHash('sha256').update(newToken).digest('hex')
-  const windowDays = 7
+  const windowDays = inviteWindowDays
   const tokenExpires = dueAt 
     ? new Date(new Date(dueAt).getTime() + windowDays * 24 * 60 * 60 * 1000)
     : new Date(Date.now() + windowDays * 24 * 60 * 60 * 1000)

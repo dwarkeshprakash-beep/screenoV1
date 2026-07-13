@@ -29,7 +29,7 @@ router.post('/resume', documentUpload.single('resume'), async (req, res) => {
         req.file
       )
       url = uploaded.url
-      await userRepository.updateProfile(member.user_id, { resumeUrl: url })
+      await userRepository.updateProfile(member.user_id, { resumeUrl: uploaded.path })
 
       async function extractTags() {
         try {

@@ -42,7 +42,8 @@ async function getByMandate(mandateId) {
             cmr.years_max AS requirement_years_max,
             cmr.headcount AS requirement_headcount,
             cmr.jd_text AS requirement_jd_text,
-            cmr.resume_deadline AS requirement_resume_deadline
+            cmr.resume_deadline AS requirement_resume_deadline,
+            cmr.tags AS requirement_tags
      FROM client_teams ct
      JOIN users u ON u.id = ct.user_id
      LEFT JOIN client_mandate_requirements cmr ON cmr.id = ct.requirement_id

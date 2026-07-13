@@ -5,6 +5,29 @@ const teamMemberRepository = require('../repositories/team-member.repository')
 const userRepository = require('../repositories/user.repository')
 const interviewRepository = require('../repositories/interview.repository')
 const externalCandidateRepository = require('../repositories/external-candidate.repository')
+const storageService = require('./storage.service')
+
+function isHttpUrl(value) {
+  return /^https?:\/\//i.test(String(value || ''))
+}
+
+async function withSignedResumeUrl(profile) {
+  if (!profile?.resume_url || isHttpUrl(profile.resume_url)) return profile
+  try {
+    return {
+      ...profile,
+      resume_storage_path: profile.resume_url,
+      resume_url: await storageService.getSignedUrl(profile.resume_url),
+    }
+  } catch (err) {
+    console.error('Failed to sign manager resume URL:', err.message)
+    return {
+      ...profile,
+      resume_storage_path: profile.resume_url,
+      resume_url: null,
+    }
+  }
+}
 
 async function getTeam(managerId, filter = 'all') {
   return teamMemberRepository.getByManager(managerId, filter)
@@ -13,7 +36,7 @@ async function getTeam(managerId, filter = 'all') {
 async function getMember(id, managerId) {
   const member = await teamMemberRepository.getByIdForManager(id, managerId)
   if (!member) throw new Error('Member not found')
-  return member
+  return withSignedResumeUrl(member)
 }
 
 async function addMember(data, companyId, managerId) {
@@ -250,7 +273,7 @@ async function getOrganizationMemberProfile(userId, companyId, managerId) {
   profile.in_team = tmRows.length > 0
   profile.team_member_id = tmRows[0]?.id || null
 
-  return profile
+  return withSignedResumeUrl(profile)
 }
 
 async function getOrganizationMemberInterviews(userId, managerId) {

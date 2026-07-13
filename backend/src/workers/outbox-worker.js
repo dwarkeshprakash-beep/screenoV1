@@ -8,6 +8,7 @@ const crypto = require('crypto')
 
 const BATCH_SIZE = 10
 const MAX_ATTEMPTS = 3
+const inviteWindowDays = Number(process.env.INVITE_WINDOW_DAYS || 14)
 
 async function processOutboxJobs() {
   let processedCount = 0
@@ -81,9 +82,10 @@ async function processJob(job) {
     const rawToken = crypto.randomBytes(32).toString('hex')
     const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex')
 
-    // Expiry = due_at + 24 hours
+    // Keep emailed links usable beyond the close time so late clicks can show a
+    // clear reschedule message instead of looking like a broken link.
     const dueAt = interview.due_at ? new Date(interview.due_at) : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
-    const expiresAt = new Date(dueAt.getTime() + 24 * 60 * 60 * 1000)
+    const expiresAt = new Date(dueAt.getTime() + inviteWindowDays * 24 * 60 * 60 * 1000)
 
     await db.query(
       `UPDATE interviews SET token = @tokenHash, token_expires = @expiresAt WHERE id = @id`,
@@ -95,7 +97,7 @@ async function processJob(job) {
       interviewToken: rawToken,
       companyName: payload.companyName || 'Your organization',
       jobTitle: payload.jobTitle || 'Monthly Assessment',
-      windowDays: 0,
+      windowDays: inviteWindowDays,
       assessmentDate: interview.available_from,
       scheduleTimezone: interview.schedule_timezone,
       details: payload.details || null,

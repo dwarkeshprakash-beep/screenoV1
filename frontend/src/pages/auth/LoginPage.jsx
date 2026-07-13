@@ -37,10 +37,11 @@ function parseDemoAccounts() {
 }
 
 const showDemoAccounts = import.meta.env.VITE_SHOW_DEMO_ACCOUNTS === 'true'
+const showQuickAccessAccounts = import.meta.env.VITE_SHOW_QUICK_ACCESS_ACCOUNTS !== 'false'
 const configuredDemoAccounts = showDemoAccounts
   ? parseDemoAccounts()
   : []
-const QUICK_ACCESS_ACCOUNTS = showDemoAccounts ? [
+const QUICK_ACCESS_ACCOUNTS = showQuickAccessAccounts ? [
   {
     role: 'manager',
     name: 'Kiran Oza',

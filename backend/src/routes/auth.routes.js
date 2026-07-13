@@ -9,10 +9,16 @@ const authService = require('../services/auth.service')
 const router = express.Router()
 
 const COOKIE_NAME = 'refreshToken'
+const cookieSameSite = String(
+  process.env.COOKIE_SAMESITE || (process.env.NODE_ENV === 'production' ? 'none' : 'lax')
+).toLowerCase()
+const cookieSecure = process.env.COOKIE_SECURE
+  ? process.env.COOKIE_SECURE === 'true'
+  : process.env.NODE_ENV === 'production' || cookieSameSite === 'none'
 const COOKIE_OPTIONS = {
   httpOnly: true,
-  secure: process.env.NODE_ENV === 'production',
-  sameSite: 'strict',
+  secure: cookieSecure,
+  sameSite: cookieSameSite,
   path: '/api/auth',
   maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days in ms
 }

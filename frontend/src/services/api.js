@@ -11,6 +11,15 @@ export class ApiError extends Error {
   }
 }
 
+class RefreshError extends Error {
+  constructor(message, type, statusCode) {
+    super(message)
+    this.name = 'RefreshError'
+    this.type = type || 'SESSION_REFRESH_FAILED'
+    this.statusCode = statusCode || 0
+  }
+}
+
 function clearSession() {
   localStorage.removeItem('accessToken')
   localStorage.removeItem('user')
@@ -80,13 +89,17 @@ async function doRefreshFetch() {
     headers: { 'Content-Type': 'application/json' },
   })
   if (!response.ok) {
+    const body = await response.json().catch(() => ({}))
     if (response.status === 401) {
-      const body = await response.json().catch(() => ({}))
       if (body.error === 'TOKEN_REUSE') {
-         throw new Error('Token reuse detected')
+        throw new RefreshError('Token reuse detected', 'TOKEN_REUSE', response.status)
       }
     }
-    throw new Error('Session refresh failed')
+    throw new RefreshError(
+      body.message || body.error || 'Session refresh failed',
+      body.error || 'SESSION_REFRESH_FAILED',
+      response.status
+    )
   }
   const body = await response.json()
   if (!body?.data?.accessToken) throw new Error('Session refresh failed')
@@ -208,10 +221,13 @@ async function request(endpoint, options = {}) {
   if (response.status === 401 && canRefresh) {
     try {
       response = await runFetch(endpoint, fetchOptions, await refreshAccessToken())
-    } catch {
-      clearSession()
-      window.dispatchEvent(new CustomEvent('auth_expired'))
-      throw new Error('Your session has expired')
+    } catch (err) {
+      if (err instanceof RefreshError && err.statusCode === 401) {
+        clearSession()
+        window.dispatchEvent(new CustomEvent('auth_expired'))
+        throw new ApiError('Your session has expired', err.type, 401)
+      }
+      throw new ApiError('Could not refresh your session. Please try again.', err?.type || 'SESSION_REFRESH_FAILED', err?.statusCode || 503)
     }
   }
 
