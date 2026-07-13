@@ -22,6 +22,7 @@ const CHECKS = [
   { id: 'screen', label: 'Screen environment', icon: Monitor, detail: 'Screen check complete' },
 ]
 const REQUIRED_CHECK_IDS = ['microphone', 'speaker', 'network', 'screen']
+const AUTOMATED_REQUIRED_CHECK_IDS = ['microphone', 'network', 'screen']
 
 function DeviceCheckPage() {
   const { token } = useParams()
@@ -147,9 +148,8 @@ function DeviceCheckPage() {
   const finished = CHECKS
     .filter(check => check.id !== 'speaker')
     .every(check => ['pass', 'fail'].includes(statuses[check.id]))
-  const hasFailedAutomatedCheck = CHECKS
-    .filter(check => check.id !== 'speaker')
-    .some(check => statuses[check.id] === 'fail')
+  const hasFailedAutomatedCheck = AUTOMATED_REQUIRED_CHECK_IDS
+    .some(id => statuses[id] === 'fail')
   const speakerPending = finished && statuses.speaker !== 'pass' && !hasFailedAutomatedCheck
 
   return (

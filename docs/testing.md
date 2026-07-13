@@ -28,6 +28,8 @@ VITE_SHOW_DEMO_ACCOUNTS=true
 VITE_DEMO_ACCOUNTS=[{"role":"manager","name":"Manager Test","sub":"Test account","email":"manager@example.test","password":"replace-locally"}]
 ```
 
+For production test/demo deployments, `frontend/vercel.json` enables the demo-account UI with `VITE_SHOW_DEMO_ACCOUNTS=true`. Demo passwords still must come from deployment environment variables; do not commit real passwords.
+
 ## Automated Checks
 
 ```powershell
