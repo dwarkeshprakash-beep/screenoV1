@@ -38,6 +38,7 @@ function parseDemoAccounts() {
 
 const showDemoAccounts = import.meta.env.VITE_SHOW_DEMO_ACCOUNTS === 'true'
 const showQuickAccessAccounts = import.meta.env.VITE_SHOW_QUICK_ACCESS_ACCOUNTS !== 'false'
+const quickAccessPassword = import.meta.env.VITE_QUICK_LOGIN_DEFAULT_PASSWORD || 'Test@1234'
 const configuredDemoAccounts = showDemoAccounts
   ? parseDemoAccounts()
   : []
@@ -48,7 +49,7 @@ const QUICK_ACCESS_ACCOUNTS = showQuickAccessAccounts ? [
     sub: 'Manager quick access',
     initials: 'KO',
     email: 'kiran.oza@prakashinfotech.com',
-    password: import.meta.env.VITE_QUICK_LOGIN_KIRAN_PASSWORD || import.meta.env.VITE_QUICK_LOGIN_MANAGER_PASSWORD || '',
+    password: import.meta.env.VITE_QUICK_LOGIN_KIRAN_PASSWORD || import.meta.env.VITE_QUICK_LOGIN_MANAGER_PASSWORD || quickAccessPassword,
     bgColor: '#EDE9FE',
     fgColor: '#5B21B6',
     badgeBg: '#3730A3',
@@ -60,7 +61,7 @@ const QUICK_ACCESS_ACCOUNTS = showQuickAccessAccounts ? [
     sub: 'Candidate quick access',
     initials: 'DV',
     email: 'dwarkesh.vajjala@prakashinfotech.com',
-    password: import.meta.env.VITE_QUICK_LOGIN_DWARKESH_PASSWORD || import.meta.env.VITE_QUICK_LOGIN_CANDIDATE_PASSWORD || '',
+    password: import.meta.env.VITE_QUICK_LOGIN_DWARKESH_PASSWORD || import.meta.env.VITE_QUICK_LOGIN_CANDIDATE_PASSWORD || quickAccessPassword,
     bgColor: '#FEE2E2',
     fgColor: '#B91C1C',
     badgeBg: '#7F1D1D',
