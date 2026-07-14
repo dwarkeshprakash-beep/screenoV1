@@ -943,8 +943,8 @@ function ScheduleClientTeamModal({ open, onClose, onScheduled, member, template 
       setError('Select an interviewer.')
       return false
     }
-    if ((type === 'ai_voice' || type === 'exam') && (Number(durationMinutes) < 15 || Number(durationMinutes) > 180)) {
-      setError('Duration must be between 15 and 180 minutes.')
+    if ((type === 'ai_voice' || type === 'exam') && (Number(durationMinutes) < 2 || Number(durationMinutes) > 180)) {
+      setError('Duration must be between 2 and 180 minutes.')
       return false
     }
     setError(null)
@@ -1031,7 +1031,7 @@ function ScheduleClientTeamModal({ open, onClose, onScheduled, member, template 
             )}
             {type === 'ai_voice' && (
               <Field label="Duration (minutes)">
-                <input className="form-input" type="number" min="15" max="180" value={durationMinutes} onChange={e => setDurationMinutes(e.target.value)} />
+                <input className="form-input" type="number" min="2" max="180" value={durationMinutes} onChange={e => setDurationMinutes(e.target.value)} />
               </Field>
             )}
           </div>
@@ -1048,7 +1048,7 @@ function ScheduleClientTeamModal({ open, onClose, onScheduled, member, template 
               <input className="form-input" type="number" min="1" max="50" value={questionCount} onChange={e => setQuestionCount(e.target.value)} />
             </Field>
             <Field label="Duration (minutes)">
-              <input className="form-input" type="number" min="15" max="180" value={durationMinutes} onChange={e => setDurationMinutes(e.target.value)} />
+              <input className="form-input" type="number" min="2" max="180" value={durationMinutes} onChange={e => setDurationMinutes(e.target.value)} />
             </Field>
           </div>
         )}
@@ -1344,7 +1344,12 @@ function MandateDetail({ initialTemplate, onBack }) {
   const [reports, setReports] = useState([])
   const [reportsError, setReportsError] = useState(null)
   const [flowRuns, setFlowRuns] = useState([])
+  const [scheduleRows, setScheduleRows] = useState([])
   const [flowRunsError, setFlowRunsError] = useState(null)
+  const [scheduleQuery, setScheduleQuery] = useState('')
+  const [scheduleKind, setScheduleKind] = useState('all')
+  const [scheduleStatus, setScheduleStatus] = useState('all')
+  const [scheduleType, setScheduleType] = useState('all')
   const [retryDates, setRetryDates] = useState({})
   const [selectedReport, setSelectedReport] = useState(null)
   const [reportDetailLoading, setReportDetailLoading] = useState(false)
@@ -1454,9 +1459,15 @@ function MandateDetail({ initialTemplate, onBack }) {
   useEffect(() => {
     if (tab !== 'flows') return
     setFlowRunsError(null)
-    api.getMandateInterviewFlowRuns(template.id)
-      .then(response => setFlowRuns(response.data || []))
-      .catch(err => setFlowRunsError(err.message || 'Failed to load interview flows'))
+    Promise.all([
+      api.getMandateInterviewFlowRuns(template.id),
+      api.getMandateSchedules(template.id),
+    ])
+      .then(([runsResponse, schedulesResponse]) => {
+        setFlowRuns(runsResponse.data || [])
+        setScheduleRows(schedulesResponse.data || [])
+      })
+      .catch(err => setFlowRunsError(err.message || 'Failed to load schedules'))
   }, [tab, template.id])
 
   const teamMembers = useMemo(() => members.filter(m => m.in_team), [members])
@@ -1567,9 +1578,38 @@ function MandateDetail({ initialTemplate, onBack }) {
     return map
   }, new Map()).values()]
 
+  const scheduleMatchesQuery = item => {
+    const normalized = scheduleQuery.trim().toLowerCase()
+    if (!normalized) return true
+    return [item.candidate_first, item.candidate_last, item.candidate_email, item.flow_name, item.stage_name]
+      .some(value => String(value || '').toLowerCase().includes(normalized))
+  }
+  const scheduleMatchesStatus = status => {
+    if (scheduleStatus === 'all') return true
+    if (scheduleStatus === 'upcoming') return !['completed', 'cancelled'].includes(status)
+    return status === scheduleStatus
+  }
+  const visibleSingleSchedules = scheduleRows.filter(row => (
+    !row.flow_stage_run_id
+    && scheduleKind !== 'flow'
+    && scheduleMatchesQuery(row)
+    && scheduleMatchesStatus(row.status)
+    && (scheduleType === 'all' || row.type === scheduleType)
+  ))
+  const visibleFlowRuns = groupedFlowRuns.filter(run => (
+    scheduleKind !== 'single'
+    && scheduleMatchesQuery(run)
+    && scheduleMatchesStatus(run.run_status)
+    && (scheduleType === 'all' || run.stages.some(stage => stage.type === scheduleType))
+  ))
+
   async function refreshFlowRuns() {
-    const response = await api.getMandateInterviewFlowRuns(template.id)
-    setFlowRuns(response.data || [])
+    const [runsResponse, schedulesResponse] = await Promise.all([
+      api.getMandateInterviewFlowRuns(template.id),
+      api.getMandateSchedules(template.id),
+    ])
+    setFlowRuns(runsResponse.data || [])
+    setScheduleRows(schedulesResponse.data || [])
   }
 
   async function continuePausedRun(runId) {
@@ -1636,7 +1676,7 @@ function MandateDetail({ initialTemplate, onBack }) {
       </div>
 
       <div className="workspace-tabs" aria-label="Mandate sections" style={{ alignSelf: 'flex-start' }}>
-        {[['overview', 'Overview'], ['jd', 'Job description'], ['candidates', 'Candidates'], ['team', 'Client team'], ['flows', 'Interview flows'], ['reports', 'Reports']].map(([id, label]) => (
+        {[['overview', 'Overview'], ['jd', 'Job description'], ['candidates', 'Candidates'], ['team', 'Client team'], ['flows', 'Schedules'], ['reports', 'Reports']].map(([id, label]) => (
           <button key={id} type="button" className={`workspace-tabs__button${tab === id ? ' is-active' : ''}`} onClick={() => setTab(id)}>{label}</button>
         ))}
       </div>
@@ -1928,11 +1968,49 @@ function MandateDetail({ initialTemplate, onBack }) {
 
         {tab === 'flows' && (
           <div className="workspace-stack">
-            <div className="workspace-section-heading"><div><h3>Candidate interview flows</h3><p>Stages schedule one at a time after completion and progression checks.</p></div></div>
+            <div className="workspace-section-heading"><div><h3>Schedules</h3><p>All one-time interviews and candidate flows for this mandate.</p></div></div>
             {flowRunsError && <ErrorMessage message={flowRunsError} />}
-            {groupedFlowRuns.length === 0 && !flowRunsError
-              ? <EmptyState message="No candidate flows have been started for this mandate." />
-              : groupedFlowRuns.map(run => (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(155px, 1fr))', gap: 10 }}>
+              <label style={{ position: 'relative', gridColumn: 'span 2' }}>
+                <Search size={14} style={{ position: 'absolute', left: 11, top: 11, color: 'var(--fg-subtle)' }} />
+                <input className="form-input" style={{ paddingLeft: 34 }} value={scheduleQuery} onChange={event => setScheduleQuery(event.target.value)} placeholder="Search candidate name or email..." />
+              </label>
+              <select className="form-input" value={scheduleKind} onChange={event => setScheduleKind(event.target.value)} aria-label="Schedule kind">
+                <option value="all">All schedules</option><option value="single">Single interviews</option><option value="flow">Interview flows</option>
+              </select>
+              <select className="form-input" value={scheduleStatus} onChange={event => setScheduleStatus(event.target.value)} aria-label="Schedule status">
+                <option value="all">All statuses</option><option value="upcoming">Upcoming</option><option value="completed">Completed</option><option value="cancelled">Cancelled</option>
+              </select>
+              <select className="form-input" value={scheduleType} onChange={event => setScheduleType(event.target.value)} aria-label="Interview type">
+                <option value="all">All interview types</option><option value="ai_voice">AI Voice</option><option value="exam">AI Exam</option><option value="human">Human Video</option><option value="offline">Offline</option>
+              </select>
+            </div>
+
+            {visibleSingleSchedules.length > 0 && (
+              <section className="workspace-card">
+                <div className="workspace-card__body">
+                  <div className="workspace-section-heading"><div><h3>Single interviews</h3><p>{visibleSingleSchedules.length} matching schedule{visibleSingleSchedules.length === 1 ? '' : 's'}</p></div></div>
+                  <div className="assignment-list">
+                    {visibleSingleSchedules.map(interview => (
+                      <div className="assignment-row" key={interview.interview_id}>
+                        <span className="status-pill">{INTERVIEW_TYPES.find(item => item.value === interview.type)?.label || interview.type}</span>
+                        <div className="assignment-row__content">
+                          <strong>{interview.candidate_first} {interview.candidate_last}</strong>
+                          <span>{interview.scheduled_at ? formatDateTime(interview.scheduled_at) : formatDate(interview.created)}{interview.location ? ` | ${interview.location}` : ''}</span>
+                          {interview.interviewer_first && <span>Interviewer: {interview.interviewer_first} {interview.interviewer_last}</span>}
+                        </div>
+                        {interview.decision && <span className={`status-pill${interview.decision === 'pass' ? ' status-pill--success' : ' status-pill--danger'}`}>{interview.decision === 'pass' ? 'passed' : 'failed'}</span>}
+                        <span className={`status-pill${interview.status === 'completed' ? ' status-pill--success' : interview.status === 'cancelled' ? ' status-pill--danger' : ' status-pill--brand'}`}>{interview.status}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {visibleSingleSchedules.length === 0 && visibleFlowRuns.length === 0 && !flowRunsError
+              ? <EmptyState message="No schedules match these filters." />
+              : visibleFlowRuns.map(run => (
                 <section key={run.run_id} className="workspace-card">
                   <div className="workspace-card__body">
                     <div className="workspace-section-heading">

@@ -3,6 +3,7 @@ import { Plus, Trash2 } from 'lucide-react'
 import Button from '../shared/Button'
 import ErrorMessage from '../shared/ErrorMessage'
 import Modal from '../shared/Modal'
+import ReportRecipientsSelector from './ReportRecipientsSelector'
 import * as api from '../../services/api'
 import { serializeDatetimeLocal } from '../../utils/helpers'
 
@@ -81,6 +82,7 @@ function InterviewFlowModal({ open, mandate, member, initialFlowId = '', onClose
   const [users, setUsers] = useState([])
   const [flows, setFlows] = useState([])
   const [existingFlowId, setExistingFlowId] = useState('')
+  const [reportUserIds, setReportUserIds] = useState([])
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
 
@@ -101,6 +103,7 @@ function InterviewFlowModal({ open, mandate, member, initialFlowId = '', onClose
   function populateFlow(flow) {
     setExistingFlowId(String(flow.id))
     setName(flow.name)
+    setReportUserIds(Array.isArray(flow.report_user_ids) ? flow.report_user_ids.map(Number) : [])
     setStages(flow.stages.map(editableStage))
     setError(null)
   }
@@ -109,6 +112,7 @@ function InterviewFlowModal({ open, mandate, member, initialFlowId = '', onClose
     if (!value) {
       setExistingFlowId('')
       setName('Candidate interview flow')
+      setReportUserIds([])
       setStages([blankStage(1)])
       return
     }
@@ -161,6 +165,7 @@ function InterviewFlowModal({ open, mandate, member, initialFlowId = '', onClose
     return {
       mandateId: mandate.id,
       name,
+      reportUserIds,
       stages: serializedStages,
     }
   }
@@ -248,6 +253,12 @@ function InterviewFlowModal({ open, mandate, member, initialFlowId = '', onClose
           <input className="form-input" value={name} onChange={event => setName(event.target.value)} />
         </div>
 
+        <ReportRecipientsSelector
+          selectedIds={reportUserIds}
+          onChange={setReportUserIds}
+          help="Every AI report produced by this flow will be emailed to these users. Leave empty to send no report email."
+        />
+
         {stages.map((stage, index) => {
           const needsInterviewer = stage.type === 'human' || stage.type === 'offline'
           return (
@@ -260,7 +271,7 @@ function InterviewFlowModal({ open, mandate, member, initialFlowId = '', onClose
                 <label className="form-field"><span className="form-label">Stage name</span><input className="form-input" value={stage.name} onChange={event => updateStage(stage.key, 'name', event.target.value)} /></label>
                 <label className="form-field"><span className="form-label">Type</span><select className="form-input" value={stage.type} onChange={event => updateStage(stage.key, 'type', event.target.value)}>{TYPES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
                 <label className="form-field"><span className="form-label">Date and time</span><input className="form-input" type="datetime-local" min={index > 0 ? nextStageStart(stages[index - 1].scheduledAt, stages[index - 1].durationMinutes) : undefined} value={stage.scheduledAt} onChange={event => updateStage(stage.key, 'scheduledAt', event.target.value)} />{index > 0 && <span className="form-help">Can start as soon as the previous stage ends, including on the same day.</span>}</label>
-                <label className="form-field"><span className="form-label">Duration (minutes)</span><input className="form-input" type="number" min="15" max="180" value={stage.durationMinutes} onChange={event => updateStage(stage.key, 'durationMinutes', event.target.value)} /></label>
+                <label className="form-field"><span className="form-label">Duration (minutes)</span><input className="form-input" type="number" min="2" max="180" value={stage.durationMinutes} onChange={event => updateStage(stage.key, 'durationMinutes', event.target.value)} /></label>
                 {(stage.type === 'ai_voice' || stage.type === 'exam') && <label className="form-field"><span className="form-label">Questions</span><input className="form-input" type="number" min="1" max="50" value={stage.questionCount} onChange={event => updateStage(stage.key, 'questionCount', event.target.value)} /></label>}
                 {needsInterviewer && <label className="form-field"><span className="form-label">Interviewer</span><select className="form-input" value={stage.interviewerUserId} onChange={event => updateStage(stage.key, 'interviewerUserId', event.target.value)}><option value="">Select interviewer</option>{users.map(user => <option key={user.id} value={user.id}>{user.first_name} {user.last_name} ({user.email})</option>)}</select></label>}
                 {stage.type === 'offline' && <label className="form-field form-field--full"><span className="form-label">Location</span><input className="form-input" value={stage.location} onChange={event => updateStage(stage.key, 'location', event.target.value)} /></label>}

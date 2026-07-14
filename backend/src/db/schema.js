@@ -95,7 +95,8 @@ const SCHEMA = {
     ],
   },
   interview_flows: {
-    columns: ['id', 'mandate_id', 'name', 'status', 'created_by_manager_id', 'created', 'updated'],
+    columns: ['id', 'mandate_id', 'name', 'status', 'created_by_manager_id',
+      'report_user_ids', 'created', 'updated'],
   },
   interview_flow_stages: {
     columns: ['id', 'flow_id', 'stage_order', 'name', 'type', 'scheduled_at',

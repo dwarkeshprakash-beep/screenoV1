@@ -190,9 +190,10 @@ async function getByCandidateIdentity({ internalUserId = null, externalCandidate
       ? { sql: 'i.external_candidate_id = @candidateId', candidateId: externalCandidateId }
       : { sql: '1 = 0', candidateId: null }
   return db.query(
-    `SELECT i.*, ${INTERVIEW_COLS}
+    `SELECT i.*, ${INTERVIEW_COLS}, sc.decision AS candidate_decision
      FROM interviews i
      ${INTERVIEW_JOINS}
+     LEFT JOIN scorecards sc ON sc.interview_id = i.id
      WHERE ${predicate.sql}
      ORDER BY i.created DESC`,
     predicate.candidateId === null ? {} : { candidateId: predicate.candidateId }

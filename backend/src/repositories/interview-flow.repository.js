@@ -3,8 +3,8 @@ const db = require('../db/connection')
 /** Create a mandate flow. */
 async function createFlow(data) {
   const rows = await db.query(
-    `INSERT INTO interview_flows (mandate_id, name, created_by_manager_id)
-     VALUES (@mandateId, @name, @managerId)
+    `INSERT INTO interview_flows (mandate_id, name, created_by_manager_id, report_user_ids)
+     VALUES (@mandateId, @name, @managerId, @reportUserIds)
      RETURNING *`, data
   )
   return rows[0]
@@ -61,9 +61,10 @@ async function getOwnedFlow(flowId, managerId) {
 /** Update an owned flow header. */
 async function updateFlow(flowId, managerId, data) {
   const rows = await db.query(
-    `UPDATE interview_flows SET name = @name, updated = CURRENT_TIMESTAMP
+    `UPDATE interview_flows
+     SET name = @name, report_user_ids = @reportUserIds, updated = CURRENT_TIMESTAMP
      WHERE id = @flowId AND created_by_manager_id = @managerId AND status != 'deleted'
-     RETURNING *`, { flowId, managerId, name: data.name }
+     RETURNING *`, { flowId, managerId, name: data.name, reportUserIds: data.reportUserIds }
   )
   return rows[0] || null
 }
@@ -107,6 +108,7 @@ async function syncScheduledStageInterviews(stageId, flowId, data) {
            duration_minutes = @durationMinutes, scheduled_at = @scheduledAt,
            available_from = @scheduledAt, due_at = @dueAt,
            token_expires = @tokenExpires,
+           report_emails = @reportEmails,
            schedule_timezone = @scheduleTimezone, location = @location,
            meeting_url = @meetingUrl
        WHERE id = ANY(@interviewIds) AND status = 'scheduled'
@@ -316,6 +318,7 @@ async function getContextByInterview(interviewId) {
 async function getRun(runId) {
   const rows = await db.query(
     `SELECT r.*, f.mandate_id, f.name AS flow_name, ct.user_id,
+            f.report_user_ids,
             t.client_name, COALESCE(cmr.profile_name, t.requirements) AS role_name
      FROM candidate_flow_runs r
      JOIN interview_flows f ON f.id = r.flow_id
@@ -386,7 +389,8 @@ async function listAssignmentsForUser(userId) {
             COALESCE(c.first_name, ec.first_name) AS candidate_first,
             COALESCE(c.last_name, ec.last_name) AS candidate_last,
             f.name AS flow_name, COALESCE(s.name, 'Single interview') AS stage_name,
-            s.stage_order, COALESCE(t.client_name, ct.client_name) AS client_name
+            s.stage_order, COALESCE(t.client_name, ct.client_name) AS client_name,
+            af.original_filename, af.storage_path
      FROM interview_assignments a
      JOIN interviews i ON i.id = a.interview_id
      LEFT JOIN users c ON c.id = i.internal_user_id
@@ -397,6 +401,7 @@ async function listAssignmentsForUser(userId) {
      LEFT JOIN interview_flows f ON f.id = r.flow_id
      LEFT JOIN client_templates t ON t.id = f.mandate_id
      LEFT JOIN client_templates ct ON ct.id = i.client_template_id
+     LEFT JOIN interview_assignment_files af ON af.assignment_id = a.id
      WHERE a.interviewer_user_id = @userId AND i.status != 'cancelled'
      ORDER BY i.scheduled_at DESC`, { userId }
   )
@@ -425,6 +430,19 @@ async function completeAssignment(assignmentId, userId, outcome, feedback) {
   return rows[0] || null
 }
 
+/** Allow a completed interviewer to correct only their written feedback. */
+async function updateAssignmentFeedback(assignmentId, userId, feedback) {
+  const rows = await db.query(
+    `UPDATE interview_assignments
+     SET feedback = @feedback, updated = CURRENT_TIMESTAMP
+     WHERE id = @assignmentId AND interviewer_user_id = @userId
+       AND status = 'completed'
+     RETURNING *`,
+    { assignmentId, userId, feedback }
+  )
+  return rows[0] || null
+}
+
 /** Store an assignment feedback file. */
 async function createAssignmentFile(data) {
   const rows = await db.query(
@@ -442,6 +460,7 @@ async function listRunsByMandate(mandateId, managerId) {
     `SELECT r.id AS run_id, r.status AS run_status, r.current_stage_order,
             f.id AS flow_id, f.name AS flow_name, ct.id AS client_team_id,
             u.id AS candidate_user_id, u.first_name AS candidate_first, u.last_name AS candidate_last,
+            u.email AS candidate_email,
             sr.id AS stage_run_id, sr.stage_order, sr.status AS stage_status,
             sr.outcome AS stage_outcome, sr.attempt_number, sr.interview_id,
             s.name AS stage_name, s.type, s.scheduled_at, s.require_pass,
@@ -460,6 +479,35 @@ async function listRunsByMandate(mandateId, managerId) {
      LEFT JOIN interview_assignment_files af ON af.assignment_id = a.id
      WHERE f.mandate_id = @mandateId AND r.created_by_manager_id = @managerId
      ORDER BY r.created DESC, sr.stage_order, sr.attempt_number`, { mandateId, managerId }
+  )
+}
+
+/** List every scheduled interview for a mandate, including flow and one-off interviews. */
+async function listSchedulesByMandate(mandateId, managerId) {
+  return db.query(
+    `SELECT i.id AS interview_id, i.type, i.status, i.result, i.scheduled_at,
+            i.duration_minutes, i.location, i.meeting_url, i.created,
+            i.flow_stage_run_id,
+            u.id AS candidate_user_id, u.first_name AS candidate_first,
+            u.last_name AS candidate_last, u.email AS candidate_email,
+            sr.run_id, sr.stage_order, sr.status AS stage_status,
+            f.id AS flow_id, f.name AS flow_name, s.name AS stage_name,
+            a.id AS assignment_id, a.status AS assignment_status,
+            a.outcome AS interviewer_outcome, a.feedback,
+            iu.first_name AS interviewer_first, iu.last_name AS interviewer_last,
+            sc.decision
+     FROM interviews i
+     JOIN users u ON u.id = i.internal_user_id
+     LEFT JOIN candidate_flow_stage_runs sr ON sr.id = i.flow_stage_run_id
+     LEFT JOIN candidate_flow_runs r ON r.id = sr.run_id
+     LEFT JOIN interview_flows f ON f.id = r.flow_id
+     LEFT JOIN interview_flow_stages s ON s.id = sr.stage_id
+     LEFT JOIN interview_assignments a ON a.interview_id = i.id
+     LEFT JOIN users iu ON iu.id = a.interviewer_user_id
+     LEFT JOIN scorecards sc ON sc.interview_id = i.id
+     WHERE i.client_template_id = @mandateId AND i.manager_id = @managerId
+     ORDER BY COALESCE(i.scheduled_at, i.created) DESC`,
+    { mandateId, managerId }
   )
 }
 
@@ -487,5 +535,6 @@ module.exports = {
   updateStageRunStatus,
   attachInterview, getContextByInterview, getRun, getStage, finishStageRun, updateRun,
   getLatestAttempt, createAssignment, listAssignmentsForUser, getAssignmentForUser,
-  completeAssignment, createAssignmentFile, listRunsByMandate, getLatestInterviewFeedback,
+  completeAssignment, updateAssignmentFeedback, createAssignmentFile,
+  listRunsByMandate, listSchedulesByMandate, getLatestInterviewFeedback,
 }

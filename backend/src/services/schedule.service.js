@@ -46,9 +46,9 @@ async function createSchedule(data, managerId, companyId) {
     ? null
     : Number(data.durationMinutes)
   if (requestedDuration !== null && (
-    !Number.isInteger(requestedDuration) || requestedDuration < 15 || requestedDuration > 180
+    !Number.isInteger(requestedDuration) || requestedDuration < 2 || requestedDuration > 180
   )) {
-    throw new Error('Duration must be an integer between 15 and 180 minutes')
+    throw new Error('Duration must be an integer between 2 and 180 minutes')
   }
   const scheduledAt = data.scheduledAt ? new Date(data.scheduledAt) : null
   if (!scheduledAt) {

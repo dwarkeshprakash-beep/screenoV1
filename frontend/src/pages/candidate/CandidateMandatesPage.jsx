@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
-import { CheckCircle2, XCircle, FileText, AlertTriangle, UploadCloud, ChevronDown, ChevronUp, Clock, MapPin, BriefcaseBusiness } from 'lucide-react'
+import { CheckCircle2, XCircle, FileText, AlertTriangle, UploadCloud, Clock, MapPin, BriefcaseBusiness } from 'lucide-react'
 import Spinner from '../../components/shared/Spinner'
+import Modal from '../../components/shared/Modal'
 import * as api from '../../services/api'
 import { formatDate, formatDateTime, parseStoredArray } from '../../utils/helpers'
 
@@ -38,7 +39,7 @@ function CandidateMandatesPage() {
   const [error, setError] = useState(null)
   const [message, setMessage] = useState(null)
   const [resumeSubmitting, setResumeSubmitting] = useState(null)
-  const [expandedMandate, setExpandedMandate] = useState(null)
+  const [historyMandate, setHistoryMandate] = useState(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -96,7 +97,6 @@ function CandidateMandatesPage() {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {mandates.map(mandate => {
-            const isExpanded = expandedMandate === mandate.id
             const publishedRounds = mandate.published_rounds || []
             const latestRound = mandate.latest_published_round || publishedRounds[publishedRounds.length - 1]
             const outcome = latestRound?.outcome
@@ -210,46 +210,41 @@ function CandidateMandatesPage() {
                     </div>
                   )}
 
-                  {/* Toggle mandate interviews */}
+                  {/* Full mandate interview history */}
                   {mandate.interviews?.length > 0 && (
-                    <button type="button" onClick={() => setExpandedMandate(isExpanded ? null : mandate.id)}
-                      style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'transparent', border: 0, cursor: 'pointer', fontSize: 12, color: 'var(--fg-muted)', padding: 0 }}>
-                      {isExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-                      {mandate.interviews.length} scheduled interview{mandate.interviews.length !== 1 ? 's' : ''}
+                    <button type="button" onClick={() => setHistoryMandate(mandate)} className="product-button product-button--secondary product-button--sm">
+                      <Clock size={12} />View full interview history ({mandate.interviews.length})
                     </button>
                   )}
                 </div>
-
-                {/* Expanded interviews */}
-                {isExpanded && mandate.interviews?.length > 0 && (
-                  <div style={{ borderTop: '1px solid var(--border-default)', padding: '12px 20px', background: 'var(--bg-page)' }}>
-                    {mandate.interviews.map(iv => (
-                      <div key={iv.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '6px 0', borderBottom: '1px solid var(--border-default)', fontSize: 12 }}>
-                        <span style={{ fontSize: 11, padding: '2px 7px', borderRadius: 5, background: TYPE_BG[iv.type] || 'var(--bg-surface-alt)', color: TYPE_COLOR[iv.type] || 'var(--fg-muted)', fontWeight: 600 }}>
-                          {INTERVIEW_TYPE_LABEL[iv.type] || iv.type}
-                        </span>
-                        {iv.scheduled_at && (
-                          <span style={{ color: 'var(--fg-muted)', display: 'flex', alignItems: 'center', gap: 3 }}>
-                            <Clock size={10} />{formatDateTime(iv.scheduled_at)}
-                          </span>
-                        )}
-                        {iv.location && (
-                          <span style={{ color: 'var(--fg-muted)', display: 'flex', alignItems: 'center', gap: 3 }}>
-                            <MapPin size={10} />{iv.location}
-                          </span>
-                        )}
-                        <span style={{ marginLeft: 'auto', fontSize: 11, padding: '2px 7px', borderRadius: 5, fontWeight: 600, background: iv.status === 'completed' ? 'var(--success-50)' : 'var(--bg-surface-alt)', color: iv.status === 'completed' ? 'var(--success-700)' : 'var(--fg-muted)' }}>
-                          {iv.status}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
               </div>
             )
           })}
         </div>
       )}
+      <Modal open={!!historyMandate} onClose={() => setHistoryMandate(null)} title="Interview history" size="md">
+        <div className="workspace-stack">
+          <div>
+            <strong>{historyMandate?.client_name}</strong>
+            <p style={{ margin: '3px 0 0', fontSize: 12, color: 'var(--fg-muted)' }}>{historyMandate?.mandate_role}</p>
+          </div>
+          {(historyMandate?.interviews || []).map(iv => (
+            <div key={iv.id} style={{ padding: 14, border: '1px solid var(--border-default)', borderRadius: 9, background: 'var(--bg-surface-alt)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 11, padding: '3px 8px', borderRadius: 5, background: TYPE_BG[iv.type] || 'var(--bg-surface)', color: TYPE_COLOR[iv.type] || 'var(--fg-muted)', fontWeight: 700 }}>
+                  {INTERVIEW_TYPE_LABEL[iv.type] || iv.type}
+                </span>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <span className={`status-pill${iv.status === 'completed' ? ' status-pill--success' : ' status-pill--brand'}`}>{iv.status}</span>
+                  {iv.candidate_result && <span className={`status-pill${iv.candidate_result === 'pass' ? ' status-pill--success' : ' status-pill--danger'}`}>{iv.candidate_result === 'pass' ? 'Passed' : 'Failed'}</span>}
+                </div>
+              </div>
+              <p style={{ margin: '9px 0 0', fontSize: 12, color: 'var(--fg-muted)' }}><Clock size={11} /> {iv.scheduled_at ? formatDateTime(iv.scheduled_at) : formatDate(iv.created)}</p>
+              {iv.location && <p style={{ margin: '5px 0 0', fontSize: 12, color: 'var(--fg-muted)' }}><MapPin size={11} /> {iv.location}</p>}
+            </div>
+          ))}
+        </div>
+      </Modal>
     </div>
   )
 }

@@ -348,6 +348,7 @@ async function run() {
     body: {
       mandateId: template.payload.data.id,
       name: 'Seven-day candidate flow',
+      reportUserIds: [primary.manager.id, organizationOnlyUser.id],
       stages: [
         { name: 'Voice screen', type: 'ai_voice', scheduledAt: futureIso(10 * 24 * 60 * 60), durationMinutes: 15, questionCount: 5, requirePass: true },
         { name: 'Technical exam', type: 'exam', scheduledAt: futureIso(10 * 24 * 60 * 60 + 15 * 60), durationMinutes: 60, questionCount: 8, requirePass: true, minimumScore: 6 },
@@ -378,6 +379,7 @@ async function run() {
     body: {
       mandateId: template.payload.data.id,
       name: 'Edited seven-day candidate flow',
+      reportUserIds: [primary.manager.id, organizationOnlyUser.id],
       stages: flow.payload.data.stages.map(stage => ({
         id: stage.id,
         name: stage.name,
@@ -395,12 +397,16 @@ async function run() {
   })
   assert.equal(editedFlow.status, 200)
   assert.equal(editedFlow.payload.data.name, 'Edited seven-day candidate flow')
+  assert.deepEqual(
+    [...editedFlow.payload.data.report_user_ids].sort((a, b) => a - b),
+    [primary.manager.id, organizationOnlyUser.id].sort((a, b) => a - b)
+  )
 
   const primaryClientTeam = informationalHeadcountTeam.payload.data.find(row => row.user_id === primary.candidate.id)
   const managerInterview = await api(`/api/templates/client/${template.payload.data.id}/team/${primaryClientTeam.id}/schedule`, {
     method: 'POST', token: managerToken,
     body: {
-      type: 'offline', scheduledAt: futureIso(9 * 24 * 60 * 60), durationMinutes: 45,
+      type: 'offline', scheduledAt: futureIso(9 * 24 * 60 * 60), durationMinutes: 2,
       location: 'QA conference room', interviewerUserId: primary.manager.id,
       scheduleTimezone: 'Asia/Calcutta',
     },
@@ -432,7 +438,10 @@ async function run() {
     `SELECT report_emails FROM interviews WHERE id = @id`,
     { id: runtimeStages[0].interview_id }
   ))[0]
-  assert.equal(flowInterviewDelivery.report_emails, `manager-${stamp}@example.test`)
+  assert.deepEqual(
+    flowInterviewDelivery.report_emails.split(',').map(email => email.trim()).sort(),
+    [`manager-${stamp}@example.test`, `organization-only-${stamp}@example.test`].sort()
+  )
   assert.equal(runtimeStages[1].status, 'pending')
   assert.equal(runtimeStages[1].interview_id, null)
 
@@ -446,6 +455,7 @@ async function run() {
     body: {
       mandateId: template.payload.data.id,
       name: editedFlow.payload.data.name,
+      reportUserIds: [organizationOnlyUser.id],
       stages: editedFlow.payload.data.stages.map((stage, index) => ({
         id: stage.id,
         name: stage.name,
@@ -463,13 +473,14 @@ async function run() {
   })
   assert.equal(runtimeEditedFlow.status, 200)
   const synchronizedInterview = (await db.query(
-    `SELECT scheduled_at, duration_minutes, question_count
+    `SELECT scheduled_at, duration_minutes, question_count, report_emails
      FROM interviews WHERE id = @id`,
     { id: runtimeStages[0].interview_id }
   ))[0]
   assert.equal(new Date(synchronizedInterview.scheduled_at).toISOString(), shiftedStageTimes[0])
   assert.equal(Number(synchronizedInterview.duration_minutes), 20)
   assert.equal(Number(synchronizedInterview.question_count), 7)
+  assert.equal(synchronizedInterview.report_emails, `organization-only-${stamp}@example.test`)
   const flowCandidateLogin = await api('/api/auth/login', {
     method: 'POST', body: { email: `candidate-${stamp}@example.test`, password: primary.password },
   })
@@ -535,6 +546,43 @@ async function run() {
     method: 'POST', token: managerToken, form: feedbackForm,
   })
   assert.equal(completedOffline.status, 200)
+  const editedOfflineFeedback = await api(`/api/interview-flows/assignments/${offlineAssignment.id}/feedback`, {
+    method: 'PATCH', token: managerToken, body: { feedback: 'Updated panel comment' },
+  })
+  assert.equal(editedOfflineFeedback.status, 200)
+  assert.equal(editedOfflineFeedback.payload.data.outcome, 'pass')
+  assert.equal(editedOfflineFeedback.payload.data.feedback, 'Updated panel comment')
+  const completedAssignments = await api('/api/interview-flows/my-assignments', { token: managerToken })
+  const reviewedAssignment = completedAssignments.payload.data.find(item => item.id === offlineAssignment.id)
+  assert.equal(reviewedAssignment.outcome, 'pass')
+  assert.equal(reviewedAssignment.feedback, 'Updated panel comment')
+  const completedCandidateInterviews = await api('/api/candidate/interviews', {
+    token: flowCandidateLogin.payload.data.accessToken,
+  })
+  const completedCandidateInterview = completedCandidateInterviews.payload.data.find(
+    item => item.id === continuedRun.payload.data.interview.id
+  )
+  assert.equal(completedCandidateInterview.candidate_result, 'pass')
+  const mandateSchedules = await api(`/api/interview-flows/mandate/${template.payload.data.id}/schedules`, {
+    token: managerToken,
+  })
+  assert.equal(mandateSchedules.status, 200)
+  assert.ok(mandateSchedules.payload.data.some(
+    item => item.interview_id === managerInterview.payload.data.id && item.flow_stage_run_id == null
+  ))
+  assert.ok(mandateSchedules.payload.data.some(
+    item => item.interview_id === flowRun.payload.data.firstInterview.id && item.flow_id === flow.payload.data.id
+  ))
+  const candidateMandates = await api('/api/candidate/client-mandates', {
+    token: flowCandidateLogin.payload.data.accessToken,
+  })
+  assert.equal(candidateMandates.status, 200)
+  const candidateMandate = candidateMandates.payload.data.find(item => item.id === primaryClientTeam.id)
+  assert.ok(candidateMandate)
+  assert.ok(candidateMandate.interviews.some(item => item.id === managerInterview.payload.data.id))
+  assert.ok(candidateMandate.interviews.some(
+    item => item.id === continuedRun.payload.data.interview.id && item.candidate_result === 'pass'
+  ))
   const completedFlowRun = (await db.query(
     `SELECT status FROM candidate_flow_runs WHERE id = @id`,
     { id: flowRun.payload.data.id }
@@ -559,7 +607,7 @@ async function run() {
       name: 'Overdue progression flow',
       stages: [
         { name: 'Immediate first', type: 'ai_voice', scheduledAt: futureIso(12 * 24 * 60 * 60), durationMinutes: 15, questionCount: 5 },
-        { name: 'Immediate second', type: 'exam', scheduledAt: futureIso(12 * 24 * 60 * 60 + 15 * 60), durationMinutes: 15, questionCount: 5 },
+        { name: 'Immediate second', type: 'exam', scheduledAt: futureIso(12 * 24 * 60 * 60 + 15 * 60), durationMinutes: 2, questionCount: 5 },
       ],
     },
   })

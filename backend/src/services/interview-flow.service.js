@@ -13,6 +13,24 @@ const TYPES = new Set(['ai_voice', 'exam', 'human', 'offline'])
 const INTERVIEW_MODES = new Set(['simple', 'adaptive'])
 const DIFFICULTIES = new Set(['easy', 'medium', 'hard'])
 
+function parseReportUserIds(value) {
+  if (Array.isArray(value)) return value.map(Number).filter(Number.isInteger)
+  if (!value) return []
+  try {
+    const parsed = JSON.parse(value)
+    return Array.isArray(parsed) ? parsed.map(Number).filter(Number.isInteger) : []
+  } catch {
+    return []
+  }
+}
+
+async function validateReportRecipients(value, companyId) {
+  const ids = [...new Set(parseReportUserIds(value))]
+  const users = ids.length > 0 ? await userRepository.getByIdsForCompany(ids, companyId) : []
+  if (users.length !== ids.length) throw new Error('Some report recipients are not in your organization')
+  return { ids, emails: users.map(user => user.email).filter(Boolean) }
+}
+
 /** Send and record an interviewer assignment notification. */
 async function notifyInterviewer(interviewId, interviewer, data) {
   const notificationData = {
@@ -39,7 +57,11 @@ async function notifyInterviewer(interviewId, interviewer, data) {
 function groupFlows(rows) {
   const flows = new Map()
   for (const row of rows) {
-    if (!flows.has(row.id)) flows.set(row.id, { id: row.id, mandate_id: row.mandate_id, name: row.name, status: row.status, stages: [] })
+    if (!flows.has(row.id)) flows.set(row.id, {
+      id: row.id, mandate_id: row.mandate_id, name: row.name, status: row.status,
+      report_user_ids: row.report_user_ids == null ? null : parseReportUserIds(row.report_user_ids),
+      stages: [],
+    })
     if (row.stage_id) flows.get(row.id).stages.push({
       id: row.stage_id, stage_order: row.stage_order, name: row.stage_name, type: row.type,
       scheduled_at: row.scheduled_at, schedule_timezone: row.schedule_timezone,
@@ -77,8 +99,8 @@ async function normalizeStages(stages, companyId, { allowPastExisting = false } 
     const interviewerUserId = needsInterviewer && stage.interviewerUserId ? Number(stage.interviewerUserId) : null
     if (needsInterviewer && !Number.isInteger(interviewerUserId)) throw new Error(`Stage ${index + 1} needs an interviewer`)
     const durationMinutes = Number(stage.durationMinutes)
-    if (!Number.isInteger(durationMinutes) || durationMinutes < 15 || durationMinutes > 180) {
-      throw new Error(`Stage ${index + 1} duration must be between 15 and 180 minutes`)
+    if (!Number.isInteger(durationMinutes) || durationMinutes < 2 || durationMinutes > 180) {
+      throw new Error(`Stage ${index + 1} duration must be between 2 and 180 minutes`)
     }
     const questionCount = Number(stage.questionCount)
     if (['ai_voice', 'exam'].includes(stage.type) && (!Number.isInteger(questionCount) || questionCount < 1 || questionCount > 50)) {
@@ -120,8 +142,16 @@ async function createFlow(data, managerId, companyId) {
   if (!template) throw new Error('Mandate not found')
   if (!String(data.name || '').trim()) throw new Error('Flow name is required')
   const normalized = await normalizeStages(Array.isArray(data.stages) ? data.stages : [], companyId)
+  const recipients = await validateReportRecipients(
+    Array.isArray(data.reportUserIds) ? data.reportUserIds : [managerId],
+    companyId
+  )
 
-  const flow = await flowRepository.createFlow({ mandateId: template.id, name: data.name.trim(), managerId })
+  const flow = await flowRepository.createFlow({
+    mandateId: template.id, name: data.name.trim(), managerId,
+    reportUserIds: JSON.stringify(recipients.ids),
+  })
+  flow.report_user_ids = recipients.ids
   flow.stages = []
   for (const stage of normalized) flow.stages.push(await flowRepository.createStage({ ...stage, flowId: flow.id }))
   return flow
@@ -141,6 +171,10 @@ async function updateFlow(flowId, data, managerId, companyId) {
   if (!String(data.name || '').trim()) throw new Error('Flow name is required')
   const inputStages = Array.isArray(data.stages) ? data.stages : []
   const normalized = await normalizeStages(inputStages, companyId, { allowPastExisting: true })
+  const requestedRecipientIds = Array.isArray(data.reportUserIds)
+    ? data.reportUserIds
+    : flow.report_user_ids == null ? [managerId] : parseReportUserIds(flow.report_user_ids)
+  const recipients = await validateReportRecipients(requestedRecipientIds, companyId)
   const keptIds = new Set(inputStages.map(stage => Number(stage.id)).filter(Number.isInteger))
 
   for (const existing of flow.stages) {
@@ -150,7 +184,10 @@ async function updateFlow(flowId, data, managerId, companyId) {
     }
   }
 
-  const updated = await flowRepository.updateFlow(flow.id, managerId, { name: data.name.trim() })
+  const updated = await flowRepository.updateFlow(flow.id, managerId, {
+    name: data.name.trim(), reportUserIds: JSON.stringify(recipients.ids),
+  })
+  updated.report_user_ids = recipients.ids
   updated.stages = []
   for (let index = 0; index < normalized.length; index++) {
     const stageInput = inputStages[index]
@@ -179,6 +216,7 @@ async function updateFlow(flowId, data, managerId, companyId) {
       scheduledAt: saved.scheduled_at,
       dueAt,
       tokenExpires,
+      reportEmails: recipients.emails.join(',') || null,
       scheduleTimezone: saved.schedule_timezone,
       interviewerUserId: saved.interviewer_user_id,
       location: saved.location,
@@ -216,6 +254,24 @@ async function listRuns(mandateId, managerId) {
   })))
 }
 
+/** List one-off and flow-generated interview records for the manager schedule view. */
+async function listSchedules(mandateId, managerId) {
+  const template = await clientTemplateRepository.getById(Number(mandateId), managerId)
+  if (!template) throw new Error('Mandate not found')
+  return flowRepository.listSchedulesByMandate(template.id, managerId)
+}
+
+/** List interviewer work with signed feedback-file links. */
+async function listAssignments(userId) {
+  const rows = await flowRepository.listAssignmentsForUser(userId)
+  return Promise.all(rows.map(async row => ({
+    ...row,
+    file_url: row.storage_path
+      ? await storageService.getSignedUrl(row.storage_path).catch(() => null)
+      : null,
+  })))
+}
+
 /** Schedule a runtime stage and create interviewer work where needed. */
 async function activateStage(run, stage, stageRun, managerId, companyId, scheduledAtOverride = null) {
   const scheduledAt = scheduledAtOverride || stage.scheduled_at
@@ -247,7 +303,8 @@ async function activateStage(run, stage, stageRun, managerId, companyId, schedul
     clientTeamId: run.client_team_id, flowStageRunId: stageRun.id,
     scheduledAt, assessmentDate: scheduledAt, scheduleTimezone: stage.schedule_timezone,
     companyName: run.client_name, jobTitle: run.role_name, location: stage.location,
-    meetingUrl, details: stage.notes, reportUserIds: [managerId],
+    meetingUrl, details: stage.notes,
+    reportUserIds: run.report_user_ids == null ? [managerId] : parseReportUserIds(run.report_user_ids),
   }, managerId, companyId)
   await flowRepository.attachInterview(stageRun.id, interview.id)
 
@@ -278,7 +335,8 @@ async function startRun(flowId, clientTeamId, managerId, companyId) {
   const run = await flowRepository.createRun({ flowId: flow.id, clientTeamId: member.id, managerId })
   const template = await clientTemplateRepository.getById(flow.mandate_id, managerId)
   const runtime = { ...run, mandate_id: flow.mandate_id, user_id: member.user_id,
-    client_name: template.client_name, role_name: member.requirement_name || template.requirements || 'Interview' }
+    client_name: template.client_name, role_name: member.requirement_name || template.requirements || 'Interview',
+    report_user_ids: flow.report_user_ids }
   const stageRuns = []
   for (const stage of flow.stages) {
     stageRuns.push(await flowRepository.createStageRun({
@@ -416,8 +474,17 @@ async function completeAssignment(assignmentId, userId, data, file) {
   return completed
 }
 
+/** Edit only the written comment on an already-completed assignment. */
+async function updateAssignmentFeedback(assignmentId, userId, data) {
+  const feedback = String(data.feedback || '').trim()
+  if (feedback.length > 5000) throw new Error('Feedback must be 5000 characters or fewer')
+  const updated = await flowRepository.updateAssignmentFeedback(Number(assignmentId), userId, feedback || null)
+  if (!updated) throw new Error('Completed interviewer assignment not found')
+  return updated
+}
+
 module.exports = {
-  createFlow, updateFlow, deleteFlow, deleteRun, listFlows, listRuns,
+  createFlow, updateFlow, deleteFlow, deleteRun, listFlows, listRuns, listSchedules,
   startRun, handleInterviewResult, retryRun, continueRun,
-  completeAssignment, notifyInterviewer,
+  listAssignments, completeAssignment, updateAssignmentFeedback, notifyInterviewer,
 }

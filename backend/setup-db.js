@@ -27,6 +27,7 @@ const MIGRATIONS = [
   '018_integrity_cleanup_and_indexes.sql',
   '019_manual_mapping_policy.sql',
   '020_interview_flows.sql',
+  '021_flow_report_recipients.sql',
 ]
 
 async function main() {

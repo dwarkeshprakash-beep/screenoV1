@@ -39,8 +39,18 @@ router.get('/interviews', async (req, res) => {
     const safeInterviews = interviews.map(({
       token,
       overall_score,
+      candidate_decision,
       ...interview
-    }) => interview)
+    }) => ({
+      ...interview,
+      candidate_result: interview.status !== 'completed'
+        ? null
+        : candidate_decision === 'pass' || interview.result === 'pass'
+          ? 'pass'
+          : candidate_decision != null || interview.result === 'fail'
+            ? 'fail'
+            : null,
+    }))
     res.json({ success: true, data: safeInterviews })
   } catch (err) {
     console.error('GET /candidate/interviews failed:', err)
@@ -145,10 +155,17 @@ router.get('/client-mandates', async (req, res) => {
     const enriched = await Promise.all(rows.map(async row => {
       const db = require('../db/connection')
       const interviews = await db.query(
-        `SELECT id, type, status, scheduled_at, duration_minutes, location, created
-         FROM interviews
-         WHERE client_team_id = @ctId
-         ORDER BY created DESC LIMIT 5`,
+        `SELECT i.id, i.type, i.status, i.scheduled_at, i.duration_minutes,
+                i.location, i.created,
+                CASE
+                  WHEN i.status = 'completed' AND (sc.decision = 'pass' OR i.result = 'pass') THEN 'pass'
+                  WHEN i.status = 'completed' AND (sc.decision IS NOT NULL OR i.result = 'fail') THEN 'fail'
+                  ELSE NULL
+                END AS candidate_result
+         FROM interviews i
+         LEFT JOIN scorecards sc ON sc.interview_id = i.id
+         WHERE i.client_team_id = @ctId
+         ORDER BY i.created DESC`,
         { ctId: row.id }
       )
       const publishedRounds = await clientOutcomeRoundsRepo.listVisibleByClientTeamId(row.id)

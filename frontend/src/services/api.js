@@ -475,6 +475,8 @@ export const getMandateInterviewFlows = mandateId =>
   request(`/api/interview-flows/mandate/${mandateId}`)
 export const getMandateInterviewFlowRuns = mandateId =>
   request(`/api/interview-flows/mandate/${mandateId}/runs`)
+export const getMandateSchedules = mandateId =>
+  request(`/api/interview-flows/mandate/${mandateId}/schedules`)
 export const startInterviewFlow = (flowId, clientTeamId) =>
   request(`/api/interview-flows/${flowId}/runs`, { method: 'POST', body: JSON.stringify({ clientTeamId }) })
 export const retryInterviewFlowRun = (runId, scheduledAt) =>
@@ -491,6 +493,10 @@ export const completeInterviewerAssignment = (assignmentId, data) => {
   if (data.file) body.append('file', data.file)
   return request(`/api/interview-flows/assignments/${assignmentId}/complete`, { method: 'POST', body })
 }
+export const updateInterviewerFeedback = (assignmentId, feedback) =>
+  request(`/api/interview-flows/assignments/${assignmentId}/feedback`, {
+    method: 'PATCH', body: JSON.stringify({ feedback }),
+  })
 export const getVideoPlatforms = () => request('/api/templates/client/video-platforms')
 
 // Outcome rounds (new multi-round model)

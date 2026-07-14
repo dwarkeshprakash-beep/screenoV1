@@ -181,8 +181,8 @@ function ScheduleModal({
       setError('Question count must be between 1 and 50.')
       return
     }
-    if (step === 2 && ['ai_voice', 'exam'].includes(type) && (!Number.isInteger(durationMinutes) || durationMinutes < 15 || durationMinutes > 180)) {
-      setError('Duration must be between 15 and 180 minutes.')
+    if (step === 2 && ['ai_voice', 'exam'].includes(type) && (!Number.isInteger(durationMinutes) || durationMinutes < 2 || durationMinutes > 180)) {
+      setError('Duration must be between 2 and 180 minutes.')
       return
     }
     if (step === 3 && selectedCandidates.length === 0) {
@@ -326,8 +326,8 @@ function ScheduleModal({
           {['ai_voice', 'exam'].includes(type) && (
             <div>
               <label htmlFor="schedule-duration" style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--fg-muted)', marginBottom: 8 }}>Duration</label>
-              <input id="schedule-duration" type="number" min="15" max="180" value={durationMinutes} onChange={event => setDurationMinutes(Number(event.target.value))} style={{ width: 140, padding: '9px 12px', border: '1px solid var(--border-default)', borderRadius: 8, background: 'var(--bg-surface)', fontFamily: 'inherit' }} />
-              <span style={{ marginLeft: 8, fontSize: 12, color: 'var(--fg-muted)' }}>15-180 minutes</span>
+              <input id="schedule-duration" type="number" min="2" max="180" value={durationMinutes} onChange={event => setDurationMinutes(Number(event.target.value))} style={{ width: 140, padding: '9px 12px', border: '1px solid var(--border-default)', borderRadius: 8, background: 'var(--bg-surface)', fontFamily: 'inherit' }} />
+              <span style={{ marginLeft: 8, fontSize: 12, color: 'var(--fg-muted)' }}>2-180 minutes</span>
             </div>
           )}
           <p style={{ margin: 0, fontSize: 12, color: 'var(--fg-muted)' }}>

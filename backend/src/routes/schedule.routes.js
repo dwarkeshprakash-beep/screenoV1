@@ -91,7 +91,7 @@ router.post('/', async (req, res) => {
       'Invalid interview mode',
       'Choose either a client template or a monthly assessment',
       'Question count must be an integer between 1 and 50',
-      'Duration must be an integer between 15 and 180 minutes',
+      'Duration must be an integer between 2 and 180 minutes',
       'scheduledAt is required',
       'Invalid scheduled date and time',
       'Scheduled time must be in the future',

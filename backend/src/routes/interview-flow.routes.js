@@ -3,7 +3,6 @@ const authMiddleware = require('../middleware/auth')
 const requireRole = require('../middleware/role')
 const { documentUpload } = require('../middleware/upload')
 const flowService = require('../services/interview-flow.service')
-const flowRepository = require('../repositories/interview-flow.repository')
 
 const router = express.Router()
 router.use(authMiddleware)
@@ -63,6 +62,17 @@ router.get('/mandate/:mandateId/runs', requireRole('manager'), async (req, res) 
   }
 })
 
+/** List one-off and flow-generated schedules for an owned mandate. */
+router.get('/mandate/:mandateId/schedules', requireRole('manager'), async (req, res) => {
+  try {
+    const schedules = await flowService.listSchedules(req.params.mandateId, req.user.id)
+    res.json({ success: true, data: schedules })
+  } catch (err) {
+    console.error('GET /interview-flows/mandate/schedules failed:', err.message)
+    res.status(404).json({ success: false, error: err.message })
+  }
+})
+
 /** Start a flow for one candidate already on the mandate team. */
 router.post('/:flowId/runs', requireRole('manager'), async (req, res) => {
   try {
@@ -110,11 +120,26 @@ router.delete('/runs/:runId', requireRole('manager'), async (req, res) => {
 /** Candidate accounts can see all interviews assigned to them as interviewer. */
 router.get('/my-assignments', requireRole('candidate', 'manager'), async (req, res) => {
   try {
-    const assignments = await flowRepository.listAssignmentsForUser(req.user.id)
+    const assignments = await flowService.listAssignments(req.user.id)
     res.json({ success: true, data: assignments })
   } catch (err) {
     console.error('GET /interview-flows/my-assignments failed:', err.message)
     res.status(500).json({ success: false, error: 'Could not load interviewer assignments' })
+  }
+})
+
+/** A completed interviewer may edit only the written comment. */
+router.patch('/assignments/:assignmentId/feedback', requireRole('candidate', 'manager'), async (req, res) => {
+  try {
+    const updated = await flowService.updateAssignmentFeedback(
+      req.params.assignmentId,
+      req.user.id,
+      req.body
+    )
+    res.json({ success: true, data: updated })
+  } catch (err) {
+    console.error('PATCH /interview-flows/assignments/feedback failed:', err.message)
+    res.status(/not found/i.test(err.message) ? 404 : 400).json({ success: false, error: err.message })
   }
 })
 
