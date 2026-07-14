@@ -1,8 +1,10 @@
 # Screeno V2 Database Schema
 
-This is the compact PostgreSQL schema used by the current V2 app. Current numbered migrations: `001` through `019`.
+This is the compact PostgreSQL schema used by the current V2 app. Current numbered migrations: `001` through `020`.
 
 Relationships are enforced by repositories/services for ownership checks and lifecycle cleanup. Migrations avoid foreign key constraints in the active schema, and business value/window checks are validated in backend services rather than DB check constraints.
+
+Interview automation uses `interview_flows` and ordered `interview_flow_stages` as definitions. Candidate execution is stored in `candidate_flow_runs` and `candidate_flow_stage_runs`; only the active stage receives an `interviews` row through `interviews.flow_stage_run_id`. Human/offline work uses `interview_assignments`, with optional feedback documents in `interview_assignment_files`. Mandate and requirement headcount values are informational targets, not pipeline or scheduling limits.
 
 ## People And Organization
 

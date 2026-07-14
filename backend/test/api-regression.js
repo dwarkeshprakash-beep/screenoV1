@@ -3,6 +3,7 @@ require('dotenv').config()
 const assert = require('node:assert/strict')
 const bcrypt = require('bcryptjs')
 const db = require('../src/db/connection')
+const interviewFlowService = require('../src/services/interview-flow.service')
 
 const baseUrl = process.env.API_TEST_BASE_URL || 'http://localhost:4010'
 const stamp = Date.now()
@@ -15,6 +16,8 @@ const state = {
   interviewIds: [],
   assessmentIds: [],
   templateIds: [],
+  clientTeamIds: [],
+  flowIds: [],
   departmentName: `Codex QA ${stamp}`,
 }
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -107,6 +110,14 @@ async function cleanup() {
       state.interviewIds.push(...interviews.map(row => row.id))
     }
     const interviewIds = [...new Set(state.interviewIds)]
+    if (state.flowIds.length > 0) {
+      await tx.query(`DELETE FROM interview_assignment_files WHERE assignment_id IN (SELECT id FROM interview_assignments WHERE stage_run_id IN (SELECT id FROM candidate_flow_stage_runs WHERE run_id IN (SELECT id FROM candidate_flow_runs WHERE flow_id = ANY(@ids))))`, { ids: state.flowIds })
+      await tx.query(`DELETE FROM interview_assignments WHERE stage_run_id IN (SELECT id FROM candidate_flow_stage_runs WHERE run_id IN (SELECT id FROM candidate_flow_runs WHERE flow_id = ANY(@ids)))`, { ids: state.flowIds })
+      await tx.query(`DELETE FROM candidate_flow_stage_runs WHERE run_id IN (SELECT id FROM candidate_flow_runs WHERE flow_id = ANY(@ids))`, { ids: state.flowIds })
+      await tx.query(`DELETE FROM candidate_flow_runs WHERE flow_id = ANY(@ids)`, { ids: state.flowIds })
+      await tx.query(`DELETE FROM interview_flow_stages WHERE flow_id = ANY(@ids)`, { ids: state.flowIds })
+      await tx.query(`DELETE FROM interview_flows WHERE id = ANY(@ids)`, { ids: state.flowIds })
+    }
     if (interviewIds.length > 0) {
       await tx.query(`DELETE FROM email_outbox_jobs WHERE interview_id = ANY(@ids)`, { ids: interviewIds })
       await tx.query(`DELETE FROM monthly_assessment_occurrences WHERE interview_id = ANY(@ids)`, { ids: interviewIds })
@@ -115,6 +126,8 @@ async function cleanup() {
       await tx.query(`DELETE FROM scorecards WHERE interview_id = ANY(@ids)`, { ids: interviewIds })
       await tx.query(`DELETE FROM transcripts WHERE interview_id = ANY(@ids)`, { ids: interviewIds })
       await tx.query(`DELETE FROM email_deliveries WHERE interview_id = ANY(@ids)`, { ids: interviewIds })
+      await tx.query(`DELETE FROM interview_assignment_files WHERE assignment_id IN (SELECT id FROM interview_assignments WHERE interview_id = ANY(@ids))`, { ids: interviewIds })
+      await tx.query(`DELETE FROM interview_assignments WHERE interview_id = ANY(@ids)`, { ids: interviewIds })
       await tx.query(`DELETE FROM interviews WHERE id = ANY(@ids)`, { ids: interviewIds })
     }
     if (state.assessmentIds.length > 0) {
@@ -150,6 +163,7 @@ async function cleanup() {
       )
     }
     if (state.templateIds.length > 0) {
+      await tx.query(`DELETE FROM client_teams WHERE mandate_id = ANY(@ids)`, { ids: state.templateIds })
       await tx.query(`DELETE FROM client_templates WHERE id = ANY(@ids)`, { ids: state.templateIds })
     }
     if (state.teamMemberIds.length > 0) {
@@ -320,6 +334,143 @@ async function run() {
   assert.ok(organizationCandidate)
   assert.equal(organizationCandidate.match_score, 0)
   assert.equal(organizationCandidate.recommended, false)
+
+  const informationalHeadcountTeam = await api(`/api/templates/client/${template.payload.data.id}/team`, {
+    method: 'POST', token: managerToken,
+    body: { userIds: [primary.candidate.id, organizationOnlyUser.id] },
+  })
+  assert.equal(informationalHeadcountTeam.status, 201)
+  assert.equal(informationalHeadcountTeam.payload.data.length, 2)
+  state.clientTeamIds.push(...informationalHeadcountTeam.payload.data.map(row => row.id))
+
+  const flow = await api('/api/interview-flows', {
+    method: 'POST', token: managerToken,
+    body: {
+      mandateId: template.payload.data.id,
+      name: 'Seven-day candidate flow',
+      stages: [
+        { name: 'Voice screen', type: 'ai_voice', scheduledAt: futureIso(10 * 24 * 60 * 60), durationMinutes: 25, questionCount: 5, requirePass: true },
+        { name: 'Technical exam', type: 'exam', scheduledAt: futureIso(10 * 24 * 60 * 60 + 31 * 60), durationMinutes: 60, questionCount: 8, requirePass: true, minimumScore: 6 },
+        { name: 'Final voice', type: 'ai_voice', scheduledAt: futureIso(12 * 24 * 60 * 60), durationMinutes: 25, questionCount: 5, requirePass: false },
+      ],
+    },
+  })
+  assert.equal(flow.status, 201)
+  assert.equal(flow.payload.data.stages.length, 3)
+  state.flowIds.push(flow.payload.data.id)
+
+  const editedFlow = await api(`/api/interview-flows/${flow.payload.data.id}`, {
+    method: 'PATCH', token: managerToken,
+    body: {
+      mandateId: template.payload.data.id,
+      name: 'Edited seven-day candidate flow',
+      stages: flow.payload.data.stages.map(stage => ({
+        id: stage.id,
+        name: stage.name,
+        type: stage.type,
+        scheduledAt: stage.scheduled_at,
+        durationMinutes: stage.duration_minutes,
+        questionCount: stage.question_count,
+        requirePass: stage.require_pass,
+        minimumScore: stage.minimum_score,
+        interviewerUserId: stage.interviewer_user_id,
+      })),
+    },
+  })
+  assert.equal(editedFlow.status, 200)
+  assert.equal(editedFlow.payload.data.name, 'Edited seven-day candidate flow')
+
+  const primaryClientTeam = informationalHeadcountTeam.payload.data.find(row => row.user_id === primary.candidate.id)
+  const managerInterview = await api(`/api/templates/client/${template.payload.data.id}/team/${primaryClientTeam.id}/schedule`, {
+    method: 'POST', token: managerToken,
+    body: {
+      type: 'offline', scheduledAt: futureIso(9 * 24 * 60 * 60), durationMinutes: 45,
+      location: 'QA conference room', interviewerUserId: primary.manager.id,
+      scheduleTimezone: 'Asia/Calcutta',
+    },
+  })
+  assert.equal(managerInterview.status, 201)
+  state.interviewIds.push(managerInterview.payload.data.id)
+  const managerAssignments = await api('/api/interview-flows/my-assignments', { token: managerToken })
+  assert.equal(managerAssignments.status, 200)
+  assert.ok(managerAssignments.payload.data.some(item => item.interview_id === managerInterview.payload.data.id))
+
+  const flowRun = await api(`/api/interview-flows/${flow.payload.data.id}/runs`, {
+    method: 'POST', token: managerToken, body: { clientTeamId: primaryClientTeam.id },
+  })
+  assert.equal(flowRun.status, 201)
+  state.interviewIds.push(flowRun.payload.data.firstInterview.id)
+  const runtimeStages = await db.query(
+    `SELECT status, interview_id FROM candidate_flow_stage_runs WHERE run_id = @runId ORDER BY stage_order`,
+    { runId: flowRun.payload.data.id }
+  )
+  assert.equal(runtimeStages.length, 3)
+  assert.equal(runtimeStages[0].status, 'scheduled')
+  assert.ok(runtimeStages[0].interview_id)
+  const flowInterviewDelivery = (await db.query(
+    `SELECT report_emails FROM interviews WHERE id = @id`,
+    { id: runtimeStages[0].interview_id }
+  ))[0]
+  assert.equal(flowInterviewDelivery.report_emails, `manager-${stamp}@example.test`)
+  assert.equal(runtimeStages[1].status, 'pending')
+  assert.equal(runtimeStages[1].interview_id, null)
+
+  const shiftedStageOne = new Date(editedFlow.payload.data.stages[0].scheduled_at)
+  shiftedStageOne.setUTCMinutes(shiftedStageOne.getUTCMinutes() + 1)
+  const runtimeEditedFlow = await api(`/api/interview-flows/${flow.payload.data.id}`, {
+    method: 'PATCH', token: managerToken,
+    body: {
+      mandateId: template.payload.data.id,
+      name: editedFlow.payload.data.name,
+      stages: editedFlow.payload.data.stages.map((stage, index) => ({
+        id: stage.id,
+        name: stage.name,
+        type: stage.type,
+        scheduledAt: index === 0 ? shiftedStageOne.toISOString() : stage.scheduled_at,
+        durationMinutes: index === 0 ? 30 : stage.duration_minutes,
+        questionCount: index === 0 ? 7 : stage.question_count,
+        requirePass: stage.require_pass,
+        minimumScore: stage.minimum_score,
+        interviewerUserId: stage.interviewer_user_id,
+      })),
+    },
+  })
+  assert.equal(runtimeEditedFlow.status, 200)
+  const synchronizedInterview = (await db.query(
+    `SELECT scheduled_at, duration_minutes, question_count
+     FROM interviews WHERE id = @id`,
+    { id: runtimeStages[0].interview_id }
+  ))[0]
+  assert.equal(new Date(synchronizedInterview.scheduled_at).toISOString(), shiftedStageOne.toISOString())
+  assert.equal(Number(synchronizedInterview.duration_minutes), 30)
+  assert.equal(Number(synchronizedInterview.question_count), 7)
+
+  await interviewFlowService.handleInterviewResult(flowRun.payload.data.firstInterview.id, 'pass', 8)
+  const advancedStages = await db.query(
+    `SELECT status, interview_id FROM candidate_flow_stage_runs WHERE run_id = @runId ORDER BY stage_order`,
+    { runId: flowRun.payload.data.id }
+  )
+  assert.equal(advancedStages[0].status, 'passed')
+  assert.equal(advancedStages[1].status, 'scheduled')
+  assert.ok(advancedStages[1].interview_id)
+  assert.equal(advancedStages[2].status, 'pending')
+
+  await interviewFlowService.handleInterviewResult(advancedStages[1].interview_id, 'pass', 5)
+  const pausedRun = (await db.query(`SELECT status FROM candidate_flow_runs WHERE id = @id`, { id: flowRun.payload.data.id }))[0]
+  assert.equal(pausedRun.status, 'paused_failed')
+  const continuedRun = await api(`/api/interview-flows/runs/${flowRun.payload.data.id}/continue`, {
+    method: 'POST', token: managerToken,
+  })
+  assert.equal(continuedRun.status, 200)
+  assert.equal(continuedRun.payload.data.status, 'active')
+  const cancelledFlowRun = await api(`/api/interview-flows/runs/${flowRun.payload.data.id}`, {
+    method: 'DELETE', token: managerToken,
+  })
+  assert.equal(cancelledFlowRun.status, 200)
+  const deletedFlow = await api(`/api/interview-flows/${flow.payload.data.id}`, {
+    method: 'DELETE', token: managerToken,
+  })
+  assert.equal(deletedFlow.status, 200)
 
   const assessment = await api('/api/assessments/monthly', {
     method: 'POST',
@@ -601,6 +752,7 @@ async function run() {
   const candidateInterviews = await api('/api/candidate/interviews', { token: candidateToken })
   assert.equal(candidateInterviews.status, 200)
   assert.ok(candidateInterviews.payload.data.some(item => item.id === schedule.payload.data.id))
+  assert.ok(candidateInterviews.payload.data.some(item => item.id === managerInterview.payload.data.id))
 
   await waitUntil(primaryScheduleAt)
   const launch = await api(`/api/candidate/interviews/${schedule.payload.data.id}/launch`, {

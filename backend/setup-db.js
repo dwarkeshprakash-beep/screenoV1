@@ -26,6 +26,7 @@ const MIGRATIONS = [
   '017_drop_unused_runtime_columns.sql',
   '018_integrity_cleanup_and_indexes.sql',
   '019_manual_mapping_policy.sql',
+  '020_interview_flows.sql',
 ]
 
 async function main() {

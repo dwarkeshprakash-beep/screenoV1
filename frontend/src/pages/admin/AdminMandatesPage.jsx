@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import * as api from '../../services/api'
+import Modal from '../../components/shared/Modal'
 
 export default function AdminMandatesPage() {
   const [mandates, setMandates] = useState([])
@@ -241,14 +242,11 @@ export default function AdminMandatesPage() {
 
       {/* Reassign Modal */}
       {showReassignModal && selectedMandate && (
-        <Modal onClose={() => {
+        <Modal open size="sm" title="Reassign Mandate" onClose={() => {
           setShowReassignModal(false)
           setSelectedMandate(null)
           setNewManagerId('')
         }}>
-          <h2 style={{ fontSize: '1.5rem', fontWeight: 600, marginBottom: '1rem' }}>
-            Reassign Mandate
-          </h2>
           <p style={{ marginBottom: '1rem', color: '#666' }}>
             Reassigning: <strong>{selectedMandate.client_name}</strong>
           </p>
@@ -310,14 +308,11 @@ export default function AdminMandatesPage() {
 
       {/* Delete Modal */}
       {showDeleteModal && selectedMandate && (
-        <Modal onClose={() => {
+        <Modal open size="sm" title="Force Delete Mandate" onClose={() => {
           setShowDeleteModal(false)
           setSelectedMandate(null)
           setDeleteConfirmText('')
         }}>
-          <h2 style={{ fontSize: '1.5rem', fontWeight: 600, marginBottom: '1rem', color: '#dc2626' }}>
-            ⚠️ Force Delete Mandate
-          </h2>
           <div style={{ 
             backgroundColor: '#fee2e2', 
             padding: '1rem', 
@@ -390,41 +385,6 @@ export default function AdminMandatesPage() {
           </div>
         </Modal>
       )}
-    </div>
-  )
-}
-
-function Modal({ children, onClose }) {
-  return (
-    <div 
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 1000
-      }}
-      onClick={onClose}
-    >
-      <div 
-        style={{
-          backgroundColor: 'white',
-          padding: '2rem',
-          borderRadius: '8px',
-          maxWidth: '500px',
-          width: '90%',
-          maxHeight: '90vh',
-          overflow: 'auto'
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {children}
-      </div>
     </div>
   )
 }

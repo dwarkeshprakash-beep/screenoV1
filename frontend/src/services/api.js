@@ -465,6 +465,32 @@ export const sendClientJD = (id, ctId, data) =>
   request(`/api/templates/client/${id}/team/${ctId}/send-jd`, { method: 'POST', body: JSON.stringify(data) })
 export const scheduleClientTeamInterview = (id, ctId, data) =>
   request(`/api/templates/client/${id}/team/${ctId}/schedule`, { method: 'POST', body: JSON.stringify(data) })
+export const createInterviewFlow = data =>
+  request('/api/interview-flows', { method: 'POST', body: JSON.stringify(data) })
+export const updateInterviewFlow = (flowId, data) =>
+  request(`/api/interview-flows/${flowId}`, { method: 'PATCH', body: JSON.stringify(data) })
+export const deleteInterviewFlow = flowId =>
+  request(`/api/interview-flows/${flowId}`, { method: 'DELETE' })
+export const getMandateInterviewFlows = mandateId =>
+  request(`/api/interview-flows/mandate/${mandateId}`)
+export const getMandateInterviewFlowRuns = mandateId =>
+  request(`/api/interview-flows/mandate/${mandateId}/runs`)
+export const startInterviewFlow = (flowId, clientTeamId) =>
+  request(`/api/interview-flows/${flowId}/runs`, { method: 'POST', body: JSON.stringify({ clientTeamId }) })
+export const retryInterviewFlowRun = (runId, scheduledAt) =>
+  request(`/api/interview-flows/runs/${runId}/retry`, { method: 'POST', body: JSON.stringify({ scheduledAt }) })
+export const continueInterviewFlowRun = runId =>
+  request(`/api/interview-flows/runs/${runId}/continue`, { method: 'POST' })
+export const deleteInterviewFlowRun = runId =>
+  request(`/api/interview-flows/runs/${runId}`, { method: 'DELETE' })
+export const getMyInterviewerAssignments = () => request('/api/interview-flows/my-assignments')
+export const completeInterviewerAssignment = (assignmentId, data) => {
+  const body = new FormData()
+  body.append('outcome', data.outcome)
+  body.append('feedback', data.feedback || '')
+  if (data.file) body.append('file', data.file)
+  return request(`/api/interview-flows/assignments/${assignmentId}/complete`, { method: 'POST', body })
+}
 export const getVideoPlatforms = () => request('/api/templates/client/video-platforms')
 
 // Outcome rounds (new multi-round model)

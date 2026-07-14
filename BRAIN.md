@@ -75,8 +75,14 @@ The active schema includes the V2 core tables plus client mandate workflow table
 - `assignment_requests`
 - `email_outbox_jobs`
 - `resume_assets`
+- `interview_flows`
+- `interview_flow_stages`
+- `candidate_flow_runs`
+- `candidate_flow_stage_runs`
+- `interview_assignments`
+- `interview_assignment_files`
 
-`backend/migrations/019_manual_mapping_policy.sql` is the latest cleanup migration. `backend/src/db/schema.js` and `docs/database-schema.md` must agree with it.
+`backend/migrations/020_interview_flows.sql` is the latest migration. `backend/src/db/schema.js` and `docs/database-schema.md` must agree with it.
 
 ## Critical Flows
 

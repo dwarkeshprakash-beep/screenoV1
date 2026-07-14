@@ -14,6 +14,8 @@ const googleMeetService = require('../services/google-meet.service')
 const llmService = require('../services/llm.service')
 const storageService = require('../services/storage.service')
 const mandateLifecycleService = require('../services/mandate-lifecycle.service')
+const interviewFlowRepository = require('../repositories/interview-flow.repository')
+const interviewFlowService = require('../services/interview-flow.service')
 const { parseStoredArray } = require('../utils/parse')
 
 const router = express.Router()
@@ -156,20 +158,11 @@ async function syncMandateHeadcount(mandateId, managerId) {
   return profiles
 }
 
-async function assertRequirementCapacity(mandateId, requirementId, excludeClientTeamId = null) {
+async function assertRequirementExists(mandateId, requirementId) {
   if (!requirementId) return
   const requirements = await clientRequirementsRepo.getByMandate(mandateId)
   const requirement = requirements.find(item => Number(item.id) === Number(requirementId))
   if (!requirement) throw new Error('Requirement profile not found on this mandate')
-
-  const team = await clientTeamRepo.getByMandate(mandateId)
-  const currentCount = team.filter(item =>
-    Number(item.requirement_id) === Number(requirementId)
-    && Number(item.id) !== Number(excludeClientTeamId)
-  ).length
-  if (currentCount + 1 > Number(requirement.headcount || 1)) {
-    throw new Error(`Role capacity is full for ${requirement.profile_name}`)
-  }
 }
 
 async function syncRequirementProfiles(mandateId, managerId, profiles) {
@@ -557,14 +550,11 @@ router.get('/:id/team', async (req, res) => {
     // Attach latest scheduled interview for each team member
     const interviewMap = {}
     await Promise.all(team.map(async member => {
-      const rows = await require('../db/connection').query(
-        `SELECT id, type, status, scheduled_at, duration_minutes, location, created
-         FROM interviews
-         WHERE client_team_id = @ctId
-         ORDER BY created DESC LIMIT 1`,
-        { ctId: member.id }
-      )
-      if (rows[0]) interviewMap[member.id] = rows[0]
+      const latestInterview = await interviewFlowRepository.getLatestInterviewFeedback(member.id)
+      if (latestInterview?.storage_path) {
+        latestInterview.feedback_file_url = await storageService.getSignedUrl(latestInterview.storage_path).catch(() => null)
+      }
+      if (latestInterview) interviewMap[member.id] = latestInterview
       if (member.client_resume_url && !member.client_resume_url.startsWith('http')) {
         const storagePath = member.client_resume_url
         try {
@@ -604,14 +594,6 @@ router.post('/:id/team', async (req, res) => {
     const requirements = await clientRequirementsRepo.getByMandate(mandateId)
     const currentTeam = await clientTeamRepo.getByMandate(mandateId)
 
-    const requirementUsage = new Map()
-    for (const m of currentTeam) {
-      if (m.requirement_id) {
-        requirementUsage.set(m.requirement_id, (requirementUsage.get(m.requirement_id) || 0) + 1)
-      }
-    }
-
-    const additionsByRequirement = new Map()
     const membersToAdd = []
 
     const normalizedItems = userIds.map(u => ({
@@ -637,10 +619,6 @@ router.post('/:id/team', async (req, res) => {
       return res.status(404).json({ success: false, error: 'One or more users are not in your organization' })
     }
 
-    if (requirements.length === 0 && currentTeam.length + normalizedItems.length > Number(template.headcount || 1)) {
-      return res.status(409).json({ success: false, error: 'Adding these candidates exceeds mandate headcount capacity' })
-    }
-
     for (const { memberId, reqId } of normalizedItems) {
       if (requirements.length > 0 && !reqId) {
         return res.status(400).json({ success: false, error: 'Each user must specify a requirement_id (role)' })
@@ -656,15 +634,6 @@ router.post('/:id/team', async (req, res) => {
       const existing = await clientTeamRepo.getByUserAndMandate(memberId, mandateId)
       if (!existing) {
         membersToAdd.push({ memberId, reqId })
-        if (reqId) additionsByRequirement.set(reqId, (additionsByRequirement.get(reqId) || 0) + 1)
-      }
-    }
-
-    for (const [reqId, numToAdd] of additionsByRequirement.entries()) {
-      const reqInfo = requirements.find(r => Number(r.id) === Number(reqId))
-      const currentCount = requirementUsage.get(reqId) || 0
-      if (currentCount + numToAdd > reqInfo.headcount) {
-        return res.status(409).json({ success: false, error: `Adding these candidates exceeds headcount capacity for role: ${reqInfo.profile_name}` })
       }
     }
 
@@ -697,7 +666,7 @@ router.patch('/:id/team/:ctId', async (req, res) => {
       return res.status(404).json({ success: false, error: 'Client team member not found' })
     }
     const requirementId = req.body.requirement_id || req.body.requirementId || null
-    await assertRequirementCapacity(mandateId, requirementId, ctId)
+    await assertRequirementExists(mandateId, requirementId)
     const updated = await clientTeamRepo.update(ctId, mandateId, { 
       requirement_id: requirementId,
     })
@@ -706,9 +675,6 @@ router.patch('/:id/team/:ctId', async (req, res) => {
     console.error('PATCH /team/:ctId failed:', err.message)
     if (err.message === 'Requirement profile not found on this mandate') {
       return res.status(404).json({ success: false, error: err.message })
-    }
-    if (err.message.startsWith('Role capacity is full')) {
-      return res.status(409).json({ success: false, error: err.message })
     }
     res.status(500).json({ success: false, error: 'Could not update client team member' })
   }
@@ -723,7 +689,7 @@ router.patch('/:id/team/:ctId/requirement', async (req, res) => {
     if (!template) return res.status(404).json({ success: false, error: 'Mandate not found' })
     if (!checkNotArchived(template, res)) return
     const requirementId = req.body.requirement_id || req.body.requirementId || null
-    await assertRequirementCapacity(mandateId, requirementId, ctId)
+    await assertRequirementExists(mandateId, requirementId)
     const updated = await clientTeamRepo.updateRequirement(ctId, mandateId, requirementId)
     if (!updated) return res.status(404).json({ success: false, error: 'Client team member not found' })
     res.json({ success: true, data: updated })
@@ -731,9 +697,6 @@ router.patch('/:id/team/:ctId/requirement', async (req, res) => {
     console.error('PATCH /team/:ctId/requirement failed:', err.message)
     if (err.message === 'Requirement profile not found on this mandate') {
       return res.status(404).json({ success: false, error: err.message })
-    }
-    if (err.message.startsWith('Role capacity is full')) {
-      return res.status(409).json({ success: false, error: err.message })
     }
     res.status(500).json({ success: false, error: 'Could not update requirement for client team member' })
   }
@@ -807,7 +770,7 @@ router.post('/:id/team/:ctId/schedule', async (req, res) => {
   try {
     const mandateId = parseInt(req.params.id, 10)
     const ctId = parseInt(req.params.ctId, 10)
-    const { type, mode, difficulty, questionCount, scheduledAt, location, videoPlatform, durationMinutes, notes, reportUserIds } = req.body
+    const { type, mode, difficulty, questionCount, scheduledAt, location, videoPlatform, durationMinutes, notes, reportUserIds, interviewerUserId } = req.body
 
     const template = await clientTemplateRepo.getById(mandateId, req.user.id)
     if (!template) return res.status(404).json({ success: false, error: 'Mandate not found' })
@@ -816,6 +779,16 @@ router.post('/:id/team/:ctId/schedule', async (req, res) => {
     const teamMember = await clientTeamRepo.getByIdForMandate(ctId, mandateId)
     if (!teamMember) {
       return res.status(404).json({ success: false, error: 'Team member not found' })
+    }
+
+    let interviewer = null
+    if (type === 'human' || type === 'offline') {
+      if (!interviewerUserId) return res.status(400).json({ success: false, error: 'Select an interviewer' })
+      interviewer = await userRepository.getByIdForCompany(Number(interviewerUserId), req.user.companyId)
+      if (!interviewer) return res.status(404).json({ success: false, error: 'Interviewer not found in your organization' })
+      if (Number(interviewer.id) === Number(teamMember.user_id)) {
+        return res.status(400).json({ success: false, error: 'Candidate and interviewer must be different people' })
+      }
     }
 
     if (type === 'human' && scheduledAt) {
@@ -844,7 +817,7 @@ router.post('/:id/team/:ctId/schedule', async (req, res) => {
           summary: meetingTopic,
           startAt: scheduledAt,
           endAt,
-          attendeeEmails: [req.user.email],
+          attendeeEmails: [req.user.email, interviewer?.email].filter(Boolean),
         })
         if (meeting) videoLink = meeting.joinUrl
       }
@@ -888,6 +861,23 @@ router.post('/:id/team/:ctId/schedule', async (req, res) => {
         `UPDATE interviews SET client_team_id = @ctId, scheduled_at = @scheduledAt, location = @location, meeting_url = @meetingUrl WHERE id = @id`,
         { id: interview.id, ctId, scheduledAt, location: location || null, meetingUrl: videoLink || null }
       )
+      if (interviewer) {
+        await interviewFlowRepository.createAssignment({
+          stageRunId: null,
+          interviewId: interview.id,
+          interviewerUserId: interviewer.id,
+        })
+        interviewFlowService.notifyInterviewer(interview.id, interviewer, {
+          interviewerName: `${interviewer.first_name} ${interviewer.last_name}`.trim(),
+          candidateName: `${teamMember.first_name} ${teamMember.last_name}`.trim(),
+          clientName: template.client_name,
+          stageName: requirementDisplay(teamMember, template.requirements),
+          scheduledAt,
+          scheduleTimezone: req.body.scheduleTimezone || null,
+          location: location || null,
+          meetingUrl: videoLink || null,
+        }).catch(error => console.error('Interviewer notification failed:', error.message))
+      }
     }
 
     res.status(201).json({ success: true, data: interview, videoLink })

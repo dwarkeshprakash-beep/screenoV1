@@ -91,8 +91,33 @@ const SCHEMA = {
       'monthly_assessment_id', 'report_emails', 'scheduled_at',
       'available_from', 'due_at', 'schedule_timezone',
       'meeting_url', 'client_team_id', 'location',
-      'duration_minutes', 'started_at', 'ended_at', 'created',
+      'duration_minutes', 'started_at', 'ended_at', 'flow_stage_run_id', 'created',
     ],
+  },
+  interview_flows: {
+    columns: ['id', 'mandate_id', 'name', 'status', 'created_by_manager_id', 'created', 'updated'],
+  },
+  interview_flow_stages: {
+    columns: ['id', 'flow_id', 'stage_order', 'name', 'type', 'scheduled_at',
+      'schedule_timezone', 'duration_minutes', 'interview_mode', 'difficulty',
+      'question_count', 'require_pass', 'minimum_score', 'interviewer_user_id',
+      'location', 'meeting_url', 'notes', 'created', 'updated'],
+  },
+  candidate_flow_runs: {
+    columns: ['id', 'flow_id', 'client_team_id', 'status', 'current_stage_order',
+      'created_by_manager_id', 'completed_at', 'created', 'updated'],
+  },
+  candidate_flow_stage_runs: {
+    columns: ['id', 'run_id', 'stage_id', 'stage_order', 'interview_id', 'status',
+      'outcome', 'attempt_number', 'completed_at', 'created', 'updated'],
+  },
+  interview_assignments: {
+    columns: ['id', 'stage_run_id', 'interview_id', 'interviewer_user_id', 'status',
+      'outcome', 'feedback', 'completed_at', 'created', 'updated'],
+  },
+  interview_assignment_files: {
+    columns: ['id', 'assignment_id', 'original_filename', 'mime_type', 'size',
+      'storage_path', 'created'],
   },
   transcripts: {
     columns: ['id', 'interview_id', 'question', 'answer', 'created'],

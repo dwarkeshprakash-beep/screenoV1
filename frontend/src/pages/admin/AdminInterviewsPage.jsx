@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import * as api from '../../services/api'
+import Modal from '../../components/shared/Modal'
+import Button from '../../components/shared/Button'
 
 export default function AdminInterviewsPage() {
   const [interviews, setInterviews] = useState([])
@@ -190,15 +192,12 @@ export default function AdminInterviewsPage() {
 
       {/* Status Change Modal */}
       {showStatusModal && selectedInterview && (
-        <Modal onClose={() => {
+        <Modal open size="sm" title="Force Status Change" onClose={() => {
           setShowStatusModal(false)
           setSelectedInterview(null)
           setNewStatus('')
           setReason('')
         }}>
-          <h2 style={{ fontSize: '1.5rem', fontWeight: 600, marginBottom: '1rem' }}>
-            Force Status Change
-          </h2>
           <div style={{ 
             backgroundColor: '#fef3c7', 
             padding: '1rem', 
@@ -253,78 +252,26 @@ export default function AdminInterviewsPage() {
               }}
             />
           </label>
-          <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
-            <button
+          <div className="form-actions">
+            <Button variant="secondary"
               onClick={() => {
                 setShowStatusModal(false)
                 setSelectedInterview(null)
                 setNewStatus('')
                 setReason('')
               }}
-              style={{
-                padding: '0.5rem 1rem',
-                backgroundColor: '#f3f4f6',
-                color: '#374151',
-                border: 'none',
-                borderRadius: '6px',
-                cursor: 'pointer'
-              }}
             >
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={handleForceStatus}
               disabled={!newStatus}
-              style={{
-                padding: '0.5rem 1rem',
-                backgroundColor: newStatus ? '#f59e0b' : '#d1d5db',
-                color: 'white',
-                border: 'none',
-                borderRadius: '6px',
-                cursor: newStatus ? 'pointer' : 'not-allowed',
-                fontWeight: 500
-              }}
             >
               Force Update
-            </button>
+            </Button>
           </div>
         </Modal>
       )}
-    </div>
-  )
-}
-
-function Modal({ children, onClose }) {
-  return (
-    <div 
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 1000
-      }}
-      onClick={onClose}
-    >
-      <div 
-        style={{
-          backgroundColor: 'white',
-          padding: '2rem',
-          borderRadius: '8px',
-          maxWidth: '500px',
-          width: '90%',
-          maxHeight: '90vh',
-          overflow: 'auto'
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        {children}
-      </div>
     </div>
   )
 }

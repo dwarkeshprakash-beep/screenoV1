@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from 'react-router-dom'
-import { LayoutDashboard, Users, ScanSearch, Calendar, BarChart3, Settings, CheckSquare } from 'lucide-react'
+import { LayoutDashboard, Users, ScanSearch, Calendar, BarChart3, Settings, CheckSquare, UserCheck } from 'lucide-react'
 
 const MANAGER_NAV = [
   {
@@ -27,6 +27,7 @@ const MANAGER_NAV = [
     items: [
       { to: '/manager/schedule',        icon: Calendar,        label: 'Schedule' },
       { to: '/manager/reports',         icon: BarChart3,       label: 'Reports' },
+      { to: '/manager/interviewer',     icon: UserCheck,       label: 'I’m Interviewing' },
     ],
   },
 ]

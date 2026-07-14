@@ -27,16 +27,19 @@ async function create(data) {
      (manager_id, internal_user_id, external_candidate_id, type, interview_mode,
         difficulty, question_count, duration_minutes, token, token_expires,
         client_template_id, monthly_assessment_id, report_emails, scheduled_at,
-        available_from, due_at, schedule_timezone, client_team_id, location, meeting_url)
+        available_from, due_at, schedule_timezone, client_team_id, location, meeting_url,
+        flow_stage_run_id)
      VALUES
        (@managerId, @internalUserId, @externalCandidateId, @type, @interviewMode,
         @difficulty, @questionCount, @durationMinutes, @tokenHash, @tokenExpires,
         @clientTemplateId, @monthlyAssessmentId, @reportEmails, @scheduledAt,
-        @availableFrom, @dueAt, @scheduleTimezone, @clientTeamId, @location, @meetingUrl)
+        @availableFrom, @dueAt, @scheduleTimezone, @clientTeamId, @location, @meetingUrl,
+        @flowStageRunId)
      RETURNING id, manager_id, internal_user_id, external_candidate_id, type,
        interview_mode, difficulty, question_count, duration_minutes, token_expires, status,
        client_template_id, monthly_assessment_id, report_emails, scheduled_at,
-       available_from, due_at, schedule_timezone, client_team_id, location, meeting_url, created`,
+       available_from, due_at, schedule_timezone, client_team_id, location, meeting_url,
+       flow_stage_run_id, created`,
     {
       managerId: data.managerId,
       internalUserId: data.internalUserId || null,
@@ -58,6 +61,7 @@ async function create(data) {
       clientTeamId: data.clientTeamId || null,
       location: data.location || null,
       meetingUrl: data.meetingUrl || null,
+      flowStageRunId: data.flowStageRunId || null,
     }
   )
   return rows[0]

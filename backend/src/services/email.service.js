@@ -591,6 +591,36 @@ async function sendOfflineInterviewInvite(to, { candidateName, clientName, role,
   })
 }
 
+/** Notify an internal candidate that they are conducting an interview. */
+async function sendInterviewerAssignment(to, data) {
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173'
+  const dateText = new Date(data.scheduledAt).toLocaleString('en-IN', {
+    dateStyle: 'long', timeStyle: 'short', timeZone: data.scheduleTimezone || undefined,
+  })
+  await sendMail({
+    to,
+    subject: `Interview assigned - ${data.candidateName}`,
+    text: [
+      `Hi ${data.interviewerName},`, '',
+      `You have been assigned to conduct ${data.stageName} for ${data.candidateName}.`,
+      `Client: ${data.clientName}`,
+      `Date & Time: ${dateText}`,
+      data.location ? `Location: ${data.location}` : '',
+      data.meetingUrl ? `Meeting: ${data.meetingUrl}` : '', '',
+      `Open your interviewer assignments: ${frontendUrl}/candidate/interviews`,
+    ].filter(Boolean).join('\n'),
+    html: `<div style="font-family:sans-serif;max-width:520px;margin:auto;padding:28px">
+      <h2>Interview assigned</h2>
+      <p>Hi <strong>${escapeHtml(data.interviewerName)}</strong>,</p>
+      <p>You will conduct <strong>${escapeHtml(data.stageName)}</strong> for <strong>${escapeHtml(data.candidateName)}</strong>.</p>
+      <p><strong>Client:</strong> ${escapeHtml(data.clientName)}<br><strong>Date &amp; time:</strong> ${escapeHtml(dateText)}</p>
+      ${data.location ? `<p><strong>Location:</strong> ${escapeHtml(data.location)}</p>` : ''}
+      ${data.meetingUrl ? `<p><a href="${escapeHtml(data.meetingUrl)}">Open meeting</a></p>` : ''}
+      <p><a href="${frontendUrl}/candidate/interviews">View interviewer assignments</a></p>
+    </div>`,
+  })
+}
+
 module.exports = {
   sendMail,
   sendPasswordReset,
@@ -601,5 +631,6 @@ module.exports = {
   sendJDForResumeUpdate,
   sendClientJDWithMessage,
   sendOfflineInterviewInvite,
+  sendInterviewerAssignment,
   getDeliveredRecipients,
 }

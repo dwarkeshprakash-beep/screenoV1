@@ -13,6 +13,7 @@ import Modal from '../../components/shared/Modal'
 import ConfirmDialog from '../../components/shared/ConfirmDialog'
 import DeleteMandateModal from '../../components/manager/DeleteMandateModal'
 import ReportRecipientsSelector from '../../components/manager/ReportRecipientsSelector'
+import InterviewFlowModal from '../../components/manager/InterviewFlowModal'
 import Spinner from '../../components/shared/Spinner'
 import * as api from '../../services/api'
 import { formatDate, formatDateTime, parseStoredArray, serializeDatetimeLocal } from '../../utils/helpers'
@@ -885,6 +886,8 @@ function ScheduleClientTeamModal({ open, onClose, onScheduled, member, template 
   const [location, setLocation] = useState('')
   const [notes, setNotes] = useState('')
   const [reportUserIds, setReportUserIds] = useState([])
+  const [interviewerUserId, setInterviewerUserId] = useState('')
+  const [organizationUsers, setOrganizationUsers] = useState([])
   const [scheduling, setScheduling] = useState(false)
   const [error, setError] = useState(null)
 
@@ -901,12 +904,16 @@ function ScheduleClientTeamModal({ open, onClose, onScheduled, member, template 
     setLocation('')
     setNotes('')
     setReportUserIds([])
+    setInterviewerUserId('')
     setError(null)
     // Load which platforms are configured
     api.getVideoPlatforms()
       .then(r => setPlatformStatus(r.data || {}))
       .catch(() => { })
-  }, [open])
+    api.getScheduleOrgUsers()
+      .then(response => setOrganizationUsers((response.data || []).filter(user => Number(user.id) !== Number(member.user_id))))
+      .catch(() => setOrganizationUsers([]))
+  }, [open, member.user_id])
 
   function validateDetails() {
     if (!scheduledAt) {
@@ -931,6 +938,10 @@ function ScheduleClientTeamModal({ open, onClose, onScheduled, member, template 
         setError('Google Meet is not configured yet. Add the Google Calendar service-account settings first.')
         return false
       }
+    }
+    if ((type === 'human' || type === 'offline') && !interviewerUserId) {
+      setError('Select an interviewer.')
+      return false
     }
     if ((type === 'ai_voice' || type === 'exam') && (Number(durationMinutes) < 15 || Number(durationMinutes) > 180)) {
       setError('Duration must be between 15 and 180 minutes.')
@@ -962,6 +973,7 @@ function ScheduleClientTeamModal({ open, onClose, onScheduled, member, template 
         location: location.trim() || null,
         notes: notes.trim() || null,
         reportUserIds,
+        interviewerUserId: interviewerUserId ? Number(interviewerUserId) : null,
       })
       onScheduled()
       onClose()
@@ -1094,6 +1106,15 @@ function ScheduleClientTeamModal({ open, onClose, onScheduled, member, template 
         {type === 'offline' && (
           <Field label="Notes" full>
             <textarea className="form-input" rows={3} value={notes} onChange={e => setNotes(e.target.value)} placeholder="Any additional details..." style={{ resize: 'vertical' }} />
+          </Field>
+        )}
+
+        {(type === 'human' || type === 'offline') && (
+          <Field label="Interviewer" help="Any other candidate in your organization can conduct this interview.">
+            <select className="form-input" value={interviewerUserId} onChange={e => setInterviewerUserId(e.target.value)}>
+              <option value="">Select interviewer...</option>
+              {organizationUsers.map(user => <option key={user.id} value={user.id}>{user.first_name} {user.last_name} ({user.email})</option>)}
+            </select>
           </Field>
         )}
           </>
@@ -1322,6 +1343,9 @@ function MandateDetail({ initialTemplate, onBack }) {
   const [loadClientTeamError, setLoadClientTeamError] = useState(null)
   const [reports, setReports] = useState([])
   const [reportsError, setReportsError] = useState(null)
+  const [flowRuns, setFlowRuns] = useState([])
+  const [flowRunsError, setFlowRunsError] = useState(null)
+  const [retryDates, setRetryDates] = useState({})
   const [selectedReport, setSelectedReport] = useState(null)
   const [reportDetailLoading, setReportDetailLoading] = useState(false)
   const [reportDetailError, setReportDetailError] = useState(null)
@@ -1339,6 +1363,9 @@ function MandateDetail({ initialTemplate, onBack }) {
   const [candidateActionError, setCandidateActionError] = useState(null)
   const [sendJdTarget, setSendJdTarget] = useState(null)
   const [scheduleTarget, setScheduleTarget] = useState(null)
+  const [scheduleChoiceTarget, setScheduleChoiceTarget] = useState(null)
+  const [flowTarget, setFlowTarget] = useState(null)
+  const [flowEditTarget, setFlowEditTarget] = useState(null)
   const [roundsTarget, setRoundsTarget] = useState(null)
   const [cancellingId, setCancellingId] = useState(null)
   const [removingId, setRemovingId] = useState(null)
@@ -1423,6 +1450,13 @@ function MandateDetail({ initialTemplate, onBack }) {
       .catch(err => {
         setReportsError(err.message || 'Failed to load reports')
       })
+  }, [tab, template.id])
+  useEffect(() => {
+    if (tab !== 'flows') return
+    setFlowRunsError(null)
+    api.getMandateInterviewFlowRuns(template.id)
+      .then(response => setFlowRuns(response.data || []))
+      .catch(err => setFlowRunsError(err.message || 'Failed to load interview flows'))
   }, [tab, template.id])
 
   const teamMembers = useMemo(() => members.filter(m => m.in_team), [members])
@@ -1527,6 +1561,52 @@ function MandateDetail({ initialTemplate, onBack }) {
     }
   }
 
+  const groupedFlowRuns = [...flowRuns.reduce((map, row) => {
+    if (!map.has(row.run_id)) map.set(row.run_id, { ...row, stages: [] })
+    map.get(row.run_id).stages.push(row)
+    return map
+  }, new Map()).values()]
+
+  async function refreshFlowRuns() {
+    const response = await api.getMandateInterviewFlowRuns(template.id)
+    setFlowRuns(response.data || [])
+  }
+
+  async function continuePausedRun(runId) {
+    try {
+      await api.continueInterviewFlowRun(runId)
+      await refreshFlowRuns()
+    } catch (err) { setFlowRunsError(err.message || 'Could not continue flow') }
+  }
+
+  async function retryPausedRun(runId) {
+    const value = retryDates[runId]
+    if (!value) { setFlowRunsError('Choose a new retry date and time.'); return }
+    try {
+      await api.retryInterviewFlowRun(runId, serializeDatetimeLocal(value))
+      await refreshFlowRuns()
+    } catch (err) { setFlowRunsError(err.message || 'Could not retry stage') }
+  }
+
+  function deleteCandidateFlow(run) {
+    setConfirmDialog({
+      open: true,
+      title: 'Delete candidate interview flow',
+      message: `Permanently delete ${run.candidate_first} ${run.candidate_last}'s flow, including its interviews, reports, feedback, and completed history?`,
+      danger: true,
+      confirmText: 'Delete flow',
+      onConfirm: async () => {
+        try {
+          await api.deleteInterviewFlowRun(run.run_id)
+          await refreshFlowRuns()
+          setMessage({ text: 'Candidate interview flow deleted.', type: 'success' })
+        } catch (err) {
+          setFlowRunsError(err.message || 'Could not delete candidate interview flow')
+        }
+      },
+    })
+  }
+
   return (
     <div className="workspace-page workspace-stack">
       <div className="detail-header">
@@ -1556,7 +1636,7 @@ function MandateDetail({ initialTemplate, onBack }) {
       </div>
 
       <div className="workspace-tabs" aria-label="Mandate sections" style={{ alignSelf: 'flex-start' }}>
-        {[['overview', 'Overview'], ['jd', 'Job description'], ['candidates', 'Candidates'], ['team', 'Client team'], ['reports', 'Reports']].map(([id, label]) => (
+        {[['overview', 'Overview'], ['jd', 'Job description'], ['candidates', 'Candidates'], ['team', 'Client team'], ['flows', 'Interview flows'], ['reports', 'Reports']].map(([id, label]) => (
           <button key={id} type="button" className={`workspace-tabs__button${tab === id ? ' is-active' : ''}`} onClick={() => setTab(id)}>{label}</button>
         ))}
       </div>
@@ -1581,7 +1661,7 @@ function MandateDetail({ initialTemplate, onBack }) {
         {tab === 'overview' && (
           <div className="workspace-stack">
             <div className="detail-facts">
-              {[['Client', template.client_name], ['Role', template.requirements || 'Not set'], ['Openings', template.headcount ?? 1], ['Hired', template.hired_count ?? 0], ['Pipeline', template.pipeline_count ?? 0], ['Client email', template.client_email || 'Not provided'], ['Created', formatDate(template.created)], ['Skills', tags.length]].map(([label, value]) => (
+              {[['Client', template.client_name], ['Role', template.requirements || 'Not set'], ['Hiring target', template.headcount ?? 1], ['Hired', template.hired_count ?? 0], ['Pipeline', template.pipeline_count ?? 0], ['Client email', template.client_email || 'Not provided'], ['Created', formatDate(template.created)], ['Skills', tags.length]].map(([label, value]) => (
                 <div className="detail-fact" key={label}><div className="detail-fact__label">{label}</div><div className="detail-fact__value">{value}</div></div>
               ))}
             </div>
@@ -1618,7 +1698,7 @@ function MandateDetail({ initialTemplate, onBack }) {
                       <div className="assignment-row__content">
                         <strong>{r.profile_name}</strong>
                         <span>
-                          {r.years_min != null ? `${r.years_min}–${r.years_max ?? '+'}  yrs exp` : 'Experience not specified'} &middot; {r.hired_count ?? 0} hired / {r.headcount ?? 1} openings &middot; {r.pipeline_count ?? 0} pipeline
+                          {r.years_min != null ? `${r.years_min}–${r.years_max ?? '+'}  yrs exp` : 'Experience not specified'} &middot; {r.hired_count ?? 0} hired / {r.headcount ?? 1} target &middot; {r.pipeline_count ?? 0} pipeline
                           {r.notes ? ` · ${r.notes}` : ''}
                         </span>
                         <span>
@@ -1809,7 +1889,7 @@ function MandateDetail({ initialTemplate, onBack }) {
 
                           <div style={{ display: 'flex', gap: 6 }}>
                             <Button size="sm" variant="secondary" onClick={() => setSendJdTarget(member)} disabled={isArchived}><Mail size={12} />Send JD</Button>
-                            <Button size="sm" variant="secondary" onClick={() => setScheduleTarget(member)} disabled={isArchived}><Calendar size={12} />Schedule</Button>
+                            <Button size="sm" variant="secondary" onClick={() => setScheduleChoiceTarget(member)} disabled={isArchived}><Calendar size={12} />Schedule</Button>
                             <Button size="sm" variant="secondary" onClick={() => setRoundsTarget(member)}><AlertCircle size={12} />Rounds</Button>
                             <button type="button" className="danger-icon-button" disabled={isArchived || removingId === member.id}
                               onClick={() => removeFromTeam(member)} style={{ padding: '5px 8px' }}>
@@ -1823,6 +1903,20 @@ function MandateDetail({ initialTemplate, onBack }) {
                             {formatDateTime(interview.scheduled_at)}{interview.location ? ` | ${interview.location}` : ''}
                           </div>
                         )}
+                        {interview?.interviewer_first && (
+                          <div style={{ paddingLeft: 46, marginTop: 5, fontSize: 11, color: 'var(--fg-muted)' }}>
+                            Interviewer: {interview.interviewer_first} {interview.interviewer_last}
+                            {interview.assignment_status ? ` · ${interview.assignment_status}` : ''}
+                          </div>
+                        )}
+                        {interview?.assignment_status === 'completed' && (
+                          <div style={{ marginLeft: 46, marginTop: 8, padding: 10, borderRadius: 8, background: 'var(--bg-surface-alt)', fontSize: 12, color: 'var(--fg-body)' }}>
+                            <strong>Interviewer feedback ({interview.interviewer_outcome})</strong>
+                            {interview.interviewer_first && <span> · {interview.interviewer_first} {interview.interviewer_last}</span>}
+                            {interview.feedback && <p style={{ margin: '5px 0 0' }}>{interview.feedback}</p>}
+                            {interview.feedback_file_url && <a href={interview.feedback_file_url} target="_blank" rel="noreferrer" style={{ display: 'inline-block', marginTop: 5 }}>{interview.original_filename || 'Feedback document'}</a>}
+                          </div>
+                        )}
                       </div>
                     )
                   })}
@@ -1830,6 +1924,59 @@ function MandateDetail({ initialTemplate, onBack }) {
               )}
             </div>
           )
+        )}
+
+        {tab === 'flows' && (
+          <div className="workspace-stack">
+            <div className="workspace-section-heading"><div><h3>Candidate interview flows</h3><p>Stages schedule one at a time after completion and progression checks.</p></div></div>
+            {flowRunsError && <ErrorMessage message={flowRunsError} />}
+            {groupedFlowRuns.length === 0 && !flowRunsError
+              ? <EmptyState message="No candidate flows have been started for this mandate." />
+              : groupedFlowRuns.map(run => (
+                <section key={run.run_id} className="workspace-card">
+                  <div className="workspace-card__body">
+                    <div className="workspace-section-heading">
+                      <div><h3>{run.candidate_first} {run.candidate_last}</h3><p>{run.flow_name}</p></div>
+                      <div style={{ display: 'flex', gap: 7, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <Button size="sm" variant="secondary" onClick={() => setFlowEditTarget({
+                          flowId: run.flow_id,
+                          member: { id: run.client_team_id, user_id: run.candidate_user_id, first_name: run.candidate_first, last_name: run.candidate_last },
+                        })}>Edit</Button>
+                        <button type="button" className="danger-icon-button" title="Delete candidate flow" onClick={() => deleteCandidateFlow(run)}><Trash2 size={14} /></button>
+                        <span className={`status-pill${run.run_status === 'completed' ? ' status-pill--success' : run.run_status.includes('paused') ? ' status-pill--danger' : ' status-pill--brand'}`}>{run.run_status.replaceAll('_', ' ')}</span>
+                      </div>
+                    </div>
+                    <div className="assignment-list" style={{ marginTop: 12 }}>
+                      {run.stages.map(stage => (
+                        <div className="assignment-row" key={`${stage.stage_run_id}-${stage.file_id || 0}`}>
+                          <span className="status-pill">{stage.stage_order}</span>
+                          <div className="assignment-row__content">
+                            <strong>{stage.stage_name}</strong>
+                            <span>{stage.type} · attempt {stage.attempt_number} · {stage.stage_status}</span>
+                            {stage.feedback && <span>Feedback: {stage.feedback}</span>}
+                          </div>
+                          {stage.interviewer_first && <span style={{ fontSize: 12, color: 'var(--fg-muted)' }}>{stage.interviewer_first} {stage.interviewer_last}</span>}
+                          {stage.file_url && <a href={stage.file_url} target="_blank" rel="noreferrer" className="product-button product-button--secondary product-button--sm">{stage.original_filename}</a>}
+                        </div>
+                      ))}
+                    </div>
+                    {run.run_status === 'paused_failed' && (
+                      <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+                        <input className="form-input" style={{ maxWidth: 230 }} type="datetime-local" value={retryDates[run.run_id] || ''} onChange={event => setRetryDates(current => ({ ...current, [run.run_id]: event.target.value }))} />
+                        <Button size="sm" variant="secondary" onClick={() => retryPausedRun(run.run_id)}>Retry stage</Button>
+                        <Button size="sm" onClick={() => continuePausedRun(run.run_id)}>Continue anyway</Button>
+                      </div>
+                    )}
+                    {run.run_status === 'paused_schedule_required' && (
+                      <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+                        <input className="form-input" style={{ maxWidth: 230 }} type="datetime-local" value={retryDates[run.run_id] || ''} onChange={event => setRetryDates(current => ({ ...current, [run.run_id]: event.target.value }))} />
+                        <Button size="sm" onClick={() => retryPausedRun(run.run_id)}>Schedule stage</Button>
+                      </div>
+                    )}
+                  </div>
+                </section>
+              ))}
+          </div>
         )}
 
         {/* ── Reports tab ── */}
@@ -1923,6 +2070,36 @@ function MandateDetail({ initialTemplate, onBack }) {
           member={scheduleTarget}
           template={template}
           onScheduled={() => { setScheduleTarget(null); loadClientTeam(); setMessage({ text: 'Interview scheduled successfully.', type: 'success' }) }}
+        />
+      )}
+
+      <Modal open={!!scheduleChoiceTarget} onClose={() => setScheduleChoiceTarget(null)} title="Schedule candidate" size="sm">
+        <div className="workspace-stack">
+          <p style={{ margin: 0, color: 'var(--fg-muted)', fontSize: 13 }}>Choose a one-time interview or an ordered multi-stage flow.</p>
+          <Button onClick={() => { setScheduleTarget(scheduleChoiceTarget); setScheduleChoiceTarget(null) }}><Calendar size={14} />Schedule a single interview</Button>
+          <Button variant="secondary" onClick={() => { setFlowTarget(scheduleChoiceTarget); setScheduleChoiceTarget(null) }}><Sparkles size={14} />Create interview flow</Button>
+        </div>
+      </Modal>
+
+      {flowTarget && (
+        <InterviewFlowModal
+          open={!!flowTarget}
+          mandate={template}
+          member={flowTarget}
+          onClose={() => setFlowTarget(null)}
+          onStarted={() => { setFlowTarget(null); loadClientTeam(); setMessage({ text: 'Interview flow started. Stage 1 is scheduled.', type: 'success' }) }}
+        />
+      )}
+
+      {flowEditTarget && (
+        <InterviewFlowModal
+          open={!!flowEditTarget}
+          mandate={template}
+          member={flowEditTarget.member}
+          initialFlowId={flowEditTarget.flowId}
+          onClose={() => setFlowEditTarget(null)}
+          onStarted={() => { setFlowEditTarget(null); refreshFlowRuns(); setMessage({ text: 'Interview flow started.', type: 'success' }) }}
+          onSaved={() => { refreshFlowRuns(); setMessage({ text: 'Interview flow updated.', type: 'success' }) }}
         />
       )}
 

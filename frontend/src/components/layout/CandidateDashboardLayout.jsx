@@ -1,5 +1,6 @@
-import { NavLink, Outlet } from 'react-router-dom'
-import { Home, Calendar, BriefcaseBusiness, User, BookOpen, Lightbulb, Award } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { NavLink, Outlet, useLocation } from 'react-router-dom'
+import { Home, Calendar, BriefcaseBusiness, User, BookOpen, Lightbulb, Award, Menu, X } from 'lucide-react'
 
 const TABS = [
   { to: '/candidate/overview',   label: 'Overview',   icon: Home },
@@ -12,30 +13,35 @@ const TABS = [
 ]
 
 function CandidateDashboardLayout() {
+  const [menuOpen, setMenuOpen] = useState(false)
+  const location = useLocation()
+
+  useEffect(() => setMenuOpen(false), [location.pathname])
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', minHeight: 'calc(100svh - 3.5rem)' }}>
-      <div style={{ background: 'var(--bg-surface)', borderBottom: '1px solid var(--border-default)', padding: '0 1.75rem' }}>
-        <nav style={{ display: 'flex', overflowX: 'auto' }}>
+    <div className="candidate-dashboard-shell">
+      <div className="candidate-dashboard-nav-shell">
+        <button
+          type="button"
+          className="candidate-dashboard-menu-button"
+          aria-expanded={menuOpen}
+          aria-controls="candidate-dashboard-navigation"
+          onClick={() => setMenuOpen(current => !current)}
+        >
+          {menuOpen ? <X size={17} /> : <Menu size={17} />}
+          Menu
+        </button>
+        <nav id="candidate-dashboard-navigation" className={`candidate-dashboard-nav${menuOpen ? ' is-open' : ''}`}>
           {TABS.map(({ to, label, icon: Icon }) => (
             <NavLink key={to} to={to}
-              style={({ isActive }) => ({
-                display: 'flex', alignItems: 'center', gap: 6,
-                padding: '13px 16px',
-                fontSize: 13, fontWeight: 600,
-                color: isActive ? 'var(--brand-500)' : 'var(--fg-muted)',
-                borderBottom: `2px solid ${isActive ? 'var(--brand-500)' : 'transparent'}`,
-                textDecoration: 'none',
-                whiteSpace: 'nowrap',
-                marginBottom: -1,
-                transition: 'color var(--dur-fast) var(--ease-standard)',
-              })}>
+              className={({ isActive }) => `candidate-dashboard-nav__link${isActive ? ' is-active' : ''}`}>
               <Icon size={14} />
               {label}
             </NavLink>
           ))}
         </nav>
       </div>
-      <div style={{ flex: 1, background: 'var(--bg-page)' }}>
+      <div className="candidate-dashboard-content">
         <Outlet />
       </div>
     </div>

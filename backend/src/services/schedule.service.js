@@ -149,6 +149,7 @@ async function createSchedule(data, managerId, companyId) {
     clientTeamId: data.clientTeamId || null,
     location: data.location || null,
     meetingUrl: data.meetingUrl || null,
+    flowStageRunId: data.flowStageRunId || null,
     reportEmails: reportEmails.join(',') || null,
   })
 

@@ -21,6 +21,7 @@ const profileRoutes = require('./src/routes/profile.routes')
 const clientTemplateRoutes = require('./src/routes/client-template.routes')
 const monthlyAssessmentRoutes = require('./src/routes/monthly-assessment.routes')
 const adminRoutes = require('./src/routes/admin.routes')
+const interviewFlowRoutes = require('./src/routes/interview-flow.routes')
 const reportJobService = require('./src/services/report-job.service')
 const outboxWorker = require('./src/workers/outbox-worker')
 const db = require('./src/db/connection')
@@ -75,6 +76,7 @@ app.use('/api/upload', uploadRoutes)
 app.use('/api/profile', profileRoutes)
 app.use('/api/assessments/monthly', monthlyAssessmentRoutes)
 app.use('/api/admin', adminRoutes)
+app.use('/api/interview-flows', interviewFlowRoutes)
 
 // Health check — used by uptime monitors and deploy checks
 app.get('/health', async (req, res) => {

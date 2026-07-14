@@ -164,10 +164,20 @@ async function saveAnswer({
 async function completeInterview(interviewId, identity, status = 'completed') {
   const interview = await getCandidateInterview(interviewId, identity)
   const result = status === 'abandoned' ? 'failed_mid_interview' : 'success'
-  if (interview.status === 'completed') return
+  if (interview.status === 'completed') {
+    // Completion is idempotent, but report creation must also recover if a
+    // previous request saved the interview and failed before queuing the job.
+    await reportJobRepository.create(interviewId)
+    return
+  }
 
   await interviewRepository.markCompleted(interviewId, result)
-  if (result === 'success') await reportJobRepository.create(interviewId)
+  if (result === 'failed_mid_interview') {
+    const interviewFlowService = require('./interview-flow.service')
+    await interviewFlowService.handleInterviewResult(interviewId, 'fail', 0)
+      .catch(err => console.error('Flow progression failed:', err.message))
+  }
+  await reportJobRepository.create(interviewId)
 }
 
 async function logProctoringEvent(data) {
@@ -197,6 +207,9 @@ async function logProctoringEvent(data) {
     await reportRepository.updateStatus(report.id, 'ready')
     const job = await reportJobRepository.create(data.interviewId)
     await reportJobRepository.markCompleted(job.id)
+    const interviewFlowService = require('./interview-flow.service')
+    await interviewFlowService.handleInterviewResult(data.interviewId, 'fail', 0)
+      .catch(err => console.error('Flow progression failed:', err.message))
     return { warning: false, terminated: true }
   }
 
@@ -256,7 +269,8 @@ async function generateReport(interviewId) {
   if (interview.result === 'cheating_attempt') {
     throw new Error(`Interview ${interviewId} ended because of a proctoring violation`)
   }
-  if (transcripts.length === 0) {
+  const endedEarly = interview.result === 'failed_mid_interview'
+  if (transcripts.length === 0 && !endedEarly) {
     throw new Error(`No transcripts found for interview ${interviewId}`)
   }
 
@@ -273,10 +287,25 @@ async function generateReport(interviewId) {
       : ''
     return `Q: ${q}${expected}\nA: ${a}`
   }).join('\n\n')
-  const reportData = await llmService.generateReport(
-    `Candidate: ${interview.candidate_first} ${interview.candidate_last}\nInterview Q&A:\n${qaText}`
-  )
-  const decision = reportData.decision || (
+  const reportData = transcripts.length === 0
+    ? {
+        overall_score: 0,
+        confidence: 0,
+        tech_knowledge: 0,
+        communication: 0,
+        problem_solving: 0,
+        decision: 'fail',
+        summary: 'The candidate ended the interview before answering any questions.',
+        strengths: [],
+      }
+    : await llmService.generateReport(
+        `Candidate: ${interview.candidate_first} ${interview.candidate_last}\nInterview Q&A:\n${qaText}`
+      )
+  if (endedEarly) {
+    reportData.decision = 'fail'
+    reportData.summary = `Interview ended early by the candidate. ${reportData.summary || ''}`.trim()
+  }
+  const decision = endedEarly ? 'fail' : reportData.decision || (
     reportData.overall_score >= 7
       ? 'pass'
       : reportData.overall_score >= 5 ? 'borderline' : 'fail'
@@ -299,6 +328,12 @@ async function generateReport(interviewId) {
     summary: reportData.summary,
     strengths: reportData.strengths,
   })
+
+  // Flow progression is based on the persisted scorecard decision and must
+  // not be blocked by PDF generation, storage, or notification failures.
+  const interviewFlowService = require('./interview-flow.service')
+  await interviewFlowService.handleInterviewResult(interviewId, decision, reportData.overall_score)
+    .catch(err => console.error('Flow progression failed:', err.message))
 
   try {
     const pdfBuffer = await pdfService.generateReportPdf({

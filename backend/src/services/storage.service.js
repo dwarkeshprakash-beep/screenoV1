@@ -86,6 +86,17 @@ async function uploadReport(buffer, reportId) {
   return { path, url }
 }
 
+/** Upload an optional document attached to interviewer feedback. */
+async function uploadInterviewFeedbackAsset(buffer, assignmentId, file = {}) {
+  const safeName = String(file.originalname || 'attachment').replace(/[^a-zA-Z0-9._-]/g, '_')
+  const path = `interview-feedback/${assignmentId}/${crypto.randomUUID()}-${safeName}`
+  const { error } = await supabase.storage.from(BUCKET).upload(path, buffer, {
+    contentType: file.mimetype || 'application/octet-stream', upsert: false,
+  })
+  if (error) throw error
+  return { path }
+}
+
 /**
  * Fetch a short-lived signed URL for a file in storage.
  * @param {string} path - storage path
@@ -163,5 +174,6 @@ module.exports = {
   getSignedUrl, 
   deleteFile, 
   cleanupOrphanedFiles,
-  copyResumeForMandateSnapshot
+  copyResumeForMandateSnapshot,
+  uploadInterviewFeedbackAsset,
 }

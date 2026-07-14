@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Calendar, Clock, MapPin } from 'lucide-react'
+import InterviewerAssignmentsPanel from '../../components/shared/InterviewerAssignmentsPanel'
 import Spinner from '../../components/shared/Spinner'
 import * as api from '../../services/api'
 import { formatDate, formatDateTime, interviewAvailability } from '../../utils/helpers'
@@ -10,73 +11,34 @@ const INTERVIEW_TYPE_LABEL = {
   offline: 'Offline Interview', client: 'Client Interview',
 }
 const TYPE_COLOR = { ai_voice: 'var(--brand-500)', exam: 'var(--info-500)', human: 'var(--success-500)', offline: 'var(--warning-500)' }
-const TYPE_BG    = { ai_voice: 'var(--brand-50)',  exam: 'var(--info-50)',  human: 'var(--success-50)', offline: 'var(--warning-50)' }
+const TYPE_BG = { ai_voice: 'var(--brand-50)', exam: 'var(--info-50)', human: 'var(--success-50)', offline: 'var(--warning-50)' }
 
-function InterviewCard({ iv, onLaunch, onJoinHuman, launchingId }) {
-  const tColor = TYPE_COLOR[iv.type] || 'var(--border-strong)'
-  const tBg    = TYPE_BG[iv.type]    || 'var(--bg-surface-alt)'
-  const availability = interviewAvailability(iv)
-  const launchableType = iv.type === 'ai_voice' || iv.type === 'exam'
-  const isHuman = iv.type === 'human'
-  const canLaunch = launchableType && ['scheduled', 'in_progress'].includes(iv.status) && availability.canStart
-  const canJoinHuman = isHuman && ['scheduled', 'in_progress'].includes(iv.status) && availability.canStart
+function InterviewCard({ interview, onLaunch, onJoinHuman, launchingId }) {
+  const color = TYPE_COLOR[interview.type] || 'var(--border-strong)'
+  const background = TYPE_BG[interview.type] || 'var(--bg-surface-alt)'
+  const availability = interviewAvailability(interview)
+  const launchable = interview.type === 'ai_voice' || interview.type === 'exam'
+  const canLaunch = launchable && ['scheduled', 'in_progress'].includes(interview.status) && availability.canStart
+  const canJoinHuman = interview.type === 'human' && ['scheduled', 'in_progress'].includes(interview.status) && availability.canStart
 
   return (
-    <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderLeft: `3px solid ${tColor}`, borderRadius: 10, boxShadow: 'var(--shadow-xs)' }}>
-      <div style={{ padding: '16px 18px' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-          <div style={{ flex: 1, minWidth: 0, paddingRight: 12 }}>
-            <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--fg-primary)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {iv.context_title || iv.job_title || 'Interview'}
-            </p>
-            {iv.company_name && <p style={{ fontSize: 12, color: 'var(--fg-muted)', margin: '2px 0 0' }}>{iv.company_name}</p>}
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-            <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 6, background: tBg, color: tColor }}>
-              {INTERVIEW_TYPE_LABEL[iv.type] || iv.type}
-            </span>
-          </div>
+    <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderLeft: `3px solid ${color}`, borderRadius: 10, boxShadow: 'var(--shadow-xs)', padding: '16px 18px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--fg-primary)', margin: 0 }}>{interview.context_title || interview.job_title || 'Interview'}</p>
+          {interview.company_name && <p style={{ fontSize: 12, color: 'var(--fg-muted)', margin: '2px 0 0' }}>{interview.company_name}</p>}
         </div>
-
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: canLaunch || canJoinHuman ? 12 : 0 }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--fg-muted)' }}>
-            <Clock size={11} />{iv.scheduled_at ? formatDateTime(iv.scheduled_at) : formatDate(iv.created)}
-          </span>
-          {iv.location && (
-            <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--fg-muted)' }}>
-              <MapPin size={11} />{iv.location}
-            </span>
-          )}
-          {iv.difficulty && (
-            <span style={{ fontSize: 11, padding: '2px 7px', borderRadius: 5, background: 'var(--bg-surface-alt)', color: 'var(--fg-muted)', fontWeight: 500, textTransform: 'capitalize' }}>
-              {iv.difficulty}
-            </span>
-          )}
-        </div>
-
-        {canLaunch && (
-          <button disabled={launchingId === iv.id} onClick={() => onLaunch(iv)}
-            style={{ width: '100%', padding: '9px 14px', background: 'var(--fg-primary)', border: 0, borderRadius: 7, fontSize: 12, fontWeight: 700, color: 'var(--bg-surface)', cursor: launchingId === iv.id ? 'not-allowed' : 'pointer', opacity: launchingId === iv.id ? 0.6 : 1 }}>
-            {launchingId === iv.id ? 'Preparing…' : 'Start Interview'}
-          </button>
-        )}
-        {canJoinHuman && (
-          <button disabled={launchingId === iv.id} onClick={() => onJoinHuman(iv)}
-            style={{ width: '100%', padding: '9px 14px', background: 'var(--brand-50)', border: '1px solid var(--brand-200)', borderRadius: 7, fontSize: 12, fontWeight: 700, color: 'var(--brand-700)', cursor: launchingId === iv.id ? 'not-allowed' : 'pointer', opacity: launchingId === iv.id ? 0.6 : 1 }}>
-            {launchingId === iv.id ? 'Joining...' : 'Join Meeting'}
-          </button>
-        )}
-        {launchableType && ['scheduled', 'in_progress'].includes(iv.status) && !canLaunch && availability.label && (
-          <p style={{ fontSize: 12, color: availability.state === 'expired' ? 'var(--danger-700)' : 'var(--fg-muted)', margin: 0, display: 'flex', alignItems: 'center', gap: 4 }}>
-            <Clock size={11} />{availability.label}
-          </p>
-        )}
-        {iv.type === 'human' && ['scheduled', 'in_progress'].includes(iv.status) && !canJoinHuman && (
-          <p style={{ fontSize: 12, color: 'var(--fg-muted)', margin: 0, display: 'flex', alignItems: 'center', gap: 4 }}>
-            <Clock size={11} />Meeting link will be active closer to the scheduled time.
-          </p>
-        )}
+        <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 6, background, color }}>{INTERVIEW_TYPE_LABEL[interview.type] || interview.type}</span>
       </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: canLaunch || canJoinHuman ? 12 : 0 }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--fg-muted)' }}><Clock size={11} />{interview.scheduled_at ? formatDateTime(interview.scheduled_at) : formatDate(interview.created)}</span>
+        {interview.location && <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--fg-muted)' }}><MapPin size={11} />{interview.location}</span>}
+        <span className={`status-pill${interview.status === 'completed' ? ' status-pill--success' : ' status-pill--brand'}`}>{interview.status}</span>
+      </div>
+      {canLaunch && <button disabled={launchingId === interview.id} onClick={() => onLaunch(interview)} className="product-button product-button--primary product-button--md" style={{ width: '100%' }}>{launchingId === interview.id ? 'Preparing…' : 'Start Interview'}</button>}
+      {canJoinHuman && <button disabled={launchingId === interview.id} onClick={() => onJoinHuman(interview)} className="product-button product-button--secondary product-button--md" style={{ width: '100%' }}>{launchingId === interview.id ? 'Joining…' : 'Join Meeting'}</button>}
+      {launchable && ['scheduled', 'in_progress'].includes(interview.status) && !canLaunch && availability.label && <p style={{ fontSize: 12, color: availability.state === 'expired' ? 'var(--danger-700)' : 'var(--fg-muted)', margin: 0 }}><Clock size={11} /> {availability.label}</p>}
+      {interview.type === 'human' && ['scheduled', 'in_progress'].includes(interview.status) && !canJoinHuman && <p style={{ fontSize: 12, color: 'var(--fg-muted)', margin: 0 }}>Meeting link will be active closer to the scheduled time.</p>}
     </div>
   )
 }
@@ -84,22 +46,46 @@ function InterviewCard({ iv, onLaunch, onJoinHuman, launchingId }) {
 function CandidateInterviewsPage() {
   const navigate = useNavigate()
   const [interviews, setInterviews] = useState([])
+  const [assignments, setAssignments] = useState([])
+  const [section, setSection] = useState('interviews')
+  const [filter, setFilter] = useState('all')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [launchingId, setLaunchingId] = useState(null)
-  const [tab, setTab] = useState('upcoming')
 
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
-      const res = await api.getCandidateInterviews()
-      setInterviews(res.data || [])
-    } catch { setError('Could not load interviews.') }
-    finally { setLoading(false) }
+      const interviewResponse = await api.getCandidateInterviews()
+      setInterviews(interviewResponse.data || [])
+      try {
+        const assignmentResponse = await api.getMyInterviewerAssignments()
+        setAssignments(assignmentResponse.data || [])
+      } catch (assignmentError) {
+        console.error('Could not load interviewer assignments', assignmentError)
+        setAssignments([])
+      }
+    } catch {
+      setError('Could not load interviews.')
+    } finally {
+      setLoading(false)
+    }
   }, [])
 
-  useEffect(() => { void load() }, [load])
+  useEffect(() => {
+    void load()
+    const refreshOnFocus = () => { void load() }
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') void load()
+    }
+    window.addEventListener('focus', refreshOnFocus)
+    document.addEventListener('visibilitychange', refreshWhenVisible)
+    return () => {
+      window.removeEventListener('focus', refreshOnFocus)
+      document.removeEventListener('visibilitychange', refreshWhenVisible)
+    }
+  }, [load])
 
   async function launchInterview(interview) {
     setLaunchingId(interview.id)
@@ -108,90 +94,58 @@ function CandidateInterviewsPage() {
       const launch = response.data
       localStorage.setItem('interviewAccessToken', launch.sessionToken)
       localStorage.setItem('interviewSession', JSON.stringify({
-        interviewId: launch.interview.id,
-        token: launch.launchToken,
-        type: launch.interview.type,
-        mode: launch.interview.interviewMode,
-        durationMinutes: launch.interview.durationMinutes,
-        scheduledAt: launch.interview.scheduledAt,
-        candidateName: launch.interview.candidateName,
-        sessionToken: launch.sessionToken,
+        interviewId: launch.interview.id, token: launch.launchToken,
+        type: launch.interview.type, mode: launch.interview.interviewMode,
+        durationMinutes: launch.interview.durationMinutes, scheduledAt: launch.interview.scheduledAt,
+        candidateName: launch.interview.candidateName, sessionToken: launch.sessionToken,
       }))
       navigate(`/interview/${launch.launchToken}/device-check`)
-    } catch (err) { setError(err.message || 'Could not launch interview.') }
-    finally { setLaunchingId(null) }
+    } catch (err) {
+      setError(err.message || 'Could not launch interview.')
+    } finally {
+      setLaunchingId(null)
+    }
   }
 
   async function joinHumanInterview(interview) {
     setLaunchingId(interview.id)
     try {
-      const res = await api.joinCandidateInterview(interview.id)
-      if (res?.data?.meetingUrl) window.open(res.data.meetingUrl, '_blank')
+      const response = await api.joinCandidateInterview(interview.id)
+      if (response.data?.meetingUrl) window.open(response.data.meetingUrl, '_blank')
       else setError('No meeting link available.')
-    } catch (err) { setError(err.message || 'Could not join meeting.') }
-    finally { setLaunchingId(null) }
+    } catch (err) {
+      setError(err.message || 'Could not join meeting.')
+    } finally {
+      setLaunchingId(null)
+    }
   }
 
-  const upcoming  = interviews.filter(i => ['scheduled', 'in_progress'].includes(i.status) && i.type !== 'offline' && i.type !== 'client')
-  const completed = interviews.filter(i => i.status === 'completed')
-  const inPerson  = interviews.filter(i => i.type === 'offline')
-
-  const TABS = [
-    { key: 'upcoming',  label: 'Upcoming',  count: upcoming.length },
-    { key: 'completed', label: 'Completed', count: completed.length },
-    { key: 'inperson',  label: 'In-Person', count: inPerson.length },
+  const visibleInterviews = interviews.filter(interview => {
+    if (filter === 'in_person') return interview.type === 'offline'
+    if (filter === 'upcoming') return ['scheduled', 'in_progress'].includes(interview.status)
+    if (filter === 'completed') return interview.status === 'completed'
+    return interview.status !== 'cancelled'
+  })
+  const filters = [
+    ['all', 'All'], ['in_person', 'In person'], ['upcoming', 'Upcoming'], ['completed', 'Completed'],
   ]
-
-  const activeList = tab === 'upcoming' ? upcoming : tab === 'completed' ? completed : inPerson
-  const EMPTY_MESSAGES = {
-    upcoming:  { title: 'No upcoming interviews', sub: 'Your manager will schedule interviews and they\'ll appear here.' },
-    completed: { title: 'No completed interviews yet', sub: 'Finished interviews will show up here with feedback status.' },
-    inperson:  { title: 'No in-person interviews', sub: 'Offline interviews scheduled for you will appear here.' },
-  }
 
   if (loading) return <div style={{ padding: 40, display: 'flex', justifyContent: 'center' }}><Spinner /></div>
 
   return (
     <div style={{ padding: '1.5rem 1.75rem', maxWidth: '52rem', margin: '0 auto' }}>
-
-      <div style={{ marginBottom: 20 }}>
-        <h1 style={{ fontSize: 20, fontWeight: 700, color: 'var(--fg-primary)', letterSpacing: '-0.02em', margin: 0 }}>Interviews</h1>
-        <p style={{ fontSize: 13, color: 'var(--fg-muted)', marginTop: 4, marginBottom: 0 }}>All your scheduled and completed interviews</p>
+      <div style={{ marginBottom: 20 }}><h1 style={{ fontSize: 20, margin: 0 }}>Interviews</h1><p style={{ fontSize: 13, color: 'var(--fg-muted)', marginTop: 4 }}>Your interviews and interviews assigned for you to conduct</p></div>
+      {error && <div style={{ padding: '10px 14px', borderRadius: 8, background: 'var(--danger-50)', color: 'var(--danger-700)', marginBottom: 20 }}>{error}</div>}
+      <div className="workspace-tabs" style={{ width: 'fit-content', marginBottom: 16 }}>
+        <button className={`workspace-tabs__button${section === 'interviews' ? ' is-active' : ''}`} onClick={() => setSection('interviews')}>Interviews</button>
+        <button className={`workspace-tabs__button${section === 'conducting' ? ' is-active' : ''}`} onClick={() => setSection('conducting')}>I’m Interviewing ({assignments.filter(item => item.status !== 'completed').length})</button>
       </div>
-
-      {error && (
-        <div style={{ padding: '10px 14px', borderRadius: 8, background: 'var(--danger-50)', color: 'var(--danger-700)', fontSize: 13, marginBottom: 20, border: '1px solid var(--danger-100)' }}>
-          {error}
-        </div>
-      )}
-
-      {/* Tab switcher */}
-      <div style={{ display: 'flex', gap: 4, padding: 3, background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderRadius: 10, marginBottom: 20, width: 'fit-content' }}>
-        {TABS.map(t => (
-          <button key={t.key} type="button" onClick={() => setTab(t.key)}
-            style={{ padding: '7px 14px', borderRadius: 8, border: 0, fontSize: 12, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, background: tab === t.key ? 'var(--brand-500)' : 'transparent', color: tab === t.key ? 'white' : 'var(--fg-muted)' }}>
-            {t.label}
-            <span style={{ fontSize: 11, padding: '1px 5px', borderRadius: 4, fontWeight: 600, background: tab === t.key ? 'rgba(255,255,255,0.22)' : 'var(--bg-surface-alt)', color: tab === t.key ? 'white' : 'var(--fg-subtle)' }}>
-              {t.count}
-            </span>
-          </button>
-        ))}
-      </div>
-
-      {/* Interview list */}
-      {activeList.length === 0 ? (
-        <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderRadius: 10, padding: '40px 20px', textAlign: 'center', boxShadow: 'var(--shadow-xs)' }}>
-          <Calendar size={22} color="var(--fg-subtle)" style={{ marginBottom: 10 }} />
-          <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg-primary)', margin: '0 0 4px' }}>{EMPTY_MESSAGES[tab].title}</p>
-          <p style={{ fontSize: 12, color: 'var(--fg-subtle)', margin: 0 }}>{EMPTY_MESSAGES[tab].sub}</p>
-        </div>
-      ) : (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {activeList.map(iv => (
-            <InterviewCard key={iv.id} iv={iv} onLaunch={launchInterview} onJoinHuman={joinHumanInterview} launchingId={launchingId} />
-          ))}
-        </div>
-      )}
+      {section === 'interviews' ? (
+        <>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 16 }}>{filters.map(([value, label]) => <button key={value} className={`product-button product-button--sm ${filter === value ? 'product-button--primary' : 'product-button--secondary'}`} onClick={() => setFilter(value)}>{label}</button>)}</div>
+          {visibleInterviews.length === 0 ? <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderRadius: 10, padding: 40, textAlign: 'center' }}><Calendar size={22} color="var(--fg-subtle)" /><p>No interviews in this filter.</p></div> : <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>{visibleInterviews.map(interview => <InterviewCard key={interview.id} interview={interview} onLaunch={launchInterview} onJoinHuman={joinHumanInterview} launchingId={launchingId} />)}</div>}
+        </>
+      ) : <InterviewerAssignmentsPanel assignments={assignments} onCompleted={load} />}
     </div>
   )
 }

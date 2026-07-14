@@ -15,6 +15,7 @@ const ManagerProfilePage = lazy(() => import('./pages/manager/ManagerProfilePage
 const ResumeAnalyzerPage = lazy(() => import('./pages/manager/ResumeAnalyzerPage'))
 const MonthlyAssessmentPage = lazy(() => import('./pages/manager/MonthlyAssessmentPage'))
 const ClientInterviewsPage = lazy(() => import('./pages/manager/ClientInterviewsPage'))
+const ManagerInterviewerPage = lazy(() => import('./pages/manager/ManagerInterviewerPage'))
 const InterviewLandingPage = lazy(() => import('./pages/candidate/InterviewLandingPage'))
 const DeviceCheckPage = lazy(() => import('./pages/candidate/DeviceCheckPage'))
 const ConsentPage = lazy(() => import('./pages/candidate/ConsentPage'))
@@ -122,6 +123,7 @@ function App() {
             <Route path="clients" element={<ClientInterviewsPage />} />
             <Route path="schedule" element={<SchedulePage />} />
             <Route path="reports" element={<ReportsPage />} />
+            <Route path="interviewer" element={<ManagerInterviewerPage />} />
             <Route path="resume-analyzer" element={<ResumeAnalyzerPage />} />
             <Route path="profile" element={<ManagerProfilePage />} />
           </Route>
