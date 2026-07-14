@@ -594,6 +594,7 @@ async function sendOfflineInterviewInvite(to, { candidateName, clientName, role,
 /** Notify an internal candidate that they are conducting an interview. */
 async function sendInterviewerAssignment(to, data) {
   const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173'
+  const assignmentUrl = `${frontendUrl}${data.portalPath || '/candidate/interviews'}`
   const dateText = new Date(data.scheduledAt).toLocaleString('en-IN', {
     dateStyle: 'long', timeStyle: 'short', timeZone: data.scheduleTimezone || undefined,
   })
@@ -607,7 +608,7 @@ async function sendInterviewerAssignment(to, data) {
       `Date & Time: ${dateText}`,
       data.location ? `Location: ${data.location}` : '',
       data.meetingUrl ? `Meeting: ${data.meetingUrl}` : '', '',
-      `Open your interviewer assignments: ${frontendUrl}/candidate/interviews`,
+      `Open your interviewer assignments: ${assignmentUrl}`,
     ].filter(Boolean).join('\n'),
     html: `<div style="font-family:sans-serif;max-width:520px;margin:auto;padding:28px">
       <h2>Interview assigned</h2>
@@ -616,7 +617,7 @@ async function sendInterviewerAssignment(to, data) {
       <p><strong>Client:</strong> ${escapeHtml(data.clientName)}<br><strong>Date &amp; time:</strong> ${escapeHtml(dateText)}</p>
       ${data.location ? `<p><strong>Location:</strong> ${escapeHtml(data.location)}</p>` : ''}
       ${data.meetingUrl ? `<p><a href="${escapeHtml(data.meetingUrl)}">Open meeting</a></p>` : ''}
-      <p><a href="${frontendUrl}/candidate/interviews">View interviewer assignments</a></p>
+      <p><a href="${escapeHtml(assignmentUrl)}">View interviewer assignments</a></p>
     </div>`,
   })
 }

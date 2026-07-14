@@ -817,7 +817,7 @@ router.post('/:id/team/:ctId/schedule', async (req, res) => {
           summary: meetingTopic,
           startAt: scheduledAt,
           endAt,
-          attendeeEmails: [req.user.email, interviewer?.email].filter(Boolean),
+          attendeeEmails: [req.user.email, teamMember.email, interviewer?.email].filter(Boolean),
         })
         if (meeting) videoLink = meeting.joinUrl
       }

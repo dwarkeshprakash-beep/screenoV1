@@ -259,7 +259,18 @@ async function sendReportNotification(interview, interviewId) {
 
 async function generateReport(interviewId) {
   const existingReport = await reportRepository.getByInterview(interviewId)
-  if (existingReport?.status === 'ready') return existingReport
+  if (existingReport?.status === 'ready') {
+    const existingScorecard = await scorecardRepository.getByInterview(interviewId)
+    if (existingScorecard) {
+      const interviewFlowService = require('./interview-flow.service')
+      await interviewFlowService.handleInterviewResult(
+        interviewId,
+        existingScorecard.decision,
+        existingScorecard.overall
+      )
+    }
+    return existingReport
+  }
 
   const [transcripts, interview] = await Promise.all([
     transcriptRepository.getByInterview(interviewId),
@@ -333,7 +344,6 @@ async function generateReport(interviewId) {
   // not be blocked by PDF generation, storage, or notification failures.
   const interviewFlowService = require('./interview-flow.service')
   await interviewFlowService.handleInterviewResult(interviewId, decision, reportData.overall_score)
-    .catch(err => console.error('Flow progression failed:', err.message))
 
   try {
     const pdfBuffer = await pdfService.generateReportPdf({

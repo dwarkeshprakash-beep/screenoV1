@@ -106,6 +106,7 @@ async function syncScheduledStageInterviews(stageId, flowId, data) {
            difficulty = @difficulty, question_count = @questionCount,
            duration_minutes = @durationMinutes, scheduled_at = @scheduledAt,
            available_from = @scheduledAt, due_at = @dueAt,
+           token_expires = @tokenExpires,
            schedule_timezone = @scheduleTimezone, location = @location,
            meeting_url = @meetingUrl
        WHERE id = ANY(@interviewIds) AND status = 'scheduled'
@@ -250,6 +251,18 @@ async function createRun(data) {
   return rows[0]
 }
 
+/** Prevent the same saved flow being started twice concurrently for one candidate. */
+async function getActiveRun(flowId, clientTeamId) {
+  const rows = await db.query(
+    `SELECT * FROM candidate_flow_runs
+     WHERE flow_id = @flowId AND client_team_id = @clientTeamId
+       AND status NOT IN ('completed', 'cancelled')
+     ORDER BY created DESC LIMIT 1`,
+    { flowId, clientTeamId }
+  )
+  return rows[0] || null
+}
+
 /** Create a runtime row for a stage attempt. */
 async function createStageRun(data) {
   const rows = await db.query(
@@ -259,6 +272,17 @@ async function createStageRun(data) {
      RETURNING *`, data
   )
   return rows[0]
+}
+
+/** Move an existing unscheduled attempt back into activation. */
+async function updateStageRunStatus(stageRunId, status) {
+  const rows = await db.query(
+    `UPDATE candidate_flow_stage_runs
+     SET status = @status, updated = CURRENT_TIMESTAMP
+     WHERE id = @stageRunId RETURNING *`,
+    { stageRunId, status }
+  )
+  return rows[0] || null
 }
 
 /** Connect a scheduled interview to its runtime stage. */
@@ -373,7 +397,7 @@ async function listAssignmentsForUser(userId) {
      LEFT JOIN interview_flows f ON f.id = r.flow_id
      LEFT JOIN client_templates t ON t.id = f.mandate_id
      LEFT JOIN client_templates ct ON ct.id = i.client_template_id
-     WHERE a.interviewer_user_id = @userId
+     WHERE a.interviewer_user_id = @userId AND i.status != 'cancelled'
      ORDER BY i.scheduled_at DESC`, { userId }
   )
 }
@@ -381,7 +405,7 @@ async function listAssignmentsForUser(userId) {
 /** Load one assignment in interviewer scope. */
 async function getAssignmentForUser(assignmentId, userId) {
   const rows = await db.query(
-    `SELECT a.*, i.manager_id FROM interview_assignments a
+    `SELECT a.*, i.manager_id, i.status AS interview_status FROM interview_assignments a
      JOIN interviews i ON i.id = a.interview_id
      WHERE a.id = @assignmentId AND a.interviewer_user_id = @userId`,
     { assignmentId, userId }
@@ -459,7 +483,8 @@ async function getLatestInterviewFeedback(clientTeamId) {
 module.exports = {
   createFlow, createStage, listByMandate, getOwnedFlow, updateFlow, updateStage,
   syncScheduledStageInterviews, ensureStageRuns,
-  deleteUnusedStage, deleteFlow, deleteRun, createRun, createStageRun,
+  deleteUnusedStage, deleteFlow, deleteRun, createRun, getActiveRun, createStageRun,
+  updateStageRunStatus,
   attachInterview, getContextByInterview, getRun, getStage, finishStageRun, updateRun,
   getLatestAttempt, createAssignment, listAssignmentsForUser, getAssignmentForUser,
   completeAssignment, createAssignmentFile, listRunsByMandate, getLatestInterviewFeedback,

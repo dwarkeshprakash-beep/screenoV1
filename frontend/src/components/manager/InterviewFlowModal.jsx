@@ -197,7 +197,7 @@ function InterviewFlowModal({ open, mandate, member, initialFlowId = '', onClose
   }
 
   async function deleteExisting() {
-    if (!existingFlowId || !window.confirm('Delete this saved interview flow? Active candidate flows must be cancelled first.')) return
+    if (!existingFlowId || !window.confirm('Delete this saved interview flow? Candidate flows using it must be deleted first.')) return
     setSaving(true)
     setError(null)
     try {
@@ -227,7 +227,7 @@ function InterviewFlowModal({ open, mandate, member, initialFlowId = '', onClose
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Create interview flow" size="lg">
+    <Modal open={open} onClose={onClose} title={existingFlowId ? 'Edit interview flow' : 'Create interview flow'} size="lg">
       <div className="workspace-stack">
         {flows.length > 0 && (
           <div className="form-field">

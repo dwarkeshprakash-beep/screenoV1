@@ -349,15 +349,29 @@ async function run() {
       mandateId: template.payload.data.id,
       name: 'Seven-day candidate flow',
       stages: [
-        { name: 'Voice screen', type: 'ai_voice', scheduledAt: futureIso(10 * 24 * 60 * 60), durationMinutes: 25, questionCount: 5, requirePass: true },
-        { name: 'Technical exam', type: 'exam', scheduledAt: futureIso(10 * 24 * 60 * 60 + 31 * 60), durationMinutes: 60, questionCount: 8, requirePass: true, minimumScore: 6 },
-        { name: 'Final voice', type: 'ai_voice', scheduledAt: futureIso(12 * 24 * 60 * 60), durationMinutes: 25, questionCount: 5, requirePass: false },
+        { name: 'Voice screen', type: 'ai_voice', scheduledAt: futureIso(10 * 24 * 60 * 60), durationMinutes: 15, questionCount: 5, requirePass: true },
+        { name: 'Technical exam', type: 'exam', scheduledAt: futureIso(10 * 24 * 60 * 60 + 15 * 60), durationMinutes: 60, questionCount: 8, requirePass: true, minimumScore: 6 },
+        { name: 'Offline panel', type: 'offline', scheduledAt: futureIso(10 * 24 * 60 * 60 + 75 * 60), durationMinutes: 30, questionCount: 10, requirePass: false, interviewerUserId: primary.manager.id, location: 'QA room' },
       ],
     },
   })
   assert.equal(flow.status, 201)
   assert.equal(flow.payload.data.stages.length, 3)
   state.flowIds.push(flow.payload.data.id)
+
+  const overlappingFlow = await api('/api/interview-flows', {
+    method: 'POST', token: managerToken,
+    body: {
+      mandateId: template.payload.data.id,
+      name: 'Invalid overlapping flow',
+      stages: [
+        { name: 'First', type: 'ai_voice', scheduledAt: futureIso(11 * 24 * 60 * 60), durationMinutes: 30, questionCount: 5 },
+        { name: 'Overlap', type: 'exam', scheduledAt: futureIso(11 * 24 * 60 * 60 + 15 * 60), durationMinutes: 30, questionCount: 5 },
+      ],
+    },
+  })
+  assert.equal(overlappingFlow.status, 400)
+  assert.match(overlappingFlow.payload.error, /must start after stage 1 ends/i)
 
   const editedFlow = await api(`/api/interview-flows/${flow.payload.data.id}`, {
     method: 'PATCH', token: managerToken,
@@ -374,6 +388,8 @@ async function run() {
         requirePass: stage.require_pass,
         minimumScore: stage.minimum_score,
         interviewerUserId: stage.interviewer_user_id,
+        location: stage.location,
+        meetingUrl: stage.meeting_url,
       })),
     },
   })
@@ -400,6 +416,11 @@ async function run() {
   })
   assert.equal(flowRun.status, 201)
   state.interviewIds.push(flowRun.payload.data.firstInterview.id)
+  const duplicateFlowRun = await api(`/api/interview-flows/${flow.payload.data.id}/runs`, {
+    method: 'POST', token: managerToken, body: { clientTeamId: primaryClientTeam.id },
+  })
+  assert.equal(duplicateFlowRun.status, 400)
+  assert.match(duplicateFlowRun.payload.error, /already has an active run/i)
   const runtimeStages = await db.query(
     `SELECT status, interview_id FROM candidate_flow_stage_runs WHERE run_id = @runId ORDER BY stage_order`,
     { runId: flowRun.payload.data.id }
@@ -415,8 +436,11 @@ async function run() {
   assert.equal(runtimeStages[1].status, 'pending')
   assert.equal(runtimeStages[1].interview_id, null)
 
-  const shiftedStageOne = new Date(editedFlow.payload.data.stages[0].scheduled_at)
-  shiftedStageOne.setUTCMinutes(shiftedStageOne.getUTCMinutes() + 1)
+  const shiftedStageTimes = editedFlow.payload.data.stages.map((stage, index) => {
+    const date = new Date(stage.scheduled_at)
+    date.setUTCMinutes(date.getUTCMinutes() + (index === 0 ? 5 : 10))
+    return date.toISOString()
+  })
   const runtimeEditedFlow = await api(`/api/interview-flows/${flow.payload.data.id}`, {
     method: 'PATCH', token: managerToken,
     body: {
@@ -426,12 +450,14 @@ async function run() {
         id: stage.id,
         name: stage.name,
         type: stage.type,
-        scheduledAt: index === 0 ? shiftedStageOne.toISOString() : stage.scheduled_at,
-        durationMinutes: index === 0 ? 30 : stage.duration_minutes,
+        scheduledAt: shiftedStageTimes[index],
+        durationMinutes: index === 0 ? 20 : stage.duration_minutes,
         questionCount: index === 0 ? 7 : stage.question_count,
         requirePass: stage.require_pass,
         minimumScore: stage.minimum_score,
         interviewerUserId: stage.interviewer_user_id,
+        location: stage.location,
+        meetingUrl: stage.meeting_url,
       })),
     },
   })
@@ -441,9 +467,27 @@ async function run() {
      FROM interviews WHERE id = @id`,
     { id: runtimeStages[0].interview_id }
   ))[0]
-  assert.equal(new Date(synchronizedInterview.scheduled_at).toISOString(), shiftedStageOne.toISOString())
-  assert.equal(Number(synchronizedInterview.duration_minutes), 30)
+  assert.equal(new Date(synchronizedInterview.scheduled_at).toISOString(), shiftedStageTimes[0])
+  assert.equal(Number(synchronizedInterview.duration_minutes), 20)
   assert.equal(Number(synchronizedInterview.question_count), 7)
+  const flowCandidateLogin = await api('/api/auth/login', {
+    method: 'POST', body: { email: `candidate-${stamp}@example.test`, password: primary.password },
+  })
+  assert.equal(flowCandidateLogin.status, 200)
+  const flowCandidateInterviews = await api('/api/candidate/interviews', {
+    token: flowCandidateLogin.payload.data.accessToken,
+  })
+  const candidateFlowInterview = flowCandidateInterviews.payload.data.find(
+    item => item.id === runtimeStages[0].interview_id
+  )
+  assert.ok(candidateFlowInterview)
+  assert.equal(new Date(candidateFlowInterview.scheduled_at).toISOString(), shiftedStageTimes[0])
+  assert.equal(Number(candidateFlowInterview.duration_minutes), 20)
+  const editedScheduleWindow = (await db.query(
+    `SELECT due_at, token_expires FROM interviews WHERE id = @id`,
+    { id: flowRun.payload.data.firstInterview.id }
+  ))[0]
+  assert.ok(new Date(editedScheduleWindow.token_expires) > new Date(editedScheduleWindow.due_at))
 
   await interviewFlowService.handleInterviewResult(flowRun.payload.data.firstInterview.id, 'pass', 8)
   const advancedStages = await db.query(
@@ -458,11 +502,44 @@ async function run() {
   await interviewFlowService.handleInterviewResult(advancedStages[1].interview_id, 'pass', 5)
   const pausedRun = (await db.query(`SELECT status FROM candidate_flow_runs WHERE id = @id`, { id: flowRun.payload.data.id }))[0]
   assert.equal(pausedRun.status, 'paused_failed')
+  const attemptsBeforeInvalidRetry = (await db.query(
+    `SELECT COUNT(*)::int AS count FROM candidate_flow_stage_runs
+     WHERE run_id = @runId AND stage_order = 2`,
+    { runId: flowRun.payload.data.id }
+  ))[0].count
+  const invalidRetry = await api(`/api/interview-flows/runs/${flowRun.payload.data.id}/retry`, {
+    method: 'POST', token: managerToken, body: { scheduledAt: 'not-a-date' },
+  })
+  assert.equal(invalidRetry.status, 400)
+  const attemptsAfterInvalidRetry = (await db.query(
+    `SELECT COUNT(*)::int AS count FROM candidate_flow_stage_runs
+     WHERE run_id = @runId AND stage_order = 2`,
+    { runId: flowRun.payload.data.id }
+  ))[0].count
+  assert.equal(attemptsAfterInvalidRetry, attemptsBeforeInvalidRetry)
   const continuedRun = await api(`/api/interview-flows/runs/${flowRun.payload.data.id}/continue`, {
     method: 'POST', token: managerToken,
   })
   assert.equal(continuedRun.status, 200)
   assert.equal(continuedRun.payload.data.status, 'active')
+  const offlineAssignments = await api('/api/interview-flows/my-assignments', { token: managerToken })
+  assert.equal(offlineAssignments.status, 200)
+  const offlineAssignment = offlineAssignments.payload.data.find(
+    item => item.interview_id === continuedRun.payload.data.interview.id
+  )
+  assert.ok(offlineAssignment)
+  const feedbackForm = new FormData()
+  feedbackForm.append('outcome', 'pass')
+  feedbackForm.append('feedback', 'Strong offline panel result')
+  const completedOffline = await api(`/api/interview-flows/assignments/${offlineAssignment.id}/complete`, {
+    method: 'POST', token: managerToken, form: feedbackForm,
+  })
+  assert.equal(completedOffline.status, 200)
+  const completedFlowRun = (await db.query(
+    `SELECT status FROM candidate_flow_runs WHERE id = @id`,
+    { id: flowRun.payload.data.id }
+  ))[0]
+  assert.equal(completedFlowRun.status, 'completed')
   const cancelledFlowRun = await api(`/api/interview-flows/runs/${flowRun.payload.data.id}`, {
     method: 'DELETE', token: managerToken,
   })
@@ -471,6 +548,63 @@ async function run() {
     method: 'DELETE', token: managerToken,
   })
   assert.equal(deletedFlow.status, 200)
+
+  // Report generation can finish after an exactly consecutive stage's configured
+  // start. The next stage must still activate immediately instead of requiring a
+  // manager retry solely because processing crossed that boundary.
+  const overdueFlow = await api('/api/interview-flows', {
+    method: 'POST', token: managerToken,
+    body: {
+      mandateId: template.payload.data.id,
+      name: 'Overdue progression flow',
+      stages: [
+        { name: 'Immediate first', type: 'ai_voice', scheduledAt: futureIso(12 * 24 * 60 * 60), durationMinutes: 15, questionCount: 5 },
+        { name: 'Immediate second', type: 'exam', scheduledAt: futureIso(12 * 24 * 60 * 60 + 15 * 60), durationMinutes: 15, questionCount: 5 },
+      ],
+    },
+  })
+  assert.equal(overdueFlow.status, 201)
+  state.flowIds.push(overdueFlow.payload.data.id)
+  const organizationClientTeam = informationalHeadcountTeam.payload.data.find(
+    row => row.user_id === organizationOnlyUser.id
+  )
+  const overdueRun = await api(`/api/interview-flows/${overdueFlow.payload.data.id}/runs`, {
+    method: 'POST', token: managerToken, body: { clientTeamId: organizationClientTeam.id },
+  })
+  assert.equal(overdueRun.status, 201)
+  await db.query(
+    `UPDATE interview_flow_stages
+     SET scheduled_at = CURRENT_TIMESTAMP - INTERVAL '1 minute'
+     WHERE flow_id = @flowId AND stage_order = 2`,
+    { flowId: overdueFlow.payload.data.id }
+  )
+  const progressionStartedAt = Date.now()
+  const overdueProgression = await interviewFlowService.handleInterviewResult(
+    overdueRun.payload.data.firstInterview.id,
+    'pass',
+    8
+  )
+  assert.equal(overdueProgression.status, 'active')
+  const overdueSecondStage = (await db.query(
+    `SELECT r.status AS run_status, sr.status AS stage_status, i.scheduled_at
+     FROM candidate_flow_runs r
+     JOIN candidate_flow_stage_runs sr ON sr.run_id = r.id AND sr.stage_order = 2
+     JOIN interviews i ON i.id = sr.interview_id
+     WHERE r.id = @runId`,
+    { runId: overdueRun.payload.data.id }
+  ))[0]
+  assert.equal(overdueSecondStage.run_status, 'active')
+  assert.equal(overdueSecondStage.stage_status, 'scheduled')
+  assert.ok(new Date(overdueSecondStage.scheduled_at).getTime() > progressionStartedAt)
+  assert.ok(new Date(overdueSecondStage.scheduled_at).getTime() <= Date.now() + 2 * 60 * 1000)
+  const deletedOverdueRun = await api(`/api/interview-flows/runs/${overdueRun.payload.data.id}`, {
+    method: 'DELETE', token: managerToken,
+  })
+  assert.equal(deletedOverdueRun.status, 200)
+  const deletedOverdueFlow = await api(`/api/interview-flows/${overdueFlow.payload.data.id}`, {
+    method: 'DELETE', token: managerToken,
+  })
+  assert.equal(deletedOverdueFlow.status, 200)
 
   const assessment = await api('/api/assessments/monthly', {
     method: 'POST',

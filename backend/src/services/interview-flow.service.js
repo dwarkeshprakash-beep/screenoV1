@@ -10,11 +10,17 @@ const storageService = require('./storage.service')
 const googleMeetService = require('./google-meet.service')
 
 const TYPES = new Set(['ai_voice', 'exam', 'human', 'offline'])
+const INTERVIEW_MODES = new Set(['simple', 'adaptive'])
+const DIFFICULTIES = new Set(['easy', 'medium', 'hard'])
 
 /** Send and record an interviewer assignment notification. */
 async function notifyInterviewer(interviewId, interviewer, data) {
+  const notificationData = {
+    ...data,
+    portalPath: interviewer.role === 'manager' ? '/manager/interviewer' : '/candidate/interviews',
+  }
   try {
-    await emailService.sendInterviewerAssignment(interviewer.email, data)
+    await emailService.sendInterviewerAssignment(interviewer.email, notificationData)
     await emailDeliveryRepository.create({
       kind: 'interviewer_assignment', interviewId, intendedTo: interviewer.email,
       deliveredTo: emailService.getDeliveredRecipients(interviewer.email).join(','), status: 'sent',
@@ -55,6 +61,7 @@ async function normalizeStages(stages, companyId, { allowPastExisting = false } 
   if (stages.length > 20) throw new Error('A flow can have at most 20 stages')
 
   const interviewerIds = [...new Set(stages
+    .filter(stage => ['human', 'offline'].includes(stage.type))
     .filter(stage => stage.interviewerUserId !== null && stage.interviewerUserId !== undefined && stage.interviewerUserId !== '')
     .map(stage => Number(stage.interviewerUserId))
     .filter(Number.isInteger))]
@@ -66,18 +73,33 @@ async function normalizeStages(stages, companyId, { allowPastExisting = false } 
     const scheduledAt = new Date(stage.scheduledAt)
     const mayKeepPastDate = allowPastExisting && Number.isInteger(Number(stage.id))
     if (Number.isNaN(scheduledAt.getTime()) || (!mayKeepPastDate && scheduledAt <= new Date())) throw new Error(`Stage ${index + 1} needs a future date and time`)
-    const interviewerUserId = stage.interviewerUserId ? Number(stage.interviewerUserId) : null
-    if (['human', 'offline'].includes(stage.type) && !interviewerUserId) throw new Error(`Stage ${index + 1} needs an interviewer`)
+    const needsInterviewer = ['human', 'offline'].includes(stage.type)
+    const interviewerUserId = needsInterviewer && stage.interviewerUserId ? Number(stage.interviewerUserId) : null
+    if (needsInterviewer && !Number.isInteger(interviewerUserId)) throw new Error(`Stage ${index + 1} needs an interviewer`)
+    const durationMinutes = Number(stage.durationMinutes)
+    if (!Number.isInteger(durationMinutes) || durationMinutes < 15 || durationMinutes > 180) {
+      throw new Error(`Stage ${index + 1} duration must be between 15 and 180 minutes`)
+    }
+    const questionCount = Number(stage.questionCount)
+    if (['ai_voice', 'exam'].includes(stage.type) && (!Number.isInteger(questionCount) || questionCount < 1 || questionCount > 50)) {
+      throw new Error(`Stage ${index + 1} questions must be between 1 and 50`)
+    }
+    const requestedMode = stage.interviewMode || 'simple'
+    if (!INTERVIEW_MODES.has(requestedMode)) throw new Error(`Invalid interview mode at stage ${index + 1}`)
+    const difficulty = stage.difficulty || 'medium'
+    if (!DIFFICULTIES.has(difficulty)) throw new Error(`Invalid difficulty at stage ${index + 1}`)
     const minimumScore = stage.minimumScore === '' || stage.minimumScore == null ? null : Number(stage.minimumScore)
     if (minimumScore != null && (!Number.isFinite(minimumScore) || minimumScore < 0 || minimumScore > 10)) throw new Error('Minimum score must be between 0 and 10')
     return {
       stageOrder: index + 1, name: String(stage.name || `Stage ${index + 1}`).trim(), type: stage.type,
       scheduledAt: scheduledAt.toISOString(), scheduleTimezone: stage.scheduleTimezone || null,
-      durationMinutes: Number(stage.durationMinutes) || (stage.type === 'ai_voice' ? 25 : 60),
-      interviewMode: stage.type === 'exam' ? 'simple' : (stage.interviewMode || 'simple'),
-      difficulty: stage.difficulty || 'medium', questionCount: Number(stage.questionCount) || 10,
+      durationMinutes,
+      interviewMode: stage.type === 'exam' ? 'simple' : requestedMode,
+      difficulty, questionCount: ['ai_voice', 'exam'].includes(stage.type) ? questionCount : 10,
       requirePass: !!stage.requirePass, minimumScore, interviewerUserId,
-      location: stage.location || null, meetingUrl: stage.meetingUrl || null, notes: stage.notes || null,
+      location: stage.type === 'offline' ? (stage.location || null) : null,
+      meetingUrl: stage.type === 'human' ? (stage.meetingUrl || null) : null,
+      notes: stage.notes || null,
     }
   })
   for (let index = 1; index < normalized.length; index++) {
@@ -144,6 +166,10 @@ async function updateFlow(flowId, data, managerId, companyId) {
     const dueAt = new Date(
       new Date(saved.scheduled_at).getTime() + Number(saved.duration_minutes) * 60000
     ).toISOString()
+    const tokenExpires = new Date(
+      new Date(dueAt).getTime()
+        + Number(process.env.INVITE_WINDOW_DAYS || 14) * 24 * 60 * 60 * 1000
+    ).toISOString()
     await flowRepository.syncScheduledStageInterviews(saved.id, flow.id, {
       type: saved.type,
       interviewMode: saved.interview_mode || 'simple',
@@ -152,6 +178,7 @@ async function updateFlow(flowId, data, managerId, companyId) {
       durationMinutes: Number(saved.duration_minutes),
       scheduledAt: saved.scheduled_at,
       dueAt,
+      tokenExpires,
       scheduleTimezone: saved.schedule_timezone,
       interviewerUserId: saved.interviewer_user_id,
       location: saved.location,
@@ -246,6 +273,8 @@ async function startRun(flowId, clientTeamId, managerId, companyId) {
   if (!flow) throw new Error('Interview flow not found')
   const member = await clientTeamRepository.getByIdForMandate(Number(clientTeamId), flow.mandate_id)
   if (!member) throw new Error('Candidate is not part of this mandate')
+  const activeRun = await flowRepository.getActiveRun(flow.id, member.id)
+  if (activeRun) throw new Error('Candidate already has an active run for this flow')
   const run = await flowRepository.createRun({ flowId: flow.id, clientTeamId: member.id, managerId })
   const template = await clientTemplateRepository.getById(flow.mandate_id, managerId)
   const runtime = { ...run, mandate_id: flow.mandate_id, user_id: member.user_id,
@@ -293,13 +322,19 @@ async function advanceRun(runId, currentOrder, managerId, companyIdOverride = nu
   const companyId = companyIdOverride || manager.company_id
   const stageRun = await flowRepository.getLatestAttempt(run.id, nextStage.stage_order)
   if (!stageRun) throw new Error('Next flow stage is missing')
-  if (new Date(nextStage.scheduled_at) <= new Date()) {
-    await flowRepository.updateRun(run.id, 'paused_schedule_required', nextStage.stage_order)
-    return { status: 'paused_schedule_required' }
-  }
+  const scheduledAtOverride = new Date(nextStage.scheduled_at) <= new Date()
+    ? new Date(Date.now() + 60 * 1000).toISOString()
+    : null
   await flowRepository.updateRun(run.id, 'active', nextStage.stage_order)
   try {
-    const interview = await activateStage(run, nextStage, stageRun, managerId, companyId)
+    const interview = await activateStage(
+      run,
+      nextStage,
+      stageRun,
+      managerId,
+      companyId,
+      scheduledAtOverride
+    )
     return { status: 'active', interview }
   } catch (err) {
     console.error('Flow stage activation failed:', err.message)
@@ -313,14 +348,25 @@ async function retryRun(runId, scheduledAt, managerId, companyId) {
   const run = await flowRepository.getRun(Number(runId))
   if (!run || Number(run.created_by_manager_id) !== Number(managerId)) throw new Error('Flow run not found')
   if (!['paused_failed', 'paused_schedule_required'].includes(run.status)) throw new Error('Flow run is not paused')
-  const stage = await flowRepository.getStage(run.flow_id, run.current_stage_order)
-  const latest = await flowRepository.getLatestAttempt(run.id, run.current_stage_order)
-  const nextAttempt = await flowRepository.createStageRun({
-    runId: run.id, stageId: stage.id, stageOrder: stage.stage_order,
-    status: 'activating', attemptNumber: Number(latest?.attempt_number || 0) + 1,
-  })
   const date = new Date(scheduledAt)
   if (Number.isNaN(date.getTime()) || date <= new Date()) throw new Error('Retry needs a future date and time')
+  const stage = await flowRepository.getStage(run.flow_id, run.current_stage_order)
+  const latest = await flowRepository.getLatestAttempt(run.id, run.current_stage_order)
+  let nextAttempt
+  if (run.status === 'paused_schedule_required' && latest && !latest.interview_id) {
+    nextAttempt = await flowRepository.updateStageRunStatus(latest.id, 'activating')
+  } else {
+    if (run.status === 'paused_schedule_required' && latest?.interview_id) {
+      const previousInterview = await interviewRepository.getById(latest.interview_id)
+      if (previousInterview?.status === 'scheduled') {
+        await interviewRepository.updateStatus(previousInterview.id, 'cancelled')
+      }
+    }
+    nextAttempt = await flowRepository.createStageRun({
+      runId: run.id, stageId: stage.id, stageOrder: stage.stage_order,
+      status: 'activating', attemptNumber: Number(latest?.attempt_number || 0) + 1,
+    })
+  }
   await flowRepository.updateRun(run.id, 'active', run.current_stage_order)
   try {
     const interview = await activateStage(run, stage, nextAttempt, managerId, companyId, date.toISOString())
@@ -343,15 +389,26 @@ async function continueRun(runId, managerId, companyId) {
 async function completeAssignment(assignmentId, userId, data, file) {
   const assignment = await flowRepository.getAssignmentForUser(Number(assignmentId), userId)
   if (!assignment) throw new Error('Interviewer assignment not found')
-  if (assignment.status === 'completed') throw new Error('Assignment is already completed')
   if (!['pass', 'fail'].includes(data.outcome)) throw new Error('Choose pass or fail')
-  const completed = await flowRepository.completeAssignment(assignment.id, userId, data.outcome, String(data.feedback || '').trim() || null)
+  if (assignment.interview_status === 'cancelled') throw new Error('This interview has been cancelled')
+  if (assignment.status === 'completed') {
+    await interviewRepository.markCompleted(assignment.interview_id, assignment.outcome || data.outcome)
+    if (assignment.stage_run_id) {
+      await handleInterviewResult(
+        assignment.interview_id,
+        assignment.outcome || data.outcome,
+        (assignment.outcome || data.outcome) === 'pass' ? 10 : 0
+      )
+    }
+    return assignment
+  }
   if (file) {
     const uploaded = await storageService.uploadInterviewFeedbackAsset(file.buffer, assignment.id, file)
     await flowRepository.createAssignmentFile({ assignmentId: assignment.id,
       originalFilename: file.originalname, mimeType: file.mimetype, size: file.size,
       storagePath: uploaded.path })
   }
+  const completed = await flowRepository.completeAssignment(assignment.id, userId, data.outcome, String(data.feedback || '').trim() || null)
   await interviewRepository.markCompleted(assignment.interview_id, data.outcome)
   if (assignment.stage_run_id) {
     await handleInterviewResult(assignment.interview_id, data.outcome, data.outcome === 'pass' ? 10 : 0)
