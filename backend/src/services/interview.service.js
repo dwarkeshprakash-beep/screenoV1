@@ -210,7 +210,6 @@ async function logProctoringEvent(data) {
 
 async function sendReportNotification(interview, interviewId) {
   const recipients = [
-    interview.manager_email,
     ...String(interview.report_emails || '').split(','),
   ].map(value => value && value.trim()).filter(Boolean)
   const uniqueRecipients = [...new Set(recipients)]

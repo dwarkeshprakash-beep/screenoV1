@@ -1,6 +1,7 @@
 const monthlyAssessmentRepository = require('../repositories/monthly-assessment.repository')
 const teamMemberRepository = require('../repositories/team-member.repository')
 const companyRepository = require('../repositories/company.repository')
+const userRepository = require('../repositories/user.repository')
 const emailService = require('./email.service')
 const scheduleService = require('./schedule.service')
 const { parseStoredArray } = require('../utils/parse')
@@ -114,6 +115,7 @@ async function createAssessment(body, managerId, companyId) {
       duration_minutes: body.duration_minutes || body.durationMinutes,
       interview_type: body.interview_type,
       interview_mode: body.interview_mode,
+      report_user_ids: body.report_user_ids || body.reportUserIds,
     },
     managerId,
     companyId
@@ -176,6 +178,14 @@ async function assignCandidates(assessmentId, body, managerId, companyId) {
   const scheduleTimezone = body.schedule_timezone || body.scheduleTimezone || 'UTC'
   const endDate = addMonths(startDate, Number(assessment.duration_months) || 1)
   const requestKey = normalizeRequestKey(body.request_key || body.requestKey)
+  const requestedReportUserIds = Array.isArray(body.report_user_ids || body.reportUserIds)
+    ? [...new Set((body.report_user_ids || body.reportUserIds).map(Number).filter(Number.isInteger))]
+    : []
+  const reportUsers = await userRepository.getByIdsForCompany(requestedReportUserIds, companyId)
+  if (reportUsers.length !== requestedReportUserIds.length) {
+    throw new Error('Some report recipients are not in your organization')
+  }
+  const reportEmails = [...new Set(reportUsers.map(user => user.email).filter(Boolean))].join(',') || null
   
   const company = await companyRepository.getById(companyId)
   const newlyAssignedTeamMemberIds = new Set()
@@ -316,11 +326,11 @@ async function assignCandidates(assessmentId, body, managerId, companyId) {
           `INSERT INTO interviews
             (manager_id, internal_user_id, type, interview_mode, difficulty, question_count,
              duration_minutes, scheduled_at, available_from, due_at, schedule_timezone,
-             monthly_assessment_id)
+             monthly_assessment_id, report_emails)
            VALUES
             (@managerId, @internalUserId, @interviewType, @interviewMode, @difficulty, @questionCount,
              @durationMinutes, @scheduledAt, @availableFrom, @dueAt, @scheduleTimezone,
-             @monthlyAssessmentId)
+             @monthlyAssessmentId, @reportEmails)
            RETURNING *`,
           {
             managerId,
@@ -335,6 +345,7 @@ async function assignCandidates(assessmentId, body, managerId, companyId) {
             dueAt: occurrenceDueAt.toISOString(),
             scheduleTimezone,
             monthlyAssessmentId: assessment.id,
+            reportEmails,
           }
         )
         const interview = iRows[0]

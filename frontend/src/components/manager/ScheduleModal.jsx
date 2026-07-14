@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Check, Code2, Mic, Search, X } from 'lucide-react'
+import { Check, Code2, Mic, Search } from 'lucide-react'
 import Modal from '../shared/Modal'
 import Button from '../shared/Button'
 import Avatar from '../shared/Avatar'
+import ReportRecipientsSelector from './ReportRecipientsSelector'
 import * as api from '../../services/api'
 import { serializeDatetimeLocal } from '../../utils/helpers'
 
-const STEPS = ['Type', 'Configure', 'Candidates', 'Confirm']
+const STEPS = ['Type', 'Configure', 'Candidates', 'Report emails', 'Confirm']
 const TYPES = [
   {
     id: 'ai_voice',
@@ -62,12 +63,9 @@ function ScheduleModal({
   const [durationMinutes, setDurationMinutes] = useState(25)
   const [scheduledAt, setScheduledAt] = useState('')
   const [candidates, setCandidates] = useState([])
-  const [orgUsers, setOrgUsers] = useState([])
-  const [managerId, setManagerId] = useState(null)
   const [selectedKeys, setSelectedKeys] = useState(new Set())
   const [candidateQuery, setCandidateQuery] = useState('')
-  const [reportQuery, setReportQuery] = useState('')
-  const [reportUserIds, setReportUserIds] = useState(new Set())
+  const [reportUserIds, setReportUserIds] = useState([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const selectedIdsKey = selectedIds.join(',')
@@ -102,15 +100,14 @@ function ScheduleModal({
     setDurationMinutes(25)
     setScheduledAt('')
     setCandidateQuery('')
-    setReportQuery('')
+    setReportUserIds([])
     setError(null)
 
     async function loadCandidates() {
       try {
-        const [orgResponse, externalResponse, profileResponse] = await Promise.all([
+        const [orgResponse, externalResponse] = await Promise.all([
           api.getScheduleOrgUsers(),
           api.getExternalCandidates(),
-          api.getProfile(),
         ])
         const organizationUsers = orgResponse.data || []
         const internal = organizationUsers
@@ -124,11 +121,7 @@ function ScheduleModal({
           external: true,
         }))
         const all = [...internal, ...external]
-        const currentManagerId = Number(profileResponse.data?.id)
         setCandidates(all)
-        setOrgUsers(organizationUsers)
-        setManagerId(currentManagerId)
-        setReportUserIds(new Set(Number.isInteger(currentManagerId) ? [currentManagerId] : []))
 
         const initial = new Set()
         if (member) {
@@ -159,10 +152,6 @@ function ScheduleModal({
     selectedKeys.has(candidateKey(candidate))
   )
   const visibleCandidates = candidates.filter(candidate => matchesUser(candidate, candidateQuery))
-  const selectedReportUsers = orgUsers.filter(user => reportUserIds.has(Number(user.id)))
-  const reportSuggestions = orgUsers.filter(user =>
-    !reportUserIds.has(Number(user.id)) && matchesUser(user, reportQuery)
-  ).slice(0, 8)
 
   function toggleCandidate(candidate) {
     const key = candidateKey(candidate)
@@ -170,20 +159,6 @@ function ScheduleModal({
       const next = new Set(current)
       if (next.has(key)) next.delete(key)
       else next.add(key)
-      return next
-    })
-  }
-
-  function addReportUser(user) {
-    setReportUserIds(current => new Set([...current, Number(user.id)]))
-    setReportQuery('')
-  }
-
-  function removeReportUser(userId) {
-    if (Number(userId) === managerId) return
-    setReportUserIds(current => {
-      const next = new Set(current)
-      next.delete(Number(userId))
       return next
     })
   }
@@ -215,7 +190,7 @@ function ScheduleModal({
       return
     }
     setError(null)
-    setStep(current => Math.min(4, current + 1))
+    setStep(current => Math.min(5, current + 1))
   }
 
   async function submit() {
@@ -236,7 +211,7 @@ function ScheduleModal({
           scheduledAt: serializeDatetimeLocal(scheduledAt),
           scheduleTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           assessmentDate: serializeDatetimeLocal(scheduledAt),
-          reportUserIds: Array.from(reportUserIds),
+          reportUserIds,
           clientTemplateId: context?.clientTemplateId,
           monthlyAssessmentId: context?.monthlyAssessmentId,
         }
@@ -388,42 +363,16 @@ function ScheduleModal({
               )
             })}
           </div>
-          <div>
-            <label htmlFor="schedule-report-users" style={{ display: 'block', fontSize: 12, fontWeight: 700, color: 'var(--fg-muted)', marginBottom: 6 }}>
-              Report recipients
-            </label>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
-              {selectedReportUsers.map(user => {
-                const locked = Number(user.id) === managerId
-                return (
-                  <span key={user.id} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '5px 8px', borderRadius: 999, background: locked ? 'var(--brand-50)' : 'var(--bg-surface-alt)', color: locked ? 'var(--brand-700)' : 'var(--fg-body)', fontSize: 12, fontWeight: 600 }}>
-                    {user.first_name} {user.last_name}{locked ? ' (you)' : ''}
-                    {!locked && <button type="button" onClick={() => removeReportUser(user.id)} aria-label={`Remove ${user.first_name}`} style={{ border: 0, background: 'transparent', padding: 0, display: 'inline-flex', cursor: 'pointer', color: 'inherit' }}><X size={12} /></button>}
-                  </span>
-                )
-              })}
-            </div>
-            <div style={{ position: 'relative' }}>
-              <input id="schedule-report-users" value={reportQuery} onChange={event => setReportQuery(event.target.value)} placeholder="Type initials, name, or email..." style={{ width: '100%', boxSizing: 'border-box', padding: '9px 12px', border: '1px solid var(--border-default)', borderRadius: 8, fontFamily: 'inherit' }} />
-              {reportQuery.trim() && (
-                <div style={{ position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 20, maxHeight: 180, overflowY: 'auto', background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderRadius: 8, boxShadow: '0 10px 24px rgba(15,23,42,0.12)' }}>
-                  {reportSuggestions.length === 0 ? (
-                    <div style={{ padding: 10, fontSize: 12, color: 'var(--fg-muted)' }}>No organization members found.</div>
-                  ) : reportSuggestions.map(user => (
-                    <button key={user.id} type="button" onClick={() => addReportUser(user)} style={{ width: '100%', display: 'flex', justifyContent: 'space-between', gap: 10, padding: '9px 11px', border: 0, borderBottom: '1px solid var(--border-default)', background: 'var(--bg-surface)', cursor: 'pointer', textAlign: 'left' }}>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg-primary)' }}>{user.first_name} {user.last_name}</span>
-                      <span style={{ fontSize: 11, color: 'var(--fg-muted)' }}>{user.email}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-            <p style={{ margin: '6px 0 0', fontSize: 11, color: 'var(--fg-muted)' }}>You are always included and cannot be removed.</p>
-          </div>
         </div>
       )}
 
       {step === 4 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <ReportRecipientsSelector selectedIds={reportUserIds} onChange={setReportUserIds} />
+        </div>
+      )}
+
+      {step === 5 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {[
             ['Type', TYPES.find(option => option.id === type)?.label],
@@ -433,6 +382,7 @@ function ScheduleModal({
             ['Questions', questionCount],
             ...(['ai_voice', 'exam'].includes(type) ? [['Duration', `${durationMinutes} minutes`]] : []),
             ['Candidates', selectedCandidates.length],
+            ['Report emails', reportUserIds.length],
             ['Context', context?.label || 'General assessment'],
           ].map(([label, value]) => (
             <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 12px', background: 'var(--bg-surface-alt)', borderRadius: 8, fontSize: 13 }}>
@@ -452,7 +402,7 @@ function ScheduleModal({
         <Button variant="secondary" disabled={loading} onClick={() => step === 1 ? onClose() : setStep(current => current - 1)}>
           {step === 1 ? 'Cancel' : 'Back'}
         </Button>
-        {step < 4 ? (
+        {step < 5 ? (
           <Button onClick={nextStep}>Continue</Button>
         ) : (
           <Button disabled={loading} onClick={submit}>{loading ? 'Scheduling...' : 'Schedule and send'}</Button>

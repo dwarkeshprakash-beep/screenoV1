@@ -12,6 +12,7 @@ import ErrorMessage from '../../components/shared/ErrorMessage'
 import Modal from '../../components/shared/Modal'
 import ConfirmDialog from '../../components/shared/ConfirmDialog'
 import DeleteMandateModal from '../../components/manager/DeleteMandateModal'
+import ReportRecipientsSelector from '../../components/manager/ReportRecipientsSelector'
 import Spinner from '../../components/shared/Spinner'
 import * as api from '../../services/api'
 import { formatDate, formatDateTime, parseStoredArray, serializeDatetimeLocal } from '../../utils/helpers'
@@ -872,6 +873,7 @@ const HUMAN_VIDEO_PLATFORMS = [
 ]
 
 function ScheduleClientTeamModal({ open, onClose, onScheduled, member, template }) {
+  const [step, setStep] = useState('details')
   const [type, setType] = useState('ai_voice')
   const [videoPlatform, setVideoPlatform] = useState('google_meet')
   const [platformStatus, setPlatformStatus] = useState({ google_meet: false, teams: false })
@@ -882,11 +884,13 @@ function ScheduleClientTeamModal({ open, onClose, onScheduled, member, template 
   const [scheduledAt, setScheduledAt] = useState('')
   const [location, setLocation] = useState('')
   const [notes, setNotes] = useState('')
+  const [reportUserIds, setReportUserIds] = useState([])
   const [scheduling, setScheduling] = useState(false)
   const [error, setError] = useState(null)
 
   useEffect(() => {
     if (!open) return
+    setStep('details')
     setType('ai_voice')
     setVideoPlatform('google_meet')
     setMode('simple')
@@ -896,6 +900,7 @@ function ScheduleClientTeamModal({ open, onClose, onScheduled, member, template 
     setScheduledAt('')
     setLocation('')
     setNotes('')
+    setReportUserIds([])
     setError(null)
     // Load which platforms are configured
     api.getVideoPlatforms()
@@ -903,34 +908,45 @@ function ScheduleClientTeamModal({ open, onClose, onScheduled, member, template 
       .catch(() => { })
   }, [open])
 
-  async function schedule() {
+  function validateDetails() {
     if (!scheduledAt) {
       setError('Choose the scheduled date and time.')
-      return
+      return false
     }
     const serializedScheduledAt = serializeDatetimeLocal(scheduledAt)
     if (!serializedScheduledAt) {
       setError('Invalid scheduled date and time.')
-      return
+      return false
     }
     if (new Date(serializedScheduledAt) <= new Date()) {
       setError('Scheduled time must be in the future.')
-      return
+      return false
     }
     if (type === 'human') {
       if (videoPlatform === 'teams') {
         setError('Microsoft Teams scheduling needs organization setup before it can be used.')
-        return
+        return false
       }
       if (!platformStatus.google_meet) {
         setError('Google Meet is not configured yet. Add the Google Calendar service-account settings first.')
-        return
+        return false
       }
     }
     if ((type === 'ai_voice' || type === 'exam') && (Number(durationMinutes) < 15 || Number(durationMinutes) > 180)) {
       setError('Duration must be between 15 and 180 minutes.')
-      return
+      return false
     }
+    setError(null)
+    return true
+  }
+
+  function continueToReports() {
+    if (validateDetails()) setStep('reports')
+  }
+
+  async function schedule() {
+    if (!validateDetails()) return
+    const serializedScheduledAt = serializeDatetimeLocal(scheduledAt)
     setScheduling(true)
     setError(null)
     try {
@@ -945,6 +961,7 @@ function ScheduleClientTeamModal({ open, onClose, onScheduled, member, template 
         scheduleTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         location: location.trim() || null,
         notes: notes.trim() || null,
+        reportUserIds,
       })
       onScheduled()
       onClose()
@@ -964,6 +981,8 @@ function ScheduleClientTeamModal({ open, onClose, onScheduled, member, template 
           <div className="detail-fact"><div className="detail-fact__label">Mandate</div><div className="detail-fact__value">{template?.client_name}</div></div>
         </div>
 
+        {step === 'details' && (
+          <>
         <Field label="Interview type">
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             {INTERVIEW_TYPES.map(t => (
@@ -1077,14 +1096,28 @@ function ScheduleClientTeamModal({ open, onClose, onScheduled, member, template 
             <textarea className="form-input" rows={3} value={notes} onChange={e => setNotes(e.target.value)} placeholder="Any additional details..." style={{ resize: 'vertical' }} />
           </Field>
         )}
+          </>
+        )}
+
+        {step === 'reports' && (
+          <ReportRecipientsSelector selectedIds={reportUserIds} onChange={setReportUserIds} />
+        )}
 
         {error && <ErrorMessage message={error} />}
-        <div className="form-actions" style={{ justifyContent: 'flex-end' }}>
-          <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button onClick={schedule} loading={scheduling} disabled={humanScheduleBlocked}>
+        <div className="form-actions" style={{ justifyContent: 'space-between' }}>
+          <Button variant="secondary" disabled={scheduling} onClick={step === 'reports' ? () => setStep('details') : onClose}>
+            {step === 'reports' ? 'Back' : 'Cancel'}
+          </Button>
+          {step === 'details' ? (
+            <Button onClick={continueToReports} disabled={humanScheduleBlocked}>
+              Continue
+            </Button>
+          ) : (
+            <Button onClick={schedule} loading={scheduling} disabled={humanScheduleBlocked}>
             <Calendar size={14} />
             {`Schedule ${selectedTypeInfo?.label || ''}`}
-          </Button>
+            </Button>
+          )}
         </div>
       </div>
     </Modal>

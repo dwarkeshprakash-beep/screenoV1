@@ -106,7 +106,6 @@ async function createSchedule(data, managerId, companyId) {
     throw new Error('Some report recipients are not in your organization')
   }
   const reportEmails = [...new Set([
-    manager.email,
     ...reportUsers.map(user => user.email),
   ].filter(Boolean))]
 

@@ -488,6 +488,7 @@ async function run() {
   assert.equal(schedule.status, 201)
   assert.equal(schedule.payload.data.status, 'scheduled')
   assert.equal(schedule.payload.data.token, undefined)
+  assert.equal(schedule.payload.data.report_emails, null)
   state.interviewIds.push(schedule.payload.data.id)
 
   const organizationSchedule = await api('/api/schedule', {
@@ -500,7 +501,7 @@ async function run() {
       interviewMode: 'adaptive',
       difficulty: 'hard',
       questionCount: 7,
-      reportUserIds: [primary.candidate.id],
+      reportUserIds: [primary.manager.id, primary.candidate.id],
     },
   })
   assert.equal(organizationSchedule.status, 201)

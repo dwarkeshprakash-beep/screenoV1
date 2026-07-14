@@ -807,7 +807,7 @@ router.post('/:id/team/:ctId/schedule', async (req, res) => {
   try {
     const mandateId = parseInt(req.params.id, 10)
     const ctId = parseInt(req.params.ctId, 10)
-    const { type, mode, difficulty, questionCount, scheduledAt, location, videoPlatform, durationMinutes, notes } = req.body
+    const { type, mode, difficulty, questionCount, scheduledAt, location, videoPlatform, durationMinutes, notes, reportUserIds } = req.body
 
     const template = await clientTemplateRepo.getById(mandateId, req.user.id)
     if (!template) return res.status(404).json({ success: false, error: 'Mandate not found' })
@@ -876,6 +876,7 @@ router.post('/:id/team/:ctId/schedule', async (req, res) => {
         location:         location || null,
         meetingUrl:       videoLink || null,
         details:          notes || null,
+        reportUserIds:    Array.isArray(reportUserIds) ? reportUserIds : [],
       },
       req.user.id,
       req.user.companyId

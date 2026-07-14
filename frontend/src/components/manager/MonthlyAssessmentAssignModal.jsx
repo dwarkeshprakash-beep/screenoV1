@@ -3,6 +3,7 @@ import { Search } from 'lucide-react'
 import Modal from '../shared/Modal'
 import Button from '../shared/Button'
 import Avatar from '../shared/Avatar'
+import ReportRecipientsSelector from './ReportRecipientsSelector'
 import * as api from '../../services/api'
 
 function toDateTimeLocalValue(date) {
@@ -60,8 +61,10 @@ function MonthlyAssessmentAssignModal({
   onClose,
   onDone,
 }) {
+  const [step, setStep] = useState('details')
   const [team, setTeam] = useState([])
   const [selectedIds, setSelectedIds] = useState(new Set())
+  const [reportUserIds, setReportUserIds] = useState([])
   const [availableFrom, setAvailableFrom] = useState(nowDateTime)
   const [dueAt, setDueAt] = useState(() => addOffset(nowDateTime(), 3, 'hours'))
   const [questionCount, setQuestionCount] = useState(10)
@@ -75,7 +78,9 @@ function MonthlyAssessmentAssignModal({
 
   useEffect(() => {
     if (!open) return
+    setStep('details')
     setSelectedIds(new Set())
+    setReportUserIds([])
     const base = defaultOpenDateTime(defaultDate)
     setAvailableFrom(base)
     setDueAt(addOffset(base, 3, 'hours'))
@@ -168,34 +173,46 @@ function MonthlyAssessmentAssignModal({
     }
   }
 
-  async function handleAssign() {
+  function validateDetails() {
     const openDate = new Date(availableFrom)
     const closeDate = new Date(dueAt)
 
     if (!availableFrom || Number.isNaN(openDate.getTime())) {
       setError('Opens date is required.')
-      return
+      return null
     }
     if (!dueAt || Number.isNaN(closeDate.getTime())) {
       setError('Due date is required.')
-      return
+      return null
     }
     if (closeDate <= openDate) {
       setError('Due date/time must be after the Opens date/time.')
-      return
+      return null
     }
     if (selectedIds.size === 0) {
       setError('Select at least one candidate.')
-      return
+      return null
     }
     if (!Number.isInteger(Number(questionCount)) || Number(questionCount) < 1 || Number(questionCount) > 50) {
       setError('Question count must be between 1 and 50.')
-      return
+      return null
     }
     if (!Number.isInteger(Number(durationMinutes)) || Number(durationMinutes) < 15 || Number(durationMinutes) > 180) {
       setError('Exam duration must be between 15 and 180 minutes.')
-      return
+      return null
     }
+    setError(null)
+    return { openDate, closeDate }
+  }
+
+  function continueToReports() {
+    if (validateDetails()) setStep('reports')
+  }
+
+  async function handleAssign() {
+    const validated = validateDetails()
+    if (!validated) return
+    const { openDate, closeDate } = validated
     setSaving(true)
     setError(null)
     try {
@@ -207,6 +224,7 @@ function MonthlyAssessmentAssignModal({
         question_count: Number(questionCount),
         duration_minutes: Number(durationMinutes),
         team_member_ids: Array.from(selectedIds),
+        report_user_ids: reportUserIds,
       })
       const failed = result?.data?.failed || []
       if (failed.length > 0 && (result?.data?.enrollments || []).length === 0) {
@@ -252,6 +270,8 @@ function MonthlyAssessmentAssignModal({
           Subsequent months shift by the same window length.
         </div>
 
+        {step === 'details' && (
+          <>
         {/* Opens date row */}
         <div>
           <label htmlFor="monthly-available-from" style={labelStyle}>
@@ -380,14 +400,26 @@ function MonthlyAssessmentAssignModal({
             )
           })}
         </div>
+          </>
+        )}
+
+        {step === 'reports' && (
+          <ReportRecipientsSelector selectedIds={reportUserIds} onChange={setReportUserIds} />
+        )}
 
         {error && <div style={{ padding: '9px 11px', borderRadius: 8, background: 'var(--danger-50)', color: 'var(--danger-700)', fontSize: 12 }}>{error}</div>}
 
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-          <Button variant="secondary" disabled={saving} onClick={onClose}>Cancel</Button>
-          <Button disabled={saving} onClick={handleAssign}>
-            {saving ? 'Assigning...' : selectedIds.size > 0 ? `Assign ${selectedIds.size} candidate${selectedIds.size === 1 ? '' : 's'}` : 'Assign candidates'}
+        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+          <Button variant="secondary" disabled={saving} onClick={step === 'reports' ? () => setStep('details') : onClose}>
+            {step === 'reports' ? 'Back' : 'Cancel'}
           </Button>
+          {step === 'details' ? (
+            <Button disabled={saving} onClick={continueToReports}>Continue</Button>
+          ) : (
+            <Button disabled={saving} onClick={handleAssign}>
+            {saving ? 'Assigning...' : selectedIds.size > 0 ? `Assign ${selectedIds.size} candidate${selectedIds.size === 1 ? '' : 's'}` : 'Assign candidates'}
+            </Button>
+          )}
         </div>
       </div>
     </Modal>

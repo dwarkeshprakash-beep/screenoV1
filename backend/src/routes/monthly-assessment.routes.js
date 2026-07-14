@@ -20,6 +20,7 @@ const VALIDATION_ERRORS = new Set([
   'Due date must be in the future',
   'Question count must be an integer between 1 and 50',
   'Duration must be an integer between 15 and 180 minutes',
+  'Some report recipients are not in your organization',
 ])
 
 function handleMonthlyError(res, err, fallbackMessage) {
