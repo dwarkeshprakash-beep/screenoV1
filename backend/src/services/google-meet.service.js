@@ -100,8 +100,54 @@ async function createMeeting({ summary, startAt, endAt, attendeeEmails = [] }) {
   }
 }
 
+async function updateMeeting(eventId, { summary, startAt, endAt, attendeeEmails = [] }) {
+  if (!isConfigured() || !eventId) return null
+  try {
+    const token = await getAccessToken()
+    const organizer = process.env.GOOGLE_CALENDAR_ORGANIZER || process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL
+    const calendarId = encodeURIComponent(organizer)
+    const endIso = endAt || new Date(new Date(startAt).getTime() + 60 * 60 * 1000).toISOString()
+    const res = await fetch(
+      `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events/${encodeURIComponent(eventId)}?conferenceDataVersion=1&sendUpdates=all`,
+      {
+        method: 'PATCH',
+        headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          summary,
+          start: { dateTime: new Date(startAt).toISOString() },
+          end: { dateTime: new Date(endIso).toISOString() },
+          attendees: attendeeEmails.map(email => ({ email })),
+        }),
+        signal: AbortSignal.timeout(15000),
+      }
+    )
+    if (!res.ok) throw new Error(`Google event update failed (${res.status}): ${await res.text()}`)
+    const event = await res.json()
+    const videoEntry = (event.conferenceData?.entryPoints || []).find(ep => ep.entryPointType === 'video')
+    return { joinUrl: videoEntry?.uri || event.hangoutLink || event.htmlLink || null, eventId: event.id || eventId }
+  } catch (err) {
+    console.error('[google-meet] updateMeeting error:', err.message)
+    throw err
+  }
+}
+
+async function cancelMeeting(eventId) {
+  if (!isConfigured() || !eventId) return false
+  const token = await getAccessToken()
+  const organizer = process.env.GOOGLE_CALENDAR_ORGANIZER || process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL
+  const calendarId = encodeURIComponent(organizer)
+  const res = await fetch(
+    `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events/${encodeURIComponent(eventId)}?sendUpdates=all`,
+    { method: 'DELETE', headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(15000) }
+  )
+  if (!res.ok && res.status !== 404 && res.status !== 410) {
+    throw new Error(`Google event cancellation failed (${res.status}): ${await res.text()}`)
+  }
+  return true
+}
+
 function isConfigured() {
   return !!(process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL && process.env.GOOGLE_SERVICE_ACCOUNT_KEY)
 }
 
-module.exports = { createMeeting, isConfigured }
+module.exports = { createMeeting, updateMeeting, cancelMeeting, isConfigured }

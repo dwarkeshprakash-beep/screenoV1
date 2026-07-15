@@ -47,7 +47,7 @@ router.get('/interviews', async (req, res) => {
         ? null
         : candidate_decision === 'pass' || interview.result === 'pass'
           ? 'pass'
-          : candidate_decision != null || interview.result === 'fail'
+          : candidate_decision != null || ['fail', 'failed_mid_interview', 'cheating_attempt'].includes(interview.result)
             ? 'fail'
             : null,
     }))
@@ -159,7 +159,10 @@ router.get('/client-mandates', async (req, res) => {
                 i.location, i.created,
                 CASE
                   WHEN i.status = 'completed' AND (sc.decision = 'pass' OR i.result = 'pass') THEN 'pass'
-                  WHEN i.status = 'completed' AND (sc.decision IS NOT NULL OR i.result = 'fail') THEN 'fail'
+                  WHEN i.status = 'completed' AND (
+                    sc.decision IS NOT NULL
+                    OR i.result IN ('fail', 'failed_mid_interview', 'cheating_attempt')
+                  ) THEN 'fail'
                   ELSE NULL
                 END AS candidate_result
          FROM interviews i

@@ -76,7 +76,7 @@ function editableStage(stage, index) {
   }
 }
 
-function InterviewFlowModal({ open, mandate, member, initialFlowId = '', onClose, onStarted, onSaved }) {
+function InterviewFlowModal({ open, mandate, member, initialFlowId = '', initialRunId = '', onClose, onStarted, onSaved }) {
   const [name, setName] = useState('Candidate interview flow')
   const [stages, setStages] = useState([blankStage(1)])
   const [users, setUsers] = useState([])
@@ -89,16 +89,21 @@ function InterviewFlowModal({ open, mandate, member, initialFlowId = '', onClose
   useEffect(() => {
     if (!open) return
     setError(null)
-    Promise.all([api.getScheduleOrgUsers(), api.getMandateInterviewFlows(mandate.id)])
-      .then(([userRes, flowRes]) => {
+    Promise.all([
+      api.getScheduleOrgUsers(),
+      api.getMandateInterviewFlows(mandate.id),
+      initialRunId ? api.getInterviewFlowRunDefinition(initialRunId) : Promise.resolve(null),
+    ])
+      .then(([userRes, flowRes, runFlowRes]) => {
         setUsers((userRes.data || []).filter(user => Number(user.id) !== Number(member.user_id)))
         const loadedFlows = flowRes.data || []
         setFlows(loadedFlows)
-        const selected = loadedFlows.find(flow => Number(flow.id) === Number(initialFlowId))
+        const selected = runFlowRes?.data
+          || loadedFlows.find(flow => Number(flow.id) === Number(initialFlowId))
         if (selected) populateFlow(selected)
       })
       .catch(() => setError('Could not load flow setup information.'))
-  }, [open, mandate.id, member.user_id, initialFlowId])
+  }, [open, mandate.id, member.user_id, initialFlowId, initialRunId])
 
   function populateFlow(flow) {
     setExistingFlowId(String(flow.id))
@@ -175,10 +180,18 @@ function InterviewFlowModal({ open, mandate, member, initialFlowId = '', onClose
     setError(null)
     try {
       const response = await api.createInterviewFlow(payload())
-      await api.startInterviewFlow(response.data.id, member.id)
-      onStarted()
+      const createdFlow = response.data
+      setFlows(current => [createdFlow, ...current.filter(flow => Number(flow.id) !== Number(createdFlow.id))])
+      populateFlow(createdFlow)
+      onSaved?.(createdFlow)
+      try {
+        await api.startInterviewFlow(createdFlow.id, member.id)
+        onStarted()
+      } catch (startError) {
+        setError(`Flow saved, but stage 1 could not be scheduled: ${startError.message || 'Unknown scheduling error'}. Use Schedules to retry the paused run.`)
+      }
     } catch (err) {
-      setError(err.message || 'Could not create and start the flow.')
+      setError(err.message || 'Could not create the interview flow.')
     } finally {
       setSaving(false)
     }
@@ -189,7 +202,9 @@ function InterviewFlowModal({ open, mandate, member, initialFlowId = '', onClose
     setSaving(true)
     setError(null)
     try {
-      const response = await api.updateInterviewFlow(existingFlowId, payload())
+      const response = initialRunId
+        ? await api.updateInterviewFlowRunDefinition(initialRunId, payload())
+        : await api.updateInterviewFlow(existingFlowId, payload())
       const saved = response.data
       setFlows(current => current.map(flow => Number(flow.id) === Number(saved.id) ? saved : flow))
       populateFlow(saved)
@@ -232,9 +247,9 @@ function InterviewFlowModal({ open, mandate, member, initialFlowId = '', onClose
   }
 
   return (
-    <Modal open={open} onClose={onClose} title={existingFlowId ? 'Edit interview flow' : 'Create interview flow'} size="lg">
+    <Modal open={open} onClose={onClose} title={initialRunId ? 'Edit candidate interview flow' : existingFlowId ? 'Edit interview flow' : 'Create interview flow'} size="lg">
       <div className="workspace-stack">
-        {flows.length > 0 && (
+        {!initialRunId && flows.length > 0 && (
           <div className="form-field">
             <span className="form-label">Use an existing flow</span>
             <div style={{ display: 'flex', gap: 8 }}>
@@ -287,8 +302,12 @@ function InterviewFlowModal({ open, mandate, member, initialFlowId = '', onClose
         {error && <ErrorMessage message={error} />}
         <div className="form-actions">
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button onClick={existingFlowId ? saveExisting : createAndStart} loading={saving}>
-            {existingFlowId ? 'Save flow changes' : 'Create flow and schedule stage 1'}
+          <Button
+            onClick={initialRunId || existingFlowId ? saveExisting : createAndStart}
+            loading={saving}
+            disabled={!!initialRunId && !existingFlowId}
+          >
+            {initialRunId ? 'Save candidate flow changes' : existingFlowId ? 'Save flow changes' : 'Create flow and schedule stage 1'}
           </Button>
         </div>
       </div>

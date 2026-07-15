@@ -2017,7 +2017,7 @@ function MandateDetail({ initialTemplate, onBack }) {
                       <div><h3>{run.candidate_first} {run.candidate_last}</h3><p>{run.flow_name}</p></div>
                       <div style={{ display: 'flex', gap: 7, alignItems: 'center', flexWrap: 'wrap' }}>
                         <Button size="sm" variant="secondary" onClick={() => setFlowEditTarget({
-                          flowId: run.flow_id,
+                          runId: run.run_id,
                           member: { id: run.client_team_id, user_id: run.candidate_user_id, first_name: run.candidate_first, last_name: run.candidate_last },
                         })}>Edit</Button>
                         <button type="button" className="danger-icon-button" title="Delete candidate flow" onClick={() => deleteCandidateFlow(run)}><Trash2 size={14} /></button>
@@ -2174,7 +2174,7 @@ function MandateDetail({ initialTemplate, onBack }) {
           open={!!flowEditTarget}
           mandate={template}
           member={flowEditTarget.member}
-          initialFlowId={flowEditTarget.flowId}
+          initialRunId={flowEditTarget.runId}
           onClose={() => setFlowEditTarget(null)}
           onStarted={() => { setFlowEditTarget(null); refreshFlowRuns(); setMessage({ text: 'Interview flow started.', type: 'success' }) }}
           onSaved={() => { refreshFlowRuns(); setMessage({ text: 'Interview flow updated.', type: 'success' }) }}

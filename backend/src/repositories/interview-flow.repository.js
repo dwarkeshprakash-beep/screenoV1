@@ -39,7 +39,7 @@ async function listByMandate(mandateId, managerId) {
      LEFT JOIN interview_flow_stages s ON s.flow_id = f.id
      LEFT JOIN users u ON u.id = s.interviewer_user_id
      WHERE f.mandate_id = @mandateId AND f.created_by_manager_id = @managerId
-       AND f.status != 'deleted'
+       AND f.status = 'active'
      ORDER BY f.created DESC, s.stage_order`, { mandateId, managerId }
   )
 }
@@ -110,18 +110,39 @@ async function syncScheduledStageInterviews(stageId, flowId, data) {
            token_expires = @tokenExpires,
            report_emails = @reportEmails,
            schedule_timezone = @scheduleTimezone, location = @location,
-           meeting_url = @meetingUrl
+           meeting_url = CASE
+             WHEN calendar_event_id IS NOT NULL AND CAST(@meetingUrl AS TEXT) IS NULL THEN meeting_url
+             ELSE CAST(@meetingUrl AS TEXT)
+           END
        WHERE id = ANY(@interviewIds) AND status = 'scheduled'
        RETURNING *`,
       { interviewIds, ...data }
     )
 
-    if (data.interviewerUserId) {
+    return updated
+  })
+}
+
+async function getAssignedInterviewer(interviewId) {
+  const rows = await db.query(
+    `SELECT u.* FROM interview_assignments a
+     JOIN users u ON u.id = a.interviewer_user_id
+     WHERE a.interview_id = @interviewId AND a.status != 'completed'
+     ORDER BY a.id DESC LIMIT 1`,
+    { interviewId }
+  )
+  return rows[0] || null
+}
+
+async function syncInterviewAssignments(interviewIds, interviewerUserId) {
+  if (!interviewIds.length) return
+  return db.transaction(async tx => {
+    if (interviewerUserId) {
       await tx.query(
         `UPDATE interview_assignments
          SET interviewer_user_id = @interviewerUserId, updated = CURRENT_TIMESTAMP
          WHERE interview_id = ANY(@interviewIds) AND status != 'completed'`,
-        { interviewIds, interviewerUserId: data.interviewerUserId }
+        { interviewIds, interviewerUserId }
       )
       await tx.query(
         `INSERT INTO interview_assignments (stage_run_id, interview_id, interviewer_user_id)
@@ -132,7 +153,7 @@ async function syncScheduledStageInterviews(stageId, flowId, data) {
            AND NOT EXISTS (
              SELECT 1 FROM interview_assignments a WHERE a.interview_id = i.id
            )`,
-        { interviewIds, interviewerUserId: data.interviewerUserId }
+        { interviewIds, interviewerUserId }
       )
     } else {
       await tx.query(
@@ -141,7 +162,6 @@ async function syncScheduledStageInterviews(stageId, flowId, data) {
         { interviewIds }
       )
     }
-    return updated
   })
 }
 
@@ -162,15 +182,47 @@ async function ensureStageRuns(stageId, flowId, stageOrder) {
   )
 }
 
-/** Remove a stage only when no candidate run references it. */
-async function deleteUnusedStage(stageId, flowId) {
-  const rows = await db.query(
-    `DELETE FROM interview_flow_stages s
-     WHERE s.id = @stageId AND s.flow_id = @flowId
-       AND NOT EXISTS (SELECT 1 FROM candidate_flow_stage_runs sr WHERE sr.stage_id = s.id)
-     RETURNING s.id`, { stageId, flowId }
+/** Remove an unused definition, or a candidate-specific stage that is still pending. */
+async function deleteUnusedStage(stageId, flowId, allowPendingRuntime = false) {
+  return db.transaction(async tx => {
+    const references = await tx.query(
+      `SELECT sr.id, sr.status, sr.interview_id
+       FROM candidate_flow_stage_runs sr
+       JOIN candidate_flow_runs r ON r.id = sr.run_id
+       WHERE sr.stage_id = @stageId AND r.flow_id = @flowId
+       FOR UPDATE`,
+      { stageId, flowId }
+    )
+    if (references.length > 0) {
+      if (!allowPendingRuntime || references.some(row => row.status !== 'pending' || row.interview_id)) {
+        return null
+      }
+      await tx.query(
+        `DELETE FROM candidate_flow_stage_runs
+         WHERE id = ANY(@ids)`,
+        { ids: references.map(row => row.id) }
+      )
+    }
+    const rows = await tx.query(
+      `DELETE FROM interview_flow_stages
+       WHERE id = @stageId AND flow_id = @flowId
+       RETURNING id`,
+      { stageId, flowId }
+    )
+    return rows[0] || null
+  })
+}
+
+/** Keep a retained runtime stage aligned after an earlier pending stage is removed. */
+async function syncStageRunOrder(stageId, flowId, stageOrder) {
+  return db.query(
+    `UPDATE candidate_flow_stage_runs sr
+     SET stage_order = @stageOrder, updated = CURRENT_TIMESTAMP
+     FROM candidate_flow_runs r
+     WHERE sr.run_id = r.id AND r.flow_id = @flowId AND sr.stage_id = @stageId
+     RETURNING sr.*`,
+    { stageId, flowId, stageOrder }
   )
-  return rows[0] || null
 }
 
 /** Soft-delete a definition when it has no active candidate runs. */
@@ -178,17 +230,59 @@ async function deleteFlow(flowId, managerId) {
   const rows = await db.query(
     `UPDATE interview_flows f SET status = 'deleted', updated = CURRENT_TIMESTAMP
      WHERE f.id = @flowId AND f.created_by_manager_id = @managerId
-       AND NOT EXISTS (SELECT 1 FROM candidate_flow_runs r WHERE r.flow_id = f.id AND r.status != 'cancelled')
+       AND f.status = 'active'
+       AND NOT EXISTS (
+         SELECT 1 FROM candidate_flow_runs r
+         WHERE COALESCE(r.template_flow_id, r.flow_id) = f.id
+           AND r.status NOT IN ('completed', 'cancelled')
+       )
      RETURNING f.id`, { flowId, managerId }
   )
   return rows[0] || null
 }
 
 /** Permanently delete one candidate flow run and every interview created by it. */
+async function getRunDeletionContext(runId, managerId) {
+  const runs = await db.query(
+    `SELECT id FROM candidate_flow_runs
+     WHERE id = @runId AND created_by_manager_id = @managerId`,
+    { runId, managerId }
+  )
+  if (!runs[0]) return null
+  const interviews = await db.query(
+    `SELECT i.id, i.status, i.scheduled_at, i.schedule_timezone, i.location,
+            i.meeting_url, i.calendar_event_id,
+            COALESCE(c.first_name, ec.first_name) AS candidate_first,
+            COALESCE(c.last_name, ec.last_name) AS candidate_last,
+            COALESCE(c.email, ec.email) AS candidate_email,
+            iu.first_name AS interviewer_first, iu.last_name AS interviewer_last,
+            iu.email AS interviewer_email,
+            COALESCE(s.name, 'Interview') AS stage_name,
+            COALESCE(t.client_name, 'Your company') AS client_name
+     FROM candidate_flow_stage_runs sr
+     JOIN interviews i ON i.id = sr.interview_id
+     LEFT JOIN users c ON c.id = i.internal_user_id
+     LEFT JOIN external_candidates ec ON ec.id = i.external_candidate_id
+     LEFT JOIN interview_assignments a ON a.interview_id = i.id
+     LEFT JOIN users iu ON iu.id = a.interviewer_user_id
+     LEFT JOIN interview_flow_stages s ON s.id = sr.stage_id
+     LEFT JOIN candidate_flow_runs r ON r.id = sr.run_id
+     LEFT JOIN interview_flows f ON f.id = r.flow_id
+     LEFT JOIN client_templates t ON t.id = f.mandate_id
+     WHERE sr.run_id = @runId
+     ORDER BY sr.stage_order, sr.attempt_number`,
+    { runId }
+  )
+  return { id: Number(runId), interviews }
+}
+
 async function deleteRun(runId, managerId) {
   return db.transaction(async tx => {
     const runs = await tx.query(
-      `SELECT id FROM candidate_flow_runs WHERE id = @runId AND created_by_manager_id = @managerId`,
+      `SELECT r.id, r.flow_id, f.status AS flow_status
+       FROM candidate_flow_runs r
+       JOIN interview_flows f ON f.id = r.flow_id
+       WHERE r.id = @runId AND r.created_by_manager_id = @managerId`,
       { runId, managerId }
     )
     if (!runs[0]) return null
@@ -240,6 +334,10 @@ async function deleteRun(runId, managerId) {
 
     await tx.query(`DELETE FROM candidate_flow_stage_runs WHERE run_id = @runId`, { runId })
     await tx.query(`DELETE FROM candidate_flow_runs WHERE id = @runId`, { runId })
+    if (runs[0].flow_status === 'run_specific') {
+      await tx.query(`DELETE FROM interview_flow_stages WHERE flow_id = @flowId`, { flowId: runs[0].flow_id })
+      await tx.query(`DELETE FROM interview_flows WHERE id = @flowId`, { flowId: runs[0].flow_id })
+    }
     return { id: Number(runId), deleted: true, storagePaths: assetRows.map(row => row.storage_path).filter(Boolean) }
   })
 }
@@ -253,14 +351,162 @@ async function createRun(data) {
   return rows[0]
 }
 
+/** Clone a reusable template and atomically create an isolated candidate run. */
+async function createIsolatedRun(flowId, clientTeamId, managerId) {
+  return db.transaction(async tx => {
+    const sourceRows = await tx.query(
+      `SELECT * FROM interview_flows
+       WHERE id = @flowId AND created_by_manager_id = @managerId AND status = 'active'`,
+      { flowId, managerId }
+    )
+    if (!sourceRows[0]) return null
+    const source = sourceRows[0]
+    const clone = (await tx.query(
+      `INSERT INTO interview_flows
+         (mandate_id, name, status, created_by_manager_id, report_user_ids)
+       VALUES (@mandateId, @name, 'run_specific', @managerId, @reportUserIds)
+       RETURNING *`,
+      { mandateId: source.mandate_id, name: source.name, managerId, reportUserIds: source.report_user_ids }
+    ))[0]
+    const stages = await tx.query(
+      `INSERT INTO interview_flow_stages
+         (flow_id, stage_order, name, type, scheduled_at, schedule_timezone,
+          duration_minutes, interview_mode, difficulty, question_count, require_pass,
+          minimum_score, interviewer_user_id, location, meeting_url, notes)
+       SELECT @cloneId, stage_order, name, type, scheduled_at, schedule_timezone,
+              duration_minutes, interview_mode, difficulty, question_count, require_pass,
+              minimum_score, interviewer_user_id, location, meeting_url, notes
+       FROM interview_flow_stages WHERE flow_id = @flowId
+       ORDER BY stage_order RETURNING *`,
+      { cloneId: clone.id, flowId }
+    )
+    const run = (await tx.query(
+      `INSERT INTO candidate_flow_runs
+         (flow_id, template_flow_id, client_team_id, created_by_manager_id)
+       VALUES (@cloneId, @flowId, @clientTeamId, @managerId)
+       RETURNING *`,
+      { cloneId: clone.id, flowId, clientTeamId, managerId }
+    ))[0]
+    await tx.query(
+      `INSERT INTO candidate_flow_stage_runs
+         (run_id, stage_id, stage_order, status, attempt_number)
+       SELECT @runId, id, stage_order,
+              CASE WHEN stage_order = 1 THEN 'activating' ELSE 'pending' END, 1
+       FROM interview_flow_stages WHERE flow_id = @cloneId
+       ORDER BY stage_order`,
+      { runId: run.id, cloneId: clone.id }
+    )
+    const stageRuns = await tx.query(
+      `SELECT * FROM candidate_flow_stage_runs WHERE run_id = @runId ORDER BY stage_order`,
+      { runId: run.id }
+    )
+    return { run, flow: { ...clone, stages }, stageRuns }
+  })
+}
+
+/** Clone a legacy shared definition before editing one candidate's run. */
+async function isolateRun(runId, managerId) {
+  return db.transaction(async tx => {
+    const rows = await tx.query(
+      `SELECT r.*, f.status AS flow_status, f.mandate_id, f.name AS flow_name,
+              f.report_user_ids
+       FROM candidate_flow_runs r
+       JOIN interview_flows f ON f.id = r.flow_id
+       WHERE r.id = @runId AND r.created_by_manager_id = @managerId
+       FOR UPDATE`,
+      { runId, managerId }
+    )
+    const current = rows[0]
+    if (!current) return null
+    if (current.flow_status === 'run_specific') {
+      const flowRows = await tx.query(`SELECT * FROM interview_flows WHERE id = @flowId`, { flowId: current.flow_id })
+      const stages = await tx.query(`SELECT * FROM interview_flow_stages WHERE flow_id = @flowId ORDER BY stage_order`, { flowId: current.flow_id })
+      return { ...flowRows[0], stages }
+    }
+    const clone = (await tx.query(
+      `INSERT INTO interview_flows
+         (mandate_id, name, status, created_by_manager_id, report_user_ids)
+       VALUES (@mandateId, @name, 'run_specific', @managerId, @reportUserIds)
+       RETURNING *`,
+      {
+        mandateId: current.mandate_id, name: current.flow_name,
+        managerId, reportUserIds: current.report_user_ids,
+      }
+    ))[0]
+    const stages = await tx.query(
+      `INSERT INTO interview_flow_stages
+         (flow_id, stage_order, name, type, scheduled_at, schedule_timezone,
+          duration_minutes, interview_mode, difficulty, question_count, require_pass,
+          minimum_score, interviewer_user_id, location, meeting_url, notes)
+       SELECT @cloneId, stage_order, name, type, scheduled_at, schedule_timezone,
+              duration_minutes, interview_mode, difficulty, question_count, require_pass,
+              minimum_score, interviewer_user_id, location, meeting_url, notes
+       FROM interview_flow_stages WHERE flow_id = @flowId
+       ORDER BY stage_order RETURNING *`,
+      { cloneId: clone.id, flowId: current.flow_id }
+    )
+    await tx.query(
+      `UPDATE candidate_flow_runs
+       SET flow_id = @cloneId, template_flow_id = COALESCE(template_flow_id, @flowId),
+           updated = CURRENT_TIMESTAMP
+       WHERE id = @runId`,
+      { cloneId: clone.id, flowId: current.flow_id, runId }
+    )
+    await tx.query(
+      `UPDATE candidate_flow_stage_runs sr
+       SET stage_id = s.id, updated = CURRENT_TIMESTAMP
+       FROM interview_flow_stages s
+       WHERE sr.run_id = @runId AND s.flow_id = @cloneId
+         AND s.stage_order = sr.stage_order`,
+      { runId, cloneId: clone.id }
+    )
+    return { ...clone, stages }
+  })
+}
+
+async function getOwnedRunFlow(runId, managerId) {
+  const rows = await db.query(
+    `SELECT f.* FROM candidate_flow_runs r
+     JOIN interview_flows f ON f.id = r.flow_id
+     WHERE r.id = @runId AND r.created_by_manager_id = @managerId`,
+    { runId, managerId }
+  )
+  if (!rows[0]) return null
+  const stages = await db.query(
+    `SELECT * FROM interview_flow_stages WHERE flow_id = @flowId ORDER BY stage_order`,
+    { flowId: rows[0].id }
+  )
+  return { ...rows[0], stages }
+}
+
+async function listDirectRunIds(flowId) {
+  return db.query(
+    `SELECT id FROM candidate_flow_runs WHERE flow_id = @flowId ORDER BY id`,
+    { flowId }
+  )
+}
+
 /** Prevent the same saved flow being started twice concurrently for one candidate. */
 async function getActiveRun(flowId, clientTeamId) {
   const rows = await db.query(
     `SELECT * FROM candidate_flow_runs
-     WHERE flow_id = @flowId AND client_team_id = @clientTeamId
+     WHERE COALESCE(template_flow_id, flow_id) = @flowId AND client_team_id = @clientTeamId
        AND status NOT IN ('completed', 'cancelled')
      ORDER BY created DESC LIMIT 1`,
     { flowId, clientTeamId }
+  )
+  return rows[0] || null
+}
+
+/** Atomically claim a paused run so duplicate manager actions cannot both progress it. */
+async function claimRunStatus(runId, managerId, expectedStatuses, claimedStatus) {
+  const rows = await db.query(
+    `UPDATE candidate_flow_runs
+     SET status = @claimedStatus, updated = CURRENT_TIMESTAMP
+     WHERE id = @runId AND created_by_manager_id = @managerId
+       AND status = ANY(@expectedStatuses)
+     RETURNING *`,
+    { runId, managerId, expectedStatuses, claimedStatus }
   )
   return rows[0] || null
 }
@@ -345,7 +591,8 @@ async function finishStageRun(stageRunId, status, outcome) {
     `UPDATE candidate_flow_stage_runs
      SET status = @status, outcome = @outcome, completed_at = CURRENT_TIMESTAMP,
          updated = CURRENT_TIMESTAMP
-     WHERE id = @stageRunId RETURNING *`, { stageRunId, status, outcome }
+     WHERE id = @stageRunId AND status NOT IN ('passed', 'failed', 'completed')
+     RETURNING *`, { stageRunId, status, outcome }
   )
   return rows[0] || null
 }
@@ -458,6 +705,7 @@ async function createAssignmentFile(data) {
 async function listRunsByMandate(mandateId, managerId) {
   return db.query(
     `SELECT r.id AS run_id, r.status AS run_status, r.current_stage_order,
+            r.template_flow_id,
             f.id AS flow_id, f.name AS flow_name, ct.id AS client_team_id,
             u.id AS candidate_user_id, u.first_name AS candidate_first, u.last_name AS candidate_last,
             u.email AS candidate_email,
@@ -490,7 +738,7 @@ async function listSchedulesByMandate(mandateId, managerId) {
             i.flow_stage_run_id,
             u.id AS candidate_user_id, u.first_name AS candidate_first,
             u.last_name AS candidate_last, u.email AS candidate_email,
-            sr.run_id, sr.stage_order, sr.status AS stage_status,
+            sr.run_id, r.template_flow_id, sr.stage_order, sr.status AS stage_status,
             f.id AS flow_id, f.name AS flow_name, s.name AS stage_name,
             a.id AS assignment_id, a.status AS assignment_status,
             a.outcome AS interviewer_outcome, a.feedback,
@@ -530,8 +778,10 @@ async function getLatestInterviewFeedback(clientTeamId) {
 
 module.exports = {
   createFlow, createStage, listByMandate, getOwnedFlow, updateFlow, updateStage,
-  syncScheduledStageInterviews, ensureStageRuns,
-  deleteUnusedStage, deleteFlow, deleteRun, createRun, getActiveRun, createStageRun,
+  syncScheduledStageInterviews, getAssignedInterviewer, syncInterviewAssignments,
+  ensureStageRuns, syncStageRunOrder,
+  deleteUnusedStage, deleteFlow, getRunDeletionContext, deleteRun, createRun, createIsolatedRun,
+  isolateRun, getOwnedRunFlow, listDirectRunIds, getActiveRun, claimRunStatus, createStageRun,
   updateStageRunStatus,
   attachInterview, getContextByInterview, getRun, getStage, finishStageRun, updateRun,
   getLatestAttempt, createAssignment, listAssignmentsForUser, getAssignmentForUser,

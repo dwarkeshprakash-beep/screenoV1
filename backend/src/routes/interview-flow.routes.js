@@ -84,6 +84,32 @@ router.post('/:flowId/runs', requireRole('manager'), async (req, res) => {
   }
 })
 
+/** Load one candidate's isolated flow definition for editing. */
+router.get('/runs/:runId/definition', requireRole('manager'), async (req, res) => {
+  try {
+    const flow = await flowService.getRunFlow(req.params.runId, req.user.id)
+    res.json({ success: true, data: flow })
+  } catch (err) {
+    res.status(404).json({ success: false, error: err.message })
+  }
+})
+
+/** Edit only this candidate's flow without changing the reusable template. */
+router.patch('/runs/:runId/definition', requireRole('manager'), async (req, res) => {
+  try {
+    const flow = await flowService.updateRunFlow(
+      req.params.runId,
+      req.body,
+      req.user.id,
+      req.user.companyId
+    )
+    res.json({ success: true, data: flow })
+  } catch (err) {
+    console.error('PATCH /interview-flows/runs/:runId/definition failed:', err.message)
+    res.status(/not found/i.test(err.message) ? 404 : 400).json({ success: false, error: err.message })
+  }
+})
+
 /** Retry the paused stage at a manager-selected future time. */
 router.post('/runs/:runId/retry', requireRole('manager'), async (req, res) => {
   try {
@@ -113,7 +139,7 @@ router.delete('/runs/:runId', requireRole('manager'), async (req, res) => {
     res.json({ success: true, data: result })
   } catch (err) {
     console.error('DELETE /interview-flows/runs/:runId failed:', err.message)
-    res.status(404).json({ success: false, error: err.message })
+    res.status(/not found/i.test(err.message) ? 404 : 409).json({ success: false, error: err.message })
   }
 })
 

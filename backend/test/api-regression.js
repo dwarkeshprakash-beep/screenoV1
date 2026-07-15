@@ -111,12 +111,18 @@ async function cleanup() {
     }
     const interviewIds = [...new Set(state.interviewIds)]
     if (state.flowIds.length > 0) {
-      await tx.query(`DELETE FROM interview_assignment_files WHERE assignment_id IN (SELECT id FROM interview_assignments WHERE stage_run_id IN (SELECT id FROM candidate_flow_stage_runs WHERE run_id IN (SELECT id FROM candidate_flow_runs WHERE flow_id = ANY(@ids))))`, { ids: state.flowIds })
-      await tx.query(`DELETE FROM interview_assignments WHERE stage_run_id IN (SELECT id FROM candidate_flow_stage_runs WHERE run_id IN (SELECT id FROM candidate_flow_runs WHERE flow_id = ANY(@ids)))`, { ids: state.flowIds })
-      await tx.query(`DELETE FROM candidate_flow_stage_runs WHERE run_id IN (SELECT id FROM candidate_flow_runs WHERE flow_id = ANY(@ids))`, { ids: state.flowIds })
-      await tx.query(`DELETE FROM candidate_flow_runs WHERE flow_id = ANY(@ids)`, { ids: state.flowIds })
-      await tx.query(`DELETE FROM interview_flow_stages WHERE flow_id = ANY(@ids)`, { ids: state.flowIds })
-      await tx.query(`DELETE FROM interview_flows WHERE id = ANY(@ids)`, { ids: state.flowIds })
+      const runFlowRows = await tx.query(
+        `SELECT DISTINCT flow_id FROM candidate_flow_runs
+         WHERE flow_id = ANY(@ids) OR template_flow_id = ANY(@ids)`,
+        { ids: state.flowIds }
+      )
+      const cleanupFlowIds = [...new Set([...state.flowIds, ...runFlowRows.map(row => row.flow_id)])]
+      await tx.query(`DELETE FROM interview_assignment_files WHERE assignment_id IN (SELECT id FROM interview_assignments WHERE stage_run_id IN (SELECT id FROM candidate_flow_stage_runs WHERE run_id IN (SELECT id FROM candidate_flow_runs WHERE flow_id = ANY(@ids))))`, { ids: cleanupFlowIds })
+      await tx.query(`DELETE FROM interview_assignments WHERE stage_run_id IN (SELECT id FROM candidate_flow_stage_runs WHERE run_id IN (SELECT id FROM candidate_flow_runs WHERE flow_id = ANY(@ids)))`, { ids: cleanupFlowIds })
+      await tx.query(`DELETE FROM candidate_flow_stage_runs WHERE run_id IN (SELECT id FROM candidate_flow_runs WHERE flow_id = ANY(@ids))`, { ids: cleanupFlowIds })
+      await tx.query(`DELETE FROM candidate_flow_runs WHERE flow_id = ANY(@ids)`, { ids: cleanupFlowIds })
+      await tx.query(`DELETE FROM interview_flow_stages WHERE flow_id = ANY(@ids)`, { ids: cleanupFlowIds })
+      await tx.query(`DELETE FROM interview_flows WHERE id = ANY(@ids)`, { ids: cleanupFlowIds })
     }
     if (interviewIds.length > 0) {
       await tx.query(`DELETE FROM email_outbox_jobs WHERE interview_id = ANY(@ids)`, { ids: interviewIds })
@@ -417,14 +423,55 @@ async function run() {
   assert.equal(managerAssignments.status, 200)
   assert.ok(managerAssignments.payload.data.some(item => item.interview_id === managerInterview.payload.data.id))
 
-  const flowRun = await api(`/api/interview-flows/${flow.payload.data.id}/runs`, {
+  const selfInterviewFlow = await api('/api/interview-flows', {
+    method: 'POST', token: managerToken,
+    body: {
+      mandateId: template.payload.data.id,
+      name: 'Invalid self interview flow',
+      stages: [{
+        name: 'Self panel', type: 'offline', scheduledAt: futureIso(8 * 24 * 60 * 60),
+        durationMinutes: 15, questionCount: 10, interviewerUserId: primary.candidate.id,
+        location: 'QA room',
+      }],
+    },
+  })
+  assert.equal(selfInterviewFlow.status, 201)
+  const rejectedSelfInterview = await api(`/api/interview-flows/${selfInterviewFlow.payload.data.id}/runs`, {
     method: 'POST', token: managerToken, body: { clientTeamId: primaryClientTeam.id },
   })
+  assert.equal(rejectedSelfInterview.status, 400)
+  assert.match(rejectedSelfInterview.payload.error, /candidate and interviewer must be different/i)
+  const deletedSelfInterviewFlow = await api(`/api/interview-flows/${selfInterviewFlow.payload.data.id}`, {
+    method: 'DELETE', token: managerToken,
+  })
+  assert.equal(deletedSelfInterviewFlow.status, 200)
+
+  const concurrentFlowStarts = await Promise.all([
+    api(`/api/interview-flows/${flow.payload.data.id}/runs`, {
+      method: 'POST', token: managerToken, body: { clientTeamId: primaryClientTeam.id },
+    }),
+    api(`/api/interview-flows/${flow.payload.data.id}/runs`, {
+      method: 'POST', token: managerToken, body: { clientTeamId: primaryClientTeam.id },
+    }),
+  ])
+  const flowRun = concurrentFlowStarts.find(result => result.status === 201)
+  const duplicateFlowRun = concurrentFlowStarts.find(result => result.status === 400)
+  assert.ok(flowRun)
+  assert.ok(duplicateFlowRun)
   assert.equal(flowRun.status, 201)
   state.interviewIds.push(flowRun.payload.data.firstInterview.id)
-  const duplicateFlowRun = await api(`/api/interview-flows/${flow.payload.data.id}/runs`, {
-    method: 'POST', token: managerToken, body: { clientTeamId: primaryClientTeam.id },
+  const isolatedRunDefinition = await api(`/api/interview-flows/runs/${flowRun.payload.data.id}/definition`, {
+    token: managerToken,
   })
+  assert.equal(isolatedRunDefinition.status, 200)
+  assert.notEqual(isolatedRunDefinition.payload.data.id, flow.payload.data.id)
+  const savedFlowDefinitions = await api(`/api/interview-flows/mandate/${template.payload.data.id}`, {
+    token: managerToken,
+  })
+  assert.ok(savedFlowDefinitions.payload.data.some(item => item.id === flow.payload.data.id))
+  assert.ok(!savedFlowDefinitions.payload.data.some(
+    item => item.id === isolatedRunDefinition.payload.data.id
+  ))
   assert.equal(duplicateFlowRun.status, 400)
   assert.match(duplicateFlowRun.payload.error, /already has an active run/i)
   const runtimeStages = await db.query(
@@ -445,18 +492,42 @@ async function run() {
   assert.equal(runtimeStages[1].status, 'pending')
   assert.equal(runtimeStages[1].interview_id, null)
 
+  const rejectedPastFlowEdit = await api(`/api/interview-flows/runs/${flowRun.payload.data.id}/definition`, {
+    method: 'PATCH', token: managerToken,
+    body: {
+      mandateId: template.payload.data.id,
+      name: isolatedRunDefinition.payload.data.name,
+      reportUserIds: isolatedRunDefinition.payload.data.report_user_ids,
+      stages: isolatedRunDefinition.payload.data.stages.map((stage, index) => ({
+        id: stage.id,
+        name: stage.name,
+        type: stage.type,
+        scheduledAt: index === 0 ? new Date(Date.now() - 60000).toISOString() : stage.scheduled_at,
+        durationMinutes: stage.duration_minutes,
+        questionCount: stage.question_count,
+        requirePass: stage.require_pass,
+        minimumScore: stage.minimum_score,
+        interviewerUserId: stage.interviewer_user_id,
+        location: stage.location,
+        meetingUrl: stage.meeting_url,
+      })),
+    },
+  })
+  assert.equal(rejectedPastFlowEdit.status, 400)
+  assert.match(rejectedPastFlowEdit.payload.error, /future date and time/i)
+
   const shiftedStageTimes = editedFlow.payload.data.stages.map((stage, index) => {
     const date = new Date(stage.scheduled_at)
     date.setUTCMinutes(date.getUTCMinutes() + (index === 0 ? 5 : 10))
     return date.toISOString()
   })
-  const runtimeEditedFlow = await api(`/api/interview-flows/${flow.payload.data.id}`, {
+  const runtimeEditedFlow = await api(`/api/interview-flows/runs/${flowRun.payload.data.id}/definition`, {
     method: 'PATCH', token: managerToken,
     body: {
       mandateId: template.payload.data.id,
       name: editedFlow.payload.data.name,
       reportUserIds: [organizationOnlyUser.id],
-      stages: editedFlow.payload.data.stages.map((stage, index) => ({
+      stages: isolatedRunDefinition.payload.data.stages.map((stage, index) => ({
         id: stage.id,
         name: stage.name,
         type: stage.type,
@@ -472,6 +543,11 @@ async function run() {
     },
   })
   assert.equal(runtimeEditedFlow.status, 200)
+  const unchangedSavedFlow = await api(`/api/interview-flows/mandate/${template.payload.data.id}`, {
+    token: managerToken,
+  })
+  const unchangedTemplate = unchangedSavedFlow.payload.data.find(item => item.id === flow.payload.data.id)
+  assert.notEqual(new Date(unchangedTemplate.stages[0].scheduled_at).toISOString(), shiftedStageTimes[0])
   const synchronizedInterview = (await db.query(
     `SELECT scheduled_at, duration_minutes, question_count, report_emails
      FROM interviews WHERE id = @id`,
@@ -481,6 +557,65 @@ async function run() {
   assert.equal(Number(synchronizedInterview.duration_minutes), 20)
   assert.equal(Number(synchronizedInterview.question_count), 7)
   assert.equal(synchronizedInterview.report_emails, `organization-only-${stamp}@example.test`)
+  const updateDelivery = (await db.query(
+    `SELECT status FROM email_deliveries
+     WHERE interview_id = @interviewId AND kind = 'interview_schedule_update'
+     ORDER BY id DESC LIMIT 1`,
+    { interviewId: runtimeStages[0].interview_id }
+  ))[0]
+  assert.equal(updateDelivery.status, 'sent')
+
+  const lastRuntimeStage = runtimeEditedFlow.payload.data.stages.at(-1)
+  const appendedStageAt = new Date(
+    new Date(lastRuntimeStage.scheduled_at).getTime()
+      + Number(lastRuntimeStage.duration_minutes) * 60000
+      + 60000
+  ).toISOString()
+  const runtimeWithDisposableStage = await api(`/api/interview-flows/runs/${flowRun.payload.data.id}/definition`, {
+    method: 'PATCH', token: managerToken,
+    body: {
+      mandateId: template.payload.data.id,
+      name: runtimeEditedFlow.payload.data.name,
+      reportUserIds: runtimeEditedFlow.payload.data.report_user_ids,
+      stages: [
+        ...runtimeEditedFlow.payload.data.stages.map(stage => ({
+          id: stage.id, name: stage.name, type: stage.type, scheduledAt: stage.scheduled_at,
+          durationMinutes: stage.duration_minutes, questionCount: stage.question_count,
+          requirePass: stage.require_pass, minimumScore: stage.minimum_score,
+          interviewerUserId: stage.interviewer_user_id, location: stage.location,
+          meetingUrl: stage.meeting_url,
+        })),
+        { name: 'Disposable future stage', type: 'exam', scheduledAt: appendedStageAt,
+          durationMinutes: 2, questionCount: 2, requirePass: false },
+      ],
+    },
+  })
+  assert.equal(runtimeWithDisposableStage.status, 200)
+  assert.equal(runtimeWithDisposableStage.payload.data.stages.length, 4)
+  const runtimeWithoutDisposableStage = await api(`/api/interview-flows/runs/${flowRun.payload.data.id}/definition`, {
+    method: 'PATCH', token: managerToken,
+    body: {
+      mandateId: template.payload.data.id,
+      name: runtimeWithDisposableStage.payload.data.name,
+      reportUserIds: runtimeWithDisposableStage.payload.data.report_user_ids,
+      stages: runtimeWithDisposableStage.payload.data.stages.slice(0, 3).map(stage => ({
+        id: stage.id, name: stage.name, type: stage.type, scheduledAt: stage.scheduled_at,
+        durationMinutes: stage.duration_minutes, questionCount: stage.question_count,
+        requirePass: stage.require_pass, minimumScore: stage.minimum_score,
+        interviewerUserId: stage.interviewer_user_id, location: stage.location,
+        meetingUrl: stage.meeting_url,
+      })),
+    },
+  })
+  assert.equal(runtimeWithoutDisposableStage.status, 200)
+  assert.equal(runtimeWithoutDisposableStage.payload.data.stages.length, 3)
+  const retainedRuntimeStageRuns = await db.query(
+    `SELECT stage_order, status FROM candidate_flow_stage_runs
+     WHERE run_id = @runId ORDER BY stage_order`,
+    { runId: flowRun.payload.data.id }
+  )
+  assert.equal(retainedRuntimeStageRuns.length, 3)
+  assert.deepEqual(retainedRuntimeStageRuns.map(stage => Number(stage.stage_order)), [1, 2, 3])
   const flowCandidateLogin = await api('/api/auth/login', {
     method: 'POST', body: { email: `candidate-${stamp}@example.test`, password: primary.password },
   })
@@ -500,7 +635,10 @@ async function run() {
   ))[0]
   assert.ok(new Date(editedScheduleWindow.token_expires) > new Date(editedScheduleWindow.due_at))
 
-  await interviewFlowService.handleInterviewResult(flowRun.payload.data.firstInterview.id, 'pass', 8)
+  await Promise.all([
+    interviewFlowService.handleInterviewResult(flowRun.payload.data.firstInterview.id, 'pass', 8),
+    interviewFlowService.handleInterviewResult(flowRun.payload.data.firstInterview.id, 'pass', 8),
+  ])
   const advancedStages = await db.query(
     `SELECT status, interview_id FROM candidate_flow_stage_runs WHERE run_id = @runId ORDER BY stage_order`,
     { runId: flowRun.payload.data.id }
@@ -509,6 +647,13 @@ async function run() {
   assert.equal(advancedStages[1].status, 'scheduled')
   assert.ok(advancedStages[1].interview_id)
   assert.equal(advancedStages[2].status, 'pending')
+  const secondStageInterviewCount = (await db.query(
+    `SELECT COUNT(*)::int AS count FROM interviews WHERE flow_stage_run_id = (
+       SELECT id FROM candidate_flow_stage_runs WHERE run_id = @runId AND stage_order = 2
+     )`,
+    { runId: flowRun.payload.data.id }
+  ))[0].count
+  assert.equal(secondStageInterviewCount, 1)
 
   await interviewFlowService.handleInterviewResult(advancedStages[1].interview_id, 'pass', 5)
   const pausedRun = (await db.query(`SELECT status FROM candidate_flow_runs WHERE id = @id`, { id: flowRun.payload.data.id }))[0]
@@ -528,11 +673,26 @@ async function run() {
     { runId: flowRun.payload.data.id }
   ))[0].count
   assert.equal(attemptsAfterInvalidRetry, attemptsBeforeInvalidRetry)
-  const continuedRun = await api(`/api/interview-flows/runs/${flowRun.payload.data.id}/continue`, {
-    method: 'POST', token: managerToken,
-  })
+  const concurrentContinues = await Promise.all([
+    api(`/api/interview-flows/runs/${flowRun.payload.data.id}/continue`, {
+      method: 'POST', token: managerToken,
+    }),
+    api(`/api/interview-flows/runs/${flowRun.payload.data.id}/continue`, {
+      method: 'POST', token: managerToken,
+    }),
+  ])
+  const continuedRun = concurrentContinues.find(result => result.status === 200)
+  const rejectedConcurrentContinue = concurrentContinues.find(result => result.status === 400)
+  assert.ok(continuedRun)
+  assert.ok(rejectedConcurrentContinue)
   assert.equal(continuedRun.status, 200)
   assert.equal(continuedRun.payload.data.status, 'active')
+  assert.match(rejectedConcurrentContinue.payload.error, /another manager action|not paused/i)
+  const statusAfterConcurrentContinue = (await db.query(
+    `SELECT status FROM candidate_flow_runs WHERE id = @runId`,
+    { runId: flowRun.payload.data.id }
+  ))[0]
+  assert.equal(statusAfterConcurrentContinue.status, 'active')
   const offlineAssignments = await api('/api/interview-flows/my-assignments', { token: managerToken })
   assert.equal(offlineAssignments.status, 200)
   const offlineAssignment = offlineAssignments.payload.data.find(
@@ -571,7 +731,9 @@ async function run() {
     item => item.interview_id === managerInterview.payload.data.id && item.flow_stage_run_id == null
   ))
   assert.ok(mandateSchedules.payload.data.some(
-    item => item.interview_id === flowRun.payload.data.firstInterview.id && item.flow_id === flow.payload.data.id
+    item => item.interview_id === flowRun.payload.data.firstInterview.id
+      && item.template_flow_id === flow.payload.data.id
+      && item.flow_id !== flow.payload.data.id
   ))
   const candidateMandates = await api('/api/candidate/client-mandates', {
     token: flowCandidateLogin.payload.data.accessToken,
@@ -620,11 +782,16 @@ async function run() {
     method: 'POST', token: managerToken, body: { clientTeamId: organizationClientTeam.id },
   })
   assert.equal(overdueRun.status, 201)
+  const overdueRunRow = (await db.query(
+    `SELECT flow_id FROM candidate_flow_runs WHERE id = @runId`,
+    { runId: overdueRun.payload.data.id }
+  ))[0]
+  assert.notEqual(overdueRunRow.flow_id, overdueFlow.payload.data.id)
   await db.query(
     `UPDATE interview_flow_stages
      SET scheduled_at = CURRENT_TIMESTAMP - INTERVAL '1 minute'
      WHERE flow_id = @flowId AND stage_order = 2`,
-    { flowId: overdueFlow.payload.data.id }
+    { flowId: overdueRunRow.flow_id }
   )
   const progressionStartedAt = Date.now()
   const overdueProgression = await interviewFlowService.handleInterviewResult(
@@ -931,10 +1098,28 @@ async function run() {
   assert.equal(candidateLogin.status, 200)
   const candidateToken = candidateLogin.payload.data.accessToken
 
+  const abandonedSchedule = await api(`/api/templates/client/${template.payload.data.id}/team/${primaryClientTeam.id}/schedule`, {
+    method: 'POST', token: managerToken,
+    body: {
+      type: 'ai_voice', scheduledAt: futureIso(15 * 24 * 60 * 60),
+      durationMinutes: 2, questionCount: 3, scheduleTimezone: 'Asia/Calcutta',
+    },
+  })
+  assert.equal(abandonedSchedule.status, 201)
+  state.interviewIds.push(abandonedSchedule.payload.data.id)
+  await db.query(
+    `UPDATE interviews SET status = 'completed', result = 'failed_mid_interview' WHERE id = @id`,
+    { id: abandonedSchedule.payload.data.id }
+  )
+
   const candidateInterviews = await api('/api/candidate/interviews', { token: candidateToken })
   assert.equal(candidateInterviews.status, 200)
   assert.ok(candidateInterviews.payload.data.some(item => item.id === schedule.payload.data.id))
   assert.ok(candidateInterviews.payload.data.some(item => item.id === managerInterview.payload.data.id))
+  assert.equal(
+    candidateInterviews.payload.data.find(item => item.id === abandonedSchedule.payload.data.id).candidate_result,
+    'fail'
+  )
 
   await waitUntil(primaryScheduleAt)
   const launch = await api(`/api/candidate/interviews/${schedule.payload.data.id}/launch`, {

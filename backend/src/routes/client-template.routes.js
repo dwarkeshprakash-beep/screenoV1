@@ -807,6 +807,7 @@ router.post('/:id/team/:ctId/schedule', async (req, res) => {
     }
 
     let videoLink = null
+    let calendarEventId = null
     if (type === 'human' && scheduledAt && videoPlatform) {
       const meetingMinutes = Number(durationMinutes) || 60
       const endAt = new Date(new Date(scheduledAt).getTime() + meetingMinutes * 60 * 1000).toISOString()
@@ -819,7 +820,10 @@ router.post('/:id/team/:ctId/schedule', async (req, res) => {
           endAt,
           attendeeEmails: [req.user.email, teamMember.email, interviewer?.email].filter(Boolean),
         })
-        if (meeting) videoLink = meeting.joinUrl
+        if (meeting) {
+          videoLink = meeting.joinUrl
+          calendarEventId = meeting.eventId || null
+        }
       }
       // 'teams' is disabled, skip
     }
@@ -848,6 +852,7 @@ router.post('/:id/team/:ctId/schedule', async (req, res) => {
         jobTitle:         requirementDisplay(teamMember, template.requirements),
         location:         location || null,
         meetingUrl:       videoLink || null,
+        calendarEventId,
         details:          notes || null,
         reportUserIds:    Array.isArray(reportUserIds) ? reportUserIds : [],
       },

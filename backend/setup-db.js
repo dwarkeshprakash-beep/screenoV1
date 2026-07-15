@@ -28,6 +28,7 @@ const MIGRATIONS = [
   '019_manual_mapping_policy.sql',
   '020_interview_flows.sql',
   '021_flow_report_recipients.sql',
+  '022_flow_runtime_safety.sql',
 ]
 
 async function main() {

@@ -78,7 +78,7 @@ function groupFlows(rows) {
 }
 
 /** Validate and normalize ordered stage input. */
-async function normalizeStages(stages, companyId, { allowPastExisting = false } = {}) {
+async function normalizeStages(stages, companyId, { allowPastExisting = false, existingStages = [] } = {}) {
   if (stages.length === 0) throw new Error('Add at least one stage')
   if (stages.length > 20) throw new Error('A flow can have at most 20 stages')
 
@@ -90,10 +90,13 @@ async function normalizeStages(stages, companyId, { allowPastExisting = false } 
   const interviewers = await userRepository.getByIdsForCompany(interviewerIds, companyId)
   if (interviewers.length !== interviewerIds.length) throw new Error('Every interviewer must belong to your organization')
 
+  const existingById = new Map(existingStages.map(stage => [Number(stage.id), stage]))
   const normalized = stages.map((stage, index) => {
     if (!TYPES.has(stage.type)) throw new Error(`Invalid interview type at stage ${index + 1}`)
     const scheduledAt = new Date(stage.scheduledAt)
-    const mayKeepPastDate = allowPastExisting && Number.isInteger(Number(stage.id))
+    const existing = existingById.get(Number(stage.id))
+    const mayKeepPastDate = allowPastExisting && existing
+      && Math.floor(new Date(existing.scheduled_at).getTime() / 60000) === Math.floor(scheduledAt.getTime() / 60000)
     if (Number.isNaN(scheduledAt.getTime()) || (!mayKeepPastDate && scheduledAt <= new Date())) throw new Error(`Stage ${index + 1} needs a future date and time`)
     const needsInterviewer = ['human', 'offline'].includes(stage.type)
     const interviewerUserId = needsInterviewer && stage.interviewerUserId ? Number(stage.interviewerUserId) : null
@@ -164,22 +167,76 @@ async function listFlows(mandateId, managerId) {
   return groupFlows(await flowRepository.listByMandate(template.id, managerId))
 }
 
+function editableFlow(flow) {
+  return {
+    ...flow,
+    report_user_ids: flow.report_user_ids == null ? null : parseReportUserIds(flow.report_user_ids),
+    stages: flow.stages || [],
+  }
+}
+
+async function getRunFlow(runId, managerId) {
+  const flow = await flowRepository.getOwnedRunFlow(Number(runId), managerId)
+  if (!flow) throw new Error('Candidate flow run not found')
+  return editableFlow(flow)
+}
+
+async function updateRunFlow(runId, data, managerId, companyId) {
+  const run = await flowRepository.getRun(Number(runId))
+  if (!run || Number(run.created_by_manager_id) !== Number(managerId)) {
+    throw new Error('Candidate flow run not found')
+  }
+  const selfAssignedStage = (Array.isArray(data.stages) ? data.stages : []).find(stage => (
+    ['human', 'offline'].includes(stage.type)
+    && Number(stage.interviewerUserId) === Number(run.user_id)
+  ))
+  if (selfAssignedStage) throw new Error('Candidate and interviewer must be different people')
+  const isolated = await flowRepository.isolateRun(run.id, managerId)
+  if (!isolated) throw new Error('Candidate flow run not found')
+  const isolatedData = Number(isolated.id) === Number(run.flow_id)
+    ? data
+    : {
+      ...data,
+      stages: (Array.isArray(data.stages) ? data.stages : []).map((stage, index) => ({
+        ...stage,
+        id: isolated.stages[index]?.id || null,
+      })),
+    }
+  return updateFlow(isolated.id, isolatedData, managerId, companyId, { allowRunSpecific: true })
+}
+
 /** Edit a saved flow and synchronize any stage that is already scheduled. */
-async function updateFlow(flowId, data, managerId, companyId) {
+async function updateFlow(flowId, data, managerId, companyId, { allowRunSpecific = false } = {}) {
   const flow = await flowRepository.getOwnedFlow(Number(flowId), managerId)
   if (!flow || flow.status === 'deleted') throw new Error('Interview flow not found')
+  if (flow.status === 'run_specific' && !allowRunSpecific) {
+    throw new Error('Candidate-specific flows must be edited from the candidate schedule')
+  }
   if (!String(data.name || '').trim()) throw new Error('Flow name is required')
   const inputStages = Array.isArray(data.stages) ? data.stages : []
-  const normalized = await normalizeStages(inputStages, companyId, { allowPastExisting: true })
+  const normalized = await normalizeStages(inputStages, companyId, {
+    allowPastExisting: true,
+    existingStages: flow.stages,
+  })
   const requestedRecipientIds = Array.isArray(data.reportUserIds)
     ? data.reportUserIds
     : flow.report_user_ids == null ? [managerId] : parseReportUserIds(flow.report_user_ids)
   const recipients = await validateReportRecipients(requestedRecipientIds, companyId)
+  if (flow.status === 'active') {
+    const directRuns = await flowRepository.listDirectRunIds(flow.id)
+    for (const run of directRuns) {
+      await flowRepository.isolateRun(run.id, managerId)
+    }
+  }
   const keptIds = new Set(inputStages.map(stage => Number(stage.id)).filter(Number.isInteger))
 
   for (const existing of flow.stages) {
     if (!keptIds.has(Number(existing.id))) {
-      const removed = await flowRepository.deleteUnusedStage(existing.id, flow.id)
+      const removed = await flowRepository.deleteUnusedStage(
+        existing.id,
+        flow.id,
+        flow.status === 'run_specific'
+      )
       if (!removed) throw new Error(`Stage "${existing.name}" cannot be removed because a candidate run uses it`)
     }
   }
@@ -199,7 +256,10 @@ async function updateFlow(flowId, data, managerId, companyId) {
     } else {
       saved = await flowRepository.createStage({ ...stage, flowId: flow.id })
     }
-    await flowRepository.ensureStageRuns(saved.id, flow.id, saved.stage_order)
+    if (flow.status === 'run_specific') {
+      await flowRepository.ensureStageRuns(saved.id, flow.id, saved.stage_order)
+      await flowRepository.syncStageRunOrder(saved.id, flow.id, saved.stage_order)
+    }
     const dueAt = new Date(
       new Date(saved.scheduled_at).getTime() + Number(saved.duration_minutes) * 60000
     ).toISOString()
@@ -207,7 +267,8 @@ async function updateFlow(flowId, data, managerId, companyId) {
       new Date(dueAt).getTime()
         + Number(process.env.INVITE_WINDOW_DAYS || 14) * 24 * 60 * 60 * 1000
     ).toISOString()
-    await flowRepository.syncScheduledStageInterviews(saved.id, flow.id, {
+    const synchronized = flow.status === 'run_specific'
+      ? await flowRepository.syncScheduledStageInterviews(saved.id, flow.id, {
       type: saved.type,
       interviewMode: saved.interview_mode || 'simple',
       difficulty: saved.difficulty || 'medium',
@@ -218,13 +279,142 @@ async function updateFlow(flowId, data, managerId, companyId) {
       tokenExpires,
       reportEmails: recipients.emails.join(',') || null,
       scheduleTimezone: saved.schedule_timezone,
-      interviewerUserId: saved.interviewer_user_id,
       location: saved.location,
       meetingUrl: saved.meeting_url,
-    })
+      })
+      : []
+    if (flow.status === 'run_specific' && synchronized.length > 0) {
+      const previousStage = flow.stages.find(item => Number(item.id) === Number(saved.id)) || null
+      await notifyUpdatedStageInterviews(synchronized, previousStage, saved, managerId, companyId)
+    }
     updated.stages.push(saved)
   }
   return updated
+}
+
+function stageScheduleChanged(previous, current) {
+  if (!previous) return true
+  const fields = [
+    'type', 'scheduled_at', 'schedule_timezone', 'duration_minutes',
+    'interviewer_user_id', 'location', 'meeting_url',
+  ]
+  return fields.some(field => String(previous[field] ?? '') !== String(current[field] ?? ''))
+}
+
+async function notifyUpdatedStageInterviews(interviews, previousStage, stage, managerId, companyId) {
+  const scheduleChanged = stageScheduleChanged(previousStage, stage)
+  for (const row of interviews) {
+    const interview = await interviewRepository.getById(row.id)
+    if (!interview) continue
+    const pendingCalendarRetry = !!interview.calendar_sync_error
+    if (!scheduleChanged && !pendingCalendarRetry) continue
+    const [manager, newInterviewer, assignedInterviewer] = await Promise.all([
+      userRepository.getByIdForCompany(managerId, companyId),
+      stage.interviewer_user_id
+        ? userRepository.getByIdForCompany(stage.interviewer_user_id, companyId)
+        : null,
+      flowRepository.getAssignedInterviewer(interview.id),
+    ])
+    const oldInterviewer = assignedInterviewer
+      && Number(assignedInterviewer.id) !== Number(stage.interviewer_user_id)
+      ? assignedInterviewer
+      : null
+    let meetingUrl = interview.meeting_url
+    let calendarEventId = interview.calendar_event_id
+    const endAt = new Date(
+      new Date(stage.scheduled_at).getTime() + Number(stage.duration_minutes || 60) * 60000
+    ).toISOString()
+    const attendeeEmails = [interview.candidate_email, newInterviewer?.email, manager?.email].filter(Boolean)
+    try {
+      if (stage.type !== 'human' && calendarEventId) {
+        const cancelled = await googleMeetService.cancelMeeting(calendarEventId)
+        if (!cancelled) throw new Error('Google Calendar is not configured to cancel the previous event')
+        calendarEventId = null
+        meetingUrl = stage.meeting_url || null
+        await interviewRepository.updateMeetingDetails(interview.id, meetingUrl, null)
+      } else if (
+        stage.type === 'human'
+        && calendarEventId
+        && stage.meeting_url
+        && String(stage.meeting_url) !== String(previousStage?.meeting_url || '')
+      ) {
+        const cancelled = await googleMeetService.cancelMeeting(calendarEventId)
+        if (!cancelled) throw new Error('Google Calendar is not configured to replace the previous event')
+        calendarEventId = null
+        meetingUrl = stage.meeting_url
+        await interviewRepository.updateMeetingDetails(interview.id, meetingUrl, null)
+      } else if (stage.type === 'human') {
+        if (!meetingUrl && !calendarEventId && !googleMeetService.isConfigured()) {
+          throw new Error('Google Meet is not configured and this stage has no meeting link')
+        }
+        const meeting = calendarEventId
+          ? await googleMeetService.updateMeeting(calendarEventId, {
+            summary: `${stage.name} - ${interview.context_title || 'Interview'}`,
+            startAt: stage.scheduled_at, endAt, attendeeEmails,
+          })
+          : !meetingUrl
+            ? await googleMeetService.createMeeting({
+              summary: `${stage.name} - ${interview.context_title || 'Interview'}`,
+              startAt: stage.scheduled_at, endAt, attendeeEmails,
+            })
+            : null
+        if (calendarEventId && !meeting) throw new Error('Could not update the Google Calendar event')
+        if (meeting) {
+          meetingUrl = meeting.joinUrl || meetingUrl
+          calendarEventId = meeting.eventId || calendarEventId
+          await interviewRepository.updateMeetingDetails(interview.id, meetingUrl, calendarEventId)
+        } else {
+          await interviewRepository.updateMeetingDetails(interview.id, meetingUrl, calendarEventId)
+        }
+      } else if (pendingCalendarRetry) {
+        await interviewRepository.updateMeetingDetails(interview.id, meetingUrl, calendarEventId)
+      }
+    } catch (err) {
+      console.error('Calendar synchronization failed:', err.message)
+      await interviewRepository.setCalendarSyncError(interview.id, err.message)
+        .catch(logError => console.error('Calendar synchronization error persistence failed:', logError.message))
+      throw new Error(`Calendar synchronization failed: ${err.message}. Save the flow again to retry.`)
+    }
+    await flowRepository.syncInterviewAssignments([interview.id], stage.interviewer_user_id)
+    const notification = {
+      candidateName: `${interview.candidate_first || ''} ${interview.candidate_last || ''}`.trim(),
+      clientName: interview.context_title || 'Your company',
+      stageName: stage.name,
+      scheduledAt: stage.scheduled_at,
+      scheduleTimezone: stage.schedule_timezone,
+      location: stage.location,
+      meetingUrl,
+    }
+    let candidateDeliveryError = null
+    try {
+      await emailService.sendInterviewScheduleUpdate(interview.candidate_email, notification)
+    } catch (err) {
+      candidateDeliveryError = err.message
+      console.error('Candidate schedule update notification failed:', err.message)
+    }
+    await emailDeliveryRepository.create({
+      kind: 'interview_schedule_update',
+      interviewId: interview.id,
+      intendedTo: interview.candidate_email,
+      deliveredTo: candidateDeliveryError
+        ? ''
+        : emailService.getDeliveredRecipients(interview.candidate_email).join(','),
+      status: candidateDeliveryError ? 'failed' : 'sent',
+      error: candidateDeliveryError,
+    }).catch(err => console.error('Candidate schedule update delivery log failed:', err.message))
+    if (oldInterviewer?.email) {
+      await emailService.sendInterviewerAssignmentCancelled(oldInterviewer.email, {
+        ...notification,
+        interviewerName: `${oldInterviewer.first_name} ${oldInterviewer.last_name}`.trim(),
+      }).catch(err => console.error('Old interviewer notification failed:', err.message))
+    }
+    if (newInterviewer?.email) {
+      await notifyInterviewer(interview.id, newInterviewer, {
+        ...notification,
+        interviewerName: `${newInterviewer.first_name} ${newInterviewer.last_name}`.trim(),
+      }).catch(err => console.error('Interviewer update notification failed:', err.message))
+    }
+  }
 }
 
 /** Delete an unused saved definition. */
@@ -236,10 +426,42 @@ async function deleteFlow(flowId, managerId) {
 
 /** Permanently delete one candidate's flow run and its generated interview records. */
 async function deleteRun(runId, managerId) {
+  const deletionContext = await flowRepository.getRunDeletionContext(Number(runId), managerId)
+  if (!deletionContext) throw new Error('Candidate interview flow not found')
+  const calendarEventIds = [...new Set(deletionContext.interviews
+    .filter(interview => interview.status === 'scheduled')
+    .map(interview => interview.calendar_event_id)
+    .filter(Boolean))]
+  for (const eventId of calendarEventIds) {
+    const cancelled = await googleMeetService.cancelMeeting(eventId)
+    if (!cancelled) {
+      throw new Error('Google Calendar is not configured; reconnect it before deleting this scheduled flow')
+    }
+  }
   const deleted = await flowRepository.deleteRun(Number(runId), managerId)
   if (!deleted) throw new Error('Candidate interview flow not found')
   const storagePaths = deleted.storagePaths.filter(path => !/^https?:\/\//i.test(path))
   storageService.cleanupOrphanedFiles(storagePaths)
+  for (const interview of deletionContext.interviews.filter(item => item.status === 'scheduled')) {
+    const notification = {
+      candidateName: `${interview.candidate_first || ''} ${interview.candidate_last || ''}`.trim(),
+      interviewerName: `${interview.interviewer_first || ''} ${interview.interviewer_last || ''}`.trim(),
+      clientName: interview.client_name,
+      stageName: interview.stage_name,
+      scheduledAt: interview.scheduled_at,
+      scheduleTimezone: interview.schedule_timezone,
+      location: interview.location,
+      meetingUrl: interview.meeting_url,
+    }
+    if (interview.candidate_email) {
+      await emailService.sendInterviewCancelled(interview.candidate_email, notification)
+        .catch(err => console.error('Candidate cancellation notification failed:', err.message))
+    }
+    if (interview.interviewer_email) {
+      await emailService.sendInterviewerAssignmentCancelled(interview.interviewer_email, notification)
+        .catch(err => console.error('Interviewer cancellation notification failed:', err.message))
+    }
+  }
   return { id: deleted.id, deleted: true }
 }
 
@@ -275,9 +497,13 @@ async function listAssignments(userId) {
 /** Schedule a runtime stage and create interviewer work where needed. */
 async function activateStage(run, stage, stageRun, managerId, companyId, scheduledAtOverride = null) {
   const scheduledAt = scheduledAtOverride || stage.scheduled_at
+  if (stage.interviewer_user_id && Number(stage.interviewer_user_id) === Number(run.user_id)) {
+    throw new Error('Candidate and interviewer must be different people')
+  }
   let interviewer = null
   let candidate = null
   let meetingUrl = stage.meeting_url
+  let calendarEventId = null
   if (stage.interviewer_user_id) {
     [interviewer, candidate] = await Promise.all([
       userRepository.getByIdForCompany(stage.interviewer_user_id, companyId),
@@ -295,6 +521,7 @@ async function activateStage(run, stage, stageRun, managerId, companyId, schedul
     })
     if (!meeting?.joinUrl) throw new Error('Could not create Google Meet for the human interview stage')
     meetingUrl = meeting.joinUrl
+    calendarEventId = meeting.eventId || null
   }
   const interview = await scheduleService.createSchedule({
     userId: run.user_id, type: stage.type, interviewMode: stage.interview_mode || 'simple',
@@ -303,7 +530,7 @@ async function activateStage(run, stage, stageRun, managerId, companyId, schedul
     clientTeamId: run.client_team_id, flowStageRunId: stageRun.id,
     scheduledAt, assessmentDate: scheduledAt, scheduleTimezone: stage.schedule_timezone,
     companyName: run.client_name, jobTitle: run.role_name, location: stage.location,
-    meetingUrl, details: stage.notes,
+    meetingUrl, calendarEventId, details: stage.notes,
     reportUserIds: run.report_user_ids == null ? [managerId] : parseReportUserIds(run.report_user_ids),
   }, managerId, companyId)
   await flowRepository.attachInterview(stageRun.id, interview.id)
@@ -327,25 +554,29 @@ async function activateStage(run, stage, stageRun, managerId, companyId, schedul
 /** Enroll one mandate candidate and schedule only stage one. */
 async function startRun(flowId, clientTeamId, managerId, companyId) {
   const flow = await flowRepository.getOwnedFlow(Number(flowId), managerId)
-  if (!flow) throw new Error('Interview flow not found')
+  if (!flow || flow.status !== 'active') throw new Error('Interview flow not found')
   const member = await clientTeamRepository.getByIdForMandate(Number(clientTeamId), flow.mandate_id)
   if (!member) throw new Error('Candidate is not part of this mandate')
+  if (flow.stages.some(stage => Number(stage.interviewer_user_id) === Number(member.user_id))) {
+    throw new Error('Candidate and interviewer must be different people')
+  }
   const activeRun = await flowRepository.getActiveRun(flow.id, member.id)
   if (activeRun) throw new Error('Candidate already has an active run for this flow')
-  const run = await flowRepository.createRun({ flowId: flow.id, clientTeamId: member.id, managerId })
+  let isolated
+  try {
+    isolated = await flowRepository.createIsolatedRun(flow.id, member.id, managerId)
+  } catch (err) {
+    if (err.code === '23505') throw new Error('Candidate already has an active run for this flow')
+    throw err
+  }
+  if (!isolated) throw new Error('Interview flow not found')
+  const { run, flow: runFlow, stageRuns } = isolated
   const template = await clientTemplateRepository.getById(flow.mandate_id, managerId)
   const runtime = { ...run, mandate_id: flow.mandate_id, user_id: member.user_id,
     client_name: template.client_name, role_name: member.requirement_name || template.requirements || 'Interview',
-    report_user_ids: flow.report_user_ids }
-  const stageRuns = []
-  for (const stage of flow.stages) {
-    stageRuns.push(await flowRepository.createStageRun({
-      runId: run.id, stageId: stage.id, stageOrder: stage.stage_order,
-      status: stage.stage_order === 1 ? 'activating' : 'pending', attemptNumber: 1,
-    }))
-  }
+    report_user_ids: runFlow.report_user_ids }
   try {
-    const interview = await activateStage(runtime, flow.stages[0], stageRuns[0], managerId, companyId)
+    const interview = await activateStage(runtime, runFlow.stages[0], stageRuns[0], managerId, companyId)
     return { ...run, firstInterview: interview }
   } catch (err) {
     await flowRepository.updateRun(run.id, 'paused_schedule_required', 1)
@@ -359,7 +590,12 @@ async function handleInterviewResult(interviewId, decision, overallScore) {
   if (!context || ['passed', 'failed', 'completed'].includes(context.status)) return null
   const passed = decision === 'pass' && (context.minimum_score == null || Number(overallScore) >= Number(context.minimum_score))
   const mayAdvance = !context.require_pass || passed
-  await flowRepository.finishStageRun(context.id, passed ? 'passed' : 'failed', passed ? 'pass' : 'fail')
+  const finished = await flowRepository.finishStageRun(
+    context.id,
+    passed ? 'passed' : 'failed',
+    passed ? 'pass' : 'fail'
+  )
+  if (!finished) return null
   if (!mayAdvance) {
     await flowRepository.updateRun(context.run_id, 'paused_failed', context.stage_order)
     return { status: 'paused_failed' }
@@ -408,25 +644,36 @@ async function retryRun(runId, scheduledAt, managerId, companyId) {
   if (!['paused_failed', 'paused_schedule_required'].includes(run.status)) throw new Error('Flow run is not paused')
   const date = new Date(scheduledAt)
   if (Number.isNaN(date.getTime()) || date <= new Date()) throw new Error('Retry needs a future date and time')
-  const stage = await flowRepository.getStage(run.flow_id, run.current_stage_order)
-  const latest = await flowRepository.getLatestAttempt(run.id, run.current_stage_order)
-  let nextAttempt
-  if (run.status === 'paused_schedule_required' && latest && !latest.interview_id) {
-    nextAttempt = await flowRepository.updateStageRunStatus(latest.id, 'activating')
-  } else {
-    if (run.status === 'paused_schedule_required' && latest?.interview_id) {
-      const previousInterview = await interviewRepository.getById(latest.interview_id)
-      if (previousInterview?.status === 'scheduled') {
-        await interviewRepository.updateStatus(previousInterview.id, 'cancelled')
-      }
-    }
-    nextAttempt = await flowRepository.createStageRun({
-      runId: run.id, stageId: stage.id, stageOrder: stage.stage_order,
-      status: 'activating', attemptNumber: Number(latest?.attempt_number || 0) + 1,
-    })
-  }
-  await flowRepository.updateRun(run.id, 'active', run.current_stage_order)
+  const claimed = await flowRepository.claimRunStatus(
+    run.id,
+    managerId,
+    [run.status],
+    'retrying'
+  )
+  if (!claimed) throw new Error('Another manager action is already processing this flow run')
   try {
+    const stage = await flowRepository.getStage(run.flow_id, run.current_stage_order)
+    const latest = await flowRepository.getLatestAttempt(run.id, run.current_stage_order)
+    let nextAttempt
+    if (run.status === 'paused_schedule_required' && latest && !latest.interview_id) {
+      nextAttempt = await flowRepository.updateStageRunStatus(latest.id, 'activating')
+    } else {
+      if (run.status === 'paused_schedule_required' && latest?.interview_id) {
+        const previousInterview = await interviewRepository.getById(latest.interview_id)
+        if (previousInterview?.status === 'scheduled') {
+          if (previousInterview.calendar_event_id) {
+            const cancelled = await googleMeetService.cancelMeeting(previousInterview.calendar_event_id)
+            if (!cancelled) throw new Error('Google Calendar is not configured to cancel the previous retry event')
+          }
+          await interviewRepository.updateStatus(previousInterview.id, 'cancelled')
+        }
+      }
+      nextAttempt = await flowRepository.createStageRun({
+        runId: run.id, stageId: stage.id, stageOrder: stage.stage_order,
+        status: 'activating', attemptNumber: Number(latest?.attempt_number || 0) + 1,
+      })
+    }
+    await flowRepository.updateRun(run.id, 'active', run.current_stage_order)
     const interview = await activateStage(run, stage, nextAttempt, managerId, companyId, date.toISOString())
     return { status: 'active', interview }
   } catch (err) {
@@ -440,7 +687,19 @@ async function continueRun(runId, managerId, companyId) {
   const run = await flowRepository.getRun(Number(runId))
   if (!run || Number(run.created_by_manager_id) !== Number(managerId)) throw new Error('Flow run not found')
   if (run.status !== 'paused_failed') throw new Error('Flow run is not paused after failure')
-  return advanceRun(run.id, run.current_stage_order, managerId, companyId)
+  const claimed = await flowRepository.claimRunStatus(
+    run.id,
+    managerId,
+    ['paused_failed'],
+    'advancing'
+  )
+  if (!claimed) throw new Error('Another manager action is already processing this flow run')
+  try {
+    return await advanceRun(run.id, run.current_stage_order, managerId, companyId)
+  } catch (err) {
+    await flowRepository.updateRun(run.id, 'paused_failed', run.current_stage_order)
+    throw err
+  }
 }
 
 /** Submit human/offline feedback, optional document, and progress the flow. */
@@ -484,7 +743,8 @@ async function updateAssignmentFeedback(assignmentId, userId, data) {
 }
 
 module.exports = {
-  createFlow, updateFlow, deleteFlow, deleteRun, listFlows, listRuns, listSchedules,
+  createFlow, updateFlow, updateRunFlow, getRunFlow,
+  deleteFlow, deleteRun, listFlows, listRuns, listSchedules,
   startRun, handleInterviewResult, retryRun, continueRun,
   listAssignments, completeAssignment, updateAssignmentFeedback, notifyInterviewer,
 }

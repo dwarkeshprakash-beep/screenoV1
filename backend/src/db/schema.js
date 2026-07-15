@@ -91,7 +91,8 @@ const SCHEMA = {
       'monthly_assessment_id', 'report_emails', 'scheduled_at',
       'available_from', 'due_at', 'schedule_timezone',
       'meeting_url', 'client_team_id', 'location',
-      'duration_minutes', 'started_at', 'ended_at', 'flow_stage_run_id', 'created',
+      'duration_minutes', 'started_at', 'ended_at', 'flow_stage_run_id',
+      'calendar_event_id', 'calendar_sync_error', 'created',
     ],
   },
   interview_flows: {
@@ -105,7 +106,7 @@ const SCHEMA = {
       'location', 'meeting_url', 'notes', 'created', 'updated'],
   },
   candidate_flow_runs: {
-    columns: ['id', 'flow_id', 'client_team_id', 'status', 'current_stage_order',
+    columns: ['id', 'flow_id', 'template_flow_id', 'client_team_id', 'status', 'current_stage_order',
       'created_by_manager_id', 'completed_at', 'created', 'updated'],
   },
   candidate_flow_stage_runs: {

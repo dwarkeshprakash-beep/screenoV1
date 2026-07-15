@@ -28,18 +28,18 @@ async function create(data) {
         difficulty, question_count, duration_minutes, token, token_expires,
         client_template_id, monthly_assessment_id, report_emails, scheduled_at,
         available_from, due_at, schedule_timezone, client_team_id, location, meeting_url,
-        flow_stage_run_id)
+        flow_stage_run_id, calendar_event_id)
      VALUES
        (@managerId, @internalUserId, @externalCandidateId, @type, @interviewMode,
         @difficulty, @questionCount, @durationMinutes, @tokenHash, @tokenExpires,
         @clientTemplateId, @monthlyAssessmentId, @reportEmails, @scheduledAt,
         @availableFrom, @dueAt, @scheduleTimezone, @clientTeamId, @location, @meetingUrl,
-        @flowStageRunId)
+        @flowStageRunId, @calendarEventId)
      RETURNING id, manager_id, internal_user_id, external_candidate_id, type,
        interview_mode, difficulty, question_count, duration_minutes, token_expires, status,
        client_template_id, monthly_assessment_id, report_emails, scheduled_at,
        available_from, due_at, schedule_timezone, client_team_id, location, meeting_url,
-       flow_stage_run_id, created`,
+       flow_stage_run_id, calendar_event_id, created`,
     {
       managerId: data.managerId,
       internalUserId: data.internalUserId || null,
@@ -62,6 +62,7 @@ async function create(data) {
       location: data.location || null,
       meetingUrl: data.meetingUrl || null,
       flowStageRunId: data.flowStageRunId || null,
+      calendarEventId: data.calendarEventId || null,
     }
   )
   return rows[0]
@@ -264,6 +265,26 @@ async function updateTokenHash(id, tokenHash, tokenExpires) {
   )
 }
 
+async function updateMeetingDetails(id, meetingUrl, calendarEventId) {
+  const rows = await db.query(
+    `UPDATE interviews
+     SET meeting_url = @meetingUrl, calendar_event_id = @calendarEventId,
+         calendar_sync_error = NULL
+     WHERE id = @id RETURNING *`,
+    { id, meetingUrl: meetingUrl || null, calendarEventId: calendarEventId || null }
+  )
+  return rows[0] || null
+}
+
+async function setCalendarSyncError(id, error) {
+  const rows = await db.query(
+    `UPDATE interviews SET calendar_sync_error = @error
+     WHERE id = @id RETURNING *`,
+    { id, error: String(error || '').slice(0, 2000) || null }
+  )
+  return rows[0] || null
+}
+
 async function updateSchedule(id, data) {
   const rows = await db.query(
     `UPDATE interviews
@@ -308,5 +329,7 @@ module.exports = {
   markStarted,
   markCompleted,
   updateTokenHash,
+  updateMeetingDetails,
+  setCalendarSyncError,
   updateSchedule,
 }

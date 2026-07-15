@@ -479,6 +479,10 @@ export const getMandateSchedules = mandateId =>
   request(`/api/interview-flows/mandate/${mandateId}/schedules`)
 export const startInterviewFlow = (flowId, clientTeamId) =>
   request(`/api/interview-flows/${flowId}/runs`, { method: 'POST', body: JSON.stringify({ clientTeamId }) })
+export const getInterviewFlowRunDefinition = runId =>
+  request(`/api/interview-flows/runs/${runId}/definition`)
+export const updateInterviewFlowRunDefinition = (runId, data) =>
+  request(`/api/interview-flows/runs/${runId}/definition`, { method: 'PATCH', body: JSON.stringify(data) })
 export const retryInterviewFlowRun = (runId, scheduledAt) =>
   request(`/api/interview-flows/runs/${runId}/retry`, { method: 'POST', body: JSON.stringify({ scheduledAt }) })
 export const continueInterviewFlowRun = runId =>

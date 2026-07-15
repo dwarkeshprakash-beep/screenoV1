@@ -622,6 +622,79 @@ async function sendInterviewerAssignment(to, data) {
   })
 }
 
+async function sendInterviewScheduleUpdate(to, data) {
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173'
+  const portalUrl = `${frontendUrl}/candidate/interviews`
+  const dateText = new Date(data.scheduledAt).toLocaleString('en-IN', {
+    dateStyle: 'long', timeStyle: 'short', timeZone: data.scheduleTimezone || undefined,
+  })
+  await sendMail({
+    to,
+    subject: `Interview updated - ${data.stageName}`,
+    text: [
+      `Hi ${data.candidateName},`, '',
+      `Your ${data.stageName} interview schedule has been updated.`,
+      `Client: ${data.clientName}`,
+      `Date & Time: ${dateText}`,
+      data.location ? `Location: ${data.location}` : '',
+      data.meetingUrl ? `Meeting: ${data.meetingUrl}` : '', '',
+      `View the updated interview: ${portalUrl}`,
+    ].filter(Boolean).join('\n'),
+    html: `<div style="font-family:sans-serif;max-width:520px;margin:auto;padding:28px">
+      <h2>Interview updated</h2>
+      <p>Hi <strong>${escapeHtml(data.candidateName)}</strong>,</p>
+      <p>Your <strong>${escapeHtml(data.stageName)}</strong> interview for <strong>${escapeHtml(data.clientName)}</strong> has been updated.</p>
+      <p><strong>Date &amp; time:</strong> ${escapeHtml(dateText)}</p>
+      ${data.location ? `<p><strong>Location:</strong> ${escapeHtml(data.location)}</p>` : ''}
+      ${data.meetingUrl ? `<p><a href="${escapeHtml(data.meetingUrl)}">Open meeting</a></p>` : ''}
+      <p><a href="${escapeHtml(portalUrl)}">View updated interview</a></p>
+    </div>`,
+  })
+}
+
+async function sendInterviewerAssignmentCancelled(to, data) {
+  await sendMail({
+    to,
+    subject: `Interview assignment changed - ${data.candidateName}`,
+    text: [
+      `Hi ${data.interviewerName},`, '',
+      `You are no longer assigned to conduct ${data.stageName} for ${data.candidateName}.`,
+      `Client: ${data.clientName}`,
+      'Please use your Screeno portal for your current assignments.',
+    ].join('\n'),
+    html: `<div style="font-family:sans-serif;max-width:520px;margin:auto;padding:28px">
+      <h2>Interview assignment changed</h2>
+      <p>Hi <strong>${escapeHtml(data.interviewerName)}</strong>,</p>
+      <p>You are no longer assigned to conduct <strong>${escapeHtml(data.stageName)}</strong> for <strong>${escapeHtml(data.candidateName)}</strong> at ${escapeHtml(data.clientName)}.</p>
+    </div>`,
+  })
+}
+
+async function sendInterviewCancelled(to, data) {
+  const dateText = data.scheduledAt
+    ? new Date(data.scheduledAt).toLocaleString('en-IN', {
+      dateStyle: 'long', timeStyle: 'short', timeZone: data.scheduleTimezone || undefined,
+    })
+    : 'Previously scheduled time'
+  await sendMail({
+    to,
+    subject: `Interview cancelled - ${data.stageName}`,
+    text: [
+      `Hi ${data.candidateName},`, '',
+      `Your ${data.stageName} interview for ${data.clientName} has been cancelled.`,
+      `Scheduled time: ${dateText}`,
+      'No further action is required for this interview.',
+    ].join('\n'),
+    html: `<div style="font-family:sans-serif;max-width:520px;margin:auto;padding:28px">
+      <h2>Interview cancelled</h2>
+      <p>Hi <strong>${escapeHtml(data.candidateName)}</strong>,</p>
+      <p>Your <strong>${escapeHtml(data.stageName)}</strong> interview for <strong>${escapeHtml(data.clientName)}</strong> has been cancelled.</p>
+      <p><strong>Scheduled time:</strong> ${escapeHtml(dateText)}</p>
+      <p>No further action is required for this interview.</p>
+    </div>`,
+  })
+}
+
 module.exports = {
   sendMail,
   sendPasswordReset,
@@ -633,5 +706,8 @@ module.exports = {
   sendClientJDWithMessage,
   sendOfflineInterviewInvite,
   sendInterviewerAssignment,
+  sendInterviewScheduleUpdate,
+  sendInterviewerAssignmentCancelled,
+  sendInterviewCancelled,
   getDeliveredRecipients,
 }
