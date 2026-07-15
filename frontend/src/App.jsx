@@ -85,20 +85,33 @@ function AuthProvider({ children }) {
   return children
 }
 
-function RequireAuth({ children, role }) {
+function storedSession() {
   const token = localStorage.getItem('accessToken')
+  try {
+    const role = JSON.parse(localStorage.getItem('user') || '{}').role || null
+    return { token, role }
+  } catch {
+    return { token, role: null }
+  }
+}
+
+function roleHome(role) {
+  if (role === 'manager') return '/manager/dashboard'
+  if (role === 'candidate') return '/candidate/overview'
+  if (role === 'admin') return '/admin/dashboard'
+  return '/login'
+}
+
+function HomeRedirect() {
+  const { token, role } = storedSession()
+  return <Navigate to={token ? roleHome(role) : '/login'} replace />
+}
+
+function RequireAuth({ children, role }) {
+  const { token, role: storedRole } = storedSession()
   if (!token) return <Navigate to="/login" replace />
 
-  if (role) {
-    const storedRole = (() => {
-      try {
-        return JSON.parse(localStorage.getItem('user') || '{}').role || null
-      } catch {
-        return null
-      }
-    })()
-    if (storedRole !== role) return <Navigate to="/login" replace />
-  }
+  if (role && storedRole !== role) return <Navigate to={roleHome(storedRole)} replace />
   return children
 }
 
@@ -165,8 +178,8 @@ function App() {
             <Route path="done" element={<DonePage />} />
           </Route>
 
-          <Route path="/" element={<Navigate to="/login" replace />} />
-          <Route path="*" element={<Navigate to="/login" replace />} />
+          <Route path="/" element={<HomeRedirect />} />
+          <Route path="*" element={<HomeRedirect />} />
         </Routes>
       </Suspense>
     </AuthProvider>

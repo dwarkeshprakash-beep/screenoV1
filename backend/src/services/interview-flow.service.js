@@ -469,6 +469,8 @@ async function deleteRun(runId, managerId) {
 async function listRuns(mandateId, managerId) {
   const template = await clientTemplateRepository.getById(Number(mandateId), managerId)
   if (!template) throw new Error('Mandate not found')
+  await processExpiredFlows({ managerId, mandateId: template.id })
+    .catch(err => console.error('Expired flow processing failed while listing runs:', err.message))
   const rows = await flowRepository.listRunsByMandate(template.id, managerId)
   return Promise.all(rows.map(async row => ({
     ...row,
@@ -480,7 +482,41 @@ async function listRuns(mandateId, managerId) {
 async function listSchedules(mandateId, managerId) {
   const template = await clientTemplateRepository.getById(Number(mandateId), managerId)
   if (!template) throw new Error('Mandate not found')
+  await processExpiredFlows({ managerId, mandateId: template.id })
+    .catch(err => console.error('Expired flow processing failed while listing schedules:', err.message))
   return flowRepository.listSchedulesByMandate(template.id, managerId)
+}
+
+/** Resolve unattended expired automated stages and apply their configured pass rule.
+ * Human/offline rounds wait for interviewer feedback so a late reviewer cannot
+ * be mistaken for a candidate no-show.
+ */
+async function processExpiredFlows(filters = {}) {
+  const expired = await flowRepository.listExpiredFlowInterviews(filters)
+  const processed = []
+  for (const item of expired) {
+    const claimed = await interviewRepository.markExpiredNoShow(item.interview_id)
+    // A completed no-show with a still-scheduled stage means a previous process
+    // stopped between recording attendance and advancing the flow. Resume it.
+    if (!claimed && item.interview_result !== 'expired_no_show') continue
+    await flowRepository.completeAssignmentsAsNoShow(item.interview_id)
+    const progression = await handleInterviewResult(item.interview_id, 'fail', 0)
+    processed.push({ ...item, progression })
+  }
+  return processed
+}
+
+/** Manager fallback for immediately resolving one visibly expired current stage. */
+async function processExpiredRun(runId, managerId) {
+  const run = await flowRepository.getRun(Number(runId))
+  if (!run || Number(run.created_by_manager_id) !== Number(managerId)) {
+    throw new Error('Flow run not found')
+  }
+  const processed = await processExpiredFlows({ managerId, runId: run.id })
+  if (processed.length === 0) {
+    throw new Error('The current scheduled stage has not expired or was already processed')
+  }
+  return { processed: processed.length, run: await flowRepository.getRun(run.id) }
 }
 
 /** List interviewer work with signed feedback-file links. */
@@ -746,5 +782,6 @@ module.exports = {
   createFlow, updateFlow, updateRunFlow, getRunFlow,
   deleteFlow, deleteRun, listFlows, listRuns, listSchedules,
   startRun, handleInterviewResult, retryRun, continueRun,
+  processExpiredFlows, processExpiredRun,
   listAssignments, completeAssignment, updateAssignmentFeedback, notifyInterviewer,
 }

@@ -24,6 +24,21 @@ class ErrorBoundary extends Component {
     window.location.reload()
   }
 
+  handleDashboard = () => {
+    let role = null
+    try {
+      role = JSON.parse(localStorage.getItem('user') || '{}').role || null
+    } catch { /* use login fallback */ }
+    const target = role === 'manager'
+      ? '/manager/dashboard'
+      : role === 'candidate'
+        ? '/candidate/overview'
+        : role === 'admin'
+          ? '/admin/dashboard'
+          : '/login'
+    window.location.assign(target)
+  }
+
   render() {
     if (this.state.hasError) {
       return (
@@ -44,21 +59,20 @@ class ErrorBoundary extends Component {
           <p style={{ fontSize: 14, color: 'var(--fg-muted, #64748B)', maxWidth: 420 }}>
             This page ran into an unexpected error. Reloading usually fixes it — your data is safe.
           </p>
-          <button
-            onClick={this.handleReload}
-            style={{
-              padding: '9px 18px',
-              fontSize: 13,
-              fontWeight: 600,
-              border: 'none',
-              borderRadius: 8,
-              background: 'var(--brand-500, var(--brand-500))',
-              color: 'var(--bg-surface)',
-              cursor: 'pointer',
-            }}
-          >
-            Reload page
-          </button>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+            <button
+              onClick={this.handleDashboard}
+              style={{ padding: '9px 18px', fontSize: 13, fontWeight: 600, border: '1px solid var(--border-default, #CBD5E1)', borderRadius: 8, background: 'var(--bg-surface, #FFF)', color: 'var(--fg-body, #334155)', cursor: 'pointer' }}
+            >
+              Go to dashboard
+            </button>
+            <button
+              onClick={this.handleReload}
+              style={{ padding: '9px 18px', fontSize: 13, fontWeight: 600, border: 'none', borderRadius: 8, background: 'var(--brand-500, #6D4AFF)', color: 'var(--bg-surface, #FFF)', cursor: 'pointer' }}
+            >
+              Reload page
+            </button>
+          </div>
         </div>
       )
     }

@@ -132,6 +132,17 @@ router.post('/runs/:runId/continue', requireRole('manager'), async (req, res) =>
   }
 })
 
+/** Resolve a current stage that expired without candidate attendance. */
+router.post('/runs/:runId/process-expired', requireRole('manager'), async (req, res) => {
+  try {
+    const result = await flowService.processExpiredRun(req.params.runId, req.user.id)
+    res.json({ success: true, data: result })
+  } catch (err) {
+    console.error('POST /interview-flows/runs/:runId/process-expired failed:', err.message)
+    res.status(/not found/i.test(err.message) ? 404 : 409).json({ success: false, error: err.message })
+  }
+})
+
 /** Permanently delete one candidate's flow and its generated interviews. */
 router.delete('/runs/:runId', requireRole('manager'), async (req, res) => {
   try {

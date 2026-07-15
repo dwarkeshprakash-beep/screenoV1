@@ -702,6 +702,11 @@ async function run() {
   const feedbackForm = new FormData()
   feedbackForm.append('outcome', 'pass')
   feedbackForm.append('feedback', 'Strong offline panel result')
+  feedbackForm.append(
+    'file',
+    new Blob(['QA interviewer attachment'], { type: 'text/plain' }),
+    'panel-notes.txt'
+  )
   const completedOffline = await api(`/api/interview-flows/assignments/${offlineAssignment.id}/complete`, {
     method: 'POST', token: managerToken, form: feedbackForm,
   })
@@ -716,6 +721,8 @@ async function run() {
   const reviewedAssignment = completedAssignments.payload.data.find(item => item.id === offlineAssignment.id)
   assert.equal(reviewedAssignment.outcome, 'pass')
   assert.equal(reviewedAssignment.feedback, 'Updated panel comment')
+  assert.equal(reviewedAssignment.original_filename, 'panel-notes.txt')
+  assert.match(reviewedAssignment.file_url, /^https?:\/\//)
   const completedCandidateInterviews = await api('/api/candidate/interviews', {
     token: flowCandidateLogin.payload.data.accessToken,
   })
@@ -820,6 +827,178 @@ async function run() {
     method: 'DELETE', token: managerToken,
   })
   assert.equal(deletedOverdueFlow.status, 200)
+
+  // An unattended stage must not remain scheduled forever. Expiration records a
+  // no-show and applies requirePass: false, which schedules the next interviewer round.
+  const noShowStageOneAt = futureIso(13 * 24 * 60 * 60)
+  const noShowStageTwoAt = futureIso(13 * 24 * 60 * 60 + 2 * 60)
+  const noShowFlow = await api('/api/interview-flows', {
+    method: 'POST', token: managerToken,
+    body: {
+      mandateId: template.payload.data.id,
+      name: 'No-show progression flow',
+      stages: [
+        { name: 'Attendance check', type: 'ai_voice', scheduledAt: noShowStageOneAt,
+          durationMinutes: 2, questionCount: 2, requirePass: false },
+        { name: 'Manager panel', type: 'offline', scheduledAt: noShowStageTwoAt,
+          durationMinutes: 2, interviewerUserId: primary.manager.id, location: 'QA room', requirePass: true },
+      ],
+    },
+  })
+  assert.equal(noShowFlow.status, 201)
+  state.flowIds.push(noShowFlow.payload.data.id)
+  const noShowRun = await api(`/api/interview-flows/${noShowFlow.payload.data.id}/runs`, {
+    method: 'POST', token: managerToken, body: { clientTeamId: primaryClientTeam.id },
+  })
+  assert.equal(noShowRun.status, 201)
+  state.interviewIds.push(noShowRun.payload.data.firstInterview.id)
+  await db.query(
+    `UPDATE interviews
+     SET scheduled_at = CURRENT_TIMESTAMP - INTERVAL '5 minutes',
+         available_from = CURRENT_TIMESTAMP - INTERVAL '5 minutes',
+         due_at = CURRENT_TIMESTAMP - INTERVAL '1 minute'
+     WHERE id = @id`,
+    { id: noShowRun.payload.data.firstInterview.id }
+  )
+  const runsAfterNoShow = await api(`/api/interview-flows/mandate/${template.payload.data.id}/runs`, {
+    token: managerToken,
+  })
+  assert.equal(runsAfterNoShow.status, 200)
+  const noShowRunRows = runsAfterNoShow.payload.data.filter(row => row.run_id === noShowRun.payload.data.id)
+  assert.equal(noShowRunRows.find(row => Number(row.stage_order) === 1).stage_status, 'failed')
+  const noShowNextStage = noShowRunRows.find(row => Number(row.stage_order) === 2)
+  assert.equal(noShowNextStage.stage_status, 'scheduled')
+  assert.ok(noShowNextStage.interview_id)
+  state.interviewIds.push(noShowNextStage.interview_id)
+  const noShowInterview = (await db.query(
+    `SELECT status, result FROM interviews WHERE id = @id`,
+    { id: noShowRun.payload.data.firstInterview.id }
+  ))[0]
+  assert.equal(noShowInterview.status, 'completed')
+  assert.equal(noShowInterview.result, 'expired_no_show')
+  const noShowAssignment = (await db.query(
+    `SELECT interviewer_user_id, status FROM interview_assignments WHERE interview_id = @interviewId`,
+    { interviewId: noShowNextStage.interview_id }
+  ))[0]
+  assert.equal(noShowAssignment.interviewer_user_id, primary.manager.id)
+  assert.equal(noShowAssignment.status, 'assigned')
+  const noShowCandidateInterviews = await api('/api/candidate/interviews', {
+    token: flowCandidateLogin.payload.data.accessToken,
+  })
+  const candidateNoShow = noShowCandidateInterviews.payload.data.find(
+    item => item.id === noShowRun.payload.data.firstInterview.id
+  )
+  assert.equal(candidateNoShow.candidate_result, 'fail')
+  assert.ok(noShowCandidateInterviews.payload.data.some(item => item.id === noShowNextStage.interview_id))
+  const deletedNoShowRun = await api(`/api/interview-flows/runs/${noShowRun.payload.data.id}`, {
+    method: 'DELETE', token: managerToken,
+  })
+  assert.equal(deletedNoShowRun.status, 200)
+  const deletedNoShowFlow = await api(`/api/interview-flows/${noShowFlow.payload.data.id}`, {
+    method: 'DELETE', token: managerToken,
+  })
+  assert.equal(deletedNoShowFlow.status, 200)
+
+  // A late human reviewer must not be converted into a candidate no-show.
+  // The round remains assigned and the following AI stage stays pending.
+  const reviewerDelayAt = futureIso(14 * 24 * 60 * 60)
+  const reviewerDelayFlow = await api('/api/interview-flows', {
+    method: 'POST', token: managerToken,
+    body: {
+      mandateId: template.payload.data.id,
+      name: 'Late reviewer flow',
+      stages: [
+        { name: 'Human panel', type: 'offline', scheduledAt: reviewerDelayAt,
+          durationMinutes: 2, interviewerUserId: primary.manager.id, location: 'QA room', requirePass: true },
+        { name: 'Follow-up voice', type: 'ai_voice', scheduledAt: futureIso(14 * 24 * 60 * 60 + 2 * 60),
+          durationMinutes: 2, questionCount: 2, requirePass: false },
+      ],
+    },
+  })
+  assert.equal(reviewerDelayFlow.status, 201)
+  state.flowIds.push(reviewerDelayFlow.payload.data.id)
+  const reviewerDelayRun = await api(`/api/interview-flows/${reviewerDelayFlow.payload.data.id}/runs`, {
+    method: 'POST', token: managerToken, body: { clientTeamId: primaryClientTeam.id },
+  })
+  assert.equal(reviewerDelayRun.status, 201)
+  state.interviewIds.push(reviewerDelayRun.payload.data.firstInterview.id)
+  await db.query(
+    `UPDATE interviews
+     SET scheduled_at = CURRENT_TIMESTAMP - INTERVAL '5 minutes',
+         available_from = CURRENT_TIMESTAMP - INTERVAL '5 minutes',
+         due_at = CURRENT_TIMESTAMP - INTERVAL '1 minute'
+     WHERE id = @id`,
+    { id: reviewerDelayRun.payload.data.firstInterview.id }
+  )
+  const runsAfterReviewerDelay = await api(`/api/interview-flows/mandate/${template.payload.data.id}/runs`, {
+    token: managerToken,
+  })
+  assert.equal(runsAfterReviewerDelay.status, 200)
+  const reviewerDelayRows = runsAfterReviewerDelay.payload.data.filter(
+    row => row.run_id === reviewerDelayRun.payload.data.id
+  )
+  const delayedHumanStage = reviewerDelayRows.find(row => Number(row.stage_order) === 1)
+  assert.equal(delayedHumanStage.stage_status, 'scheduled')
+  assert.equal(delayedHumanStage.interview_status, 'scheduled')
+  assert.equal(delayedHumanStage.assignment_status, 'assigned')
+  assert.equal(reviewerDelayRows.find(row => Number(row.stage_order) === 2).stage_status, 'pending')
+  const deletedReviewerDelayRun = await api(`/api/interview-flows/runs/${reviewerDelayRun.payload.data.id}`, {
+    method: 'DELETE', token: managerToken,
+  })
+  assert.equal(deletedReviewerDelayRun.status, 200)
+  const deletedReviewerDelayFlow = await api(`/api/interview-flows/${reviewerDelayFlow.payload.data.id}`, {
+    method: 'DELETE', token: managerToken,
+  })
+  assert.equal(deletedReviewerDelayFlow.status, 200)
+
+  // A manager can retry a failed required stage at a new time. The retry must
+  // create exactly one new attempt and restore the run to active.
+  const retryFlow = await api('/api/interview-flows', {
+    method: 'POST', token: managerToken,
+    body: {
+      mandateId: template.payload.data.id,
+      name: 'Valid retry flow',
+      stages: [
+        { name: 'Retryable voice', type: 'ai_voice', scheduledAt: futureIso(15 * 24 * 60 * 60),
+          durationMinutes: 2, questionCount: 2, requirePass: true },
+      ],
+    },
+  })
+  assert.equal(retryFlow.status, 201)
+  state.flowIds.push(retryFlow.payload.data.id)
+  const retryRun = await api(`/api/interview-flows/${retryFlow.payload.data.id}/runs`, {
+    method: 'POST', token: managerToken, body: { clientTeamId: primaryClientTeam.id },
+  })
+  assert.equal(retryRun.status, 201)
+  state.interviewIds.push(retryRun.payload.data.firstInterview.id)
+  await interviewFlowService.handleInterviewResult(retryRun.payload.data.firstInterview.id, 'fail', 0)
+  const retried = await api(`/api/interview-flows/runs/${retryRun.payload.data.id}/retry`, {
+    method: 'POST', token: managerToken,
+    body: { scheduledAt: futureIso(16 * 24 * 60 * 60) },
+  })
+  assert.equal(retried.status, 200)
+  assert.equal(retried.payload.data.status, 'active')
+  state.interviewIds.push(retried.payload.data.interview.id)
+  const retryAttempts = await db.query(
+    `SELECT attempt_number, status, interview_id
+     FROM candidate_flow_stage_runs
+     WHERE run_id = @runId AND stage_order = 1
+     ORDER BY attempt_number`,
+    { runId: retryRun.payload.data.id }
+  )
+  assert.equal(retryAttempts.length, 2)
+  assert.equal(retryAttempts[0].status, 'failed')
+  assert.equal(Number(retryAttempts[1].attempt_number), 2)
+  assert.equal(retryAttempts[1].status, 'scheduled')
+  assert.equal(retryAttempts[1].interview_id, retried.payload.data.interview.id)
+  const deletedRetryRun = await api(`/api/interview-flows/runs/${retryRun.payload.data.id}`, {
+    method: 'DELETE', token: managerToken,
+  })
+  assert.equal(deletedRetryRun.status, 200)
+  const deletedRetryFlow = await api(`/api/interview-flows/${retryFlow.payload.data.id}`, {
+    method: 'DELETE', token: managerToken,
+  })
+  assert.equal(deletedRetryFlow.status, 200)
 
   const assessment = await api('/api/assessments/monthly', {
     method: 'POST',

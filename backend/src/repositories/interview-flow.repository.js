@@ -511,6 +511,46 @@ async function claimRunStatus(runId, managerId, expectedStatuses, claimedStatus)
   return rows[0] || null
 }
 
+/** Find flow interviews that were never attended before their due time. */
+async function listExpiredFlowInterviews({ managerId = null, mandateId = null, userId = null, runId = null } = {}) {
+  return db.query(
+    `SELECT i.id AS interview_id, i.status AS interview_status,
+            i.result AS interview_result, sr.run_id, sr.id AS stage_run_id,
+            sr.stage_order, s.require_pass
+     FROM interviews i
+     JOIN candidate_flow_stage_runs sr ON sr.id = i.flow_stage_run_id
+     JOIN candidate_flow_runs r ON r.id = sr.run_id
+     JOIN interview_flows f ON f.id = r.flow_id
+     JOIN client_teams ct ON ct.id = r.client_team_id
+     JOIN interview_flow_stages s ON s.id = sr.stage_id
+     WHERE r.status = 'active' AND r.current_stage_order = sr.stage_order
+       AND sr.status = 'scheduled'
+       AND s.type IN ('ai_voice', 'exam')
+       AND (
+         (i.status = 'scheduled' AND i.due_at IS NOT NULL AND i.due_at <= CURRENT_TIMESTAMP)
+         OR (i.status = 'completed' AND i.result = 'expired_no_show')
+       )
+       AND (CAST(@managerId AS INT) IS NULL OR r.created_by_manager_id = CAST(@managerId AS INT))
+       AND (CAST(@mandateId AS INT) IS NULL OR f.mandate_id = CAST(@mandateId AS INT))
+       AND (CAST(@userId AS INT) IS NULL OR ct.user_id = CAST(@userId AS INT))
+       AND (CAST(@runId AS INT) IS NULL OR r.id = CAST(@runId AS INT))
+     ORDER BY i.due_at, i.id`,
+    { managerId, mandateId, userId, runId }
+  )
+}
+
+async function completeAssignmentsAsNoShow(interviewId) {
+  return db.query(
+    `UPDATE interview_assignments
+     SET status = 'completed', outcome = 'fail',
+         feedback = COALESCE(feedback, 'Candidate did not attend before the interview window expired.'),
+         completed_at = CURRENT_TIMESTAMP, updated = CURRENT_TIMESTAMP
+     WHERE interview_id = @interviewId AND status != 'completed'
+     RETURNING *`,
+    { interviewId }
+  )
+}
+
 /** Create a runtime row for a stage attempt. */
 async function createStageRun(data) {
   const rows = await db.query(
@@ -632,7 +672,7 @@ async function createAssignment(data) {
 /** List assignment cards visible to an interviewer. */
 async function listAssignmentsForUser(userId) {
   return db.query(
-    `SELECT a.*, i.type, i.scheduled_at, i.location, i.meeting_url,
+    `SELECT a.*, i.type, i.scheduled_at, i.due_at, i.location, i.meeting_url,
             COALESCE(c.first_name, ec.first_name) AS candidate_first,
             COALESCE(c.last_name, ec.last_name) AS candidate_last,
             f.name AS flow_name, COALESCE(s.name, 'Single interview') AS stage_name,
@@ -711,6 +751,8 @@ async function listRunsByMandate(mandateId, managerId) {
             u.email AS candidate_email,
             sr.id AS stage_run_id, sr.stage_order, sr.status AS stage_status,
             sr.outcome AS stage_outcome, sr.attempt_number, sr.interview_id,
+            i.status AS interview_status, i.result AS interview_result,
+            i.scheduled_at AS interview_scheduled_at, i.due_at AS interview_due_at,
             s.name AS stage_name, s.type, s.scheduled_at, s.require_pass,
             a.id AS assignment_id, a.status AS assignment_status,
             a.outcome AS interviewer_outcome, a.feedback,
@@ -722,6 +764,7 @@ async function listRunsByMandate(mandateId, managerId) {
      JOIN users u ON u.id = ct.user_id
      JOIN candidate_flow_stage_runs sr ON sr.run_id = r.id
      JOIN interview_flow_stages s ON s.id = sr.stage_id
+     LEFT JOIN interviews i ON i.id = sr.interview_id
      LEFT JOIN interview_assignments a ON a.stage_run_id = sr.id
      LEFT JOIN users iu ON iu.id = a.interviewer_user_id
      LEFT JOIN interview_assignment_files af ON af.assignment_id = a.id
@@ -781,7 +824,8 @@ module.exports = {
   syncScheduledStageInterviews, getAssignedInterviewer, syncInterviewAssignments,
   ensureStageRuns, syncStageRunOrder,
   deleteUnusedStage, deleteFlow, getRunDeletionContext, deleteRun, createRun, createIsolatedRun,
-  isolateRun, getOwnedRunFlow, listDirectRunIds, getActiveRun, claimRunStatus, createStageRun,
+  isolateRun, getOwnedRunFlow, listDirectRunIds, getActiveRun, claimRunStatus,
+  listExpiredFlowInterviews, completeAssignmentsAsNoShow, createStageRun,
   updateStageRunStatus,
   attachInterview, getContextByInterview, getRun, getStage, finishStageRun, updateRun,
   getLatestAttempt, createAssignment, listAssignmentsForUser, getAssignmentForUser,

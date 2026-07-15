@@ -23,6 +23,7 @@ const monthlyAssessmentRoutes = require('./src/routes/monthly-assessment.routes'
 const adminRoutes = require('./src/routes/admin.routes')
 const interviewFlowRoutes = require('./src/routes/interview-flow.routes')
 const reportJobService = require('./src/services/report-job.service')
+const interviewFlowExpiryService = require('./src/services/interview-flow-expiry.service')
 const outboxWorker = require('./src/workers/outbox-worker')
 const db = require('./src/db/connection')
 
@@ -106,6 +107,7 @@ app.use((err, req, res, next) => {
 const server = app.listen(PORT, () => {
   console.log(`[server] Running on http://localhost:${PORT}`)
   reportJobService.startReportJobWorker()
+  interviewFlowExpiryService.startInterviewFlowExpiryWorker()
   outboxWorker.startWorker()
 })
 
@@ -118,6 +120,7 @@ async function shutdown(signal, exitCode = 0) {
   forceExit.unref()
   try {
     await reportJobService.stopReportJobWorker()
+    interviewFlowExpiryService.stopInterviewFlowExpiryWorker()
     outboxWorker.stopWorker()
   } finally {
     server.close(() => process.exit(exitCode))

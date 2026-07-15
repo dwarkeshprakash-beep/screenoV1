@@ -10,6 +10,9 @@ function AssignmentCard({ assignment, onCompleted }) {
   const [editingFeedback, setEditingFeedback] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
+  const feedbackOverdue = assignment.status !== 'completed'
+    && assignment.due_at
+    && new Date(assignment.due_at) <= new Date()
 
   async function complete() {
     setSaving(true)
@@ -45,6 +48,7 @@ function AssignmentCard({ assignment, onCompleted }) {
         <span className={`status-pill${assignment.status === 'completed' ? ' status-pill--success' : ' status-pill--brand'}`}>{assignment.status}</span>
       </div>
       <p style={{ fontSize: 12, color: 'var(--fg-muted)' }}><Clock size={11} /> {formatDateTime(assignment.scheduled_at)}{assignment.location ? ` · ${assignment.location}` : ''}</p>
+      {feedbackOverdue && <p style={{ fontSize: 12, color: 'var(--warning-700)', margin: '0 0 10px' }}>Interview time has ended. Please submit the pending feedback.</p>}
       {assignment.meeting_url && assignment.status !== 'completed' && <a className="product-button product-button--secondary product-button--sm" href={assignment.meeting_url} target="_blank" rel="noreferrer">Join meeting</a>}
       {assignment.status !== 'completed' && (
         <div className="workspace-stack" style={{ marginTop: 14 }}>

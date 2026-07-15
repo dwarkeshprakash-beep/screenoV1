@@ -1619,6 +1619,17 @@ function MandateDetail({ initialTemplate, onBack }) {
     } catch (err) { setFlowRunsError(err.message || 'Could not continue flow') }
   }
 
+  async function processExpiredRun(runId) {
+    try {
+      setFlowRunsError(null)
+      await api.processExpiredInterviewFlowRun(runId)
+      await refreshFlowRuns()
+      setMessage({ text: 'Expired stage processed and flow progression applied.', type: 'success' })
+    } catch (err) {
+      setFlowRunsError(err.message || 'Could not process the expired stage')
+    }
+  }
+
   async function retryPausedRun(runId) {
     const value = retryDates[runId]
     if (!value) { setFlowRunsError('Choose a new retry date and time.'); return }
@@ -2049,6 +2060,31 @@ function MandateDetail({ initialTemplate, onBack }) {
                       <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
                         <input className="form-input" style={{ maxWidth: 230 }} type="datetime-local" value={retryDates[run.run_id] || ''} onChange={event => setRetryDates(current => ({ ...current, [run.run_id]: event.target.value }))} />
                         <Button size="sm" onClick={() => retryPausedRun(run.run_id)}>Schedule stage</Button>
+                      </div>
+                    )}
+                    {run.run_status === 'active' && run.stages.some(stage => (
+                      Number(stage.stage_order) === Number(run.current_stage_order)
+                      && stage.stage_status === 'scheduled'
+                      && stage.interview_status === 'scheduled'
+                      && ['ai_voice', 'exam'].includes(stage.type)
+                      && stage.interview_due_at
+                      && new Date(stage.interview_due_at) <= new Date()
+                    )) && (
+                      <div style={{ display: 'flex', gap: 8, marginTop: 12, alignItems: 'center', flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: 12, color: 'var(--status-danger)' }}>Current stage expired without attendance.</span>
+                        <Button size="sm" onClick={() => processExpiredRun(run.run_id)}>Process no-show</Button>
+                      </div>
+                    )}
+                    {run.run_status === 'active' && run.stages.some(stage => (
+                      Number(stage.stage_order) === Number(run.current_stage_order)
+                      && stage.stage_status === 'scheduled'
+                      && stage.interview_status === 'scheduled'
+                      && ['human', 'offline'].includes(stage.type)
+                      && stage.interview_due_at
+                      && new Date(stage.interview_due_at) <= new Date()
+                    )) && (
+                      <div style={{ marginTop: 12 }}>
+                        <span style={{ fontSize: 12, color: 'var(--warning-700)' }}>Interview completed. Awaiting interviewer feedback before the next stage can begin.</span>
                       </div>
                     )}
                   </div>

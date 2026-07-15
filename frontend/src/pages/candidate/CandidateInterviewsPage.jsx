@@ -20,6 +20,9 @@ function InterviewCard({ interview, onLaunch, onJoinHuman, launchingId }) {
   const launchable = interview.type === 'ai_voice' || interview.type === 'exam'
   const canLaunch = launchable && ['scheduled', 'in_progress'].includes(interview.status) && availability.canStart
   const canJoinHuman = interview.type === 'human' && ['scheduled', 'in_progress'].includes(interview.status) && availability.canStart
+  const awaitingInterviewerFeedback = ['human', 'offline'].includes(interview.type)
+    && ['scheduled', 'in_progress'].includes(interview.status)
+    && availability.state === 'expired'
 
   return (
     <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderLeft: `3px solid ${color}`, borderRadius: 10, boxShadow: 'var(--shadow-xs)', padding: '16px 18px' }}>
@@ -43,7 +46,8 @@ function InterviewCard({ interview, onLaunch, onJoinHuman, launchingId }) {
       {canLaunch && <button disabled={launchingId === interview.id} onClick={() => onLaunch(interview)} className="product-button product-button--primary product-button--md" style={{ width: '100%' }}>{launchingId === interview.id ? 'Preparing…' : 'Start Interview'}</button>}
       {canJoinHuman && <button disabled={launchingId === interview.id} onClick={() => onJoinHuman(interview)} className="product-button product-button--secondary product-button--md" style={{ width: '100%' }}>{launchingId === interview.id ? 'Joining…' : 'Join Meeting'}</button>}
       {launchable && ['scheduled', 'in_progress'].includes(interview.status) && !canLaunch && availability.label && <p style={{ fontSize: 12, color: availability.state === 'expired' ? 'var(--danger-700)' : 'var(--fg-muted)', margin: 0 }}><Clock size={11} /> {availability.label}</p>}
-      {interview.type === 'human' && ['scheduled', 'in_progress'].includes(interview.status) && !canJoinHuman && <p style={{ fontSize: 12, color: 'var(--fg-muted)', margin: 0 }}>Meeting link will be active closer to the scheduled time.</p>}
+      {awaitingInterviewerFeedback && <p style={{ fontSize: 12, color: 'var(--warning-700)', margin: 0 }}><Clock size={11} /> Interview completed. Awaiting interviewer feedback.</p>}
+      {interview.type === 'human' && ['scheduled', 'in_progress'].includes(interview.status) && !canJoinHuman && !awaitingInterviewerFeedback && <p style={{ fontSize: 12, color: 'var(--fg-muted)', margin: 0 }}>Meeting link will be active closer to the scheduled time.</p>}
     </div>
   )
 }

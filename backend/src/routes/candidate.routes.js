@@ -3,6 +3,7 @@ const authMiddleware = require('../middleware/auth')
 const requireRole = require('../middleware/role')
 const { documentUpload } = require('../middleware/upload')
 const interviewRepository = require('../repositories/interview.repository')
+const interviewFlowService = require('../services/interview-flow.service')
 const reportRepository = require('../repositories/report.repository')
 const clientTeamRepo = require('../repositories/client-team.repository')
 const userRepository = require('../repositories/user.repository')
@@ -35,6 +36,8 @@ async function safeSignedResumeUrl(value) {
 router.get('/interviews', async (req, res) => {
   try {
     const identity = candidateIdentityService.fromUser(req.user)
+    await interviewFlowService.processExpiredFlows({ userId: req.user.id })
+      .catch(err => console.error('Candidate expired flow processing failed:', err.message))
     const interviews = await interviewRepository.getByCandidateIdentity(identity)
     const safeInterviews = interviews.map(({
       token,
@@ -47,7 +50,7 @@ router.get('/interviews', async (req, res) => {
         ? null
         : candidate_decision === 'pass' || interview.result === 'pass'
           ? 'pass'
-          : candidate_decision != null || ['fail', 'failed_mid_interview', 'cheating_attempt'].includes(interview.result)
+          : candidate_decision != null || ['fail', 'failed_mid_interview', 'cheating_attempt', 'expired_no_show'].includes(interview.result)
             ? 'fail'
             : null,
     }))
@@ -161,7 +164,7 @@ router.get('/client-mandates', async (req, res) => {
                   WHEN i.status = 'completed' AND (sc.decision = 'pass' OR i.result = 'pass') THEN 'pass'
                   WHEN i.status = 'completed' AND (
                     sc.decision IS NOT NULL
-                    OR i.result IN ('fail', 'failed_mid_interview', 'cheating_attempt')
+                    OR i.result IN ('fail', 'failed_mid_interview', 'cheating_attempt', 'expired_no_show')
                   ) THEN 'fail'
                   ELSE NULL
                 END AS candidate_result

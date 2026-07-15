@@ -285,6 +285,19 @@ async function setCalendarSyncError(id, error) {
   return rows[0] || null
 }
 
+/** Atomically claim a scheduled interview whose attendance window has expired. */
+async function markExpiredNoShow(id) {
+  const rows = await db.query(
+    `UPDATE interviews
+     SET status = 'completed', result = 'expired_no_show', ended_at = CURRENT_TIMESTAMP
+     WHERE id = @id AND status = 'scheduled'
+       AND due_at IS NOT NULL AND due_at <= CURRENT_TIMESTAMP
+     RETURNING *`,
+    { id }
+  )
+  return rows[0] || null
+}
+
 async function updateSchedule(id, data) {
   const rows = await db.query(
     `UPDATE interviews
@@ -331,5 +344,6 @@ module.exports = {
   updateTokenHash,
   updateMeetingDetails,
   setCalendarSyncError,
+  markExpiredNoShow,
   updateSchedule,
 }

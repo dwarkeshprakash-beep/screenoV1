@@ -118,39 +118,36 @@ async function refreshAccessToken() {
 
   refreshPromise = new Promise((resolve, reject) => {
     let resolved = false
-    
+
     // Listen for cross-tab refresh completion
     const channel = new BroadcastChannel('auth_channel')
+    const resolveRefresh = token => {
+      if (resolved) return
+      resolved = true
+      channel.close()
+      refreshPromise = null
+      resolve(token)
+    }
+    const rejectRefresh = error => {
+      if (resolved) return
+      resolved = true
+      channel.close()
+      refreshPromise = null
+      reject(error)
+    }
     channel.onmessage = (event) => {
       if (event.data?.type === 'token_refreshed') {
-        if (!resolved) {
-          resolved = true
-          channel.close()
-          resolve(event.data.accessToken)
-        }
-      } else if (event.data === 'auth_expired' && !resolved) {
-        resolved = true
-        channel.close()
-        reject(new Error('Session expired'))
+        resolveRefresh(event.data.accessToken)
+      } else if (event.data === 'auth_expired') {
+        rejectRefresh(new RefreshError('Session expired', 'SESSION_EXPIRED', 401))
       }
     }
 
     const runRefresh = async () => {
       try {
-        const token = await doRefreshFetch()
-        if (!resolved) {
-          resolved = true
-          channel.close()
-          resolve(token)
-        }
+        resolveRefresh(await doRefreshFetch())
       } catch (err) {
-        if (!resolved) {
-          resolved = true
-          channel.close()
-          reject(err)
-        }
-      } finally {
-        refreshPromise = null
+        rejectRefresh(err)
       }
     }
 
@@ -161,14 +158,10 @@ async function refreshAccessToken() {
         } else {
           // Wait for BroadcastChannel to resolve this promise, or timeout after 10s
           setTimeout(() => {
-            if (!resolved) {
-              resolved = true
-              channel.close()
-              reject(new Error('Refresh timeout waiting for other tab'))
-            }
+            rejectRefresh(new RefreshError('Refresh timeout waiting for other tab', 'SESSION_REFRESH_TIMEOUT', 503))
           }, 10000)
         }
-      }).catch(reject)
+      }).catch(rejectRefresh)
     } else {
       acquireFallbackLock('auth_refresh_lock_fallback')
         .then(async gotLock => {
@@ -180,15 +173,11 @@ async function refreshAccessToken() {
             }
           } else {
             setTimeout(() => {
-              if (!resolved) {
-                resolved = true
-                channel.close()
-                reject(new Error('Refresh timeout waiting for other tab'))
-              }
+              rejectRefresh(new RefreshError('Refresh timeout waiting for other tab', 'SESSION_REFRESH_TIMEOUT', 503))
             }, 10000)
           }
         })
-        .catch(reject)
+        .catch(rejectRefresh)
     }
   })
 
@@ -487,6 +476,8 @@ export const retryInterviewFlowRun = (runId, scheduledAt) =>
   request(`/api/interview-flows/runs/${runId}/retry`, { method: 'POST', body: JSON.stringify({ scheduledAt }) })
 export const continueInterviewFlowRun = runId =>
   request(`/api/interview-flows/runs/${runId}/continue`, { method: 'POST' })
+export const processExpiredInterviewFlowRun = runId =>
+  request(`/api/interview-flows/runs/${runId}/process-expired`, { method: 'POST' })
 export const deleteInterviewFlowRun = runId =>
   request(`/api/interview-flows/runs/${runId}`, { method: 'DELETE' })
 export const getMyInterviewerAssignments = () => request('/api/interview-flows/my-assignments')
@@ -540,6 +531,13 @@ export const useExistingResumeForClient = ctId =>
 export const get = (url, opts) => request(url, { ...opts, method: 'GET' })
 export const post = (url, body, opts) => request(url, { ...opts, method: 'POST', body: body ? JSON.stringify(body) : undefined })
 export const patch = (url, body, opts) => request(url, { ...opts, method: 'PATCH', body: body ? JSON.stringify(body) : undefined })
-const _delete = (url, opts) => request(url, { ...opts, method: 'DELETE' })
+const _delete = (url, opts = {}) => {
+  const { data, ...requestOptions } = opts
+  return request(url, {
+    ...requestOptions,
+    method: 'DELETE',
+    body: data === undefined ? undefined : JSON.stringify(data),
+  })
+}
 export { _delete as delete }
 
