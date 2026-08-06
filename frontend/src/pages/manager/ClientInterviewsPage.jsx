@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+﻿import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   ArrowLeft, ArrowRight, BriefcaseBusiness, Calendar, CheckCircle2,
-  Clock, FileText, Mail, Plus,
+  Clock, FileText, Mail, Plus, ChevronLeft, ChevronRight,
   Search, Sparkles, Trash2, Upload, UserCheck, Users, X, AlertCircle, Video,
+  LayoutGrid, List, ExternalLink,
 } from 'lucide-react'
 import Avatar from '../../components/shared/Avatar'
 import Button from '../../components/shared/Button'
@@ -14,6 +15,7 @@ import ConfirmDialog from '../../components/shared/ConfirmDialog'
 import DeleteMandateModal from '../../components/manager/DeleteMandateModal'
 import ReportRecipientsSelector from '../../components/manager/ReportRecipientsSelector'
 import InterviewFlowModal from '../../components/manager/InterviewFlowModal'
+import InterviewHistoryPanel from '../../components/manager/InterviewHistoryPanel'
 import Spinner from '../../components/shared/Spinner'
 import * as api from '../../services/api'
 import { formatDate, formatDateTime, parseStoredArray, serializeDatetimeLocal } from '../../utils/helpers'
@@ -187,7 +189,7 @@ function RequirementProfilesEditor({ profiles, setProfiles, allowEmpty = false }
   )
 }
 
-// ── Mandate creation wizard ───────────────────────────────────────────────────
+// â”€â”€ Mandate creation wizard â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function CreateMandateModal({ open, onClose, onCreated }) {
   const [step, setStep] = useState(1)
@@ -197,6 +199,11 @@ function CreateMandateModal({ open, onClose, onCreated }) {
   const [extractingTags, setExtractingTags] = useState({})
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
+  const [existingMandates, setExistingMandates] = useState([])
+  const [companiesLoading, setCompaniesLoading] = useState(false)
+  const [companyMenuOpen, setCompanyMenuOpen] = useState(false)
+  const [selectedCompany, setSelectedCompany] = useState(null)
+  const [editingTemplate, setEditingTemplate] = useState(null)
 
   useEffect(() => {
     if (!open) return
@@ -206,9 +213,105 @@ function CreateMandateModal({ open, onClose, onCreated }) {
     setTagsByRole({})
     setExtractingTags({})
     setError(null)
+    setSelectedCompany(null)
+    setEditingTemplate(null)
+    setCompanyMenuOpen(false)
+    setCompaniesLoading(true)
+    api.getClientTemplates('all')
+      .then(response => setExistingMandates(response.data || []))
+      .catch(() => setExistingMandates([]))
+      .finally(() => setCompaniesLoading(false))
   }, [open])
 
-  function update(key, value) { setForm(c => ({ ...c, [key]: value })) }
+  const companies = useMemo(() => {
+    const grouped = new Map()
+    existingMandates.forEach(mandate => {
+      const name = String(mandate.client_name || '').trim()
+      if (!name) return
+      const key = name.toLowerCase()
+      if (!grouped.has(key)) grouped.set(key, { name, mandates: [] })
+      grouped.get(key).mandates.push(mandate)
+    })
+    return [...grouped.values()]
+      .map(company => ({
+        ...company,
+        mandates: company.mandates.sort((a, b) => new Date(b.updated_at || b.created || 0) - new Date(a.updated_at || a.created || 0)),
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name))
+  }, [existingMandates])
+
+  const companyMatches = useMemo(() => {
+    const query = form.clientName.trim().toLowerCase()
+    return companies
+      .filter(company => !query || company.name.toLowerCase().includes(query))
+      .slice(0, 8)
+  }, [companies, form.clientName])
+
+  function update(key, value) { setForm(current => ({ ...current, [key]: value })) }
+
+  function selectCompany(company) {
+    const latest = company.mandates[0]
+    setSelectedCompany(company)
+    setEditingTemplate(null)
+    setForm(current => ({
+      ...current,
+      clientName: company.name,
+      clientEmail: latest?.client_email || current.clientEmail,
+    }))
+    setCompanyMenuOpen(false)
+    setError(null)
+  }
+
+  function startNewForCompany(company = selectedCompany) {
+    const latest = company?.mandates?.[0]
+    setEditingTemplate(null)
+    setSelectedCompany(company || null)
+    setStep(1)
+    setForm({
+      clientName: company?.name || form.clientName,
+      clientEmail: latest?.client_email || '',
+      requirements: '',
+      customInfo: '',
+    })
+    setProfiles([newRequirementProfile()])
+    setTagsByRole({})
+    setError(null)
+  }
+
+  async function editExistingMandate(template) {
+    if (template.archived_at) return
+    setSaving(true)
+    setError(null)
+    try {
+      const requirementResponse = await api.getMandateRequirements(template.id)
+      const loadedProfiles = (requirementResponse.data || []).map(newRequirementProfile)
+      const nextProfiles = loadedProfiles.length ? loadedProfiles : [newRequirementProfile({
+        profile_name: template.requirements || '',
+        jd_text: template.jd_text || '',
+        headcount: template.headcount || 1,
+      })]
+      const nextTags = {}
+      nextProfiles.forEach(profile => {
+        const source = (requirementResponse.data || []).find(item => Number(item.id) === Number(profile.id))
+        nextTags[profile.key] = parseTags(source?.tags || template.tags)
+      })
+      setEditingTemplate(template)
+      setSelectedCompany(companies.find(company => company.name.toLowerCase() === String(template.client_name || '').toLowerCase()) || null)
+      setForm({
+        clientName: template.client_name || '',
+        clientEmail: template.client_email || '',
+        requirements: template.requirements || '',
+        customInfo: template.custom_info || '',
+      })
+      setProfiles(nextProfiles)
+      setTagsByRole(nextTags)
+      setStep(1)
+    } catch (err) {
+      setError(err.message || 'Could not load the existing mandate.')
+    } finally {
+      setSaving(false)
+    }
+  }
 
   async function continueToTags() {
     if (!form.clientName.trim()) { setError('Client name is required.'); return }
@@ -217,62 +320,64 @@ function CreateMandateModal({ open, onClose, onCreated }) {
 
     setExtractingTags({ _all: true })
     setError(null)
-    
+
     try {
-      const newTagsByRole = {}
-      await Promise.all(profiles.map(async (profile) => {
+      const newTagsByRole = { ...tagsByRole }
+      await Promise.all(profiles.map(async profile => {
         const jd = String(profile.jd_text || '').trim()
-        if (jd) {
+        if (jd && !(newTagsByRole[profile.key] || []).length) {
           try {
             const response = await api.extractTemplateTags(jd)
             newTagsByRole[profile.key] = Array.isArray(response.data) ? response.data : []
           } catch {
             newTagsByRole[profile.key] = []
           }
-        } else {
+        } else if (!newTagsByRole[profile.key]) {
           newTagsByRole[profile.key] = []
         }
       }))
       setTagsByRole(newTagsByRole)
       setStep(2)
-    } catch { 
-      setStep(2) 
-    } finally { 
-      setExtractingTags({}) 
+    } catch {
+      setStep(2)
+    } finally {
+      setExtractingTags({})
     }
   }
 
   async function regenerateRoleTags(profileKey) {
-    const profile = profiles.find(p => p.key === profileKey)
+    const profile = profiles.find(item => item.key === profileKey)
     if (!profile) return
     const jd = String(profile.jd_text || '').trim()
     if (!jd) { setError('Add a job description to this role before regenerating skills.'); return }
-    setExtractingTags(c => ({ ...c, [profileKey]: true }))
+    setExtractingTags(current => ({ ...current, [profileKey]: true }))
     setError(null)
     try {
       const response = await api.extractTemplateTags(jd)
-      setTagsByRole(c => ({ ...c, [profileKey]: Array.isArray(response.data) ? response.data : [] }))
-    } catch (err) { setError(err.message || 'Could not regenerate matching skills.') }
-    finally { setExtractingTags(c => ({ ...c, [profileKey]: false })) }
+      setTagsByRole(current => ({ ...current, [profileKey]: Array.isArray(response.data) ? response.data : [] }))
+    } catch (err) {
+      setError(err.message || 'Could not regenerate matching skills.')
+    } finally {
+      setExtractingTags(current => ({ ...current, [profileKey]: false }))
+    }
   }
 
-  function addTag(profileKey, tagStr) {
-    const t = tagStr.trim()
-    if (!t) return
-    setTagsByRole(c => {
-      const current = c[profileKey] || []
-      if (!current.some(tag => tag.toLowerCase() === t.toLowerCase())) {
-        return { ...c, [profileKey]: [...current, t] }
-      }
-      return c
+  function addTag(profileKey, tagString) {
+    const tag = tagString.trim()
+    if (!tag) return
+    setTagsByRole(current => {
+      const existing = current[profileKey] || []
+      return existing.some(item => item.toLowerCase() === tag.toLowerCase())
+        ? current
+        : { ...current, [profileKey]: [...existing, tag] }
     })
   }
 
-  function removeTag(profileKey, tagStr) {
-    setTagsByRole(c => {
-      const current = c[profileKey] || []
-      return { ...c, [profileKey]: current.filter(t => t !== tagStr) }
-    })
+  function removeTag(profileKey, tagString) {
+    setTagsByRole(current => ({
+      ...current,
+      [profileKey]: (current[profileKey] || []).filter(tag => tag !== tagString),
+    }))
   }
 
   async function saveMandate() {
@@ -280,12 +385,11 @@ function CreateMandateModal({ open, onClose, onCreated }) {
     setError(null)
     try {
       const normalizedProfiles = normalizeRequirementProfilesForSave(profiles)
-        .map((profile, i) => ({
+        .map((profile, index) => ({
           ...profile,
-          tags: JSON.stringify(tagsByRole[profiles[i].key] || []),
+          tags: JSON.stringify(tagsByRole[profiles[index].key] || []),
         }))
-
-      await api.createClientTemplate({
+      const payload = {
         client_name: form.clientName.trim(),
         client_email: form.clientEmail.trim() || null,
         requirements: normalizedProfiles.length
@@ -298,67 +402,135 @@ function CreateMandateModal({ open, onClose, onCreated }) {
         jd_text: null,
         custom_info: form.customInfo.trim() || null,
         tags: null,
-      })
+      }
+      if (editingTemplate) await api.updateClientTemplate(editingTemplate.id, payload)
+      else await api.createClientTemplate(payload)
       await onCreated()
       onClose()
-    } catch (err) { setError(err.message || 'Could not save the mandate.') }
-    finally { setSaving(false) }
+    } catch (err) {
+      setError(err.message || (editingTemplate ? 'Could not update the mandate.' : 'Could not save the mandate.'))
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
-    <Modal open={open} onClose={onClose} title="Create client mandate" size="lg">
+    <Modal open={open} onClose={onClose} title={editingTemplate ? 'Edit existing mandate' : 'Create client mandate'} size="lg">
       <div className="workspace-stack">
         <div className="workspace-tabs" aria-label="Mandate creation progress">
-          {[['1. Mandate brief', 1], ['2. Matching skills', 2]].map(([label, s]) => (
-            <button key={s} type="button" className={`workspace-tabs__button${step === s ? ' is-active' : ''}`}
-              onClick={() => s === 1 ? setStep(1) : (form.clientName.trim() && setStep(2))}>
+          {[['1. Mandate brief', 1], ['2. Matching skills', 2]].map(([label, currentStep]) => (
+            <button key={currentStep} type="button" className={'workspace-tabs__button' + (step === currentStep ? ' is-active' : '')}
+              onClick={() => currentStep === 1 ? setStep(1) : (form.clientName.trim() && setStep(2))}>
               {label}
             </button>
           ))}
         </div>
 
+        {editingTemplate && (
+          <div style={{ padding: 11, borderRadius: 9, background: 'var(--info-50)', color: 'var(--info-700)', fontSize: 12 }}>
+            Editing the existing mandate for <strong>{editingTemplate.client_name}</strong>. Saving will update that mandate and move it to the top of the library.
+          </div>
+        )}
+
         {step === 1 ? (
           <div className="form-grid">
-            <Field label="Client name">
-              <input className="form-input" value={form.clientName} onChange={e => update('clientName', e.target.value)} placeholder="Client company name" />
+            <Field label="Client company" help="Search existing companies or create a new company entry.">
+              <div style={{ position: 'relative' }}>
+                <input
+                  className="form-input"
+                  value={form.clientName}
+                  onFocus={() => setCompanyMenuOpen(true)}
+                  onChange={event => {
+                    update('clientName', event.target.value)
+                    setSelectedCompany(null)
+                    setCompanyMenuOpen(true)
+                  }}
+                  onKeyDown={event => { if (event.key === 'Escape') setCompanyMenuOpen(false) }}
+                  placeholder="Start typing a company name"
+                  autoComplete="off"
+                />
+                {companyMenuOpen && (
+                  <div style={{ position: 'absolute', zIndex: 20, top: 'calc(100% + 5px)', left: 0, right: 0, maxHeight: 260, overflowY: 'auto', border: '1px solid var(--border-default)', borderRadius: 10, background: 'var(--bg-surface)', boxShadow: 'var(--shadow-lg)' }}>
+                    {companiesLoading && <div style={{ padding: 12, color: 'var(--fg-muted)', fontSize: 12 }}>Loading companies…</div>}
+                    {!companiesLoading && companyMatches.map(company => (
+                      <button key={company.name.toLowerCase()} type="button" onMouseDown={event => event.preventDefault()} onClick={() => selectCompany(company)}
+                        style={{ width: '100%', padding: '10px 12px', border: 0, borderBottom: '1px solid var(--border-default)', background: 'transparent', textAlign: 'left', cursor: 'pointer' }}>
+                        <strong style={{ display: 'block', color: 'var(--fg-primary)', fontSize: 13 }}>{company.name}</strong>
+                        <span style={{ color: 'var(--fg-muted)', fontSize: 11 }}>{company.mandates.length} existing mandate{company.mandates.length === 1 ? '' : 's'}</span>
+                      </button>
+                    ))}
+                    {!companiesLoading && form.clientName.trim() && (
+                      <button type="button" onMouseDown={event => event.preventDefault()} onClick={() => { setSelectedCompany(null); setEditingTemplate(null); setCompanyMenuOpen(false) }}
+                        style={{ width: '100%', padding: '11px 12px', border: 0, background: 'var(--brand-50)', color: 'var(--brand-700)', textAlign: 'left', fontWeight: 700, cursor: 'pointer' }}>
+                        <Plus size={13} style={{ verticalAlign: 'middle', marginRight: 6 }} />Create new company “{form.clientName.trim()}”
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
             </Field>
-            <Field label="Client email" help="Optional contact for the mandate.">
-              <input className="form-input" type="email" value={form.clientEmail} onChange={e => update('clientEmail', e.target.value)} placeholder="contact@client.com" />
+            <Field label="Client email" help="Optional contact for the company.">
+              <input className="form-input" type="email" value={form.clientEmail} onChange={event => update('clientEmail', event.target.value)} placeholder="contact@client.com" />
             </Field>
+
+            {selectedCompany && !editingTemplate && (
+              <div className="form-field form-field--full" style={{ padding: 12, border: '1px solid var(--border-default)', borderRadius: 10, background: 'var(--bg-surface-alt)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: 9 }}>
+                  <div>
+                    <strong style={{ fontSize: 13 }}>{selectedCompany.name} already exists</strong>
+                    <div style={{ fontSize: 11, color: 'var(--fg-muted)', marginTop: 2 }}>Edit an existing mandate or create a separate role mandate for this company.</div>
+                  </div>
+                  <Button size="sm" onClick={() => startNewForCompany(selectedCompany)}><Plus size={12} />Create new mandate</Button>
+                </div>
+                <div style={{ display: 'grid', gap: 6 }}>
+                  {selectedCompany.mandates.map(mandate => (
+                    <div key={mandate.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 10, alignItems: 'center', padding: '8px 10px', borderRadius: 8, background: 'var(--bg-surface)', border: '1px solid var(--border-default)' }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontWeight: 600, fontSize: 12, color: 'var(--fg-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{mandate.requirements || 'Role not specified'}</div>
+                        <div style={{ color: 'var(--fg-muted)', fontSize: 10, marginTop: 2 }}>{mandate.archived_at ? 'Archived' : 'Active'} · modified {formatDate(mandate.updated_at || mandate.created)}</div>
+                      </div>
+                      <Button variant="secondary" size="sm" disabled={!!mandate.archived_at} onClick={() => editExistingMandate(mandate)}>
+                        {mandate.archived_at ? 'Archived' : 'Edit existing'}
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <Field label="Mandate summary" full help="Optional high-level summary. Add exact roles, each with its own JD.">
-              <textarea className="form-input" rows={3} value={form.requirements} onChange={e => update('requirements', e.target.value)} placeholder="Example: Engineering hiring for backend and frontend roles" style={{ resize: 'vertical' }} />
+              <textarea className="form-input" rows={3} value={form.requirements} onChange={event => update('requirements', event.target.value)} placeholder="Example: Engineering hiring for backend and frontend roles" style={{ resize: 'vertical' }} />
             </Field>
             <RequirementProfilesEditor profiles={profiles} setProfiles={setProfiles} allowEmpty={false} />
             <Field label="Internal notes" full help="Visible to managers, not candidates.">
-              <textarea className="form-input" rows={3} value={form.customInfo} onChange={e => update('customInfo', e.target.value)} style={{ resize: 'vertical' }} />
+              <textarea className="form-input" rows={3} value={form.customInfo} onChange={event => update('customInfo', event.target.value)} style={{ resize: 'vertical' }} />
             </Field>
           </div>
         ) : (
           <div className="workspace-stack" style={{ gap: 20 }}>
-            {profiles.length === 0 && <span className="form-help">No roles added.</span>}
-            {profiles.map((profile, i) => {
-               const roleTags = tagsByRole[profile.key] || []
-               const name = profile.profile_name || `Role ${i + 1}`
-               return (
-                  <div key={profile.key} className="form-field form-field--full" style={{ border: '1px solid var(--border-default)', borderRadius: 8, padding: 12 }}>
-                    <div className="workspace-section-heading" style={{ marginBottom: 8 }}>
-                      <div><h3 style={{ fontSize: 15 }}>{name} skills</h3></div>
-                      <Button variant="secondary" size="sm" onClick={() => regenerateRoleTags(profile.key)} loading={extractingTags[profile.key]}><Sparkles size={13} />Regenerate</Button>
-                    </div>
-                    <div className="tag-list" style={{ minHeight: 30 }}>
-                      {roleTags.length === 0 && <span className="form-help">No matching skills saved yet.</span>}
-                      {roleTags.map(tag => (
-                        <span className="tag" key={tag}>{tag}
-                          <button type="button" onClick={() => removeTag(profile.key, tag)} style={{ display: 'inline-flex', marginLeft: 5, border: 0, background: 'transparent', color: 'inherit', cursor: 'pointer' }}><X size={12} /></button>
-                        </span>
-                      ))}
-                    </div>
-                    <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-                      <input className="form-input" id={`add-tag-${profile.key}`} onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addTag(profile.key, e.target.value); e.target.value = '' } }} placeholder="Add a skill tag" />
-                      <Button variant="secondary" onClick={() => { const el = document.getElementById(`add-tag-${profile.key}`); addTag(profile.key, el.value); el.value = '' }}>Add</Button>
-                    </div>
+            {profiles.map((profile, index) => {
+              const roleTags = tagsByRole[profile.key] || []
+              const name = profile.profile_name || 'Role ' + (index + 1)
+              return (
+                <div key={profile.key} className="form-field form-field--full" style={{ border: '1px solid var(--border-default)', borderRadius: 8, padding: 12 }}>
+                  <div className="workspace-section-heading" style={{ marginBottom: 8 }}>
+                    <div><h3 style={{ fontSize: 15 }}>{name} skills</h3></div>
+                    <Button variant="secondary" size="sm" onClick={() => regenerateRoleTags(profile.key)} loading={extractingTags[profile.key]}><Sparkles size={13} />Regenerate</Button>
                   </div>
-               )
+                  <div className="tag-list" style={{ minHeight: 30 }}>
+                    {roleTags.length === 0 && <span className="form-help">No matching skills saved yet.</span>}
+                    {roleTags.map(tag => (
+                      <span className="tag" key={tag}>{tag}
+                        <button type="button" onClick={() => removeTag(profile.key, tag)} style={{ display: 'inline-flex', marginLeft: 5, border: 0, background: 'transparent', color: 'inherit', cursor: 'pointer' }}><X size={12} /></button>
+                      </span>
+                    ))}
+                  </div>
+                  <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                    <input className="form-input" id={'add-tag-' + profile.key} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); addTag(profile.key, event.target.value); event.target.value = '' } }} placeholder="Add a skill tag" />
+                    <Button variant="secondary" onClick={() => { const element = document.getElementById('add-tag-' + profile.key); addTag(profile.key, element.value); element.value = '' }}>Add</Button>
+                  </div>
+                </div>
+              )
             })}
           </div>
         )}
@@ -368,15 +540,12 @@ function CreateMandateModal({ open, onClose, onCreated }) {
           <Button variant="secondary" onClick={step === 1 ? onClose : () => setStep(1)}>{step === 1 ? 'Cancel' : 'Back'}</Button>
           {step === 1
             ? <Button onClick={continueToTags} loading={extractingTags._all}>Review skills</Button>
-            : <Button onClick={saveMandate} loading={saving}>Save mandate</Button>}
+            : <Button onClick={saveMandate} loading={saving}>{editingTemplate ? 'Update mandate' : 'Save mandate'}</Button>}
         </div>
       </div>
     </Modal>
   )
 }
-
-// ── Edit mandate ──────────────────────────────────────────────────────────────
-
 function EditMandateModal({ open, template, onClose, onSaved }) {
   const [form, setForm] = useState({})
   const [saving, setSaving] = useState(false)
@@ -417,7 +586,7 @@ function EditMandateModal({ open, template, onClose, onSaved }) {
   )
 }
 
-// ── Requirement profile modal ─────────────────────────────────────────────────
+// â”€â”€ Requirement profile modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function RequirementModal({ open, onClose, onSaved, existing, mandateId }) {
   const [form, setForm] = useState({ profile_name: '', years_min: '', years_max: '', headcount: 1, jd_text: '', notes: '' })
@@ -563,7 +732,7 @@ function RequirementModal({ open, onClose, onSaved, existing, mandateId }) {
   )
 }
 
-// ── Add prospects modal ───────────────────────────────────────────────────────
+// â”€â”€ Add prospects modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function AddProspectsModal({ open, onClose, onAdded, mandateId, requirements }) {
   const [members, setMembers] = useState([])
@@ -632,10 +801,10 @@ function AddProspectsModal({ open, onClose, onAdded, mandateId, requirements }) 
         </div>
 
         {requirements.length > 0 && (
-          <Field label="Assign to requirement profile" help="Required — tracks which profile each prospect is for.">
+          <Field label="Assign to requirement profile" help="Required â€” tracks which profile each prospect is for.">
             <select className="form-input" value={requirementId} onChange={e => setRequirementId(e.target.value)}>
               <option value="">Select a profile...</option>
-              {requirements.map(r => <option key={r.id} value={r.id}>{r.profile_name}{r.years_min != null ? ` (${r.years_min}–${r.years_max ?? '+'} yrs)` : ''}</option>)}
+              {requirements.map(r => <option key={r.id} value={r.id}>{r.profile_name}{r.years_min != null ? ` (${r.years_min}â€“${r.years_max ?? '+'} yrs)` : ''}</option>)}
             </select>
           </Field>
         )}
@@ -726,7 +895,7 @@ function CandidateActionModal({ candidate, requirements, onClose, onViewProfile,
           </span>
         )}
         {requirements && requirements.length > 0 && (
-          <Field label="Assign to requirement profile" help="Required — tracks which profile each prospect is for.">
+          <Field label="Assign to requirement profile" help="Required â€” tracks which profile each prospect is for.">
             <select className="form-input" value={requirementId} onChange={e => setRequirementId(e.target.value)}>
               <option value="">Select a profile...</option>
               {requirements.map(r => <option key={r.id} value={r.id}>{r.profile_name}</option>)}
@@ -796,7 +965,7 @@ function MandateReportDetailModal({ report, loading, error, onClose }) {
   )
 }
 
-// ── Send JD modal (with custom message + preview) ─────────────────────────────
+// â”€â”€ Send JD modal (with custom message + preview) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function SendJDModal({ open, onClose, onSent, member, template }) {
   const [customMessage, setCustomMessage] = useState('')
@@ -837,7 +1006,7 @@ function SendJDModal({ open, onClose, onSent, member, template }) {
         <div>
           <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg-muted)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Email preview</p>
           <div style={{ border: '1px solid var(--border-default)', borderRadius: 10, padding: 18, background: 'var(--bg-page)', fontSize: 13, color: 'var(--fg-body)' }}>
-            <p style={{ margin: '0 0 10px', fontWeight: 600, color: 'var(--fg-primary)' }}>Subject: [{template?.client_name}] Job opportunity — {roleName}</p>
+            <p style={{ margin: '0 0 10px', fontWeight: 600, color: 'var(--fg-primary)' }}>Subject: [{template?.client_name}] Job opportunity â€” {roleName}</p>
             <p style={{ margin: '0 0 8px' }}>Hi <strong>{member?.first_name}</strong>,</p>
             <p style={{ margin: '0 0 12px', color: 'var(--fg-muted)' }}>{previewText}</p>
             {jdPreview && (
@@ -859,13 +1028,13 @@ function SendJDModal({ open, onClose, onSent, member, template }) {
   )
 }
 
-// ── Schedule interview modal (5 types) ────────────────────────────────────────
+// â”€â”€ Schedule interview modal (5 types) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const INTERVIEW_TYPES = [
   { value: 'ai_voice', label: 'AI Voice Interview', desc: 'Automated voice interview with AI-generated questions' },
   { value: 'exam', label: 'Coding Exam', desc: 'Coding or multiple-choice assessment' },
   { value: 'human', label: 'Human Video Interview', desc: 'Live video interview with a managed meeting link' },
-  { value: 'offline', label: 'Offline Interview', desc: 'In-person interview — sends email with date and location' },
+  { value: 'offline', label: 'Offline Interview', desc: 'In-person interview â€” sends email with date and location' },
 ]
 
 const HUMAN_VIDEO_PLATFORMS = [
@@ -1057,7 +1226,7 @@ function ScheduleClientTeamModal({ open, onClose, onScheduled, member, template 
           <input className="form-input" type="datetime-local" value={scheduledAt} onChange={e => setScheduledAt(e.target.value)} />
         </Field>
 
-        {/* Video platform selector — only for human interviews */}
+        {/* Video platform selector â€” only for human interviews */}
         {type === 'human' && (
           <Field label="Video platform" help="A meeting link will be auto-created and shared with the candidate.">
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -1145,7 +1314,7 @@ function ScheduleClientTeamModal({ open, onClose, onScheduled, member, template 
   )
 }
 
-// ── Mandate detail ─────────────────────────────────────────────────────────────
+// â”€â”€ Mandate detail â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 const EMPTY_OUTCOME_ROUND_FORM = { interview_at: '', outcome: 'pending', feedback: '', manager_notes: '' }
 
@@ -1243,7 +1412,7 @@ function OutcomeRoundsModal({ open, onClose, onSaved, member, template }) {
           <Avatar name={candidateName} size={42} />
           <div style={{ minWidth: 0, flex: 1 }}>
             <div style={{ color: 'var(--fg-primary)', fontSize: 15, fontWeight: 800 }}>{candidateName}</div>
-            <div style={{ marginTop: 3, color: 'var(--fg-muted)', fontSize: 12 }}>{template?.client_name || 'Client'} · {roleName}</div>
+            <div style={{ marginTop: 3, color: 'var(--fg-muted)', fontSize: 12 }}>{template?.client_name || 'Client'} Â· {roleName}</div>
           </div>
           <span className="status-pill status-pill--brand">{rounds.length} round{rounds.length === 1 ? '' : 's'}</span>
         </div>
@@ -1708,7 +1877,7 @@ function MandateDetail({ initialTemplate, onBack }) {
 
       <div className="workspace-panel detail-panel">
 
-        {/* ── Overview tab ── */}
+        {/* â”€â”€ Overview tab â”€â”€ */}
         {tab === 'overview' && (
           <div className="workspace-stack">
             <div className="detail-facts">
@@ -1749,8 +1918,8 @@ function MandateDetail({ initialTemplate, onBack }) {
                       <div className="assignment-row__content">
                         <strong>{r.profile_name}</strong>
                         <span>
-                          {r.years_min != null ? `${r.years_min}–${r.years_max ?? '+'}  yrs exp` : 'Experience not specified'} &middot; {r.hired_count ?? 0} hired / {r.headcount ?? 1} target &middot; {r.pipeline_count ?? 0} pipeline
-                          {r.notes ? ` · ${r.notes}` : ''}
+                          {r.years_min != null ? `${r.years_min}â€“${r.years_max ?? '+'}  yrs exp` : 'Experience not specified'} &middot; {r.hired_count ?? 0} hired / {r.headcount ?? 1} target &middot; {r.pipeline_count ?? 0} pipeline
+                          {r.notes ? ` Â· ${r.notes}` : ''}
                         </span>
                         <span>
                           {r.jd_text ? 'Role JD attached' : 'Uses mandate JD'}
@@ -1768,7 +1937,7 @@ function MandateDetail({ initialTemplate, onBack }) {
           </div>
         )}
 
-        {/* ── JD tab ── */}
+        {/* â”€â”€ JD tab â”€â”€ */}
         {tab === 'jd' && (
           (template.jd_text || requirements.some(r => r.jd_text))
             ? <div className="workspace-stack" style={{ gap: 14 }}>
@@ -1792,7 +1961,7 @@ function MandateDetail({ initialTemplate, onBack }) {
             : <EmptyState message="No JD text attached. Edit the mandate to paste text or upload a document." />
         )}
 
-        {/* ── Candidates tab ── */}
+        {/* â”€â”€ Candidates tab â”€â”€ */}
         {tab === 'candidates' && (
           loadingCandidates ? <Spinner center /> : (
             <div className="workspace-stack">
@@ -1826,7 +1995,7 @@ function MandateDetail({ initialTemplate, onBack }) {
                           <Avatar name={name} size={30} />
                           <div className="assignment-row__content">
                             <strong>{name}</strong>
-                            <span>{assignment.candidate_email} · {assignment.question_count} questions · {formatDate(assignment.created)}</span>
+                            <span>{assignment.candidate_email} Â· {assignment.question_count} questions Â· {formatDate(assignment.created)}</span>
                           </div>
                           <span className={`status-pill${assignment.status === 'completed' ? ' status-pill--success' : assignment.status === 'cancelled' ? ' status-pill--danger' : ' status-pill--brand'}`}>{assignment.status}</span>
                           {assignment.status === 'scheduled' && (
@@ -1890,7 +2059,7 @@ function MandateDetail({ initialTemplate, onBack }) {
           )
         )}
 
-        {/* ── Client Team tab ── */}
+        {/* â”€â”€ Client Team tab â”€â”€ */}
         {tab === 'team' && (
           loadingTeam ? <Spinner center /> : (
             <div className="workspace-stack">
@@ -1957,13 +2126,13 @@ function MandateDetail({ initialTemplate, onBack }) {
                         {interview?.interviewer_first && (
                           <div style={{ paddingLeft: 46, marginTop: 5, fontSize: 11, color: 'var(--fg-muted)' }}>
                             Interviewer: {interview.interviewer_first} {interview.interviewer_last}
-                            {interview.assignment_status ? ` · ${interview.assignment_status}` : ''}
+                            {interview.assignment_status ? ` Â· ${interview.assignment_status}` : ''}
                           </div>
                         )}
                         {interview?.assignment_status === 'completed' && (
                           <div style={{ marginLeft: 46, marginTop: 8, padding: 10, borderRadius: 8, background: 'var(--bg-surface-alt)', fontSize: 12, color: 'var(--fg-body)' }}>
                             <strong>Interviewer feedback ({interview.interviewer_outcome})</strong>
-                            {interview.interviewer_first && <span> · {interview.interviewer_first} {interview.interviewer_last}</span>}
+                            {interview.interviewer_first && <span> Â· {interview.interviewer_first} {interview.interviewer_last}</span>}
                             {interview.feedback && <p style={{ margin: '5px 0 0' }}>{interview.feedback}</p>}
                             {interview.feedback_file_url && <a href={interview.feedback_file_url} target="_blank" rel="noreferrer" style={{ display: 'inline-block', marginTop: 5 }}>{interview.original_filename || 'Feedback document'}</a>}
                           </div>
@@ -2041,7 +2210,7 @@ function MandateDetail({ initialTemplate, onBack }) {
                           <span className="status-pill">{stage.stage_order}</span>
                           <div className="assignment-row__content">
                             <strong>{stage.stage_name}</strong>
-                            <span>{stage.type} · attempt {stage.attempt_number} · {stage.stage_status}</span>
+                            <span>{stage.type} Â· attempt {stage.attempt_number} Â· {stage.stage_status}</span>
                             {stage.feedback && <span>Feedback: {stage.feedback}</span>}
                           </div>
                           {stage.interviewer_first && <span style={{ fontSize: 12, color: 'var(--fg-muted)' }}>{stage.interviewer_first} {stage.interviewer_last}</span>}
@@ -2093,7 +2262,7 @@ function MandateDetail({ initialTemplate, onBack }) {
           </div>
         )}
 
-        {/* ── Reports tab ── */}
+        {/* â”€â”€ Reports tab â”€â”€ */}
         {tab === 'reports' && (
           <div className="workspace-stack">
             {reportsError && <ErrorMessage message={reportsError} />}
@@ -2240,9 +2409,139 @@ function MandateDetail({ initialTemplate, onBack }) {
   )
 }
 
-// ── List page ─────────────────────────────────────────────────────────────────
+// â”€â”€ List page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+const PAGE_SIZE = 10
+
+function candidateKey(kind, id) {
+  return (kind === 'external' ? 'external:' : 'internal:') + String(id)
+}
+
+function Pagination({ page, pages, total, onChange }) {
+  if (pages <= 1) return null
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+      <span style={{ color: 'var(--fg-muted)', fontSize: 12 }}>
+        Page {page} of {pages} · {total} records
+      </span>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <Button variant="secondary" size="sm" disabled={page <= 1} onClick={() => onChange(page - 1)}>
+          <ChevronLeft size={13} />Previous
+        </Button>
+        <Button variant="secondary" size="sm" disabled={page >= pages} onClick={() => onChange(page + 1)}>
+          Next<ChevronRight size={13} />
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+function MandateListView({ templates, onOpen }) {
+  return (
+    <div className="workspace-panel" style={{ padding: 0, overflow: 'hidden' }}>
+      <div style={{ overflowX: 'auto' }}>
+        <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 900 }}>
+          <thead>
+            <tr style={{ textAlign: 'left', color: 'var(--fg-muted)', fontSize: 11, background: 'var(--bg-surface-alt)' }}>
+              <th style={{ padding: '11px 14px' }}>Client</th>
+              <th style={{ padding: '11px 14px' }}>Role / requirement</th>
+              <th style={{ padding: '11px 14px' }}>Positions</th>
+              <th style={{ padding: '11px 14px' }}>JD</th>
+              <th style={{ padding: '11px 14px' }}>Last modified</th>
+              <th style={{ padding: '11px 14px' }}>Status</th>
+              <th style={{ padding: '11px 14px', width: 120 }}></th>
+            </tr>
+          </thead>
+          <tbody>
+            {templates.map(template => (
+              <tr key={template.id} style={{ borderTop: '1px solid var(--border-default)', color: 'var(--fg-primary)', fontSize: 12 }}>
+                <td style={{ padding: '12px 14px' }}>
+                  <strong style={{ display: 'block', fontSize: 13 }}>{template.client_name}</strong>
+                  <span style={{ color: 'var(--fg-muted)', fontSize: 11 }}>{template.client_email || 'No client email'}</span>
+                </td>
+                <td style={{ padding: '12px 14px', maxWidth: 320 }}>{template.requirements || 'Role not specified'}</td>
+                <td style={{ padding: '12px 14px' }}>{template.hired_count ?? 0} hired / {template.headcount ?? 1}</td>
+                <td style={{ padding: '12px 14px' }}>{template.jd_text ? 'Ready' : 'Missing'}</td>
+                <td style={{ padding: '12px 14px', whiteSpace: 'nowrap' }}>{formatDate(template.updated_at || template.created)}</td>
+                <td style={{ padding: '12px 14px' }}>
+                  <span className={'status-pill ' + (template.archived_at ? '' : 'status-pill--brand')}>{template.archived_at ? 'Archived' : 'Active'}</span>
+                </td>
+                <td style={{ padding: '12px 14px' }}>
+                  <Button variant="secondary" size="sm" onClick={() => onOpen(template)}>Open <ArrowRight size={12} /></Button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
+function CandidateDirectory({ candidates, loading, error, query, page, onPageChange, onSelect }) {
+  const filtered = useMemo(() => {
+    const normalized = query.trim().toLowerCase()
+    return candidates.filter(candidate => !normalized
+      || candidate.name.toLowerCase().includes(normalized)
+      || candidate.email.toLowerCase().includes(normalized))
+  }, [candidates, query])
+  const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const safePage = Math.min(page, pages)
+  const rows = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
+
+  useEffect(() => {
+    if (page > pages) onPageChange(pages)
+  }, [page, pages, onPageChange])
+
+  if (loading) return <Spinner center />
+  if (error) return <ErrorMessage message={error} />
+  if (filtered.length === 0) return <div className="workspace-panel"><EmptyState message="No candidates match this search." /></div>
+
+  return (
+    <div className="workspace-stack">
+      <div className="workspace-panel" style={{ padding: 0, overflow: 'hidden' }}>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 720 }}>
+            <thead>
+              <tr style={{ textAlign: 'left', color: 'var(--fg-muted)', fontSize: 11, background: 'var(--bg-surface-alt)' }}>
+                <th style={{ padding: '11px 14px' }}>Candidate</th>
+                <th style={{ padding: '11px 14px' }}>Type</th>
+                <th style={{ padding: '11px 14px' }}>Interview records</th>
+                <th style={{ padding: '11px 14px' }}>Latest activity</th>
+                <th style={{ padding: '11px 14px', width: 130 }}></th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(candidate => (
+                <tr key={candidate.key} style={{ borderTop: '1px solid var(--border-default)', color: 'var(--fg-primary)', fontSize: 12 }}>
+                  <td style={{ padding: '12px 14px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
+                      <Avatar name={candidate.name} size={30} />
+                      <div>
+                        <strong style={{ display: 'block', fontSize: 13 }}>{candidate.name}</strong>
+                        <span style={{ color: 'var(--fg-muted)', fontSize: 11 }}>{candidate.email || 'No email'}</span>
+                      </div>
+                    </div>
+                  </td>
+                  <td style={{ padding: '12px 14px' }}>{candidate.kind === 'external' ? 'External' : 'Organization'}</td>
+                  <td style={{ padding: '12px 14px', fontWeight: 700 }}>{candidate.history.length}</td>
+                  <td style={{ padding: '12px 14px' }}>{candidate.latestActivity ? formatDate(candidate.latestActivity) : 'No interviews yet'}</td>
+                  <td style={{ padding: '12px 14px' }}>
+                    <Button variant="secondary" size="sm" onClick={() => onSelect(candidate)}>View history <ArrowRight size={12} /></Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <Pagination page={safePage} pages={pages} total={filtered.length} onChange={onPageChange} />
+    </div>
+  )
+}
 
 function ClientInterviewsPage() {
+  const navigate = useNavigate()
   const [wizardOpen, setWizardOpen] = useState(false)
   const [selectedTemplate, setSelectedTemplate] = useState(null)
   const [templates, setTemplates] = useState([])
@@ -2250,116 +2549,255 @@ function ClientInterviewsPage() {
   const [error, setError] = useState(null)
   const [query, setQuery] = useState('')
   const [listState, setListState] = useState('active')
+  const [view, setView] = useState('cards')
+  const [searchMode, setSearchMode] = useState('mandates')
+  const [page, setPage] = useState(1)
+  const [candidatePage, setCandidatePage] = useState(1)
+  const [candidates, setCandidates] = useState([])
+  const [candidatesLoading, setCandidatesLoading] = useState(false)
+  const [candidatesLoaded, setCandidatesLoaded] = useState(false)
+  const [candidateError, setCandidateError] = useState(null)
+  const [selectedCandidate, setSelectedCandidate] = useState(null)
 
   const load = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
       const response = await api.getClientTemplates(listState)
-      setTemplates(response.data || [])
-    } catch (err) { setError(err.message || 'Could not load client mandates.') }
-    finally { setLoading(false) }
+      const sorted = (response.data || []).sort((a, b) =>
+        new Date(b.updated_at || b.created || 0) - new Date(a.updated_at || a.created || 0))
+      setTemplates(sorted)
+    } catch (err) {
+      setError(err.message || 'Could not load client mandates.')
+    } finally {
+      setLoading(false)
+    }
   }, [listState])
 
+  const loadCandidates = useCallback(async () => {
+    setCandidatesLoading(true)
+    setCandidateError(null)
+    try {
+      const [teamResponse, externalResponse, historyResponse] = await Promise.all([
+        api.getTeam(),
+        api.getExternalCandidates(),
+        api.getInterviewHistory(),
+      ])
+      const directory = new Map()
+      ;(teamResponse.data || []).forEach(member => {
+        const key = candidateKey('internal', member.user_id)
+        directory.set(key, {
+          key,
+          kind: 'internal',
+          id: member.user_id,
+          teamMemberId: member.id,
+          name: [member.first_name, member.last_name].filter(Boolean).join(' ') || member.email,
+          email: member.email || '',
+          history: [],
+        })
+      })
+      ;(externalResponse.data || []).forEach(member => {
+        const key = candidateKey('external', member.id)
+        directory.set(key, {
+          key,
+          kind: 'external',
+          id: member.id,
+          name: [member.first_name, member.last_name].filter(Boolean).join(' ') || member.email,
+          email: member.email || '',
+          history: [],
+        })
+      })
+      ;(historyResponse.data || []).forEach(item => {
+        const kind = item.candidate_kind === 'external' ? 'external' : 'internal'
+        const key = candidateKey(kind, item.candidate_id)
+        if (!directory.has(key)) {
+          directory.set(key, {
+            key,
+            kind,
+            id: item.candidate_id,
+            name: [item.candidate_first, item.candidate_last].filter(Boolean).join(' ') || item.candidate_email || 'Candidate',
+            email: item.candidate_email || '',
+            history: [],
+          })
+        }
+        directory.get(key).history.push(item)
+      })
+      const next = [...directory.values()].map(candidate => {
+        candidate.history.sort((a, b) => new Date(b.scheduled_at || b.created || 0) - new Date(a.scheduled_at || a.created || 0))
+        return {
+          ...candidate,
+          latestActivity: candidate.history[0]?.scheduled_at || candidate.history[0]?.created || null,
+        }
+      }).sort((a, b) => a.name.localeCompare(b.name))
+      setCandidates(next)
+      setCandidatesLoaded(true)
+    } catch (err) {
+      setCandidateError(err.message || 'Could not load candidate history.')
+    } finally {
+      setCandidatesLoading(false)
+    }
+  }, [])
+
   useEffect(() => { void load() }, [load])
+  useEffect(() => {
+    if (searchMode === 'candidates' && !candidatesLoaded && !candidatesLoading) void loadCandidates()
+  }, [searchMode, candidatesLoaded, candidatesLoading, loadCandidates])
+  useEffect(() => {
+    setPage(1)
+    setCandidatePage(1)
+  }, [query, listState, searchMode])
+  useEffect(() => {
+    if (searchMode === 'mandates') setSelectedCandidate(null)
+  }, [searchMode])
 
   const visibleTemplates = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    if (!q) return templates
-    return templates.filter(t =>
-      String(t.client_name || '').toLowerCase().includes(q)
-      || String(t.requirements || '').toLowerCase().includes(q)
-      || String(t.client_email || '').toLowerCase().includes(q)
-      || parseTags(t.tags).join(' ').toLowerCase().includes(q)
-    )
+    const normalized = query.trim().toLowerCase()
+    return templates.filter(template => !normalized
+      || String(template.client_name || '').toLowerCase().includes(normalized)
+      || String(template.requirements || '').toLowerCase().includes(normalized)
+      || String(template.client_email || '').toLowerCase().includes(normalized)
+      || parseTags(template.tags).join(' ').toLowerCase().includes(normalized))
   }, [query, templates])
+
+  const mandatePages = Math.max(1, Math.ceil(visibleTemplates.length / PAGE_SIZE))
+  const safePage = Math.min(page, mandatePages)
+  const pageTemplates = visibleTemplates.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
+
+  useEffect(() => {
+    if (page > mandatePages) setPage(mandatePages)
+  }, [page, mandatePages])
 
   if (selectedTemplate) {
     return <MandateDetail initialTemplate={selectedTemplate} onBack={() => { setSelectedTemplate(null); void load() }} />
   }
 
+  const candidateProfilePath = selectedCandidate && selectedCandidate.kind === 'internal'
+    ? selectedCandidate.teamMemberId
+      ? '/manager/team/' + selectedCandidate.teamMemberId
+      : '/manager/organization/' + selectedCandidate.id
+    : null
+
   return (
     <div className="workspace-page workspace-stack">
-      <div className="workspace-section-heading">
-        <div className="workspace-intro">
-          <h2>Client mandate library</h2>
-          <p>Review every active client requirement, then open a mandate to manage its JD, candidates, and interviews.</p>
-        </div>
-      </div>
-
       <div className="workspace-toolbar">
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flex: 1, minWidth: 260, flexWrap: 'wrap' }}>
-          <div className="workspace-search" style={{ flex: '1 1 280px' }}>
-          <Search size={16} />
-          <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search clients, roles, or skills..." />
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flex: 1, minWidth: 280, flexWrap: 'wrap' }}>
+          <div className="workspace-search" style={{ flex: '1 1 420px', paddingLeft: 0, overflow: 'hidden' }}>
+            <select
+              aria-label="Search type"
+              value={searchMode}
+              onChange={event => { setSearchMode(event.target.value); setQuery(''); setSelectedCandidate(null) }}
+              style={{ alignSelf: 'stretch', border: 0, borderRight: '1px solid var(--border-default)', padding: '0 12px', background: 'var(--bg-surface-alt)', color: 'var(--fg-primary)', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}
+            >
+              <option value="mandates">Mandates</option>
+              <option value="candidates">Candidates</option>
+            </select>
+            <Search size={16} style={{ marginLeft: 10 }} />
+            <input
+              value={query}
+              onChange={event => setQuery(event.target.value)}
+              placeholder={searchMode === 'mandates' ? 'Search clients, roles, or skills...' : 'Search candidate name or email...'}
+            />
           </div>
-          <div style={{ display: 'inline-flex', gap: 4, padding: 4, border: '1px solid var(--border-default)', borderRadius: 999, background: 'var(--bg-surface)' }} aria-label="Mandate status filter">
-            {MANDATE_FILTERS.map(filter => (
-              <button
-                key={filter.value}
-                type="button"
-                onClick={() => setListState(filter.value)}
-                aria-pressed={listState === filter.value}
-                style={{
-                  border: 0,
-                  borderRadius: 999,
-                  padding: '7px 12px',
-                  background: listState === filter.value ? 'var(--brand-500)' : 'transparent',
-                  color: listState === filter.value ? 'white' : 'var(--fg-muted)',
-                  fontSize: 12,
-                  fontWeight: 700,
-                  cursor: 'pointer',
-                  boxShadow: listState === filter.value ? 'var(--shadow-xs)' : 'none',
-                }}
-              >
-                {filter.label}
-              </button>
-            ))}
-          </div>
+
+          {searchMode === 'mandates' && (
+            <>
+              <div style={{ display: 'inline-flex', gap: 4, padding: 4, border: '1px solid var(--border-default)', borderRadius: 999, background: 'var(--bg-surface)' }} aria-label="Mandate status filter">
+                {MANDATE_FILTERS.map(filter => (
+                  <button key={filter.value} type="button" onClick={() => setListState(filter.value)} aria-pressed={listState === filter.value}
+                    style={{ border: 0, borderRadius: 999, padding: '7px 12px', background: listState === filter.value ? 'var(--brand-500)' : 'transparent', color: listState === filter.value ? 'white' : 'var(--fg-muted)', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}>
+                    {filter.label}
+                  </button>
+                ))}
+              </div>
+              <div style={{ display: 'inline-flex', padding: 3, border: '1px solid var(--border-default)', borderRadius: 8, background: 'var(--bg-surface)' }} aria-label="Mandate display">
+                <button type="button" aria-label="Card view" aria-pressed={view === 'cards'} onClick={() => setView('cards')} style={{ display: 'inline-flex', padding: 7, border: 0, borderRadius: 6, background: view === 'cards' ? 'var(--brand-50)' : 'transparent', color: view === 'cards' ? 'var(--brand-600)' : 'var(--fg-muted)', cursor: 'pointer' }}><LayoutGrid size={15} /></button>
+                <button type="button" aria-label="List view" aria-pressed={view === 'list'} onClick={() => setView('list')} style={{ display: 'inline-flex', padding: 7, border: 0, borderRadius: 6, background: view === 'list' ? 'var(--brand-50)' : 'transparent', color: view === 'list' ? 'var(--brand-600)' : 'var(--fg-muted)', cursor: 'pointer' }}><List size={15} /></button>
+              </div>
+            </>
+          )}
         </div>
         <Button onClick={() => setWizardOpen(true)}><Plus size={15} />New mandate</Button>
       </div>
 
-      {loading && <Spinner center />}
-      {error && <ErrorMessage message={error} />}
-      {!loading && !error && templates.length === 0 && <div className="workspace-panel"><EmptyState message="No client mandates yet. Create one to begin matching organization members." /></div>}
-      {!loading && !error && templates.length > 0 && visibleTemplates.length === 0 && <div className="workspace-panel"><EmptyState message="No client mandates match this search." /></div>}
-      {!loading && !error && visibleTemplates.length > 0 && (
-        <div className="workspace-grid workspace-grid--wide">
-          {visibleTemplates.map(template => {
-            const tags = parseTags(template.tags)
-            return (
-              <button type="button" className="workspace-card" key={template.id} onClick={() => setSelectedTemplate(template)}>
-                <div className="workspace-card__body">
-                  <div className="workspace-card__topline">
-                    <div className="workspace-card__icon"><BriefcaseBusiness size={20} /></div>
-                    <span className="status-pill status-pill--brand">{template.headcount ?? 1} needed</span>
-                  </div>
-                  <div style={{ marginTop: 18 }}>
-                    <div className="workspace-card__eyebrow">{template.client_name}</div>
-                    <h3 className="workspace-card__title">{template.requirements || 'Role not specified'}</h3>
-                    <p className="workspace-card__subtitle">{template.custom_info || 'Open this mandate to review the JD and manage candidates.'}</p>
-                  </div>
-                  <div className="workspace-card__meta">
-                    <span><Mail size={13} /> {template.client_email || 'No client email'}</span>
-                    <span><Users size={13} /> {template.hired_count ?? 0} hired / {template.headcount ?? 1} positions</span>
-                    <span><FileText size={13} /> {template.jd_text ? 'JD ready' : 'JD missing'}</span>
-                  </div>
-                  {tags.length > 0 && (
-                    <div className="tag-list" style={{ marginTop: 15 }}>
-                      {tags.slice(0, 4).map(tag => <span className="tag" key={tag}>{tag}</span>)}
-                      {tags.length > 4 && <span className="tag">+{tags.length - 4}</span>}
-                    </div>
-                  )}
-                  <div className="workspace-card__footer">
-                    <span className="workspace-card__link">Open mandate <ArrowRight size={13} /></span>
-                    <span style={{ color: 'var(--fg-subtle)', fontSize: 11 }}>{formatDate(template.created)}</span>
-                  </div>
+      {searchMode === 'candidates' ? (
+        selectedCandidate ? (
+          <div className="workspace-stack">
+            <div className="workspace-panel" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
+                <button type="button" onClick={() => setSelectedCandidate(null)} style={{ display: 'inline-flex', padding: 7, borderRadius: 7, border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--fg-primary)', cursor: 'pointer' }}><ArrowLeft size={15} /></button>
+                <Avatar name={selectedCandidate.name} size={38} />
+                <div>
+                  <h2 style={{ margin: 0, fontSize: 16 }}>{selectedCandidate.name}</h2>
+                  <div style={{ marginTop: 3, color: 'var(--fg-muted)', fontSize: 12 }}>{selectedCandidate.email || 'No email'} · {selectedCandidate.history.length} interview records</div>
                 </div>
-              </button>
-            )
-          })}
-        </div>
+              </div>
+              {candidateProfilePath && (
+                <Button variant="secondary" onClick={() => navigate(candidateProfilePath)}>Open profile <ExternalLink size={13} /></Button>
+              )}
+            </div>
+            <InterviewHistoryPanel interviews={selectedCandidate.history} defaultSource="client_mandate" title={selectedCandidate.name + ' interview history'} />
+          </div>
+        ) : (
+          <CandidateDirectory
+            candidates={candidates}
+            loading={candidatesLoading}
+            error={candidateError}
+            query={query}
+            page={candidatePage}
+            onPageChange={setCandidatePage}
+            onSelect={setSelectedCandidate}
+          />
+        )
+      ) : (
+        <>
+          {loading && <Spinner center />}
+          {error && <ErrorMessage message={error} />}
+          {!loading && !error && templates.length === 0 && <div className="workspace-panel"><EmptyState message="No client mandates yet. Create one to begin matching organization members." /></div>}
+          {!loading && !error && templates.length > 0 && visibleTemplates.length === 0 && <div className="workspace-panel"><EmptyState message="No client mandates match this search." /></div>}
+          {!loading && !error && pageTemplates.length > 0 && view === 'list' && (
+            <MandateListView templates={pageTemplates} onOpen={setSelectedTemplate} />
+          )}
+          {!loading && !error && pageTemplates.length > 0 && view === 'cards' && (
+            <div className="workspace-grid workspace-grid--wide">
+              {pageTemplates.map(template => {
+                const tags = parseTags(template.tags)
+                return (
+                  <button type="button" className="workspace-card" key={template.id} onClick={() => setSelectedTemplate(template)}>
+                    <div className="workspace-card__body">
+                      <div className="workspace-card__topline">
+                        <div className="workspace-card__icon"><BriefcaseBusiness size={20} /></div>
+                        <span className="status-pill status-pill--brand">{template.headcount ?? 1} needed</span>
+                      </div>
+                      <div style={{ marginTop: 18 }}>
+                        <div className="workspace-card__eyebrow">{template.client_name}</div>
+                        <h3 className="workspace-card__title">{template.requirements || 'Role not specified'}</h3>
+                        <p className="workspace-card__subtitle">{template.custom_info || 'Open this mandate to review the JD and manage candidates.'}</p>
+                      </div>
+                      <div className="workspace-card__meta">
+                        <span><Mail size={13} /> {template.client_email || 'No client email'}</span>
+                        <span><Users size={13} /> {template.hired_count ?? 0} hired / {template.headcount ?? 1} positions</span>
+                        <span><FileText size={13} /> {template.jd_text ? 'JD ready' : 'JD missing'}</span>
+                      </div>
+                      {tags.length > 0 && (
+                        <div className="tag-list" style={{ marginTop: 15 }}>
+                          {tags.slice(0, 4).map(tag => <span className="tag" key={tag}>{tag}</span>)}
+                          {tags.length > 4 && <span className="tag">+{tags.length - 4}</span>}
+                        </div>
+                      )}
+                      <div className="workspace-card__footer">
+                        <span className="workspace-card__link">Open mandate <ArrowRight size={13} /></span>
+                        <span style={{ color: 'var(--fg-subtle)', fontSize: 11 }}>Modified {formatDate(template.updated_at || template.created)}</span>
+                      </div>
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+          )}
+          {!loading && !error && visibleTemplates.length > 0 && (
+            <Pagination page={safePage} pages={mandatePages} total={visibleTemplates.length} onChange={setPage} />
+          )}
+        </>
       )}
 
       <CreateMandateModal open={wizardOpen} onClose={() => setWizardOpen(false)} onCreated={load} />

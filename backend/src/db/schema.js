@@ -29,7 +29,7 @@ const SCHEMA = {
     columns: [
       'id', 'manager_id', 'client_name', 'client_email', 'headcount',
       'requirements', 'jd_text', 'custom_info', 'tags', 'resume_deadline',
-      'archived_at', 'created',
+      'archived_at', 'created', 'updated_at',
     ],
   },
   client_mandate_requirements: {

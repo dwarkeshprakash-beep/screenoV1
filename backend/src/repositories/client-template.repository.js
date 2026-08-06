@@ -30,7 +30,7 @@ async function getByManager(managerId, state = 'active') {
   } else if (state === 'archived') {
     query += ` AND archived_at IS NOT NULL`
   }
-  query += ` ORDER BY created DESC`
+  query += ` ORDER BY COALESCE(updated_at, created) DESC, created DESC`
   return db.query(query, { managerId })
 }
 
@@ -52,7 +52,8 @@ async function update(id, managerId, data) {
          jd_text         = COALESCE(@jd_text,         jd_text),
          custom_info     = COALESCE(@custom_info,     custom_info),
          tags            = COALESCE(@tags,            tags),
-         resume_deadline = COALESCE(@resume_deadline, resume_deadline)
+         resume_deadline = COALESCE(@resume_deadline, resume_deadline),
+         updated_at      = CURRENT_TIMESTAMP
      WHERE id = @id AND manager_id = @managerId
      RETURNING *`,
     {
@@ -73,7 +74,9 @@ async function update(id, managerId, data) {
 
 async function archive(id, managerId) {
   const rows = await db.query(
-    `UPDATE client_templates SET archived_at = NOW() WHERE id = @id AND manager_id = @managerId RETURNING *`,
+    `UPDATE client_templates
+     SET archived_at = NOW(), updated_at = CURRENT_TIMESTAMP
+     WHERE id = @id AND manager_id = @managerId RETURNING *`,
     { id, managerId }
   )
   return rows[0] || null
@@ -81,7 +84,9 @@ async function archive(id, managerId) {
 
 async function restore(id, managerId) {
   const rows = await db.query(
-    `UPDATE client_templates SET archived_at = NULL WHERE id = @id AND manager_id = @managerId RETURNING *`,
+    `UPDATE client_templates
+     SET archived_at = NULL, updated_at = CURRENT_TIMESTAMP
+     WHERE id = @id AND manager_id = @managerId RETURNING *`,
     { id, managerId }
   )
   return rows[0] || null

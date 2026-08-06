@@ -4,6 +4,7 @@ const crypto = require('crypto')
 const teamMemberRepository = require('../repositories/team-member.repository')
 const userRepository = require('../repositories/user.repository')
 const interviewRepository = require('../repositories/interview.repository')
+const interviewHistoryRepository = require('../repositories/interview-history.repository')
 const externalCandidateRepository = require('../repositories/external-candidate.repository')
 const storageService = require('./storage.service')
 
@@ -233,7 +234,11 @@ async function importFromCSV(csvText, companyId, managerId) {
 
 async function getMemberInterviews(id, managerId) {
   const member = await getMember(id, managerId)
-  return interviewRepository.getByInternalUserForManager(member.user_id, managerId)
+  return interviewHistoryRepository.getByManager(managerId, member.user_id)
+}
+
+async function getInterviewHistory(managerId) {
+  return interviewHistoryRepository.getByManager(managerId)
 }
 
 async function getExternalCandidates(companyId) {
@@ -277,12 +282,12 @@ async function getOrganizationMemberProfile(userId, companyId, managerId) {
 }
 
 async function getOrganizationMemberInterviews(userId, managerId) {
-  return interviewRepository.getByInternalUserForManager(userId, managerId)
+  return interviewHistoryRepository.getByManager(managerId, userId)
 }
 
 module.exports = {
   getTeam, getMember, getOrgUsersNotInTeam, addMember, updateMember,
-  removeMember, getStats, getActivity, importFromCSV, getMemberInterviews,
+  removeMember, getStats, getActivity, importFromCSV, getMemberInterviews, getInterviewHistory,
   parseCSV,
   getExternalCandidates, addExternalCandidate,
   getOrganizationMemberProfile, getOrganizationMemberInterviews

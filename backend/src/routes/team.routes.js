@@ -64,6 +64,16 @@ router.get('/activity', async (req, res) => {
   }
 })
 
+router.get('/interview-history', async (req, res) => {
+  try {
+    const history = await teamService.getInterviewHistory(req.user.id)
+    res.json({ success: true, data: history })
+  } catch (err) {
+    console.error('GET /team/interview-history failed:', err.message)
+    res.status(500).json({ success: false, error: 'Could not load interview history' })
+  }
+})
+
 router.get('/member/:id', async (req, res) => {
   try {
     const member = await teamService.getMember(parseInt(req.params.id, 10), req.user.id)
