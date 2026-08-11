@@ -4,12 +4,10 @@ import { readFile } from 'node:fs/promises'
 const config = JSON.parse(
   await readFile(new URL('../vercel.json', import.meta.url), 'utf8')
 )
+const apiSource = await readFile(new URL('../src/services/api.js', import.meta.url), 'utf8')
 
-assert.equal(
-  config.env?.VITE_USE_SAME_ORIGIN_API,
-  'true',
-  'Vercel must build the frontend in same-origin API mode.'
-)
+assert.match(apiSource, /import\.meta\.env\.PROD/)
+assert.match(apiSource, /VITE_USE_SAME_ORIGIN_API\s*!==\s*'false'/)
 
 const [apiRewrite, healthRewrite, spaRewrite] = config.rewrites || []
 

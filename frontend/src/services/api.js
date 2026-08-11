@@ -1,4 +1,6 @@
-const BASE_URL = import.meta.env.VITE_USE_SAME_ORIGIN_API === 'true'
+const useSameOriginApi = import.meta.env.PROD
+  && import.meta.env.VITE_USE_SAME_ORIGIN_API !== 'false'
+const BASE_URL = useSameOriginApi
   ? ''
   : String(import.meta.env.VITE_API_URL || 'http://localhost:4000').replace(/\/$/, '')
 let refreshPromise = null
