@@ -1,10 +1,20 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "env": {
     "VITE_SHOW_DEMO_ACCOUNTS": "false",
     "VITE_SHOW_QUICK_ACCESS_ACCOUNTS": "true",
-    "VITE_QUICK_LOGIN_DEFAULT_PASSWORD": "Test@1234"
+    "VITE_QUICK_LOGIN_DEFAULT_PASSWORD": "Test@1234",
+    "VITE_USE_SAME_ORIGIN_API": "true"
   },
   "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://screenov1.onrender.com/api/:path*"
+    },
+    {
+      "source": "/health",
+      "destination": "https://screenov1.onrender.com/health"
+    },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

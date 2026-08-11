@@ -1,4 +1,6 @@
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000'
+const BASE_URL = import.meta.env.VITE_USE_SAME_ORIGIN_API === 'true'
+  ? ''
+  : String(import.meta.env.VITE_API_URL || 'http://localhost:4000').replace(/\/$/, '')
 let refreshPromise = null
 
 export class ApiError extends Error {
