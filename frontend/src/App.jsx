@@ -134,6 +134,7 @@ function App() {
             <Route path="monthly" element={<MonthlyAssessmentPage />} />
             <Route path="monthly/plan" element={<Navigate to="/manager/monthly" replace />} />
             <Route path="clients" element={<ClientInterviewsPage />} />
+            <Route path="clients/:mandateId" element={<ClientInterviewsPage />} />
             <Route path="schedule" element={<SchedulePage />} />
             <Route path="reports" element={<ReportsPage />} />
             <Route path="interviewer" element={<ManagerInterviewerPage />} />

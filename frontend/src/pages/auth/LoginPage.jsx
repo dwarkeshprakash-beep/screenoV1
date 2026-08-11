@@ -200,7 +200,7 @@ function LoginPage() {
   }
 
   return (
-    <div style={{ minHeight: '100svh', background: 'var(--slate-900)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.25rem' }}>
+    <div className="login-page" style={{ minHeight: '100svh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1.25rem' }}>
       <div style={{ width: '100%', maxWidth: '28rem' }}>
         <div style={{ textAlign: 'center', marginBottom: '2.5rem' }}>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.625rem', marginBottom: '1rem' }}>
@@ -213,7 +213,7 @@ function LoginPage() {
           <p style={{ fontSize: '0.875rem', color: '#64748B' }}>AI-powered hiring platform</p>
         </div>
 
-        <div style={{ background: '#1E293B', border: '1px solid #334155', borderRadius: '1rem', padding: '1.75rem' }}>
+        <div className="login-card" style={{ borderRadius: '1rem', padding: '1.75rem' }}>
           {mode === 'login' && DEMO_ACCOUNTS.length > 0 && (
             <>
               <p style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--slate-400)', letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: '1.125rem' }}>Quick access</p>

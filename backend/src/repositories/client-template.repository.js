@@ -24,7 +24,18 @@ async function create(data) {
 }
 
 async function getByManager(managerId, state = 'active') {
-  let query = `SELECT * FROM client_templates WHERE manager_id = @managerId`
+  let query = `SELECT client_templates.*,
+                      COALESCE((
+                        SELECT STRING_AGG(
+                          CONCAT_WS(' ', users.first_name, users.last_name, users.email),
+                          ' '
+                        )
+                        FROM client_teams
+                        JOIN users ON users.id = client_teams.user_id
+                        WHERE client_teams.mandate_id = client_templates.id
+                      ), '') AS candidate_search_text
+               FROM client_templates
+               WHERE manager_id = @managerId`
   if (state === 'active') {
     query += ` AND archived_at IS NULL`
   } else if (state === 'archived') {

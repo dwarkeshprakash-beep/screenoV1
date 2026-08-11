@@ -1,10 +1,10 @@
 ﻿import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useOutletContext, useParams } from 'react-router-dom'
 import {
   ArrowLeft, ArrowRight, BriefcaseBusiness, Calendar, CheckCircle2,
   Clock, FileText, Mail, Plus, ChevronLeft, ChevronRight,
   Search, Sparkles, Trash2, Upload, UserCheck, Users, X, AlertCircle, Video,
-  LayoutGrid, List, ExternalLink,
+  LayoutGrid, List,
 } from 'lucide-react'
 import Avatar from '../../components/shared/Avatar'
 import Button from '../../components/shared/Button'
@@ -15,7 +15,6 @@ import ConfirmDialog from '../../components/shared/ConfirmDialog'
 import DeleteMandateModal from '../../components/manager/DeleteMandateModal'
 import ReportRecipientsSelector from '../../components/manager/ReportRecipientsSelector'
 import InterviewFlowModal from '../../components/manager/InterviewFlowModal'
-import InterviewHistoryPanel from '../../components/manager/InterviewHistoryPanel'
 import Spinner from '../../components/shared/Spinner'
 import * as api from '../../services/api'
 import { formatDate, formatDateTime, parseStoredArray, serializeDatetimeLocal } from '../../utils/helpers'
@@ -1498,8 +1497,9 @@ function OutcomeRoundsModal({ open, onClose, onSaved, member, template }) {
   )
 }
 
-function MandateDetail({ initialTemplate, onBack }) {
+function MandateDetail({ initialTemplate }) {
   const navigate = useNavigate()
+  const { setPageMeta } = useOutletContext()
   const [template, setTemplate] = useState(initialTemplate)
   const [tab, setTab] = useState('overview')
   const [requirements, setRequirements] = useState([])
@@ -1546,6 +1546,14 @@ function MandateDetail({ initialTemplate, onBack }) {
   const [confirmDialog, setConfirmDialog] = useState({ open: false, title: '', message: '', onConfirm: () => { } })
   const tags = parseTags(template.tags)
   const isArchived = !!template.archived_at
+
+  useEffect(() => {
+    setPageMeta({
+      title: `Client Mandate · ${template.client_name}`,
+      subtitle: template.requirements || 'Manage candidates, interviews, and outcomes',
+    })
+    return () => setPageMeta(null)
+  }, [setPageMeta, template.client_name, template.requirements])
 
   function handleArchive() {
     setConfirmDialog({
@@ -1829,18 +1837,15 @@ function MandateDetail({ initialTemplate, onBack }) {
 
   return (
     <div className="workspace-page workspace-stack">
-      <div className="detail-header">
-        <div className="detail-header__identity">
-          <button type="button" className="detail-header__back" onClick={onBack}><ArrowLeft size={15} />Mandates</button>
-          <div className="detail-header__title">
-            <h2>
-              {template.client_name}
-              {isArchived && <span className="status-pill" style={{ marginLeft: 8, background: 'var(--slate-100)' }}>Archived</span>}
-            </h2>
-            <p>{template.requirements || 'Client hiring mandate'}</p>
-          </div>
+      <div className="mandate-detail-toolbar">
+        <Link className="detail-header__back" to="/manager/clients"><ArrowLeft size={15} />All mandates</Link>
+        <div className="workspace-tabs" aria-label="Mandate sections">
+          {[['overview', 'Overview'], ['jd', 'Job description'], ['candidates', 'Candidates'], ['team', 'Client team'], ['flows', 'Schedules'], ['reports', 'Reports']].map(([id, label]) => (
+            <button key={id} type="button" className={`workspace-tabs__button${tab === id ? ' is-active' : ''}`} onClick={() => setTab(id)}>{label}</button>
+          ))}
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div className="mandate-detail-toolbar__actions">
+          {isArchived && <span className="status-pill">Archived</span>}
           {isArchived ? (
             <>
               <Button variant="secondary" onClick={() => handleRestore()}>Restore mandate</Button>
@@ -1853,12 +1858,6 @@ function MandateDetail({ initialTemplate, onBack }) {
             </>
           )}
         </div>
-      </div>
-
-      <div className="workspace-tabs" aria-label="Mandate sections" style={{ alignSelf: 'flex-start' }}>
-        {[['overview', 'Overview'], ['jd', 'Job description'], ['candidates', 'Candidates'], ['team', 'Client team'], ['flows', 'Schedules'], ['reports', 'Reports']].map(([id, label]) => (
-          <button key={id} type="button" className={`workspace-tabs__button${tab === id ? ' is-active' : ''}`} onClick={() => setTab(id)}>{label}</button>
-        ))}
       </div>
 
       {message && <div
@@ -2413,10 +2412,6 @@ function MandateDetail({ initialTemplate, onBack }) {
 
 const PAGE_SIZE = 10
 
-function candidateKey(kind, id) {
-  return (kind === 'external' ? 'external:' : 'internal:') + String(id)
-}
-
 function Pagination({ page, pages, total, onChange }) {
   if (pages <= 1) return null
   return (
@@ -2436,7 +2431,7 @@ function Pagination({ page, pages, total, onChange }) {
   )
 }
 
-function MandateListView({ templates, onOpen }) {
+function MandateListView({ templates }) {
   return (
     <div className="workspace-panel" style={{ padding: 0, overflow: 'hidden' }}>
       <div style={{ overflowX: 'auto' }}>
@@ -2467,7 +2462,7 @@ function MandateListView({ templates, onOpen }) {
                   <span className={'status-pill ' + (template.archived_at ? '' : 'status-pill--brand')}>{template.archived_at ? 'Archived' : 'Active'}</span>
                 </td>
                 <td style={{ padding: '12px 14px' }}>
-                  <Button variant="secondary" size="sm" onClick={() => onOpen(template)}>Open <ArrowRight size={12} /></Button>
+                  <Link className="product-button product-button--secondary product-button--sm" to={`/manager/clients/${template.id}`}>Open <ArrowRight size={12} /></Link>
                 </td>
               </tr>
             ))}
@@ -2478,86 +2473,19 @@ function MandateListView({ templates, onOpen }) {
   )
 }
 
-function CandidateDirectory({ candidates, loading, error, query, page, onPageChange, onSelect }) {
-  const filtered = useMemo(() => {
-    const normalized = query.trim().toLowerCase()
-    return candidates.filter(candidate => !normalized
-      || candidate.name.toLowerCase().includes(normalized)
-      || candidate.email.toLowerCase().includes(normalized))
-  }, [candidates, query])
-  const pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
-  const safePage = Math.min(page, pages)
-  const rows = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
-
-  useEffect(() => {
-    if (page > pages) onPageChange(pages)
-  }, [page, pages, onPageChange])
-
-  if (loading) return <Spinner center />
-  if (error) return <ErrorMessage message={error} />
-  if (filtered.length === 0) return <div className="workspace-panel"><EmptyState message="No candidates match this search." /></div>
-
-  return (
-    <div className="workspace-stack">
-      <div className="workspace-panel" style={{ padding: 0, overflow: 'hidden' }}>
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 720 }}>
-            <thead>
-              <tr style={{ textAlign: 'left', color: 'var(--fg-muted)', fontSize: 11, background: 'var(--bg-surface-alt)' }}>
-                <th style={{ padding: '11px 14px' }}>Candidate</th>
-                <th style={{ padding: '11px 14px' }}>Type</th>
-                <th style={{ padding: '11px 14px' }}>Interview records</th>
-                <th style={{ padding: '11px 14px' }}>Latest activity</th>
-                <th style={{ padding: '11px 14px', width: 130 }}></th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map(candidate => (
-                <tr key={candidate.key} style={{ borderTop: '1px solid var(--border-default)', color: 'var(--fg-primary)', fontSize: 12 }}>
-                  <td style={{ padding: '12px 14px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 9 }}>
-                      <Avatar name={candidate.name} size={30} />
-                      <div>
-                        <strong style={{ display: 'block', fontSize: 13 }}>{candidate.name}</strong>
-                        <span style={{ color: 'var(--fg-muted)', fontSize: 11 }}>{candidate.email || 'No email'}</span>
-                      </div>
-                    </div>
-                  </td>
-                  <td style={{ padding: '12px 14px' }}>{candidate.kind === 'external' ? 'External' : 'Organization'}</td>
-                  <td style={{ padding: '12px 14px', fontWeight: 700 }}>{candidate.history.length}</td>
-                  <td style={{ padding: '12px 14px' }}>{candidate.latestActivity ? formatDate(candidate.latestActivity) : 'No interviews yet'}</td>
-                  <td style={{ padding: '12px 14px' }}>
-                    <Button variant="secondary" size="sm" onClick={() => onSelect(candidate)}>View history <ArrowRight size={12} /></Button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-      <Pagination page={safePage} pages={pages} total={filtered.length} onChange={onPageChange} />
-    </div>
-  )
-}
-
 function ClientInterviewsPage() {
-  const navigate = useNavigate()
+  const { mandateId } = useParams()
   const [wizardOpen, setWizardOpen] = useState(false)
   const [selectedTemplate, setSelectedTemplate] = useState(null)
+  const [detailLoading, setDetailLoading] = useState(!!mandateId)
+  const [detailError, setDetailError] = useState(null)
   const [templates, setTemplates] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [query, setQuery] = useState('')
   const [listState, setListState] = useState('active')
   const [view, setView] = useState('cards')
-  const [searchMode, setSearchMode] = useState('mandates')
   const [page, setPage] = useState(1)
-  const [candidatePage, setCandidatePage] = useState(1)
-  const [candidates, setCandidates] = useState([])
-  const [candidatesLoading, setCandidatesLoading] = useState(false)
-  const [candidatesLoaded, setCandidatesLoaded] = useState(false)
-  const [candidateError, setCandidateError] = useState(null)
-  const [selectedCandidate, setSelectedCandidate] = useState(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -2574,81 +2502,27 @@ function ClientInterviewsPage() {
     }
   }, [listState])
 
-  const loadCandidates = useCallback(async () => {
-    setCandidatesLoading(true)
-    setCandidateError(null)
-    try {
-      const [teamResponse, externalResponse, historyResponse] = await Promise.all([
-        api.getTeam(),
-        api.getExternalCandidates(),
-        api.getInterviewHistory(),
-      ])
-      const directory = new Map()
-      ;(teamResponse.data || []).forEach(member => {
-        const key = candidateKey('internal', member.user_id)
-        directory.set(key, {
-          key,
-          kind: 'internal',
-          id: member.user_id,
-          teamMemberId: member.id,
-          name: [member.first_name, member.last_name].filter(Boolean).join(' ') || member.email,
-          email: member.email || '',
-          history: [],
-        })
-      })
-      ;(externalResponse.data || []).forEach(member => {
-        const key = candidateKey('external', member.id)
-        directory.set(key, {
-          key,
-          kind: 'external',
-          id: member.id,
-          name: [member.first_name, member.last_name].filter(Boolean).join(' ') || member.email,
-          email: member.email || '',
-          history: [],
-        })
-      })
-      ;(historyResponse.data || []).forEach(item => {
-        const kind = item.candidate_kind === 'external' ? 'external' : 'internal'
-        const key = candidateKey(kind, item.candidate_id)
-        if (!directory.has(key)) {
-          directory.set(key, {
-            key,
-            kind,
-            id: item.candidate_id,
-            name: [item.candidate_first, item.candidate_last].filter(Boolean).join(' ') || item.candidate_email || 'Candidate',
-            email: item.candidate_email || '',
-            history: [],
-          })
-        }
-        directory.get(key).history.push(item)
-      })
-      const next = [...directory.values()].map(candidate => {
-        candidate.history.sort((a, b) => new Date(b.scheduled_at || b.created || 0) - new Date(a.scheduled_at || a.created || 0))
-        return {
-          ...candidate,
-          latestActivity: candidate.history[0]?.scheduled_at || candidate.history[0]?.created || null,
-        }
-      }).sort((a, b) => a.name.localeCompare(b.name))
-      setCandidates(next)
-      setCandidatesLoaded(true)
-    } catch (err) {
-      setCandidateError(err.message || 'Could not load candidate history.')
-    } finally {
-      setCandidatesLoading(false)
-    }
-  }, [])
-
   useEffect(() => { void load() }, [load])
   useEffect(() => {
-    if (searchMode === 'candidates' && !candidatesLoaded && !candidatesLoading) void loadCandidates()
-  }, [searchMode, candidatesLoaded, candidatesLoading, loadCandidates])
-  useEffect(() => {
     setPage(1)
-    setCandidatePage(1)
-  }, [query, listState, searchMode])
+  }, [query, listState])
+
   useEffect(() => {
-    if (searchMode === 'mandates') setSelectedCandidate(null)
-  }, [searchMode])
+    if (!mandateId) {
+      setSelectedTemplate(null)
+      setDetailError(null)
+      setDetailLoading(false)
+      return
+    }
+    let cancelled = false
+    setDetailLoading(true)
+    setDetailError(null)
+    api.getClientTemplate(mandateId)
+      .then(response => { if (!cancelled) setSelectedTemplate(response.data) })
+      .catch(err => { if (!cancelled) setDetailError(err.message || 'Could not load this mandate.') })
+      .finally(() => { if (!cancelled) setDetailLoading(false) })
+    return () => { cancelled = true }
+  }, [mandateId])
 
   const visibleTemplates = useMemo(() => {
     const normalized = query.trim().toLowerCase()
@@ -2656,6 +2530,7 @@ function ClientInterviewsPage() {
       || String(template.client_name || '').toLowerCase().includes(normalized)
       || String(template.requirements || '').toLowerCase().includes(normalized)
       || String(template.client_email || '').toLowerCase().includes(normalized)
+      || String(template.candidate_search_text || '').toLowerCase().includes(normalized)
       || parseTags(template.tags).join(' ').toLowerCase().includes(normalized))
   }, [query, templates])
 
@@ -2667,40 +2542,25 @@ function ClientInterviewsPage() {
     if (page > mandatePages) setPage(mandatePages)
   }, [page, mandatePages])
 
-  if (selectedTemplate) {
-    return <MandateDetail initialTemplate={selectedTemplate} onBack={() => { setSelectedTemplate(null); void load() }} />
-  }
-
-  const candidateProfilePath = selectedCandidate && selectedCandidate.kind === 'internal'
-    ? selectedCandidate.teamMemberId
-      ? '/manager/team/' + selectedCandidate.teamMemberId
-      : '/manager/organization/' + selectedCandidate.id
-    : null
+  if (mandateId && detailLoading) return <Spinner center />
+  if (mandateId && detailError) return <div className="workspace-page"><ErrorMessage message={detailError} /></div>
+  if (mandateId && selectedTemplate) return <MandateDetail initialTemplate={selectedTemplate} />
 
   return (
     <div className="workspace-page workspace-stack">
       <div className="workspace-toolbar">
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flex: 1, minWidth: 280, flexWrap: 'wrap' }}>
-          <div className="workspace-search" style={{ flex: '1 1 420px', paddingLeft: 0, overflow: 'hidden' }}>
-            <select
-              aria-label="Search type"
-              value={searchMode}
-              onChange={event => { setSearchMode(event.target.value); setQuery(''); setSelectedCandidate(null) }}
-              style={{ alignSelf: 'stretch', border: 0, borderRight: '1px solid var(--border-default)', padding: '0 12px', background: 'var(--bg-surface-alt)', color: 'var(--fg-primary)', fontWeight: 700, fontSize: 12, cursor: 'pointer' }}
-            >
-              <option value="mandates">Mandates</option>
-              <option value="candidates">Candidates</option>
-            </select>
-            <Search size={16} style={{ marginLeft: 10 }} />
+          <div className="workspace-search" style={{ flex: '1 1 420px' }}>
+            <Search size={16} />
             <input
               value={query}
               onChange={event => setQuery(event.target.value)}
-              placeholder={searchMode === 'mandates' ? 'Search clients, roles, or skills...' : 'Search candidate name or email...'}
+              placeholder="Search clients, roles, skills, or assigned candidates..."
+              aria-label="Search client mandates"
             />
           </div>
 
-          {searchMode === 'mandates' && (
-            <>
+          <>
               <div style={{ display: 'inline-flex', gap: 4, padding: 4, border: '1px solid var(--border-default)', borderRadius: 999, background: 'var(--bg-surface)' }} aria-label="Mandate status filter">
                 {MANDATE_FILTERS.map(filter => (
                   <button key={filter.value} type="button" onClick={() => setListState(filter.value)} aria-pressed={listState === filter.value}
@@ -2713,56 +2573,25 @@ function ClientInterviewsPage() {
                 <button type="button" aria-label="Card view" aria-pressed={view === 'cards'} onClick={() => setView('cards')} style={{ display: 'inline-flex', padding: 7, border: 0, borderRadius: 6, background: view === 'cards' ? 'var(--brand-50)' : 'transparent', color: view === 'cards' ? 'var(--brand-600)' : 'var(--fg-muted)', cursor: 'pointer' }}><LayoutGrid size={15} /></button>
                 <button type="button" aria-label="List view" aria-pressed={view === 'list'} onClick={() => setView('list')} style={{ display: 'inline-flex', padding: 7, border: 0, borderRadius: 6, background: view === 'list' ? 'var(--brand-50)' : 'transparent', color: view === 'list' ? 'var(--brand-600)' : 'var(--fg-muted)', cursor: 'pointer' }}><List size={15} /></button>
               </div>
-            </>
-          )}
+          </>
         </div>
         <Button onClick={() => setWizardOpen(true)}><Plus size={15} />New mandate</Button>
       </div>
 
-      {searchMode === 'candidates' ? (
-        selectedCandidate ? (
-          <div className="workspace-stack">
-            <div className="workspace-panel" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
-                <button type="button" onClick={() => setSelectedCandidate(null)} style={{ display: 'inline-flex', padding: 7, borderRadius: 7, border: '1px solid var(--border-default)', background: 'var(--bg-surface)', color: 'var(--fg-primary)', cursor: 'pointer' }}><ArrowLeft size={15} /></button>
-                <Avatar name={selectedCandidate.name} size={38} />
-                <div>
-                  <h2 style={{ margin: 0, fontSize: 16 }}>{selectedCandidate.name}</h2>
-                  <div style={{ marginTop: 3, color: 'var(--fg-muted)', fontSize: 12 }}>{selectedCandidate.email || 'No email'} · {selectedCandidate.history.length} interview records</div>
-                </div>
-              </div>
-              {candidateProfilePath && (
-                <Button variant="secondary" onClick={() => navigate(candidateProfilePath)}>Open profile <ExternalLink size={13} /></Button>
-              )}
-            </div>
-            <InterviewHistoryPanel interviews={selectedCandidate.history} defaultSource="client_mandate" title={selectedCandidate.name + ' interview history'} />
-          </div>
-        ) : (
-          <CandidateDirectory
-            candidates={candidates}
-            loading={candidatesLoading}
-            error={candidateError}
-            query={query}
-            page={candidatePage}
-            onPageChange={setCandidatePage}
-            onSelect={setSelectedCandidate}
-          />
-        )
-      ) : (
-        <>
+      <>
           {loading && <Spinner center />}
           {error && <ErrorMessage message={error} />}
           {!loading && !error && templates.length === 0 && <div className="workspace-panel"><EmptyState message="No client mandates yet. Create one to begin matching organization members." /></div>}
           {!loading && !error && templates.length > 0 && visibleTemplates.length === 0 && <div className="workspace-panel"><EmptyState message="No client mandates match this search." /></div>}
           {!loading && !error && pageTemplates.length > 0 && view === 'list' && (
-            <MandateListView templates={pageTemplates} onOpen={setSelectedTemplate} />
+            <MandateListView templates={pageTemplates} />
           )}
           {!loading && !error && pageTemplates.length > 0 && view === 'cards' && (
             <div className="workspace-grid workspace-grid--wide">
               {pageTemplates.map(template => {
                 const tags = parseTags(template.tags)
                 return (
-                  <button type="button" className="workspace-card" key={template.id} onClick={() => setSelectedTemplate(template)}>
+                  <Link className="workspace-card" key={template.id} to={`/manager/clients/${template.id}`}>
                     <div className="workspace-card__body">
                       <div className="workspace-card__topline">
                         <div className="workspace-card__icon"><BriefcaseBusiness size={20} /></div>
@@ -2789,7 +2618,7 @@ function ClientInterviewsPage() {
                         <span style={{ color: 'var(--fg-subtle)', fontSize: 11 }}>Modified {formatDate(template.updated_at || template.created)}</span>
                       </div>
                     </div>
-                  </button>
+                  </Link>
                 )
               })}
             </div>
@@ -2797,8 +2626,7 @@ function ClientInterviewsPage() {
           {!loading && !error && visibleTemplates.length > 0 && (
             <Pagination page={safePage} pages={mandatePages} total={visibleTemplates.length} onChange={setPage} />
           )}
-        </>
-      )}
+      </>
 
       <CreateMandateModal open={wizardOpen} onClose={() => setWizardOpen(false)} onCreated={load} />
     </div>

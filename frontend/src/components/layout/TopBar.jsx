@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Bell, Search, CalendarPlus, CheckCircle2, FileText, Clock, Menu, X } from 'lucide-react'
+import { Bell, CalendarPlus, CheckCircle2, FileText, Clock, Menu, X } from 'lucide-react'
 import * as api from '../../services/api'
 import { formatDate } from '../../utils/helpers'
 
@@ -79,7 +79,6 @@ function NotifDropdown({ items, loading, onClose, onViewAll }) {
 // ── TopBar ────────────────────────────────────────────────────
 function TopBar({ title = '', subtitle = '', action = null, role = 'manager', onMenuClick }) {
   const navigate = useNavigate()
-  const [query, setQuery] = useState('')
   const [notifOpen, setNotifOpen] = useState(false)
   const [notifItems, setNotifItems] = useState([])
   const [notifLoading, setNotifLoading] = useState(false)
@@ -87,14 +86,6 @@ function TopBar({ title = '', subtitle = '', action = null, role = 'manager', on
   const notifRef = useRef(null)
   const isManager = role === 'manager'
   const hasSidebar = role === 'manager' || role === 'admin'
-
-  function submitSearch(e) {
-    e.preventDefault()
-    const trimmed = query.trim()
-    if (!trimmed || !isManager) return
-    navigate(`/manager/team?search=${encodeURIComponent(trimmed)}`)
-    setQuery('')
-  }
 
   async function toggleNotif() {
     if (notifOpen) { setNotifOpen(false); return }
@@ -149,19 +140,6 @@ function TopBar({ title = '', subtitle = '', action = null, role = 'manager', on
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
-        {isManager && (
-          <form className="topbar-search" onSubmit={submitSearch} role="search" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--slate-100)', borderRadius: 'var(--radius-md)', padding: '0.4375rem 0.75rem', width: '16.25rem', maxWidth: '100%' }}>
-            <Search size={13} color="var(--fg-subtle)" />
-            <input
-              aria-label="Search candidates"
-              value={query}
-              onChange={e => setQuery(e.target.value)}
-              placeholder="Search candidates..."
-              style={{ border: 0, outline: 'none', background: 'transparent', fontSize: 'var(--fs-sm)', color: 'var(--fg-primary)', flex: 1, fontFamily: 'inherit', width: '100%' }}
-            />
-          </form>
-        )}
-
         {isManager && <div ref={notifRef} style={{ position: 'relative' }}>
           <button
             type="button"

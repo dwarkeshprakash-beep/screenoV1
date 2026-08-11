@@ -1,4 +1,4 @@
-import { useNavigate, useLocation } from 'react-router-dom'
+import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { LayoutDashboard, Users, ScanSearch, Calendar, BarChart3, Settings, CheckSquare, UserCheck } from 'lucide-react'
 
 const MANAGER_NAV = [
@@ -90,13 +90,10 @@ function Sidebar({ role = 'manager', open = false, onNavigate }) {
                 || (!exact && to.length > 10 && location.pathname.startsWith(to))
               )
               return (
-                <div
+                <Link
                   key={to + label}
-                  onClick={() => {
-                    if (to === '#') return
-                    navigate(to)
-                    onNavigate?.()
-                  }}
+                  to={to}
+                  onClick={() => onNavigate?.()}
                   style={{
                     display: 'flex', alignItems: 'center', gap: '0.625rem',
                     padding: '0.5625rem 0.75rem', borderRadius: 'var(--radius-md)',
@@ -124,7 +121,7 @@ function Sidebar({ role = 'manager', open = false, onNavigate }) {
                 >
                   <Icon size={15} />
                   {label}
-                </div>
+                </Link>
               )
             })}
           </div>

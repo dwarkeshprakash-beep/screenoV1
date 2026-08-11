@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Outlet, useLocation, useNavigate } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import TopBar from './TopBar'
@@ -99,10 +99,13 @@ function AppLayout({ role = 'manager' }) {
   const location = useLocation()
   const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const { title, subtitle } = getPageMeta(location.pathname)
+  const [pageMetaOverride, setPageMetaOverride] = useState(null)
+  const { title, subtitle } = pageMetaOverride || getPageMeta(location.pathname)
+  const setPageMeta = useCallback(meta => setPageMetaOverride(meta), [])
 
   useEffect(() => {
     setSidebarOpen(false)
+    setPageMetaOverride(null)
   }, [location.pathname])
 
   function handleLogout() {
@@ -141,7 +144,7 @@ function AppLayout({ role = 'manager' }) {
           />
 
           <main className="app-main">
-            <Outlet />
+            <Outlet context={{ setPageMeta }} />
           </main>
         </div>
       </div>
