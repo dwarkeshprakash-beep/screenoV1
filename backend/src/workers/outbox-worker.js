@@ -4,6 +4,7 @@
 
 const db = require('../db/connection')
 const emailService = require('../services/email.service')
+const passwordResetRepository = require('../repositories/password-reset.repository')
 const crypto = require('crypto')
 
 const BATCH_SIZE = 10
@@ -15,6 +16,13 @@ async function processOutboxJobs() {
 
   try {
     const jobs = await db.transaction(async (tx) => {
+      await tx.query(
+        `UPDATE email_outbox_jobs
+         SET status = 'pending', claimed_at = NULL, updated = CURRENT_TIMESTAMP
+         WHERE status = 'claimed'
+           AND claimed_at < CURRENT_TIMESTAMP - INTERVAL '5 minutes'`
+      )
+
       const rows = await tx.query(
         `SELECT * FROM email_outbox_jobs
          WHERE status = 'pending'
@@ -62,6 +70,23 @@ async function processOutboxJobs() {
 async function processJob(job) {
   const payload = typeof job.payload === 'string' ? JSON.parse(job.payload) : (job.payload || {})
 
+  if (job.event_key && job.event_key.startsWith('password_reset_')) {
+    if (!payload.userId) throw new Error('password reset job missing userId')
+    const rawToken = crypto.randomBytes(32).toString('hex')
+    const expiresMinutes = 60
+    await passwordResetRepository.create(
+      payload.userId,
+      crypto.createHash('sha256').update(rawToken).digest('hex'),
+      new Date(Date.now() + expiresMinutes * 60 * 1000)
+    )
+    await emailService.sendPasswordReset(job.recipient, {
+      name: payload.name || '',
+      token: rawToken,
+      expiresMinutes,
+    })
+    return
+  }
+
   if (job.event_key && job.event_key.startsWith('monthly_occurrence_')) {
     if (!job.interview_id) throw new Error('monthly_occurrence job missing interview_id')
 
@@ -102,8 +127,10 @@ async function processJob(job) {
       scheduleTimezone: interview.schedule_timezone,
       details: payload.details || null,
     })
+    return
   }
-  // Additional job types can be handled here
+
+  throw new Error(`Unsupported outbox event: ${job.event_key || 'missing event key'}`)
 }
 
 async function markJobStatus(id, status) {

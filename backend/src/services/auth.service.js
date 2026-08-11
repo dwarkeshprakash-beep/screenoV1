@@ -7,6 +7,7 @@ const db = require('../db/connection')
 const userRepository = require('../repositories/user.repository')
 const refreshTokenRepository = require('../repositories/refresh-token.repository')
 const passwordResetRepository = require('../repositories/password-reset.repository')
+const emailOutboxRepository = require('../repositories/email-outbox.repository')
 const interviewRepository = require('../repositories/interview.repository')
 const emailDeliveryRepository = require('../repositories/email-delivery.repository')
 const emailService = require('./email.service')
@@ -254,19 +255,13 @@ async function requestPasswordReset(email) {
 
   const user = await userRepository.getByEmail(cleanEmail)
   if (!user) return
+  if (await emailOutboxRepository.hasRecentPasswordReset(user.id)) return
 
-  const rawToken = crypto.randomBytes(32).toString('hex')
-  const expiresMinutes = 60
-  await passwordResetRepository.create(
-    user.id,
-    hashToken(rawToken),
-    new Date(Date.now() + expiresMinutes * 60 * 1000)
-  )
-
-  await emailService.sendPasswordReset(user.email, {
+  await emailOutboxRepository.enqueuePasswordReset({
+    eventKey: `password_reset_${user.id}_${crypto.randomUUID()}`,
+    userId: user.id,
+    recipient: user.email,
     name: `${user.first_name || ''} ${user.last_name || ''}`.trim(),
-    token: rawToken,
-    expiresMinutes,
   })
 }
 

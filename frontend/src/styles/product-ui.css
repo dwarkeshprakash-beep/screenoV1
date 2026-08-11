@@ -146,6 +146,13 @@
 .product-button:hover:not(:disabled) {
   transform: translateY(-1px);
   box-shadow: var(--shadow-sm);
+  text-decoration: none;
+}
+
+.sidebar-nav-link:hover,
+.candidate-dashboard-nav__link:hover,
+.detail-header__back:hover {
+  text-decoration: none;
 }
 
 .product-button:active:not(:disabled) {

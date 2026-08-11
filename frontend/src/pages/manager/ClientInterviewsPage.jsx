@@ -547,21 +547,59 @@ function CreateMandateModal({ open, onClose, onCreated }) {
 }
 function EditMandateModal({ open, template, onClose, onSaved }) {
   const [form, setForm] = useState({})
+  const [tags, setTags] = useState([])
   const [saving, setSaving] = useState(false)
+  const [extractingFile, setExtractingFile] = useState(false)
+  const [extractingTags, setExtractingTags] = useState(false)
   const [error, setError] = useState(null)
 
   useEffect(() => {
     if (!open) return
-    setForm({ client_name: template.client_name || '', client_email: template.client_email || '', requirements: template.requirements || '', custom_info: template.custom_info || '' })
+    setForm({ client_name: template.client_name || '', client_email: template.client_email || '', requirements: template.requirements || '', custom_info: template.custom_info || '', jd_text: template.jd_text || '' })
+    setTags(parseTags(template.tags))
     setError(null)
   }, [open, template])
+
+  async function readJdFile(event) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+    setExtractingFile(true)
+    setError(null)
+    try {
+      const response = await api.extractTextFromFile(file)
+      setForm(current => ({ ...current, jd_text: response.data?.text || '' }))
+    } catch (err) {
+      setError(err.message || 'Could not read the JD document.')
+    } finally {
+      setExtractingFile(false)
+    }
+  }
+
+  async function regenerateTags() {
+    if (!String(form.jd_text || '').trim()) {
+      setError('Add a job description before regenerating skills.')
+      return
+    }
+    setExtractingTags(true)
+    setError(null)
+    try {
+      const response = await api.extractTemplateTags(form.jd_text)
+      setTags(Array.isArray(response.data) ? response.data : [])
+    } catch (err) {
+      setError(err.message || 'Could not regenerate matching skills.')
+    } finally {
+      setExtractingTags(false)
+    }
+  }
 
   async function save() {
     setSaving(true)
     setError(null)
     try {
-      const response = await api.updateClientTemplate(template.id, form)
-      onSaved(response.data || { ...template, ...form })
+      const payload = { ...form, tags: JSON.stringify(tags) }
+      const response = await api.updateClientTemplate(template.id, payload)
+      onSaved(response.data || { ...template, ...payload })
     } catch (err) { setError(err.message || 'Could not update the mandate.') }
     finally { setSaving(false) }
   }
@@ -574,6 +612,24 @@ function EditMandateModal({ open, template, onClose, onSaved }) {
           <Field label="Client email"><input className="form-input" type="email" value={form.client_email || ''} onChange={e => setForm(c => ({ ...c, client_email: e.target.value }))} /></Field>
           <Field label="Mandate summary" full><textarea className="form-input" rows={3} value={form.requirements || ''} onChange={e => setForm(c => ({ ...c, requirements: e.target.value }))} style={{ resize: 'vertical' }} /></Field>
           <Field label="Internal notes" full><textarea className="form-input" rows={4} value={form.custom_info || ''} onChange={e => setForm(c => ({ ...c, custom_info: e.target.value }))} style={{ resize: 'vertical' }} /></Field>
+          <Field label="Mandate job description" full help="This is the shared JD. Role profiles can keep their own JDs.">
+            <div className="workspace-stack" style={{ gap: 8 }}>
+              <input id="edit-mandate-jd-file" type="file" accept=".pdf,.doc,.docx,.txt" onChange={readJdFile} style={{ display: 'none' }} />
+              <label htmlFor="edit-mandate-jd-file" className="product-button product-button--secondary product-button--sm" style={{ alignSelf: 'flex-start', cursor: extractingFile ? 'wait' : 'pointer' }}>
+                <Upload size={13} />{extractingFile ? 'Reading…' : 'Upload JD file'}
+              </label>
+              <textarea className="form-input" rows={10} value={form.jd_text || ''} onChange={event => setForm(current => ({ ...current, jd_text: event.target.value }))} placeholder="Paste the mandate JD…" style={{ resize: 'vertical' }} />
+            </div>
+          </Field>
+          <div className="form-field form-field--full" style={{ padding: 12, border: '1px solid var(--border-default)', borderRadius: 8 }}>
+            <div className="workspace-section-heading" style={{ marginBottom: 8 }}>
+              <div><h3 style={{ fontSize: 15 }}>Matching skills</h3><p>Regenerate these after changing the JD.</p></div>
+              <Button variant="secondary" size="sm" onClick={regenerateTags} loading={extractingTags}><Sparkles size={13} />Regenerate</Button>
+            </div>
+            {tags.length > 0
+              ? <div className="tag-list">{tags.map(tag => <span className="tag" key={tag}>{tag}</span>)}</div>
+              : <span className="form-help">No matching skills generated yet.</span>}
+          </div>
         </div>
         {error && <ErrorMessage message={error} />}
         <div className="form-actions" style={{ justifyContent: 'flex-end' }}>
@@ -1897,6 +1953,7 @@ function MandateDetail({ initialTemplate }) {
             <section>
               <div className="workspace-section-heading" style={{ marginBottom: 9 }}>
                 <div><h3 style={{ fontSize: 15 }}>Matching skills</h3></div>
+                <Button variant="secondary" size="sm" onClick={() => setEditOpen(true)} disabled={isArchived}><Sparkles size={13} />Edit JD and skills</Button>
               </div>
               {tags.length > 0 ? <div className="tag-list">{tags.map(tag => <span className="tag" key={tag}>{tag}</span>)}</div>
                 : <span style={{ color: 'var(--fg-muted)', fontSize: 12 }}>No matching skills defined.</span>}
@@ -1942,7 +1999,7 @@ function MandateDetail({ initialTemplate }) {
             ? <div className="workspace-stack" style={{ gap: 14 }}>
               <div className="workspace-section-heading">
                 <div><h3 style={{ fontSize: 16 }}>Job description</h3><p>Used for matching, communication, and AI interview context.</p></div>
-                <FileText size={20} color="var(--brand-500)" />
+                <Button variant="secondary" size="sm" onClick={() => setEditOpen(true)} disabled={isArchived}><FileText size={13} />Edit mandate JD</Button>
               </div>
               {template.jd_text && (
                 <section>
@@ -1952,12 +2009,18 @@ function MandateDetail({ initialTemplate }) {
               )}
               {requirements.filter(r => r.jd_text).map(r => (
                 <section key={r.id}>
-                  <h4 style={{ fontSize: 13, margin: '0 0 8px', color: 'var(--fg-primary)' }}>{r.profile_name || 'Role'} JD</h4>
+                  <div className="workspace-section-heading" style={{ marginBottom: 8 }}>
+                    <h4 style={{ fontSize: 13, margin: 0, color: 'var(--fg-primary)' }}>{r.profile_name || 'Role'} JD</h4>
+                    <Button variant="secondary" size="sm" onClick={() => setReqModal(r)} disabled={isArchived}>Edit role JD</Button>
+                  </div>
                   <div style={{ padding: 18, border: '1px solid var(--border-default)', borderRadius: 10, background: 'var(--slate-50)', fontSize: 13, lineHeight: 1.75, whiteSpace: 'pre-wrap' }}>{r.jd_text}</div>
                 </section>
               ))}
             </div>
-            : <EmptyState message="No JD text attached. Edit the mandate to paste text or upload a document." />
+            : <div className="workspace-stack" style={{ alignItems: 'center' }}>
+              <EmptyState message="No JD text attached. Add a mandate JD or edit a role profile." />
+              <Button onClick={() => setEditOpen(true)} disabled={isArchived}><FileText size={14} />Add mandate JD</Button>
+            </div>
         )}
 
         {/* â”€â”€ Candidates tab â”€â”€ */}
@@ -2502,7 +2565,7 @@ function ClientInterviewsPage() {
     }
   }, [listState])
 
-  useEffect(() => { void load() }, [load])
+  useEffect(() => { if (!mandateId) void load() }, [load, mandateId])
   useEffect(() => {
     setPage(1)
   }, [query, listState])
@@ -2546,6 +2609,14 @@ function ClientInterviewsPage() {
   if (mandateId && detailError) return <div className="workspace-page"><ErrorMessage message={detailError} /></div>
   if (mandateId && selectedTemplate) return <MandateDetail initialTemplate={selectedTemplate} />
 
+  const hasActiveFilters = query.trim() !== '' || listState !== 'active'
+
+  function clearFilters() {
+    setQuery('')
+    setListState('active')
+    setPage(1)
+  }
+
   return (
     <div className="workspace-page workspace-stack">
       <div className="workspace-toolbar">
@@ -2573,6 +2644,7 @@ function ClientInterviewsPage() {
                 <button type="button" aria-label="Card view" aria-pressed={view === 'cards'} onClick={() => setView('cards')} style={{ display: 'inline-flex', padding: 7, border: 0, borderRadius: 6, background: view === 'cards' ? 'var(--brand-50)' : 'transparent', color: view === 'cards' ? 'var(--brand-600)' : 'var(--fg-muted)', cursor: 'pointer' }}><LayoutGrid size={15} /></button>
                 <button type="button" aria-label="List view" aria-pressed={view === 'list'} onClick={() => setView('list')} style={{ display: 'inline-flex', padding: 7, border: 0, borderRadius: 6, background: view === 'list' ? 'var(--brand-50)' : 'transparent', color: view === 'list' ? 'var(--brand-600)' : 'var(--fg-muted)', cursor: 'pointer' }}><List size={15} /></button>
               </div>
+              {hasActiveFilters && <Button variant="ghost" size="sm" onClick={clearFilters}><X size={13} />Clear filters</Button>}
           </>
         </div>
         <Button onClick={() => setWizardOpen(true)}><Plus size={15} />New mandate</Button>

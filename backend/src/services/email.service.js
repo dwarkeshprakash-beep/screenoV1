@@ -37,7 +37,7 @@ const SMTP_CONNECTION_ERRORS = ['ETIMEDOUT', 'ESOCKET', 'ECONNECTION', 'ECONNREF
 // ── Static recipients — all mail is redirected here ──────────────────────────
 
 const FROM_NAME  = process.env.MAIL_FROM_NAME  || 'Screeno'
-const FROM_EMAIL = process.env.MAIL_FROM_EMAIL
+const FROM_EMAIL = process.env.MAIL_FROM_EMAIL || process.env.SMTP_USER
 const EMAIL_TRANSPORT = process.env.EMAIL_TRANSPORT || 'auto'
 
 if (process.env.EMAIL_REDIRECT_TO) {
@@ -69,6 +69,23 @@ function getDeliveredRecipients(originalTo) {
 
 function senderLabel(companyName) {
   return companyName || FROM_NAME || 'Screeno'
+}
+
+/**
+ * Report whether production email delivery has the required configuration.
+ * No credential values are returned.
+ * @returns {{configured: boolean, transport: string}}
+ */
+function getConfigurationStatus() {
+  if (EMAIL_TRANSPORT === 'console') return { configured: true, transport: 'console' }
+  if (process.env.BREVO_API_KEY && FROM_EMAIL) return { configured: true, transport: 'brevo_api' }
+  const smtpConfigured = Boolean(
+    process.env.SMTP_HOST
+    && process.env.SMTP_USER
+    && process.env.SMTP_PASSWORD
+    && FROM_EMAIL
+  )
+  return { configured: smtpConfigured, transport: 'smtp' }
 }
 
 // ── Send via Brevo HTTP API (works from Render / any cloud host) ──────────────
@@ -696,6 +713,7 @@ async function sendInterviewCancelled(to, data) {
 }
 
 module.exports = {
+  getConfigurationStatus,
   sendMail,
   sendPasswordReset,
   sendMagicLink,

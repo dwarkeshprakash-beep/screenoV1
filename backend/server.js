@@ -25,6 +25,7 @@ const interviewFlowRoutes = require('./src/routes/interview-flow.routes')
 const reportJobService = require('./src/services/report-job.service')
 const interviewFlowExpiryService = require('./src/services/interview-flow-expiry.service')
 const outboxWorker = require('./src/workers/outbox-worker')
+const emailService = require('./src/services/email.service')
 const db = require('./src/db/connection')
 
 const app = express()
@@ -83,7 +84,14 @@ app.use('/api/interview-flows', interviewFlowRoutes)
 app.get('/health', async (req, res) => {
   try {
     await db.query('SELECT 1')
-    res.json({ status: 'ok', timestamp: new Date().toISOString() })
+    res.json({
+      status: 'ok',
+      services: {
+        database: { configured: true },
+        email: emailService.getConfigurationStatus(),
+      },
+      timestamp: new Date().toISOString(),
+    })
   } catch (err) {
     res.status(503).json({ status: 'error', error: 'DB unreachable', timestamp: new Date().toISOString() })
   }
@@ -106,6 +114,10 @@ app.use((err, req, res, next) => {
 // ── START ─────────────────────────────────────────────────────
 const server = app.listen(PORT, () => {
   console.log(`[server] Running on http://localhost:${PORT}`)
+  const emailStatus = emailService.getConfigurationStatus()
+  if (!emailStatus.configured) {
+    console.warn(`[server] Email delivery is not configured for ${emailStatus.transport}`)
+  }
   reportJobService.startReportJobWorker()
   interviewFlowExpiryService.startInterviewFlowExpiryWorker()
   outboxWorker.startWorker()

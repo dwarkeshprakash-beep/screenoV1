@@ -67,9 +67,25 @@ router.post('/refresh', async (req, res) => {
     res.json({ success: true, data: { accessToken, user } })
   } catch (err) {
     console.error('POST /auth/refresh failed:', err.message)
-    res.clearCookie(COOKIE_NAME, COOKIE_OPTIONS)
-    const errCode = err.message.includes('reuse') ? 'TOKEN_REUSE' : 'SESSION_EXPIRED'
-    res.status(401).json({ success: false, error: errCode, message: err.message || 'Session expired. Please log in again.' })
+    const sessionErrors = [
+      'No refresh token',
+      'Invalid refresh token',
+      'Refresh token revoked',
+      'Refresh token expired',
+      'Token reuse detected',
+      'User not found',
+    ]
+    const isSessionError = sessionErrors.some(message => err.message.includes(message))
+    if (isSessionError) {
+      res.clearCookie(COOKIE_NAME, COOKIE_OPTIONS)
+      const errCode = err.message.includes('reuse') ? 'TOKEN_REUSE' : 'SESSION_EXPIRED'
+      return res.status(401).json({ success: false, error: errCode, message: 'Session expired. Please log in again.' })
+    }
+    res.status(503).json({
+      success: false,
+      error: 'SESSION_REFRESH_UNAVAILABLE',
+      message: 'Your session could not be refreshed right now. Please try again.',
+    })
   }
 })
 
@@ -104,7 +120,7 @@ router.post('/forgot-password', async (req, res) => {
     })
   } catch (err) {
     console.error('POST /auth/forgot-password failed:', err)
-    res.status(500).json({ success: false, error: 'Could not request password reset' })
+    res.status(503).json({ success: false, error: 'Password reset is temporarily unavailable. Please try again.' })
   }
 })
 

@@ -93,6 +93,7 @@ function Sidebar({ role = 'manager', open = false, onNavigate }) {
                 <Link
                   key={to + label}
                   to={to}
+                  className="sidebar-nav-link"
                   onClick={() => onNavigate?.()}
                   style={{
                     display: 'flex', alignItems: 'center', gap: '0.625rem',
