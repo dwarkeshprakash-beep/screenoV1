@@ -8,6 +8,7 @@ const express = require('express')
 const cors = require('cors')
 const cookieParser = require('cookie-parser')
 const rateLimit = require('./src/middleware/rate-limit')
+const authRateLimitKey = require('./src/middleware/auth-rate-limit-key')
 
 const authRoutes = require('./src/routes/auth.routes')
 const teamRoutes = require('./src/routes/team.routes')
@@ -30,6 +31,10 @@ const db = require('./src/db/connection')
 
 const app = express()
 const PORT = process.env.PORT || 4000
+const configuredAuthRateLimit = Number(process.env.AUTH_RATE_LIMIT_MAX || 30)
+const authRateLimitMax = Number.isFinite(configuredAuthRateLimit) && configuredAuthRateLimit > 0
+  ? configuredAuthRateLimit
+  : 30
 
 // Last-resort safety net — log and keep running instead of crashing the process.
 // Background work (report generation, email delivery) fires promise chains that
@@ -58,7 +63,12 @@ app.use((req, res, next) => {
 app.use(express.json({ limit: '1mb' }))
 app.use(cookieParser())
 
-const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 30, keyPrefix: 'auth' })
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: authRateLimitMax,
+  keyPrefix: 'auth',
+  keyGenerator: authRateLimitKey,
+})
 const writeLimiter = rateLimit({ windowMs: 60 * 1000, max: 120, keyPrefix: 'write' })
 
 // ── ROUTES ────────────────────────────────────────────────────

@@ -29,6 +29,7 @@ const MIGRATIONS = [
   '020_interview_flows.sql',
   '021_flow_report_recipients.sql',
   '022_flow_runtime_safety.sql',
+  '023_mandate_updated_at.sql',
 ]
 
 async function main() {

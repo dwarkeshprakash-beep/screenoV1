@@ -5,23 +5,11 @@
 const express = require('express')
 const authMiddleware = require('../middleware/auth')
 const authService = require('../services/auth.service')
+const { getRefreshCookieOptions } = require('../config/auth')
 
 const router = express.Router()
 
 const COOKIE_NAME = 'refreshToken'
-const cookieSameSite = String(
-  process.env.COOKIE_SAMESITE || (process.env.NODE_ENV === 'production' ? 'none' : 'lax')
-).toLowerCase()
-const cookieSecure = process.env.COOKIE_SECURE
-  ? process.env.COOKIE_SECURE === 'true'
-  : process.env.NODE_ENV === 'production' || cookieSameSite === 'none'
-const COOKIE_OPTIONS = {
-  httpOnly: true,
-  secure: cookieSecure,
-  sameSite: cookieSameSite,
-  path: '/api/auth',
-  maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days in ms
-}
 
 // POST /api/auth/login
 router.post('/login', async (req, res) => {
@@ -33,7 +21,7 @@ router.post('/login', async (req, res) => {
 
     const { accessToken, refreshToken, user } = await authService.login(email, password)
 
-    res.cookie(COOKIE_NAME, refreshToken, COOKIE_OPTIONS)
+    res.cookie(COOKIE_NAME, refreshToken, getRefreshCookieOptions(req))
     res.json({ success: true, data: { accessToken, user } })
   } catch (err) {
     console.error('POST /auth/login failed:', err)
@@ -59,7 +47,7 @@ router.post('/refresh', async (req, res) => {
     const { accessToken, refreshToken, user } = await authService.refresh(rawRefresh)
     
     if (refreshToken) {
-      res.cookie(COOKIE_NAME, refreshToken, COOKIE_OPTIONS)
+      res.cookie(COOKIE_NAME, refreshToken, getRefreshCookieOptions(req))
     }
     // If refreshToken is null, we are in a grace period for a rotated token, 
     // so we just return the new accessToken and leave the cookie alone.
@@ -77,7 +65,7 @@ router.post('/refresh', async (req, res) => {
     ]
     const isSessionError = sessionErrors.some(message => err.message.includes(message))
     if (isSessionError) {
-      res.clearCookie(COOKIE_NAME, COOKIE_OPTIONS)
+      res.clearCookie(COOKIE_NAME, getRefreshCookieOptions(req, { clear: true }))
       const errCode = err.message.includes('reuse') ? 'TOKEN_REUSE' : 'SESSION_EXPIRED'
       return res.status(401).json({ success: false, error: errCode, message: 'Session expired. Please log in again.' })
     }
@@ -96,11 +84,11 @@ router.post('/logout', async (req, res) => {
     if (rawRefresh) {
       await authService.logout(rawRefresh)
     }
-    res.clearCookie(COOKIE_NAME, COOKIE_OPTIONS)
+    res.clearCookie(COOKIE_NAME, getRefreshCookieOptions(req, { clear: true }))
     res.json({ success: true, data: null })
   } catch (err) {
     console.error('POST /auth/logout failed:', err.message)
-    res.clearCookie(COOKIE_NAME, COOKIE_OPTIONS)
+    res.clearCookie(COOKIE_NAME, getRefreshCookieOptions(req, { clear: true }))
     res.json({ success: true, data: null }) // logout always succeeds from user perspective
   }
 })

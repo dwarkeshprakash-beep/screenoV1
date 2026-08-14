@@ -11,6 +11,7 @@ const emailOutboxRepository = require('../repositories/email-outbox.repository')
 const interviewRepository = require('../repositories/interview.repository')
 const emailDeliveryRepository = require('../repositories/email-delivery.repository')
 const emailService = require('./email.service')
+const { getRefreshTokenTtlMs } = require('../config/auth')
 const {
   launchWindow,
   launchWindowMessage,
@@ -165,7 +166,7 @@ async function login(email, password) {
 
   const rawRefresh = crypto.randomBytes(64).toString('hex')
   const tokenHash = hashToken(rawRefresh)
-  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+  const expiresAt = new Date(Date.now() + getRefreshTokenTtlMs())
 
   await refreshTokenRepository.create(user.id, tokenHash, expiresAt)
 
@@ -224,7 +225,7 @@ async function refresh(rawRefreshToken) {
   await refreshTokenRepository.create(
     user.id,
     nextTokenHash,
-    new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    new Date(Date.now() + getRefreshTokenTtlMs()),
     stored.family_id
   )
 

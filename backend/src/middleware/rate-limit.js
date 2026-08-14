@@ -1,13 +1,25 @@
 // backend/src/middleware/rate-limit.js
-// Small in-memory route limiter. Good enough for local/internal use.
+// Small in-memory route limiter. Good enough for a single application instance.
 
-function rateLimit({ windowMs, max, keyPrefix }) {
+function rateLimit({ windowMs, max, keyPrefix, keyGenerator }) {
   const hits = new Map()
+  let requestsSinceCleanup = 0
 
   return (req, res, next) => {
     const now = Date.now()
-    const key = `${keyPrefix}:${req.ip}:${req.user?.id || 'anon'}`
+    const subject = keyGenerator
+      ? keyGenerator(req)
+      : `${req.ip}:${req.user?.id || 'anon'}`
+    const key = `${keyPrefix}:${subject}`
     const current = hits.get(key) || { count: 0, resetAt: now + windowMs }
+
+    requestsSinceCleanup += 1
+    if (requestsSinceCleanup >= 1000) {
+      for (const [storedKey, value] of hits) {
+        if (now > value.resetAt) hits.delete(storedKey)
+      }
+      requestsSinceCleanup = 0
+    }
 
     if (now > current.resetAt) {
       current.count = 0
