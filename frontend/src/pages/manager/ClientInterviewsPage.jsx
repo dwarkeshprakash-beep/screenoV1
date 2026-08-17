@@ -201,6 +201,7 @@ function CreateMandateModal({ open, onClose, onCreated }) {
   const [existingMandates, setExistingMandates] = useState([])
   const [companiesLoading, setCompaniesLoading] = useState(false)
   const [companyMenuOpen, setCompanyMenuOpen] = useState(false)
+  const [highlightedCompanyIndex, setHighlightedCompanyIndex] = useState(-1)
   const [selectedCompany, setSelectedCompany] = useState(null)
   const [editingTemplate, setEditingTemplate] = useState(null)
 
@@ -215,6 +216,7 @@ function CreateMandateModal({ open, onClose, onCreated }) {
     setSelectedCompany(null)
     setEditingTemplate(null)
     setCompanyMenuOpen(false)
+    setHighlightedCompanyIndex(-1)
     setCompaniesLoading(true)
     api.getClientTemplates('all')
       .then(response => setExistingMandates(response.data || []))
@@ -246,6 +248,10 @@ function CreateMandateModal({ open, onClose, onCreated }) {
       .slice(0, 8)
   }, [companies, form.clientName])
 
+  useEffect(() => {
+    setHighlightedCompanyIndex(companyMatches.length ? 0 : -1)
+  }, [companyMatches])
+
   function update(key, value) { setForm(current => ({ ...current, [key]: value })) }
 
   function selectCompany(company) {
@@ -258,6 +264,7 @@ function CreateMandateModal({ open, onClose, onCreated }) {
       clientEmail: latest?.client_email || current.clientEmail,
     }))
     setCompanyMenuOpen(false)
+    setHighlightedCompanyIndex(-1)
     setError(null)
   }
 
@@ -438,22 +445,43 @@ function CreateMandateModal({ open, onClose, onCreated }) {
                 <input
                   className="form-input"
                   value={form.clientName}
+                  role="combobox"
+                  aria-autocomplete="list"
+                  aria-expanded={companyMenuOpen}
+                  aria-controls="company-search-options"
+                  aria-activedescendant={highlightedCompanyIndex >= 0 ? `company-option-${highlightedCompanyIndex}` : undefined}
                   onFocus={() => setCompanyMenuOpen(true)}
                   onChange={event => {
                     update('clientName', event.target.value)
                     setSelectedCompany(null)
                     setCompanyMenuOpen(true)
                   }}
-                  onKeyDown={event => { if (event.key === 'Escape') setCompanyMenuOpen(false) }}
+                  onKeyDown={event => {
+                    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+                      event.preventDefault()
+                      setCompanyMenuOpen(true)
+                      if (!companyMatches.length) return
+                      setHighlightedCompanyIndex(current => {
+                        if (event.key === 'ArrowDown') return current < companyMatches.length - 1 ? current + 1 : 0
+                        return current > 0 ? current - 1 : companyMatches.length - 1
+                      })
+                    } else if (event.key === 'Enter' && companyMenuOpen && highlightedCompanyIndex >= 0) {
+                      event.preventDefault()
+                      selectCompany(companyMatches[highlightedCompanyIndex])
+                    } else if (event.key === 'Escape') {
+                      setCompanyMenuOpen(false)
+                      setHighlightedCompanyIndex(-1)
+                    }
+                  }}
                   placeholder="Start typing a company name"
                   autoComplete="off"
                 />
                 {companyMenuOpen && (
-                  <div style={{ position: 'absolute', zIndex: 20, top: 'calc(100% + 5px)', left: 0, right: 0, maxHeight: 260, overflowY: 'auto', border: '1px solid var(--border-default)', borderRadius: 10, background: 'var(--bg-surface)', boxShadow: 'var(--shadow-lg)' }}>
+                  <div id="company-search-options" role="listbox" style={{ position: 'absolute', zIndex: 20, top: 'calc(100% + 5px)', left: 0, right: 0, maxHeight: 260, overflowY: 'auto', border: '1px solid var(--border-default)', borderRadius: 10, background: 'var(--bg-surface)', boxShadow: 'var(--shadow-lg)' }}>
                     {companiesLoading && <div style={{ padding: 12, color: 'var(--fg-muted)', fontSize: 12 }}>Loading companies…</div>}
-                    {!companiesLoading && companyMatches.map(company => (
-                      <button key={company.name.toLowerCase()} type="button" onMouseDown={event => event.preventDefault()} onClick={() => selectCompany(company)}
-                        style={{ width: '100%', padding: '10px 12px', border: 0, borderBottom: '1px solid var(--border-default)', background: 'transparent', textAlign: 'left', cursor: 'pointer' }}>
+                    {!companiesLoading && companyMatches.map((company, index) => (
+                      <button id={`company-option-${index}`} role="option" aria-selected={highlightedCompanyIndex === index} key={company.name.toLowerCase()} type="button" onMouseDown={event => event.preventDefault()} onMouseEnter={() => setHighlightedCompanyIndex(index)} onClick={() => selectCompany(company)}
+                        style={{ width: '100%', padding: '10px 12px', border: 0, borderBottom: '1px solid var(--border-default)', background: highlightedCompanyIndex === index ? 'var(--brand-50)' : 'transparent', textAlign: 'left', cursor: 'pointer' }}>
                         <strong style={{ display: 'block', color: 'var(--fg-primary)', fontSize: 13 }}>{company.name}</strong>
                         <span style={{ color: 'var(--fg-muted)', fontSize: 11 }}>{company.mandates.length} existing mandate{company.mandates.length === 1 ? '' : 's'}</span>
                       </button>

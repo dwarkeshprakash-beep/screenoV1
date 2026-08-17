@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { UploadCloud } from 'lucide-react'
 import Spinner from '../../components/shared/Spinner'
+import ChangePasswordForm from '../../components/shared/ChangePasswordForm'
 import * as api from '../../services/api'
 
 function CandidateProfilePage() {
@@ -154,6 +155,11 @@ function CandidateProfilePage() {
           </div>
         </div>
       )}
+
+      <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderRadius: 12, padding: '20px', boxShadow: 'var(--shadow-sm)', marginTop: 14 }}>
+        <p style={{ fontSize: 11, fontWeight: 700, color: 'var(--fg-muted)', margin: '0 0 10px', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Security</p>
+        <ChangePasswordForm />
+      </div>
     </div>
   )
 }

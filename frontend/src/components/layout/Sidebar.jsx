@@ -132,7 +132,7 @@ function Sidebar({ role = 'manager', open = false, onNavigate }) {
       {/* User footer */}
       <div
         onClick={() => {
-          navigate(role === 'admin' ? '/admin/dashboard' : '/manager/profile')
+          navigate(role === 'admin' ? '/admin/profile' : '/manager/profile')
           onNavigate?.()
         }}
         style={{

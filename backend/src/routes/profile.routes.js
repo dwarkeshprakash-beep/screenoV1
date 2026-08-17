@@ -6,6 +6,7 @@ const userRepository = require('../repositories/user.repository')
 const storageService = require('../services/storage.service')
 const documentTextService = require('../services/document-text.service')
 const llmService = require('../services/llm.service')
+const { validatePassword } = require('../utils/password-policy')
 
 const router = express.Router()
 router.use(authMiddleware)
@@ -75,14 +76,16 @@ router.patch('/', async (req, res) => {
       if (!currentPassword) {
         return res.status(400).json({ success: false, error: 'Current password required' })
       }
-      if (String(newPassword).length < 8) {
-        return res.status(400).json({ success: false, error: 'New password must be at least 8 characters' })
-      }
+      const passwordError = validatePassword(newPassword)
+      if (passwordError) return res.status(400).json({ success: false, error: passwordError })
       const fullUser = await userRepository.getByIdWithPassword(req.user.id)
       if (!fullUser) return res.status(404).json({ success: false, error: 'User not found' })
       const valid = await bcrypt.compare(currentPassword, fullUser.password)
       if (!valid) {
         return res.status(400).json({ success: false, error: 'Current password is incorrect' })
+      }
+      if (await bcrypt.compare(newPassword, fullUser.password)) {
+        return res.status(400).json({ success: false, error: 'New password must be different from your current password' })
       }
       await userRepository.updatePassword(req.user.id, await bcrypt.hash(newPassword, 10))
     }

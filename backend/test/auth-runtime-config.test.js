@@ -7,6 +7,7 @@ const {
   parseDurationMs,
   getRefreshCookieOptions,
 } = require('../src/config/auth')
+const { validatePassword } = require('../src/utils/password-policy')
 
 function withEnv(values, callback) {
   const previous = {}
@@ -89,4 +90,12 @@ test('auth rate-limit keys do not retain raw credentials', () => {
   })
   assert.match(key, /^refresh:[a-f0-9]{64}$/)
   assert.equal(key.includes('raw-secret-token'), false)
+})
+
+test('password policy is consistent for profile changes and reset links', () => {
+  assert.equal(validatePassword('Screeno2026'), null)
+  assert.match(validatePassword('alllowercase1'), /uppercase/)
+  assert.match(validatePassword('ALLUPPERCASE1'), /lowercase/)
+  assert.match(validatePassword('NoNumbersHere'), /number/)
+  assert.match(validatePassword('Short1'), /8-72/)
 })

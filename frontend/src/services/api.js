@@ -381,6 +381,8 @@ export const getManagerProfile = getProfile
 export const updateManagerProfile = data =>
   request('/api/profile', { method: 'PATCH', body: JSON.stringify(data) })
 export const updateCandidateProfile = updateManagerProfile
+export const changePassword = data =>
+  request('/api/profile', { method: 'PATCH', body: JSON.stringify(data) })
 export const uploadOwnResume = file => {
   const formData = new FormData()
   formData.append('resume', file)

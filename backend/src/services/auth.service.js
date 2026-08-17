@@ -12,6 +12,7 @@ const interviewRepository = require('../repositories/interview.repository')
 const emailDeliveryRepository = require('../repositories/email-delivery.repository')
 const emailService = require('./email.service')
 const { getRefreshTokenTtlMs } = require('../config/auth')
+const { validatePassword } = require('../utils/password-policy')
 const {
   launchWindow,
   launchWindowMessage,
@@ -268,9 +269,8 @@ async function requestPasswordReset(email) {
 
 async function resetPassword(token, newPassword) {
   if (!token) throw new Error('Reset token is required')
-  if (!newPassword || String(newPassword).length < 8) {
-    throw new Error('Password must be at least 8 characters')
-  }
+  const passwordError = validatePassword(newPassword)
+  if (passwordError) throw new Error(passwordError)
 
   const stored = await passwordResetRepository.getValidByHash(hashToken(token))
   if (!stored) throw new Error('Reset link is invalid or expired')

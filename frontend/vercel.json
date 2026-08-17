@@ -2,8 +2,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "env": {
     "VITE_SHOW_DEMO_ACCOUNTS": "false",
-    "VITE_SHOW_QUICK_ACCESS_ACCOUNTS": "true",
-    "VITE_QUICK_LOGIN_DEFAULT_PASSWORD": "Test@1234"
+    "VITE_SHOW_QUICK_ACCESS_ACCOUNTS": "false"
   },
   "rewrites": [
     {

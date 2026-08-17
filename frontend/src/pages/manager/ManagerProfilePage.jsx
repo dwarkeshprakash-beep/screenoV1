@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback } from 'react'
-import { ArrowLeft, KeyRound } from 'lucide-react'
+import { ArrowLeft } from 'lucide-react'
 import Spinner from '../../components/shared/Spinner'
 import ErrorMessage from '../../components/shared/ErrorMessage'
 import * as api from '../../services/api'
 
 import Avatar from '../../components/shared/Avatar'
+import ChangePasswordForm from '../../components/shared/ChangePasswordForm'
 
 function Toggle({ on, onClick }) {
   return (
@@ -27,13 +28,6 @@ function ManagerProfilePage() {
   const [saving, setSaving]     = useState(false)
   const [saved, setSaved]       = useState(false)
   const [nameError, setNameError] = useState(null)
-
-  const [currentPassword, setCurrentPassword]   = useState('')
-  const [newPassword, setNewPassword]           = useState('')
-  const [confirmPassword, setConfirmPassword]   = useState('')
-  const [pwSaving, setPwSaving]                 = useState(false)
-  const [pwSuccess, setPwSuccess]               = useState(false)
-  const [pwError, setPwError]                   = useState(null)
 
   const [notifs, setNotifs] = useState(() => {
     try {
@@ -89,26 +83,6 @@ function ManagerProfilePage() {
       setNameError(err.message)
     } finally {
       setSaving(false)
-    }
-  }
-
-  async function handleChangePassword(e) {
-    e.preventDefault()
-    setPwSuccess(false)
-    setPwError(null)
-    if (newPassword !== confirmPassword) { setPwError('New passwords do not match.'); return }
-    if (newPassword.length < 8) { setPwError('New password must be at least 8 characters.'); return }
-    setPwSaving(true)
-    try {
-      await api.updateManagerProfile({ currentPassword, newPassword })
-      setPwSuccess(true)
-      setCurrentPassword('')
-      setNewPassword('')
-      setConfirmPassword('')
-    } catch (err) {
-      setPwError(err.message)
-    } finally {
-      setPwSaving(false)
     }
   }
 
@@ -209,37 +183,7 @@ function ManagerProfilePage() {
 
           <div style={cardStyle}>
             <div style={eyebrowStyle}>Security</div>
-            <div style={{ paddingTop: 4 }}>
-              <form onSubmit={handleChangePassword}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12, marginBottom: 12 }}>
-                  {[
-                    { label: 'Current password', value: currentPassword, setter: setCurrentPassword, auto: 'current-password' },
-                    { label: 'New password',      value: newPassword,     setter: setNewPassword,     auto: 'new-password' },
-                    { label: 'Confirm password',  value: confirmPassword, setter: setConfirmPassword,  auto: 'new-password' },
-                  ].map(f => (
-                    <div key={f.label}>
-                      <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--slate-700)', marginBottom: 5 }}>{f.label}</label>
-                      <input
-                        type="password"
-                        value={f.value}
-                        onChange={e => f.setter(e.target.value)}
-                        autoComplete={f.auto}
-                        style={{ width: '100%', padding: '9px 12px', border: '1px solid var(--slate-300)', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', outline: 'none', boxSizing: 'border-box' }}
-                        onFocus={e => { e.target.style.borderColor = 'var(--brand-500)'; e.target.style.boxShadow = '0 0 0 3px rgba(91,79,233,0.18)' }}
-                        onBlur={e => { e.target.style.borderColor = 'var(--slate-300)'; e.target.style.boxShadow = 'none' }}
-                      />
-                    </div>
-                  ))}
-                </div>
-                {pwError && <div style={{ color: 'var(--danger-700)', fontSize: 13, marginBottom: 10 }}>{pwError}</div>}
-                {pwSuccess && <div style={{ color: 'var(--success-600)', fontSize: 13, marginBottom: 10 }}>Password changed successfully.</div>}
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button type="submit" disabled={pwSaving} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'var(--bg-surface)', color: 'var(--slate-900)', border: '1px solid var(--slate-300)', borderRadius: 8, fontWeight: 600, padding: '8px 14px', fontSize: 13, cursor: pwSaving ? 'not-allowed' : 'pointer' }}>
-                    <KeyRound size={13} /> {pwSaving ? 'Saving...' : 'Change password'}
-                  </button>
-                </div>
-              </form>
-            </div>
+            <div style={{ paddingTop: 8 }}><ChangePasswordForm /></div>
           </div>
         </div>
       )}

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Eye, EyeOff } from 'lucide-react'
 import * as api from '../../services/api'
+import { PASSWORD_RULES, validatePassword } from '../../utils/password-policy'
 
 function initialsFor(account) {
   const source = account.name || account.email || account.role || 'U'
@@ -158,10 +159,8 @@ function LoginPage() {
     event.preventDefault()
     setError(null)
     setMessage(null)
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters.')
-      return
-    }
+    const passwordError = validatePassword(password)
+    if (passwordError) { setError(passwordError); return }
     if (password !== confirmPassword) {
       setError('Passwords do not match.')
       return
@@ -290,6 +289,7 @@ function LoginPage() {
                 <label style={{ color: 'var(--slate-400)', fontSize: '0.8125rem', fontWeight: 500, display: 'block', marginBottom: '0.375rem' }}>Confirm password</label>
                 <input type={showPassword ? 'text' : 'password'} placeholder="Confirm password" value={confirmPassword} onChange={event => setConfirmPassword(event.target.value)} required style={inputStyle} />
               </div>
+              <p style={{ fontSize: '0.75rem', lineHeight: 1.45, color: '#94A3B8', margin: 0 }}>{PASSWORD_RULES}</p>
               <button type="button" onClick={() => setShowPassword(p => !p)} style={{ background: 'transparent', border: 0, color: '#94A3B8', fontSize: '0.8125rem', cursor: 'pointer', padding: '0.25rem', alignSelf: 'flex-start' }}>
                 {showPassword ? 'Hide password' : 'Show password'}
               </button>

@@ -77,15 +77,58 @@ function senderLabel(companyName) {
  * @returns {{configured: boolean, transport: string}}
  */
 function getConfigurationStatus() {
-  if (EMAIL_TRANSPORT === 'console') return { configured: true, transport: 'console' }
-  if (process.env.BREVO_API_KEY && FROM_EMAIL) return { configured: true, transport: 'brevo_api' }
+  const passwordResetConfigured = Boolean(
+    process.env.GOOGLE_APPS_SCRIPT_URL && process.env.GOOGLE_APPS_SCRIPT_SECRET
+  )
+  if (EMAIL_TRANSPORT === 'console') return { configured: true, transport: 'console', passwordResetConfigured: true }
+  if (process.env.BREVO_API_KEY && FROM_EMAIL) {
+    return { configured: true, transport: 'brevo_api', passwordResetConfigured: true }
+  }
   const smtpConfigured = Boolean(
     process.env.SMTP_HOST
     && process.env.SMTP_USER
     && process.env.SMTP_PASSWORD
     && FROM_EMAIL
   )
-  return { configured: smtpConfigured, transport: 'smtp' }
+  return {
+    configured: smtpConfigured,
+    transport: 'smtp',
+    passwordResetConfigured: passwordResetConfigured || smtpConfigured,
+  }
+}
+
+function appsScriptPasswordResetConfigured() {
+  return Boolean(process.env.GOOGLE_APPS_SCRIPT_URL && process.env.GOOGLE_APPS_SCRIPT_SECRET)
+}
+
+async function sendPasswordResetViaAppsScript(to, { name, link, expiresMinutes }, options = {}) {
+  const endpoint = new URL(options.endpoint || process.env.GOOGLE_APPS_SCRIPT_URL)
+  const secret = options.secret || process.env.GOOGLE_APPS_SCRIPT_SECRET
+  const fetchImpl = options.fetchImpl || fetch
+  if (endpoint.protocol !== 'https:' || endpoint.hostname !== 'script.google.com') {
+    throw new Error('GOOGLE_APPS_SCRIPT_URL must be an HTTPS script.google.com web-app URL')
+  }
+
+  const recipients = getRecipients(to)
+  if (recipients.length !== 1) throw new Error('Password reset email requires exactly one recipient')
+
+  const response = await fetchImpl(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({
+      secret,
+      type: 'password_reset',
+      to: recipients[0],
+      name: name || 'there',
+      resetLink: link,
+      expiresMinutes,
+    }),
+    signal: AbortSignal.timeout(15000),
+  })
+  const result = await response.json().catch(() => null)
+  if (!response.ok || !result?.ok) {
+    throw new Error(`Google Apps Script password email failed: ${result?.error || response.status}`)
+  }
 }
 
 // ── Send via Brevo HTTP API (works from Render / any cloud host) ──────────────
@@ -231,6 +274,11 @@ async function sendMagicLink(to, {
         }
       })()
     : null
+
+  if (appsScriptPasswordResetConfigured()) {
+    await sendPasswordResetViaAppsScript(to, { name, link, expiresMinutes })
+    return
+  }
 
   await sendMail({
     to,
@@ -728,4 +776,5 @@ module.exports = {
   sendInterviewerAssignmentCancelled,
   sendInterviewCancelled,
   getDeliveredRecipients,
+  _sendPasswordResetViaAppsScript: sendPasswordResetViaAppsScript,
 }

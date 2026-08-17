@@ -168,6 +168,7 @@ function App() {
             <Route path="mandates" element={<AdminMandatesPage />} />
             <Route path="interviews" element={<AdminInterviewsPage />} />
             <Route path="broken-states" element={<AdminBrokenStatesPage />} />
+            <Route path="profile" element={<ManagerProfilePage />} />
           </Route>
 
           <Route path="/interview/:token" element={<CandidateLayout />}>

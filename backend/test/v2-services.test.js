@@ -11,6 +11,7 @@ const {
 } = require('../src/services/monthly-assessment.service')
 const { parseCSV } = require('../src/services/team.service')
 const fetchWithTimeout = require('../src/utils/fetch-with-timeout')
+const emailService = require('../src/services/email.service')
 
 test('hashToken creates a stable SHA-256 digest without storing the raw token', () => {
   const raw = 'candidate-magic-link'
@@ -121,4 +122,31 @@ test('fetchWithTimeout returns completed requests and aborts stalled providers',
   } finally {
     global.fetch = originalFetch
   }
+})
+
+test('password reset email uses the secured Apps Script transport when configured', async () => {
+  let request
+  await emailService._sendPasswordResetViaAppsScript(
+    'candidate@example.com',
+    {
+      name: 'Candidate',
+      link: 'https://screeno-v1.vercel.app/login?reset=reset-token',
+      expiresMinutes: 60,
+    },
+    {
+      endpoint: 'https://script.google.com/macros/s/test/exec',
+      secret: 'test-secret',
+      fetchImpl: async (url, options) => {
+        request = { url: String(url), options }
+        return { ok: true, status: 200, json: async () => ({ ok: true }) }
+      },
+    }
+  )
+
+  const payload = JSON.parse(request.options.body)
+  assert.equal(request.url, 'https://script.google.com/macros/s/test/exec')
+  assert.equal(payload.secret, 'test-secret')
+  assert.equal(payload.type, 'password_reset')
+  assert.equal(payload.to, 'candidate@example.com')
+  assert.equal(payload.resetLink, 'https://screeno-v1.vercel.app/login?reset=reset-token')
 })

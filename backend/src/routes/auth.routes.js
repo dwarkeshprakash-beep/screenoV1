@@ -121,7 +121,7 @@ router.post('/reset-password', async (req, res) => {
     console.error('POST /auth/reset-password failed:', err)
     if ([
       'Reset token is required',
-      'Password must be at least 8 characters',
+      'Password must be 8-72 characters and include an uppercase letter, a lowercase letter, and a number',
       'Reset link is invalid or expired',
     ].includes(err.message)) {
       return res.status(400).json({ success: false, error: err.message })
