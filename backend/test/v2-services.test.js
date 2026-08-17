@@ -126,14 +126,15 @@ test('fetchWithTimeout returns completed requests and aborts stalled providers',
 
 test('password reset email uses the secured Apps Script transport when configured', async () => {
   let request
-  await emailService._sendPasswordResetViaAppsScript(
+  await emailService.sendPasswordReset(
     'candidate@example.com',
     {
       name: 'Candidate',
-      link: 'https://screeno-v1.vercel.app/login?reset=reset-token',
+      token: 'reset-token',
       expiresMinutes: 60,
     },
     {
+      frontendUrl: 'https://screeno-v1.vercel.app',
       endpoint: 'https://script.google.com/macros/s/test/exec',
       secret: 'test-secret',
       fetchImpl: async (url, options) => {

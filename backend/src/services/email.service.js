@@ -97,8 +97,11 @@ function getConfigurationStatus() {
   }
 }
 
-function appsScriptPasswordResetConfigured() {
-  return Boolean(process.env.GOOGLE_APPS_SCRIPT_URL && process.env.GOOGLE_APPS_SCRIPT_SECRET)
+function appsScriptPasswordResetConfigured(options = {}) {
+  return Boolean(
+    (options.endpoint || process.env.GOOGLE_APPS_SCRIPT_URL)
+    && (options.secret || process.env.GOOGLE_APPS_SCRIPT_SECRET)
+  )
 }
 
 async function sendPasswordResetViaAppsScript(to, { name, link, expiresMinutes }, options = {}) {
@@ -208,10 +211,15 @@ function escapeHtml(value) {
     .replaceAll("'", '&#039;')
 }
 
-async function sendPasswordReset(to, { name, token, expiresMinutes = 60 }) {
-  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173'
+async function sendPasswordReset(to, { name, token, expiresMinutes = 60 }, options = {}) {
+  const frontendUrl = options.frontendUrl || process.env.FRONTEND_URL || 'http://localhost:5173'
   const link = `${frontendUrl}/login?reset=${encodeURIComponent(token)}`
   const safeName = escapeHtml(name || 'there')
+
+  if (appsScriptPasswordResetConfigured(options)) {
+    await sendPasswordResetViaAppsScript(to, { name, link, expiresMinutes }, options)
+    return
+  }
 
   await sendMail({
     to,
@@ -274,11 +282,6 @@ async function sendMagicLink(to, {
         }
       })()
     : null
-
-  if (appsScriptPasswordResetConfigured()) {
-    await sendPasswordResetViaAppsScript(to, { name, link, expiresMinutes })
-    return
-  }
 
   await sendMail({
     to,
@@ -776,5 +779,4 @@ module.exports = {
   sendInterviewerAssignmentCancelled,
   sendInterviewCancelled,
   getDeliveredRecipients,
-  _sendPasswordResetViaAppsScript: sendPasswordResetViaAppsScript,
 }
