@@ -9,8 +9,7 @@
 
 ```
 Node.js 20 + Express 5
-pg                  PostgreSQL driver (Supabase current)
-mssql               SQL Server driver (SSMS future)
+pg                  PostgreSQL driver (currently pointed at Supabase; portable to any Postgres host)
 bcryptjs            password hashing
 jsonwebtoken        JWT tokens
 cookie-parser       refresh-token cookie
@@ -23,7 +22,7 @@ pdfkit / pdf-parse / mammoth   PDF & docx generation/parsing (reports, resume an
 dotenv              .env loading
 ```
 
-LLM (Groq Llama 3.3 70B → Gemini 2.0 Flash fallback) and Groq Whisper STT are called via plain `fetch()`
+LLM (Groq gpt-oss-120b → Gemini 3.6 Flash fallback) and Groq Whisper STT are called via plain `fetch()`
 to their REST endpoints — **no SDK packages installed** (`@google/generative-ai`, `groq-sdk` are NOT deps).
 See `services/llm.service.js` and `services/transcription.service.js`.
 
@@ -36,22 +35,19 @@ There is no `node-cron` dependency — the report-generation worker is a polling
 
 ---
 
-## DB connection — two files, one interface
+## DB connection
 
 ```
 backend/src/db/
-├── connection.js           ← factory: reads DB_TYPE env var, loads correct file
-├── supabase.connection.js  ← PostgreSQL via pg (CURRENT — DB_TYPE=supabase)
-└── sqlserver.connection.js ← SQL Server via mssql (FUTURE — DB_TYPE=sqlserver)
+├── connection.js           ← factory: the only file repositories import
+└── supabase.connection.js  ← PostgreSQL via pg (points at Supabase today; portable to any Postgres host)
 ```
 
-Both files expose the same function: `query(sql, params)`
+Exposes `query(sql, params)` and `transaction(callback)`.
 
-All repositories use `@param` style SQL. The connection layer translates:
-- Supabase: converts `@name` → `$1, $2` automatically
-- SQL Server: uses `@name` natively
+All repositories use `@param` style SQL — the connection layer converts `@name` → `$1, $2` automatically.
 
-**To switch from Supabase to SQL Server:** change `.env` `DB_TYPE=sqlserver`
+**To move to a different Postgres host:** change `.env` `DATABASE_URL` (data still needs to be dumped/restored separately — see `.claude/skills/db-access.md`).
 
 Full code with comments: `.claude/skills/db-access.md`
 
@@ -112,8 +108,7 @@ backend/
 │   │   └── parse.js                ← parseStoredArray() — shared JSON→array parser
 │   └── db/
 │       ├── connection.js           ← factory (import this everywhere)
-│       ├── supabase.connection.js  ← PostgreSQL
-│       └── sqlserver.connection.js ← SQL Server
+│       └── supabase.connection.js  ← PostgreSQL
 ├── migrations/   ← 001-019 numbered SQL files; apply via setup-db.js (new DBs) or
 │                    run-migration-NNN.js scripts (existing DBs)
 ├── server.js   ← mounts routes, security headers, CORS, rate limits, starts report-job worker
@@ -134,17 +129,8 @@ the live Supabase DB (it's idempotent, safe to re-run). See `docs/database-schem
 PORT=4000
 NODE_ENV=development
 
-# DB — which to use
-DB_TYPE=supabase     # change to 'sqlserver' to switch
-
-# Supabase (current)
+# DB
 DATABASE_URL=postgresql://USER:PASSWORD@HOST:6543/postgres
-
-# SQL Server (future)
-DB_SERVER=localhost
-DB_DATABASE=Screeno
-DB_USER=screeno_user
-DB_PASSWORD=
 
 # Auth
 JWT_SECRET=          # generate: node -e "require('crypto').randomBytes(64).toString('hex')|console.log"
@@ -159,13 +145,12 @@ GEMINI_API_KEY=      # aistudio.google.com
 SUPABASE_URL=
 SUPABASE_SERVICE_ROLE_KEY=
 
-# Email — SMTP (Brevo) via nodemailer, NOT Resend
+# Email — SMTP via nodemailer (Gmail, Brevo, or any SMTP provider)
 SMTP_HOST=
 SMTP_PORT=587
 SMTP_USER=
 SMTP_PASSWORD=
-MAIL_FROM_NAME=Screeno
-MAIL_FROM_EMAIL=
+SMTP_FROM=   # plain address ("noreply@screeno.com") or combined ("Screeno <noreply@screeno.com>") — single source for sender name + address
 EMAIL_REDIRECT_TO=   # comma-separated override; staging redirects all mail to these addresses
 
 # Frontend URL (for CORS + email links)

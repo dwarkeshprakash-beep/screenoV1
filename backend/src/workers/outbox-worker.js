@@ -73,7 +73,7 @@ async function processJob(job) {
   if (job.event_key && job.event_key.startsWith('password_reset_')) {
     if (!payload.userId) throw new Error('password reset job missing userId')
     const rawToken = crypto.randomBytes(32).toString('hex')
-    const expiresMinutes = 60
+    const expiresMinutes = 10
     await passwordResetRepository.create(
       payload.userId,
       crypto.createHash('sha256').update(rawToken).digest('hex'),

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Eye, EyeOff } from 'lucide-react'
 import * as api from '../../services/api'
@@ -110,10 +110,23 @@ function LoginPage() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [mode, setMode] = useState(initialResetToken ? 'reset' : 'login')
   const [resetToken, setResetToken] = useState(initialResetToken)
+  // 'checking' while we confirm the link with the backend, then 'valid' or 'invalid'.
+  // Skips the check entirely when there's no reset token to validate.
+  const [resetTokenStatus, setResetTokenStatus] = useState(initialResetToken ? 'checking' : 'valid')
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [message, setMessage] = useState(null)
+
+  useEffect(() => {
+    if (mode !== 'reset' || !resetToken) return
+    let cancelled = false
+    setResetTokenStatus('checking')
+    api.validateResetToken(resetToken)
+      .then(() => { if (!cancelled) setResetTokenStatus('valid') })
+      .catch(() => { if (!cancelled) setResetTokenStatus('invalid') })
+    return () => { cancelled = true }
+  }, [mode, resetToken])
 
   async function signIn(loginEmail, loginPassword) {
     setError(null)
@@ -279,7 +292,26 @@ function LoginPage() {
             </form>
           )}
 
-          {mode === 'reset' && (
+          {mode === 'reset' && resetTokenStatus === 'checking' && (
+            <p style={{ fontSize: '0.8125rem', color: '#94A3B8', textAlign: 'center' }}>Checking your reset link...</p>
+          )}
+
+          {mode === 'reset' && resetTokenStatus === 'invalid' && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <p role="alert" style={{ fontSize: '0.8125rem', color: '#EF4444', margin: 0 }}>
+                This reset link is invalid or has expired. Please request a new one.
+              </p>
+              <button
+                type="button"
+                onClick={() => { setMode('forgot'); setError(null); setMessage(null) }}
+                style={{ width: '100%', padding: '0.75rem', background: 'var(--brand-500)', color: 'var(--bg-surface)', border: 'none', borderRadius: '0.5rem', fontSize: '0.875rem', fontWeight: 600, cursor: 'pointer' }}
+              >
+                Request a new link
+              </button>
+            </div>
+          )}
+
+          {mode === 'reset' && resetTokenStatus === 'valid' && (
             <form onSubmit={handleResetSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               <div>
                 <label style={{ color: 'var(--slate-400)', fontSize: '0.8125rem', fontWeight: 500, display: 'block', marginBottom: '0.375rem' }}>New password</label>

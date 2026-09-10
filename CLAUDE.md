@@ -17,8 +17,8 @@ cd frontend && npm run build
 cd frontend && npm run lint
 
 # Backend — Express on port 4000
-cd backend && node server.js           # one-shot
-cd backend && npx nodemon server.js    # auto-reload on file change
+cd backend && npm start                # one-shot
+cd backend && npm run dev              # auto-reload on file change (nodemon)
 ```
 
 ---
@@ -36,12 +36,12 @@ AI interview platform. Managers schedule AI voice interviews, exams, Google Meet
 Frontend    React 19 (JSX only — no TypeScript), React Router v6, fetch via src/services/api.js, CSS + tokens.css
             (no axios — all backend calls go through a hand-rolled fetch client with JWT refresh/retry)
 Backend     Node.js 20 + Express 5 (single service)
-Database    Supabase (PostgreSQL) — current. SQL Server (SSMS) — future option.
-            Two DB connection files exist — switch via DB_TYPE env var.
+Database    PostgreSQL (currently hosted on Supabase) — plain `pg`, portable to any Postgres host
+            by changing DATABASE_URL. No SQL Server support.
 Files       Supabase Storage (bucket "files") — resumes and reports only (no audio stored)
 Video       Human interviews use manager-provided or Google Meet links; LiveKit is not part of the active V2 runtime
 Auth        JWT access token (15 min) + HttpOnly cookie refresh token (7 days)
-LLM         Groq Llama 3.3 70B → Gemini 2.0 Flash fallback, called via plain fetch() to REST endpoints
+LLM         Groq gpt-oss-120b → Gemini 3.6 Flash fallback, called via plain fetch() to REST endpoints
             (no SDK packages — see backend/src/services/llm.service.js)
 STT         Groq Whisper API (whisper-large-v3) — see backend/src/services/transcription.service.js
 TTS         browser.speechSynthesis — cross-browser, free, no API key

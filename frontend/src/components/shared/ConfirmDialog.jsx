@@ -22,10 +22,10 @@ function ConfirmDialog({
 }) {
   return (
     <Modal open={open} onClose={onClose} title={title} size="sm">
-      <div style={{ marginBottom: 'var(--spacing-6)', color: 'var(--text-secondary)', fontSize: 'var(--font-size-sm)', lineHeight: 1.5 }}>
+      <div style={{ marginBottom: 'var(--space-6)', color: 'var(--fg-muted)', fontSize: 'var(--fs-sm)', lineHeight: 1.5 }}>
         {message}
       </div>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--spacing-3)' }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-3)' }}>
         <button
           type="button"
           onClick={onClose}

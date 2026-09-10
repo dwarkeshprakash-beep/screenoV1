@@ -122,9 +122,11 @@ function CandidateMandatesPage() {
                           {mandate.requirement_name}{profileMeta ? ` | ${profileMeta}` : ''}
                         </span>
                       )}
-                      <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 6, background: 'var(--bg-surface-alt)', color: 'var(--fg-muted)', fontWeight: 500, textTransform: 'capitalize' }}>
-                        {mandate.status}
-                      </span>
+                      {mandate.status && (
+                        <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 6, background: 'var(--bg-surface-alt)', color: 'var(--fg-muted)', fontWeight: 500, textTransform: 'capitalize' }}>
+                          {mandate.status}
+                        </span>
+                      )}
                     </div>
                   </div>
 

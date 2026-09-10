@@ -96,7 +96,8 @@ async function getDetailByInterviewForManager(interviewId, managerId) {
 async function getReportsByManager(managerId, source = null) {
   const sourceFilter = source === 'client' ? 'AND i.client_template_id IS NOT NULL'
     : source === 'monthly' ? 'AND i.monthly_assessment_id IS NOT NULL'
-      : ''
+      : source === 'general' ? 'AND i.client_template_id IS NULL AND i.monthly_assessment_id IS NULL'
+        : ''
   return db.query(`
     SELECT r.*,
            COALESCE(iu.first_name, ec.first_name) AS candidate_first,

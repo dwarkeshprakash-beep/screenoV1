@@ -35,7 +35,6 @@
 `cloudinary` → use `fetch` + `FormData` to call Cloudinary REST API
 `resend` → use `fetch` to call Resend REST API
 `node-cron` → use `setInterval`
-`mssql` → add in Phase 2 only (SQL Server switch)
 `@huggingface/transformers` → add in Phase 2 only (local Whisper)
 
 ### The fetch pattern (replaces all removed SDKs)
@@ -49,7 +48,7 @@ async function callGroq(messages, systemPrompt) {
       'Authorization': `Bearer ${process.env.GROQ_API_KEY}`
     },
     body: JSON.stringify({
-      model: 'llama-3.3-70b-versatile',
+      model: 'openai/gpt-oss-120b',
       messages: [
         { role: 'system', content: systemPrompt },
         ...messages

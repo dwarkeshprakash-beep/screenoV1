@@ -6,6 +6,7 @@ const userRepository = require('../repositories/user.repository')
 const storageService = require('../services/storage.service')
 const documentTextService = require('../services/document-text.service')
 const llmService = require('../services/llm.service')
+const { applicationRole } = require('../services/auth.service')
 const { validatePassword } = require('../utils/password-policy')
 
 const router = express.Router()
@@ -15,7 +16,11 @@ router.get('/', async (req, res) => {
   try {
     const user = await userRepository.getById(req.user.id)
     if (!user) return res.status(404).json({ success: false, error: 'User not found' })
-    
+
+    // Frontend merges this response into the stored session user — always send the
+    // app-facing role (e.g. 'employee' -> 'candidate'), never the raw DB value.
+    user.role = applicationRole(user)
+
     // Generate signed URL if the user has a resume stored as a path
     if (user.resume_url && !user.resume_url.startsWith('http')) {
       try {
@@ -99,6 +104,7 @@ router.patch('/', async (req, res) => {
 
     const updated = await userRepository.getById(req.user.id)
     if (!updated) return res.status(404).json({ success: false, error: 'User not found' })
+    updated.role = applicationRole(updated)
     res.json({ success: true, data: updated })
   } catch (err) {
     console.error('PATCH /profile failed:', err)

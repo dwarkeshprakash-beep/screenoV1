@@ -36,8 +36,17 @@ const SMTP_CONNECTION_ERRORS = ['ETIMEDOUT', 'ESOCKET', 'ECONNECTION', 'ECONNREF
 
 // ── Static recipients — all mail is redirected here ──────────────────────────
 
-const FROM_NAME  = process.env.MAIL_FROM_NAME  || 'Screeno'
-const FROM_EMAIL = process.env.MAIL_FROM_EMAIL || process.env.SMTP_USER
+// SMTP_FROM is the single source for the sender — either a plain address
+// ("noreply@screeno.com") or a combined header value ("Screeno <noreply@screeno.com>").
+function parseFromAddress(value) {
+  const match = String(value || '').match(/^\s*"?([^"<]*)"?\s*<([^>]+)>\s*$/)
+  if (match) return { name: match[1].trim(), email: match[2].trim() }
+  return { name: '', email: String(value || '').trim() }
+}
+
+const { name: parsedFromName, email: parsedFromEmail } = parseFromAddress(process.env.SMTP_FROM)
+const FROM_NAME  = parsedFromName || 'Screeno'
+const FROM_EMAIL = parsedFromEmail || process.env.SMTP_USER
 const EMAIL_TRANSPORT = process.env.EMAIL_TRANSPORT || 'auto'
 
 if (process.env.EMAIL_REDIRECT_TO) {
@@ -183,7 +192,7 @@ async function sendMail({ to, subject, html, text, attachments = [] }) {
     console.info(`[email:test] Suppressed "${subject}" to ${recipients.length} recipient(s)`)
     return
   }
-  if (!FROM_EMAIL) throw new Error('MAIL_FROM_EMAIL is required')
+  if (!FROM_EMAIL) throw new Error('SMTP_FROM is required')
 
   if (process.env.BREVO_API_KEY) {
     await sendViaBrevoAPI(recipients, subject, html, text)

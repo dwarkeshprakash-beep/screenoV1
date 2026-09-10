@@ -35,7 +35,7 @@ Rejected: TypeScript (friction), Tailwind (tokens.css already exists), Redux (ov
 
 All LLM, STT, and Piston calls use plain `fetch()` — no SDK packages for Groq, Gemini, or Cloudinary.
 
-Rejected: Axios (fetch built-in), node-cron (setInterval polling loop instead), mssql (added for Phase 2 only), @huggingface/transformers (Groq Whisper API used instead)
+Rejected: Axios (fetch built-in), node-cron (setInterval polling loop instead), @huggingface/transformers (Groq Whisper API used instead)
 
 ---
 
@@ -44,11 +44,9 @@ Rejected: Axios (fetch built-in), node-cron (setInterval polling loop instead), 
 | Technology | Why |
 |---|---|
 | **Supabase (PostgreSQL)** | Hosted Postgres, free tier, Supabase Storage for files, same project |
-| **Repository pattern** | All SQL in one layer — easy to swap DB, easy to audit queries |
-| **@param style SQL** | Works identically on both Postgres and SQL Server via the connection factory |
+| **Repository pattern** | All SQL in one layer — easy to swap DB host, easy to audit queries |
+| **@param style SQL** | Readable named params, translated to `$1, $2` by the connection layer |
 | **No foreign keys** | Simpler migrations, no cascade failures, validation in backend code |
-
-Future: SQL Server via `mssql` — same repository interface, change `DB_TYPE=sqlserver` in `.env`
 
 ---
 
@@ -56,8 +54,8 @@ Future: SQL Server via `mssql` — same repository interface, change `DB_TYPE=sq
 
 | Technology | Why |
 |---|---|
-| **Groq Llama 3.3 70B** | Fast inference (~500ms), free tier, best free model for technical reasoning |
-| **Gemini 2.0 Flash** | LLM fallback — Groq failures auto-fallback here, free tier |
+| **Groq gpt-oss-120b** | Fast inference (~500ms), free tier, best free model for technical reasoning |
+| **Gemini 3.6 Flash** | LLM fallback — Groq failures auto-fallback here, free tier |
 | **Groq Whisper large-v3** | STT, free tier, high accuracy for technical English |
 | **browser.speechSynthesis** | TTS — built in, free, cross-browser, zero server cost |
 | **MediaRecorder API** | Audio capture — built in, cross-browser |

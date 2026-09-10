@@ -267,16 +267,43 @@ async function requestPasswordReset(email) {
   })
 }
 
+// Read-only check so the reset page can tell the link is dead before the
+// candidate types a new password, instead of only failing on final submit.
+async function validateResetToken(token) {
+  if (!token) throw new Error('Reset token is required')
+  const stored = await passwordResetRepository.getValidByHash(hashToken(token))
+  if (!stored) throw new Error('Reset link is invalid or expired')
+}
+
 async function resetPassword(token, newPassword) {
   if (!token) throw new Error('Reset token is required')
   const passwordError = validatePassword(newPassword)
   if (passwordError) throw new Error(passwordError)
 
-  const stored = await passwordResetRepository.getValidByHash(hashToken(token))
-  if (!stored) throw new Error('Reset link is invalid or expired')
+  const tokenHash = hashToken(token)
+  const passwordHash = await bcrypt.hash(String(newPassword), 10)
 
-  await userRepository.updatePassword(stored.user_id, await bcrypt.hash(String(newPassword), 10))
-  await passwordResetRepository.markUsed(stored.id)
+  // Lock the token row for the duration of the check+update so two concurrent
+  // submits (e.g. a double-click, or the link opened in two tabs) can't both
+  // pass the validity check before either marks it used.
+  const claimed = await db.transaction(async (tx) => {
+    const rows = await tx.query(
+      `SELECT * FROM password_reset_tokens
+       WHERE token_hash = @tokenHash AND used = FALSE AND expires > NOW()
+       FOR UPDATE`,
+      { tokenHash }
+    )
+    const stored = rows[0]
+    if (!stored) return null
+
+    await tx.query(`UPDATE password_reset_tokens SET used = TRUE WHERE id = @id`, { id: stored.id })
+    await tx.query(`UPDATE users SET password = @passwordHash WHERE id = @userId`, {
+      passwordHash, userId: stored.user_id,
+    })
+    return stored
+  })
+
+  if (!claimed) throw new Error('Reset link is invalid or expired')
 }
 
 async function validateMagicLink(token) {
@@ -354,9 +381,11 @@ module.exports = {
   logout,
   requestPasswordReset,
   resetPassword,
+  validateResetToken,
   previewMagicLink,
   claimMagicLink,
   validateMagicLink,
   createCandidateLaunch,
   hashToken,
+  applicationRole,
 }

@@ -112,6 +112,16 @@ router.post('/forgot-password', async (req, res) => {
   }
 })
 
+// GET /api/auth/reset-password/:token — check validity before the candidate fills the form
+router.get('/reset-password/:token', async (req, res) => {
+  try {
+    await authService.validateResetToken(req.params.token)
+    res.json({ success: true })
+  } catch (err) {
+    res.status(400).json({ success: false, error: err.message || 'Reset link is invalid or expired' })
+  }
+})
+
 // POST /api/auth/reset-password
 router.post('/reset-password', async (req, res) => {
   try {

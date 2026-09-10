@@ -36,7 +36,7 @@ async function attachSignedReportUrls(reports) {
 // GET /api/reports/team — all reports for the manager's team
 router.get('/team', async (req, res) => {
   try {
-    const source = ['client', 'monthly'].includes(req.query.source) ? req.query.source : null
+    const source = ['client', 'monthly', 'general'].includes(req.query.source) ? req.query.source : null
     const [reports, stats] = await Promise.all([
       reportRepository.getReportsByManager(req.user.id, source),
       reportRepository.getStatsByManager(req.user.id),
