@@ -221,25 +221,44 @@ async function finishScheduleSetup({
   }
 }
 
-function weekBounds(weekValue) {
-  if (!weekValue) return null
-  const start = new Date(weekValue)
-  if (Number.isNaN(start.getTime())) return null
-  start.setUTCHours(0, 0, 0, 0)
-  const end = new Date(start)
-  end.setUTCDate(end.getUTCDate() + 7)
+function dateRangeBounds(dateFrom, dateTo) {
+  let start = null
+  let end = null
+  if (dateFrom) {
+    const parsed = new Date(dateFrom)
+    if (!Number.isNaN(parsed.getTime())) {
+      parsed.setUTCHours(0, 0, 0, 0)
+      start = parsed
+    }
+  }
+  if (dateTo) {
+    const parsed = new Date(dateTo)
+    if (!Number.isNaN(parsed.getTime())) {
+      parsed.setUTCHours(0, 0, 0, 0)
+      parsed.setUTCDate(parsed.getUTCDate() + 1) // exclusive bound — include the whole "to" day
+      end = parsed
+    }
+  }
+  if (!start && !end) return null
   return { start, end }
 }
 
-async function getCalendarEvents(managerId, weekValue = null) {
+async function getScheduledInterviews(managerId, { dateFrom, dateTo, category } = {}) {
   const interviews = await interviewRepository.getByManager(managerId)
-  const bounds = weekBounds(weekValue)
+  const bounds = dateRangeBounds(dateFrom, dateTo)
   return interviews
     .filter(interview => {
-      if (!bounds) return true
-      const startValue = interview.available_from || interview.scheduled_at || interview.created
-      const start = new Date(startValue)
-      return !Number.isNaN(start.getTime()) && start >= bounds.start && start < bounds.end
+      if (bounds) {
+        const startValue = interview.available_from || interview.scheduled_at || interview.created
+        const start = new Date(startValue)
+        if (Number.isNaN(start.getTime())) return false
+        if (bounds.start && start < bounds.start) return false
+        if (bounds.end && start >= bounds.end) return false
+      }
+      if (category === 'mandate' && !interview.client_template_id) return false
+      if (category === 'monthly' && !interview.monthly_assessment_id) return false
+      if (category === 'general' && (interview.client_template_id || interview.monthly_assessment_id)) return false
+      return true
     })
     .map(interview => ({
     id: interview.id,
@@ -257,6 +276,9 @@ async function getCalendarEvents(managerId, weekValue = null) {
     durationMinutes: interview.duration_minutes || null,
     created: interview.created,
     teamMemberId: interview.team_member_id || null,
+    client_template_id: interview.client_template_id || null,
+    monthly_assessment_id: interview.monthly_assessment_id || null,
+    context_title: interview.context_title || null,
   }))
 }
 
@@ -433,7 +455,7 @@ async function rescheduleInterview(interviewId, managerId, data) {
 
 module.exports = {
   createSchedule,
-  getCalendarEvents,
+  getScheduledInterviews,
   getOrgUsers,
   getEmailDeliveries,
   resendMagicLink,

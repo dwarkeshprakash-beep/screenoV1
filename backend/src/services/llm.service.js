@@ -59,14 +59,83 @@ async function callGemini(prompt) {
   return data.candidates[0].content.parts[0].text
 }
 
+// Some LLM responses wrap the JSON in prose ("Here is the JSON: ...") even after fence
+// stripping — cut to the outermost array/object so that leading/trailing text doesn't
+// break JSON.parse.
+function extractJsonSlice(text) {
+  const starts = [text.indexOf('['), text.indexOf('{')].filter(i => i !== -1)
+  const ends = [text.lastIndexOf(']'), text.lastIndexOf('}')].filter(i => i !== -1)
+  if (starts.length === 0 || ends.length === 0) return text
+  const start = Math.min(...starts)
+  const end = Math.max(...ends)
+  return end > start ? text.slice(start, end + 1) : text
+}
+
+// Models occasionally emit a literal backslash-n/r/t as pretty-print formatting instead of
+// either a real line break or a proper JSON escape — valid everywhere else, but a bare "\"
+// outside a string is never valid JSON, and a raw control character inside one isn't either.
+// Walk the text tracking string context and repair both directions.
+function repairLooseJson(text) {
+  let result = ''
+  let inString = false
+  let escapeNext = false
+  for (let i = 0; i < text.length; i += 1) {
+    const char = text[i]
+    if (inString) {
+      if (escapeNext) {
+        result += char
+        escapeNext = false
+        continue
+      }
+      if (char === '\\') {
+        result += char
+        escapeNext = true
+        continue
+      }
+      if (char === '"') {
+        result += char
+        inString = false
+        continue
+      }
+      if (char === '\n') { result += '\\n'; continue }
+      if (char === '\r') { result += '\\r'; continue }
+      if (char === '\t') { result += '\\t'; continue }
+      result += char
+      continue
+    }
+    if (char === '"') {
+      inString = true
+      result += char
+      continue
+    }
+    if (char === '\\') {
+      const next = text[i + 1]
+      if (next === 'n' || next === 'r' || next === 't') i += 1
+      continue
+    }
+    result += char
+  }
+  return result
+}
+
 /**
- * Parse JSON from LLM output (strip markdown fences if present).
+ * Parse JSON from LLM output (strip markdown fences, then repair common LLM JSON mistakes).
  * @param {string} text
  * @returns {any}
  */
 function parseJSON(text) {
-  const cleaned = text.replace(/```json\n?/gi, '').replace(/```\n?/g, '').trim()
-  return JSON.parse(cleaned)
+  const cleaned = extractJsonSlice(text.replace(/```json\n?/gi, '').replace(/```\n?/g, '').trim())
+  try {
+    return JSON.parse(cleaned)
+  } catch (err) {
+    try {
+      return JSON.parse(repairLooseJson(cleaned))
+    } catch {
+      const decorated = new Error(err.message)
+      decorated.rawText = cleaned.slice(0, 4000)
+      throw decorated
+    }
+  }
 }
 
 function cleanText(value, fallback = '') {
@@ -95,14 +164,32 @@ function normalizeInterviewQuestions(raw, count) {
   })).filter(q => q.text)
 }
 
+// The prompt's own JSON schema example necessarily shows placeholder option text ("A", "B", ...)
+// to convey the shape — but models sometimes echo that literal placeholder back as if it were a
+// real answer choice instead of writing actual content. Treat option sets like that as invalid,
+// the same as if the model had returned no options at all.
+const PLACEHOLDER_OPTION_SETS = [
+  ['a', 'b', 'c', 'd'],
+  ['option a', 'option b', 'option c', 'option d'],
+  ['1', '2', '3', '4'],
+  ['choice a', 'choice b', 'choice c', 'choice d'],
+]
+function isPlaceholderOptionSet(options) {
+  const normalized = options.map(o => o.trim().toLowerCase())
+  return PLACEHOLDER_OPTION_SETS.some(set => set.every((value, i) => normalized[i] === value))
+}
+
 function normalizeExamQuestions(raw, count) {
   const allowedTypes = new Set(['mcq', 'open', 'coding'])
   const allowedLanguages = new Set(['javascript', 'python'])
   const list = Array.isArray(raw) ? raw : raw?.questions || []
   return list.slice(0, count).map((q, index) => {
     const questionType = allowedTypes.has(q.question_type) ? q.question_type : (index < 6 ? 'mcq' : 'open')
-    const options = questionType === 'mcq'
+    const cleanedOptions = questionType === 'mcq'
       ? (Array.isArray(q.options) ? q.options.map(o => cleanText(o)).filter(Boolean).slice(0, 4) : [])
+      : []
+    const options = cleanedOptions.length === 4 && !isPlaceholderOptionSet(cleanedOptions)
+      ? cleanedOptions
       : []
     const base = {
       text: cleanText(q.text, `Assessment question ${index + 1}`),
@@ -232,9 +319,10 @@ Each item must contain:
   "phase": "technical|scenario",
   "order_num": 1,
   "question_type": "mcq|open|coding",
-  "options": ["A", "B", "C", "D"],
+  "options": ["<full answer choice text>", "<full answer choice text>", "<full answer choice text>", "<full answer choice text>"],
   "correct_answer": 0
 }
+"options" must be 4 complete, meaningful answer choices written out in full — never literal placeholder labels like "A", "B", "C", "D" or "Option A".
 For open questions, use an empty options array and null correct_answer.
 For coding questions, instead of options/correct_answer include:
 {
@@ -248,18 +336,23 @@ Difficulty: ${difficulty || 'medium'}
 Resume: ${cleanText(resume, 'Not provided')}
 Job description: ${cleanText(jd, 'Not provided')}
 Focus areas: ${cleanText(focusAreas, 'General technical assessment')}
-Return only the JSON array.`
+Return ONLY strict, valid JSON — no markdown fences, no commentary before or after.
+Any newline inside a string value (starter_code, reference_solution, test_cases input) must be the two-character JSON escape \\n — never a raw line break and never a bare backslash used only for visual formatting.`
 
-  try {
-    const text = await callRaw(prompt)
-    const questions = parseJSON(text)
-    const normalized = normalizeExamQuestions(questions, count)
-    const list = await validateCodingQuestions(normalized)
-    if (list.length > 0) return list
-  } catch (err) {
-    console.error('generateExamQuestions failed:', err.message)
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    try {
+      const text = await callRaw(prompt)
+      const questions = parseJSON(text)
+      const normalized = normalizeExamQuestions(questions, count)
+      const list = await validateCodingQuestions(normalized)
+      if (list.length > 0) return list
+    } catch (err) {
+      console.error(`generateExamQuestions attempt ${attempt} failed:`, err.message)
+      if (err.rawText) console.error('generateExamQuestions raw LLM response (truncated):', err.rawText)
+    }
   }
 
+  console.error('generateExamQuestions: both attempts failed, using generic fallback questions')
   return Array.from({ length: count }, (_, index) => ({
     text: index < 6
       ? `Which option best demonstrates sound technical judgment for scenario ${index + 1}?`

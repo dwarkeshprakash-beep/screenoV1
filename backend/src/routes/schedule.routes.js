@@ -106,14 +106,21 @@ router.post('/', async (req, res) => {
   }
 })
 
-// GET /api/schedule/calendar?week=YYYY-MM-DD
-router.get('/calendar', async (req, res) => {
+// GET /api/schedule/interviews?dateFrom=YYYY-MM-DD&dateTo=YYYY-MM-DD&category=mandate|monthly|general
+// Powers both the calendar and list views. dateFrom/dateTo scope the calendar to a week;
+// category is the All/Client Mandate/Monthly Assessment/General Assessment filter.
+router.get('/interviews', async (req, res) => {
   try {
-    const events = await scheduleService.getCalendarEvents(req.user.id, req.query.week)
+    const category = ['mandate', 'monthly', 'general'].includes(req.query.category) ? req.query.category : null
+    const events = await scheduleService.getScheduledInterviews(req.user.id, {
+      dateFrom: req.query.dateFrom,
+      dateTo: req.query.dateTo,
+      category,
+    })
     res.json({ success: true, data: events })
   } catch (err) {
-    console.error('GET /schedule/calendar failed:', err)
-    res.status(500).json({ success: false, error: 'Could not load calendar' })
+    console.error('GET /schedule/interviews failed:', err)
+    res.status(500).json({ success: false, error: 'Could not load interviews' })
   }
 })
 

@@ -38,28 +38,37 @@ function shiftMonths(date, months) {
   return result
 }
 
-function normalizeWindow(body, fallbackDurationMinutes) {
+// The manager picks only a start date; each monthly occurrence then stays open through the
+// day before the next occurrence opens, so the "due" date is derived, never entered manually.
+function parseStartDate(body) {
   const startValue = String(
-    body.available_from
+    body.start_date
+    || body.startDate
+    || body.available_from
     || body.availableFrom
     || body.assessment_date
     || body.scheduledAt
     || ''
   ).trim()
-  if (!startValue) throw new Error('Assessment date is required')
+  if (!startValue) throw new Error('Start date is required')
 
-  const startDate = new Date(startValue)
-  if (Number.isNaN(startDate.getTime())) throw new Error('Assessment date is invalid')
+  const datePart = startValue.slice(0, 10)
+  const startDate = new Date(`${datePart}T00:00:00.000Z`)
+  if (Number.isNaN(startDate.getTime())) throw new Error('Start date is invalid')
 
-  const dueValue = String(body.due_at || body.dueAt || '').trim()
-  const dueAt = dueValue
-    ? new Date(dueValue)
-    : new Date(startDate.getTime() + fallbackDurationMinutes * 60000)
-  if (Number.isNaN(dueAt.getTime())) throw new Error('Due date is invalid')
-  if (dueAt <= startDate) throw new Error('Due date must be after the available date')
-  if (dueAt <= new Date()) throw new Error('Due date must be in the future')
+  const todayUtc = new Date()
+  todayUtc.setUTCHours(0, 0, 0, 0)
+  if (startDate < todayUtc) throw new Error('Start date cannot be in the past')
 
-  return { startDate, dueAt }
+  return startDate
+}
+
+// An occurrence that opens on `availableFrom` stays open through the last day of that month
+// window (one calendar month later, minus a day), inclusive through end of day.
+function occurrenceDueAt(availableFrom) {
+  const dueAt = addMonths(availableFrom, 1)
+  dueAt.setUTCHours(23, 59, 59, 999)
+  return dueAt
 }
 
 function normalizeRequestKey(value) {
@@ -81,8 +90,7 @@ async function createAssessment(body, managerId, companyId) {
     if (ownedMembers.length !== teamMemberIds.length) {
       throw new Error('Forbidden: some team members do not belong to you')
     }
-    const durationMinutes = Number(body.duration_minutes || body.durationMinutes || 60)
-    normalizeWindow(body, Number.isInteger(durationMinutes) ? durationMinutes : 60)
+    parseStartDate(body)
   }
 
   const assessment = await monthlyAssessmentRepository.createTemplate({
@@ -107,9 +115,7 @@ async function createAssessment(body, managerId, companyId) {
     assessment.id,
     {
       team_member_ids: teamMemberIds,
-      assessment_date: body.assessment_date,
-      available_from: body.available_from || body.availableFrom,
-      due_at: body.due_at || body.dueAt,
+      start_date: body.start_date || body.startDate || body.assessment_date,
       schedule_timezone: body.schedule_timezone || body.scheduleTimezone,
       question_count: body.question_count || body.questionCount,
       duration_minutes: body.duration_minutes || body.durationMinutes,
@@ -174,7 +180,7 @@ async function assignCandidates(assessmentId, body, managerId, companyId) {
   if (!Number.isInteger(durationMinutes) || durationMinutes < 15 || durationMinutes > 180) {
     throw new Error('Duration must be an integer between 15 and 180 minutes')
   }
-  const { startDate, dueAt: firstDueAt } = normalizeWindow(body, durationMinutes)
+  const startDate = parseStartDate(body)
   const scheduleTimezone = body.schedule_timezone || body.scheduleTimezone || 'UTC'
   const endDate = addMonths(startDate, Number(assessment.duration_months) || 1)
   const requestKey = normalizeRequestKey(body.request_key || body.requestKey)
@@ -315,7 +321,7 @@ async function assignCandidates(assessmentId, body, managerId, companyId) {
 
       for (let monthOffset = 0; monthOffset < durationMonths; monthOffset += 1) {
         const occurrenceAvailableFrom = shiftMonths(startDate, monthOffset)
-        const occurrenceDueAt = shiftMonths(firstDueAt, monthOffset)
+        const occurrenceDue = occurrenceDueAt(occurrenceAvailableFrom)
         const periodMonth = new Date(Date.UTC(
           occurrenceAvailableFrom.getUTCFullYear(),
           occurrenceAvailableFrom.getUTCMonth(),
@@ -342,7 +348,7 @@ async function assignCandidates(assessmentId, body, managerId, companyId) {
             durationMinutes,
             scheduledAt: occurrenceAvailableFrom.toISOString(),
             availableFrom: occurrenceAvailableFrom.toISOString(),
-            dueAt: occurrenceDueAt.toISOString(),
+            dueAt: occurrenceDue.toISOString(),
             scheduleTimezone,
             monthlyAssessmentId: assessment.id,
             reportEmails,
@@ -361,7 +367,7 @@ async function assignCandidates(assessmentId, body, managerId, companyId) {
             enrollmentId: enrollment.id,
             periodMonth: periodMonth.toISOString().slice(0, 10),
             availableFrom: occurrenceAvailableFrom.toISOString(),
-            dueAt: occurrenceDueAt.toISOString(),
+            dueAt: occurrenceDue.toISOString(),
             durationMinutes,
             interviewId: interview.id,
           }

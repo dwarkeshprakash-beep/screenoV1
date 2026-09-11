@@ -427,7 +427,15 @@ function SubjectDetailModal({ assessment, open, onClose, onAssign, onEdit, onDel
                     <Avatar name={name} size={30} />
                     <div className="assignment-row__content">
                       <strong>{name}</strong>
-                      <span>{formatDateTime(enrollment.start_date)} - {formatDate(enrollment.end_date)}</span>
+                      <span>
+                        Opens {formatDateTime(enrollment.occurrence_available_from || enrollment.start_date)}
+                        {' · '}Due {formatDateTime(enrollment.occurrence_due_at || enrollment.end_date)}
+                      </span>
+                      {Number(assessment.duration_months) > 1 && (
+                        <span style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>
+                          Plan: {formatDate(enrollment.start_date)} – {formatDate(enrollment.end_date)}
+                        </span>
+                      )}
                     </div>
                     <span className={`status-pill${enrollment.status === 'cancelled' ? ' status-pill--danger' : ' status-pill--brand'}`}>
                       {enrollment.status || 'pending'}
