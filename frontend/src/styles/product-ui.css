@@ -141,6 +141,7 @@
   white-space: nowrap;
   transition: all var(--dur-fast) var(--ease-standard);
   text-decoration: none;
+  cursor: pointer;
 }
 
 .product-button:hover:not(:disabled) {

@@ -13,7 +13,7 @@ html, body {
   height: 100%;
   overflow-x: hidden;
   background: var(--bg-page);
-  color: var(--text-primary);
+  color: var(--fg-primary);
 }
 
 #root {

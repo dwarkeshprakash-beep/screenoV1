@@ -249,6 +249,11 @@ export const forgotPassword = email =>
     skipAuthRedirect: true,
     omitAuth: true,
   })
+export const validateResetToken = token =>
+  request(`/api/auth/reset-password/${encodeURIComponent(token)}`, {
+    skipAuthRedirect: true,
+    omitAuth: true,
+  })
 export const resetPassword = (token, newPassword) =>
   request('/api/auth/reset-password', {
     method: 'POST',

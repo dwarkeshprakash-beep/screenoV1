@@ -108,12 +108,7 @@ Resumes and reports go through `services/storage.service.js`. Audio is transcrib
 
 ## DB connection
 
-The `db/connection.js` factory reads `DB_TYPE`:
-
-- `DB_TYPE=supabase` uses `supabase.connection.js`.
-- `DB_TYPE=sqlserver` uses `sqlserver.connection.js`.
-
-Both expose `query(sql, params)` and `transaction(callback)`. Repositories use `@param` placeholders; the connection layer translates as needed.
+`db/connection.js` loads `supabase.connection.js` (plain `pg`, works against any PostgreSQL host, not just Supabase). It exposes `query(sql, params)` and `transaction(callback)`. Repositories use `@param` placeholders; the connection layer translates them to `$1, $2` positional params.
 
 ---
 

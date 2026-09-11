@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { Users, CheckCircle2, Clock, AlertTriangle, UserPlus, Upload, CalendarPlus, GitCompare, Search, SlidersHorizontal, X, UserCheck } from 'lucide-react'
+import { Users, CheckCircle2, Clock, AlertTriangle, UserPlus, Upload, CalendarPlus, GitCompare, Search, SlidersHorizontal, X, UserCheck, Eye } from 'lucide-react'
 import Spinner from '../../components/shared/Spinner'
 import ErrorMessage from '../../components/shared/ErrorMessage'
 import EmptyState from '../../components/shared/EmptyState'
@@ -387,8 +387,8 @@ function TeamPage() {
                           {m.last_assessed && <div style={{ fontSize: 11, color: 'var(--fg-subtle)', marginTop: 3 }}>{formatDate(m.last_assessed)}</div>}
                         </td>
                         <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--border-default)' }} onClick={e => e.stopPropagation()}>
-                          <button onClick={() => openSchedule(m)} style={{ background: 'var(--bg-surface)', color: 'var(--fg-primary)', border: '1px solid var(--border-default)', borderRadius: 8, fontWeight: 600, padding: '5px 10px', fontSize: 12, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                            <CalendarPlus size={12} /> Schedule
+                          <button onClick={() => navigate(`/manager/team/${m.id}`)} style={{ background: 'var(--bg-surface)', color: 'var(--fg-primary)', border: '1px solid var(--border-default)', borderRadius: 8, fontWeight: 600, padding: '5px 10px', fontSize: 12, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                            <Eye size={12} /> View
                           </button>
                         </td>
                       </tr>

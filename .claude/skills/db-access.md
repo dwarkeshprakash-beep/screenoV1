@@ -1,20 +1,13 @@
 # SKILL: Database Access — Screeno
 
-> Two database connection files. Same interface. Switch with one env variable.
-> Current: Supabase (PostgreSQL). Future: SQL Server (SSMS).
+> Single PostgreSQL connection file. Works against Supabase or any other Postgres host —
+> just point `DATABASE_URL` at it.
 
 ---
 
-## Architecture — Strategy Pattern
+## Architecture
 
-Both connection files expose EXACTLY the same function signature:
-
-```js
-query(sql, params) → returns array of rows
-```
-
-All repositories write SQL with `@param` style (readable named params).
-The connection layer handles the translation so repos never need to change.
+All repositories import one factory file, never the connection file directly:
 
 ```
 Repository
@@ -22,12 +15,11 @@ Repository
   ↓ calls:  db.query(sql, { id: 1 })
 
 connection.js (factory)
-  ↓ reads DB_TYPE from .env
-  ↓ loads supabase.connection.js OR sqlserver.connection.js
+  ↓ loads supabase.connection.js
 
-supabase.connection.js      sqlserver.connection.js
-  converts @id → $1           uses @id natively
-  passes [1] to pg             passes { id: 1 } to mssql
+supabase.connection.js
+  converts @id → $1
+  passes [1] to pg
 ```
 
 ---
@@ -38,52 +30,37 @@ supabase.connection.js      sqlserver.connection.js
 // backend/src/db/connection.js
 // ─────────────────────────────────────────────────────────────
 // Factory file — this is the ONLY file repositories should import.
-// It reads DB_TYPE from environment and loads the correct driver.
 //
 // Usage in repositories:
 //   const db = require('../db/connection')
 //   const rows = await db.query('SELECT * FROM users WHERE id = @id', { id: 1 })
-//
-// To switch databases: change DB_TYPE in .env
-//   DB_TYPE=supabase    → uses supabase.connection.js (PostgreSQL)
-//   DB_TYPE=sqlserver   → uses sqlserver.connection.js (SQL Server)
 // ─────────────────────────────────────────────────────────────
 
-const DB_TYPE = process.env.DB_TYPE || 'supabase'
+const db = require('./supabase.connection')
+console.log('[db] Connected to: PostgreSQL')
 
-// Load the correct connection file based on DB_TYPE
-let db
-
-if (DB_TYPE === 'sqlserver') {
-  // SQL Server (SSMS) — future option
-  db = require('./sqlserver.connection')
-  console.log('Database: SQL Server (SSMS)')
-} else {
-  // Supabase (PostgreSQL) — current default
-  db = require('./supabase.connection')
-  console.log('Database: Supabase (PostgreSQL)')
-}
-
-// Export the same interface regardless of which DB is loaded
-// Both files have:  module.exports = { query }
 module.exports = db
 ```
 
 ---
 
-## File 2: supabase.connection.js (PostgreSQL — current)
+## File 2: supabase.connection.js (PostgreSQL)
 
 ```js
 // backend/src/db/supabase.connection.js
 // ─────────────────────────────────────────────────────────────
-// PostgreSQL connection for Supabase.
+// PostgreSQL connection. Named after Supabase (the current host) but this is
+// plain node-postgres — it works against any PostgreSQL instance, not just Supabase.
 //
 // Key points:
 // - Uses 'pg' npm package (node-postgres)
 // - Port 6543 = Supabase transaction pooler (pgBouncer)
 //   This means: no session-level SET commands, no LISTEN/NOTIFY
 //   For our use case (simple CRUD), this is fine.
-// - SSL required: rejectUnauthorized: false (Supabase uses self-signed cert)
+//   A different Postgres host may not need a pooler at all — connect directly
+//   on port 5432 instead if there's no pgBouncer in front of it.
+// - SSL: rejectUnauthorized: false (Supabase uses a self-signed cert). If you
+//   move to a host that doesn't need this, adjust or drop the ssl option.
 // - Converts @param named params to $1, $2 (PostgreSQL syntax)
 // ─────────────────────────────────────────────────────────────
 
@@ -111,7 +88,7 @@ pool.on('error', (err) => {
 
 // ── PARAM CONVERTER ──────────────────────────────────────────
 // PostgreSQL uses $1, $2, $3 for query params.
-// We write @paramName in our SQL (more readable, same as SQL Server).
+// We write @paramName in our SQL (more readable).
 // This function converts: @name → $1, @email → $2, etc.
 //
 // Example:
@@ -163,7 +140,7 @@ async function query(sql, params = {}) {
     // Execute the query
     const result = await client.query(convertedSql, values)
 
-    // Return the rows array (same format as SQL Server's recordset)
+    // Return the rows array
     return result.rows
   } catch (err) {
     // Add the SQL to the error message to help with debugging
@@ -177,99 +154,7 @@ async function query(sql, params = {}) {
   }
 }
 
-// Export just the query function — same interface as sqlserver.connection.js
-module.exports = { query }
-```
-
----
-
-## File 3: sqlserver.connection.js (SQL Server — future)
-
-```js
-// backend/src/db/sqlserver.connection.js
-// ─────────────────────────────────────────────────────────────
-// SQL Server connection for local SSMS or Azure SQL.
-//
-// Key points:
-// - Uses 'mssql' npm package
-// - Requires SQL Server Authentication (not Windows Auth)
-//   See backend/CLAUDE.md for SSMS setup steps
-// - Uses @param named params natively (no conversion needed)
-// - Pool is managed by mssql internally
-// ─────────────────────────────────────────────────────────────
-
-const sql = require('mssql')
-
-// ── CONNECTION CONFIG ─────────────────────────────────────────
-// Read from environment variables — never hardcode credentials
-const config = {
-  server: process.env.DB_SERVER || 'localhost',
-  database: process.env.DB_DATABASE || 'Screeno',
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  options: {
-    // encrypt: true is required for Azure SQL
-    // For local SSMS, set to false if you get SSL errors
-    encrypt: process.env.DB_ENCRYPT === 'true',
-    // trustServerCertificate: true allows self-signed certs (local dev)
-    trustServerCertificate: true,
-  },
-  pool: {
-    max: 10,
-    min: 0,
-    idleTimeoutMillis: 30000,
-  }
-}
-
-// ── CONNECTION POOL ───────────────────────────────────────────
-// Lazy connection — only connects when first query is made
-// Reused for all subsequent queries
-let pool = null
-
-async function getPool() {
-  // If pool already exists and is connected, reuse it
-  if (pool) return pool
-
-  try {
-    pool = await sql.connect(config)
-    console.log('SQL Server connected successfully')
-    return pool
-  } catch (err) {
-    console.error('SQL Server connection failed:', err.message)
-    throw err
-  }
-}
-
-// ── MAIN QUERY FUNCTION ───────────────────────────────────────
-// Same interface as supabase.connection.js
-// SQL Server uses @param natively — no conversion needed
-//
-// Usage examples:
-//   const members = await query(
-//     'SELECT * FROM candidates WHERE company_id = @companyId',
-//     { companyId: 1 }
-//   )
-async function query(sqlText, params = {}) {
-  const conn = await getPool()
-  const request = conn.request()
-
-  // Add each parameter to the request
-  // mssql infers the SQL type automatically
-  Object.entries(params).forEach(([key, value]) => {
-    request.input(key, value)
-  })
-
-  try {
-    const result = await request.query(sqlText)
-    // recordset is the array of rows — same as pg's result.rows
-    return result.recordset
-  } catch (err) {
-    console.error('Query failed:', err.message)
-    console.error('SQL:', sqlText)
-    throw err
-  }
-}
-
+// Export just the query function
 module.exports = { query }
 ```
 
@@ -281,10 +166,9 @@ module.exports = { query }
 // backend/src/repositories/candidate.repository.js
 // ─────────────────────────────────────────────────────────────
 // All database queries for the candidates table.
-// Always import from '../db/connection' — never from the specific DB file.
+// Always import from '../db/connection' — never from supabase.connection.js directly.
 // ─────────────────────────────────────────────────────────────
 
-// Import the factory — it loads the right DB automatically
 const db = require('../db/connection')
 
 /**
@@ -324,7 +208,6 @@ async function getById(id) {
  */
 async function create(data) {
   // RETURNING * works in PostgreSQL — returns the inserted row
-  // For SQL Server, use OUTPUT INSERTED.*
   const rows = await db.query(
     `INSERT INTO candidates (first_name, last_name, email, phone, type, company_id, manager_id, source)
      VALUES (@first_name, @last_name, @email, @phone, @type, @company_id, @manager_id, @source)
@@ -348,33 +231,28 @@ module.exports = { getByCompany, getById, create }
 
 ---
 
-## SQL differences to watch (Supabase vs SQL Server)
+## Moving to a different PostgreSQL host
 
-| Feature | Supabase (PostgreSQL) | SQL Server |
-|---|---|---|
-| Return inserted row | `RETURNING *` | `OUTPUT INSERTED.*` |
-| Auto-increment | `SERIAL` | `IDENTITY(1,1)` |
-| String type | `VARCHAR` | `NVARCHAR` |
-| Current time | `NOW()` | `GETDATE()` |
-| Limit rows | `LIMIT 10` | `TOP 10` |
-| String concat | `\|\|` | `+` |
-| Boolean | `TRUE/FALSE` | `1/0` or `BIT` |
-| Text (long) | `TEXT` | `NVARCHAR(MAX)` |
-| Timestamp | `TIMESTAMPTZ` | `DATETIME2` |
+Since this is already plain `pg` against a `DATABASE_URL` connection string, moving off Supabase's
+hosted Postgres to another Postgres host (self-managed, RDS, Neon, etc.) is mostly an operational
+step, not a code change:
 
-When you eventually switch to SQL Server, the only things to update are:
-1. Queries that use `RETURNING *` → change to `OUTPUT INSERTED.*`
-2. The migration script (see `docs/database-schema.md`)
-3. The `.env` `DB_TYPE=sqlserver`
+1. `pg_dump` the schema + data from the current database.
+2. `pg_restore`/`psql` it into the new host.
+3. Point `DATABASE_URL` at the new host.
+4. Set `DB_SSL=false` in `.env` if the new host doesn't support/require SSL (e.g. local Postgres) —
+   `supabase.connection.js` forces SSL by default for Supabase's self-signed cert, and a host that
+   doesn't speak SSL will reject the connection with "The server does not support SSL connections".
+5. Check whether the new host sits behind a transaction-mode pooler like Supabase's pgBouncer
+   (port 6543) — if not, connect on the host's normal Postgres port instead.
+
+File storage (`SUPABASE_URL` / `SUPABASE_SERVICE_ROLE_KEY`, used only in `storage.service.js`) is
+unrelated to `DATABASE_URL` and is unaffected by this move — you can migrate the database while
+keeping Supabase Storage for resumes/reports.
 
 ---
 
 ## Running migrations
 
-### Supabase (current)
-1. Go to your Supabase project → SQL Editor
-2. Paste and run `backend/migrations/001_supabase.sql`
-
-### SQL Server (future)
-1. Open SSMS → connect to `(local)` → open New Query for `Screeno` database
-2. Paste and run `backend/migrations/001_sqlserver.sql`
+Apply `backend/migrations/*.sql` in order (see `docs/database-schema.md`), or run
+`node setup-db.js` from `backend/` — it's idempotent and safe to re-run against the live database.

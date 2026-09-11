@@ -17,7 +17,7 @@ async function callGroq(systemPrompt, userPrompt) {
       'Authorization': `Bearer ${(process.env.GROQ_API_KEY || '').trim()}`,
     },
     body: JSON.stringify({
-      model: 'llama-3.3-70b-versatile',
+      model: 'openai/gpt-oss-120b',
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: userPrompt },
@@ -36,12 +36,12 @@ async function callGroq(systemPrompt, userPrompt) {
 }
 
 /**
- * Call Gemini 2.0 Flash as a fallback.
+ * Call Gemini 3.6 Flash as a fallback.
  * @param {string} prompt
  * @returns {Promise<string>}
  */
 async function callGemini(prompt) {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${(process.env.GEMINI_API_KEY || '').trim()}`
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${(process.env.GEMINI_API_KEY || '').trim()}`
   const response = await fetchWithTimeout(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

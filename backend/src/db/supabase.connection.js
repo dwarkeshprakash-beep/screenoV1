@@ -1,15 +1,18 @@
 // backend/src/db/supabase.connection.js
-// PostgreSQL connection to Supabase via pg (node-postgres).
-// Port 6543 = pgBouncer transaction pooler — no session-level commands.
+// PostgreSQL connection via pg (node-postgres). Works against Supabase or any other
+// Postgres host — point DATABASE_URL at it.
+// Port 6543 = pgBouncer transaction pooler — no session-level commands (Supabase-specific).
 // Converts @paramName → $1, $2 so all repos can use readable named params.
 
 const { Pool } = require('pg')
 
+// Supabase requires SSL with a self-signed cert, so SSL is on by default.
+// Set DB_SSL=false in .env for a host that doesn't support/require SSL (e.g. local Postgres).
+const sslEnabled = process.env.DB_SSL !== 'false'
+
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false // Supabase uses self-signed cert
-  },
+  ssl: sslEnabled ? { rejectUnauthorized: false } : false,
   max: 5,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,

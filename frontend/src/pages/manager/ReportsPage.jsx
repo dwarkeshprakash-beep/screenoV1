@@ -34,7 +34,7 @@ export function ReportTable({ reports, onOpenReport, btnSecondary, thStyle }) {
         {reports.map((r, i) => {
           const name = `${r.candidate_first || ''} ${r.candidate_last || ''}`.trim() || 'Unknown'
           const overall = r.overall_score != null ? Number(r.overall_score) : null
-          const source = r.client_name ? r.client_name : r.assessment_subject ? r.assessment_subject : '—'
+          const source = r.client_name ? r.client_name : r.assessment_subject ? r.assessment_subject : 'General'
           return (
             <tr key={r.id || i} onClick={() => onOpenReport(r)} style={{ cursor: 'pointer', transition: 'background 120ms' }}
               onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface-alt)'}
@@ -215,7 +215,7 @@ function ReportsPage() {
     setLoading(true)
     setError(null)
     try {
-      const source = tab === 'client' ? 'client' : tab === 'monthly' ? 'monthly' : null
+      const source = tab === 'client' ? 'client' : tab === 'monthly' ? 'monthly' : tab === 'general' ? 'general' : null
       const [res, jobsRes] = await Promise.all([
         api.getTeamReports(source),
         api.getReportJobs().catch(() => ({ data: [] })),
@@ -278,7 +278,7 @@ function ReportsPage() {
   function exportCsv() {
     const rows = visible.map(r => [
       `${r.candidate_first || ''} ${r.candidate_last || ''}`.trim(),
-      r.client_name || r.assessment_subject || '',
+      r.client_name || r.assessment_subject || 'General',
       r.interview_type || '',
       r.created || '',
       r.overall_score ?? '',
@@ -379,6 +379,7 @@ function ReportsPage() {
           <button style={tabStyle('all')} onClick={() => handleTabChange('all')}>All Reports</button>
           <button style={tabStyle('client')} onClick={() => handleTabChange('client')}>Client Interviews</button>
           <button style={tabStyle('monthly')} onClick={() => handleTabChange('monthly')}>Monthly Assessments</button>
+          <button style={tabStyle('general')} onClick={() => handleTabChange('general')}>General Assessments</button>
         </div>
 
         <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border-default)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
@@ -393,7 +394,7 @@ function ReportsPage() {
                 <option value="pending">Pending</option>
               </select>
             </label>
-            {mainTab !== 'monthly' && clientNames.length > 0 && (
+            {mainTab !== 'monthly' && mainTab !== 'general' && clientNames.length > 0 && (
               <label style={btnSecondary}>
                 <Filter size={12} /> Client
                 <select value={templateFilter} onChange={e => setTemplate(e.target.value)} style={{ border: 0, outline: 'none', fontSize: 12, fontWeight: 600, background: 'transparent', cursor: 'pointer' }}>

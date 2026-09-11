@@ -115,12 +115,18 @@ function RequireAuth({ children, role }) {
   return children
 }
 
+function RedirectIfAuthed({ children }) {
+  const { token, role } = storedSession()
+  if (token && roleHome(role) !== '/login') return <Navigate to={roleHome(role)} replace />
+  return children
+}
+
 function App() {
   return (
     <AuthProvider>
       <Suspense fallback={<Spinner center />}>
         <Routes>
-          <Route path="/login" element={<LoginPage />} />
+          <Route path="/login" element={<RedirectIfAuthed><LoginPage /></RedirectIfAuthed>} />
 
           <Route
             path="/manager"

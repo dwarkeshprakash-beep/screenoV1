@@ -27,7 +27,7 @@ function SkillTag({ label }) {
 function AssessBadge({ lastAssessed, now }) {
   if (!lastAssessed) return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 8px', borderRadius: 9999, background: 'var(--danger-50)', color: 'var(--danger-500)', fontSize: 12, fontWeight: 600 }}>Never assessed</span>
   const daysAgo = (now - new Date(lastAssessed).getTime()) / (1000 * 60 * 60 * 24)
-  if (daysAgo > 30) return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 8px', borderRadius: 9999, background: 'var(--warning-50)', color: 'var(--warning-500)', fontSize: 12, fontWeight: 600 }}>Overdue Â· {Math.round(daysAgo)} days</span>
+  if (daysAgo > 30) return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 8px', borderRadius: 9999, background: 'var(--warning-50)', color: 'var(--warning-500)', fontSize: 12, fontWeight: 600 }}>Overdue · {Math.round(daysAgo)} days</span>
   return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 8px', borderRadius: 9999, background: 'var(--success-50)', color: 'var(--success-500)', fontSize: 12, fontWeight: 600 }}>Up to date</span>
 }
 
@@ -246,14 +246,9 @@ function MemberProfilePage() {
                   Add to my team
                 </button>
               ) : (
-                <>
-                  <button onClick={() => setEditOpen(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: 'var(--bg-surface)', border: '1px solid var(--slate-300)', borderRadius: 8, fontSize: 12, fontWeight: 600, color: 'var(--slate-900)', cursor: 'pointer' }}>
-                    <Pencil size={12} /> Edit
-                  </button>
-                  <button onClick={() => setScheduleOpen(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: 'var(--brand-500)', border: 0, borderRadius: 8, fontSize: 12, fontWeight: 600, color: 'var(--bg-surface)', cursor: 'pointer' }}>
-                    <CalendarPlus size={12} /> Schedule
-                  </button>
-                </>
+                <button onClick={() => setEditOpen(true)} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '6px 12px', background: 'var(--bg-surface)', border: '1px solid var(--slate-300)', borderRadius: 8, fontSize: 12, fontWeight: 600, color: 'var(--slate-900)', cursor: 'pointer' }}>
+                  <Pencil size={12} /> Edit
+                </button>
               )}
             </div>
           </div>
@@ -275,10 +270,10 @@ function MemberProfilePage() {
               <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--brand-500)', marginBottom: 14 }}>Performance summary</div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
                 {[
-                  { label: 'Last score',   value: report?.overall_score ? `${Number(report.overall_score).toFixed(1)}/10` : 'â€”' },
+                  { label: 'Last score',   value: report?.overall_score ? `${Number(report.overall_score).toFixed(1)}/10` : '—' },
                   { label: 'Assessments',  value: assessmentCount || '0' },
-                  { label: 'Best score',   value: bestScore > 0 ? `${bestScore.toFixed(1)}/10` : 'â€”' },
-                  { label: 'Days since',   value: member.last_assessed ? `${Math.round((now - new Date(member.last_assessed).getTime()) / 86400000)}d` : 'â€”' },
+                  { label: 'Best score',   value: bestScore > 0 ? `${bestScore.toFixed(1)}/10` : '—' },
+                  { label: 'Days since',   value: member.last_assessed ? `${Math.round((now - new Date(member.last_assessed).getTime()) / 86400000)}d` : '—' },
                 ].map((s, i) => (
                   <div key={i} style={{ textAlign: 'center', padding: '12px 8px', background: 'var(--slate-50)', borderRadius: 8 }}>
                     <div style={{ fontFamily: "var(--font-display,'Inter')", fontSize: 22, fontWeight: 700, color: 'var(--slate-900)', letterSpacing: '-0.015em' }}>{s.value}</div>
@@ -317,7 +312,7 @@ function MemberProfilePage() {
                     style={{ fontSize: 13, padding: '6px 10px', borderRadius: 8, border: '1px solid var(--slate-300)', color: 'var(--slate-900)', background: 'var(--bg-surface)' }}
                   >
                     {reportHistory.map(r => (
-                      <option key={r.id} value={r.id}>{formatDate(r.created)}{r.interview_type ? ` Â· ${r.interview_type}` : ''}</option>
+                      <option key={r.id} value={r.id}>{formatDate(r.created)}{r.interview_type ? ` · ${r.interview_type}` : ''}</option>
                     ))}
                   </select>
                 </div>
@@ -430,7 +425,7 @@ function MemberProfilePage() {
                 <FileText size={28} color="var(--fg-subtle)" style={{ marginBottom: 8 }} />
                 <div style={{ fontSize: 12, color: 'var(--fg-muted)', fontWeight: 500 }}>Resume uploaded</div>
               </div>
-              <a href={member.resume_url} target="_blank" rel="noreferrer" style={{ display: 'block', textAlign: 'center', marginTop: 8, fontSize: 12, color: 'var(--brand-500)', fontWeight: 500, cursor: 'pointer', textDecoration: 'none' }}>View resume â†’</a>
+              <a href={member.resume_url} target="_blank" rel="noreferrer" style={{ display: 'block', textAlign: 'center', marginTop: 8, fontSize: 12, color: 'var(--brand-500)', fontWeight: 500, cursor: 'pointer', textDecoration: 'none' }}>View resume →</a>
             </>
           ) : (
             <div style={{ border: '1px dashed var(--slate-300)', borderRadius: 8, padding: '14px 12px', textAlign: 'center', fontSize: 13, color: 'var(--slate-400)', cursor: 'pointer' }} onClick={() => fileInputRef.current?.click()}>

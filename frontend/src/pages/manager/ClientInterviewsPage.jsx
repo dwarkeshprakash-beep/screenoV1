@@ -188,7 +188,7 @@ function RequirementProfilesEditor({ profiles, setProfiles, allowEmpty = false }
   )
 }
 
-// â”€â”€ Mandate creation wizard â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Mandate creation wizard ───────────────────────────────────────────────────
 
 function CreateMandateModal({ open, onClose, onCreated }) {
   const [step, setStep] = useState(1)
@@ -669,7 +669,7 @@ function EditMandateModal({ open, template, onClose, onSaved }) {
   )
 }
 
-// â”€â”€ Requirement profile modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Requirement profile modal ─────────────────────────────────────────────────
 
 function RequirementModal({ open, onClose, onSaved, existing, mandateId }) {
   const [form, setForm] = useState({ profile_name: '', years_min: '', years_max: '', headcount: 1, jd_text: '', notes: '' })
@@ -815,7 +815,7 @@ function RequirementModal({ open, onClose, onSaved, existing, mandateId }) {
   )
 }
 
-// â”€â”€ Add prospects modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Add prospects modal ───────────────────────────────────────────────────────
 
 function AddProspectsModal({ open, onClose, onAdded, mandateId, requirements }) {
   const [members, setMembers] = useState([])
@@ -884,10 +884,10 @@ function AddProspectsModal({ open, onClose, onAdded, mandateId, requirements }) 
         </div>
 
         {requirements.length > 0 && (
-          <Field label="Assign to requirement profile" help="Required â€” tracks which profile each prospect is for.">
+          <Field label="Assign to requirement profile" help="Required — tracks which profile each prospect is for.">
             <select className="form-input" value={requirementId} onChange={e => setRequirementId(e.target.value)}>
               <option value="">Select a profile...</option>
-              {requirements.map(r => <option key={r.id} value={r.id}>{r.profile_name}{r.years_min != null ? ` (${r.years_min}â€“${r.years_max ?? '+'} yrs)` : ''}</option>)}
+              {requirements.map(r => <option key={r.id} value={r.id}>{r.profile_name}{r.years_min != null ? ` (${r.years_min}–${r.years_max ?? '+'} yrs)` : ''}</option>)}
             </select>
           </Field>
         )}
@@ -978,7 +978,7 @@ function CandidateActionModal({ candidate, requirements, onClose, onViewProfile,
           </span>
         )}
         {requirements && requirements.length > 0 && (
-          <Field label="Assign to requirement profile" help="Required â€” tracks which profile each prospect is for.">
+          <Field label="Assign to requirement profile" help="Required — tracks which profile each prospect is for.">
             <select className="form-input" value={requirementId} onChange={e => setRequirementId(e.target.value)}>
               <option value="">Select a profile...</option>
               {requirements.map(r => <option key={r.id} value={r.id}>{r.profile_name}</option>)}
@@ -1048,7 +1048,7 @@ function MandateReportDetailModal({ report, loading, error, onClose }) {
   )
 }
 
-// â”€â”€ Send JD modal (with custom message + preview) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Send JD modal (with custom message + preview) ─────────────────────────────
 
 function SendJDModal({ open, onClose, onSent, member, template }) {
   const [customMessage, setCustomMessage] = useState('')
@@ -1089,7 +1089,7 @@ function SendJDModal({ open, onClose, onSent, member, template }) {
         <div>
           <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg-muted)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Email preview</p>
           <div style={{ border: '1px solid var(--border-default)', borderRadius: 10, padding: 18, background: 'var(--bg-page)', fontSize: 13, color: 'var(--fg-body)' }}>
-            <p style={{ margin: '0 0 10px', fontWeight: 600, color: 'var(--fg-primary)' }}>Subject: [{template?.client_name}] Job opportunity â€” {roleName}</p>
+            <p style={{ margin: '0 0 10px', fontWeight: 600, color: 'var(--fg-primary)' }}>Subject: [{template?.client_name}] Job opportunity — {roleName}</p>
             <p style={{ margin: '0 0 8px' }}>Hi <strong>{member?.first_name}</strong>,</p>
             <p style={{ margin: '0 0 12px', color: 'var(--fg-muted)' }}>{previewText}</p>
             {jdPreview && (
@@ -1111,13 +1111,13 @@ function SendJDModal({ open, onClose, onSent, member, template }) {
   )
 }
 
-// â”€â”€ Schedule interview modal (5 types) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Schedule interview modal (5 types) ────────────────────────────────────────
 
 const INTERVIEW_TYPES = [
   { value: 'ai_voice', label: 'AI Voice Interview', desc: 'Automated voice interview with AI-generated questions' },
   { value: 'exam', label: 'Coding Exam', desc: 'Coding or multiple-choice assessment' },
   { value: 'human', label: 'Human Video Interview', desc: 'Live video interview with a managed meeting link' },
-  { value: 'offline', label: 'Offline Interview', desc: 'In-person interview â€” sends email with date and location' },
+  { value: 'offline', label: 'Offline Interview', desc: 'In-person interview — sends email with date and location' },
 ]
 
 const HUMAN_VIDEO_PLATFORMS = [
@@ -1309,7 +1309,7 @@ function ScheduleClientTeamModal({ open, onClose, onScheduled, member, template 
           <input className="form-input" type="datetime-local" value={scheduledAt} onChange={e => setScheduledAt(e.target.value)} />
         </Field>
 
-        {/* Video platform selector â€” only for human interviews */}
+        {/* Video platform selector — only for human interviews */}
         {type === 'human' && (
           <Field label="Video platform" help="A meeting link will be auto-created and shared with the candidate.">
             <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -1397,7 +1397,7 @@ function ScheduleClientTeamModal({ open, onClose, onScheduled, member, template 
   )
 }
 
-// â”€â”€ Mandate detail â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Mandate detail ─────────────────────────────────────────────────────────────
 
 const EMPTY_OUTCOME_ROUND_FORM = { interview_at: '', outcome: 'pending', feedback: '', manager_notes: '' }
 
@@ -1495,7 +1495,7 @@ function OutcomeRoundsModal({ open, onClose, onSaved, member, template }) {
           <Avatar name={candidateName} size={42} />
           <div style={{ minWidth: 0, flex: 1 }}>
             <div style={{ color: 'var(--fg-primary)', fontSize: 15, fontWeight: 800 }}>{candidateName}</div>
-            <div style={{ marginTop: 3, color: 'var(--fg-muted)', fontSize: 12 }}>{template?.client_name || 'Client'} Â· {roleName}</div>
+            <div style={{ marginTop: 3, color: 'var(--fg-muted)', fontSize: 12 }}>{template?.client_name || 'Client'} · {roleName}</div>
           </div>
           <span className="status-pill status-pill--brand">{rounds.length} round{rounds.length === 1 ? '' : 's'}</span>
         </div>
@@ -1960,7 +1960,7 @@ function MandateDetail({ initialTemplate }) {
 
       <div className="workspace-panel detail-panel">
 
-        {/* â”€â”€ Overview tab â”€â”€ */}
+        {/* ── Overview tab ── */}
         {tab === 'overview' && (
           <div className="workspace-stack">
             <div className="detail-facts">
@@ -2002,8 +2002,8 @@ function MandateDetail({ initialTemplate }) {
                       <div className="assignment-row__content">
                         <strong>{r.profile_name}</strong>
                         <span>
-                          {r.years_min != null ? `${r.years_min}â€“${r.years_max ?? '+'}  yrs exp` : 'Experience not specified'} &middot; {r.hired_count ?? 0} hired / {r.headcount ?? 1} target &middot; {r.pipeline_count ?? 0} pipeline
-                          {r.notes ? ` Â· ${r.notes}` : ''}
+                          {r.years_min != null ? `${r.years_min}–${r.years_max ?? '+'}  yrs exp` : 'Experience not specified'} &middot; {r.hired_count ?? 0} hired / {r.headcount ?? 1} target &middot; {r.pipeline_count ?? 0} pipeline
+                          {r.notes ? ` · ${r.notes}` : ''}
                         </span>
                         <span>
                           {r.jd_text ? 'Role JD attached' : 'Uses mandate JD'}
@@ -2021,7 +2021,7 @@ function MandateDetail({ initialTemplate }) {
           </div>
         )}
 
-        {/* â”€â”€ JD tab â”€â”€ */}
+        {/* ── JD tab ── */}
         {tab === 'jd' && (
           (template.jd_text || requirements.some(r => r.jd_text))
             ? <div className="workspace-stack" style={{ gap: 14 }}>
@@ -2051,7 +2051,7 @@ function MandateDetail({ initialTemplate }) {
             </div>
         )}
 
-        {/* â”€â”€ Candidates tab â”€â”€ */}
+        {/* ── Candidates tab ── */}
         {tab === 'candidates' && (
           loadingCandidates ? <Spinner center /> : (
             <div className="workspace-stack">
@@ -2085,7 +2085,7 @@ function MandateDetail({ initialTemplate }) {
                           <Avatar name={name} size={30} />
                           <div className="assignment-row__content">
                             <strong>{name}</strong>
-                            <span>{assignment.candidate_email} Â· {assignment.question_count} questions Â· {formatDate(assignment.created)}</span>
+                            <span>{assignment.candidate_email} · {assignment.question_count} questions · {formatDate(assignment.created)}</span>
                           </div>
                           <span className={`status-pill${assignment.status === 'completed' ? ' status-pill--success' : assignment.status === 'cancelled' ? ' status-pill--danger' : ' status-pill--brand'}`}>{assignment.status}</span>
                           {assignment.status === 'scheduled' && (
@@ -2149,7 +2149,7 @@ function MandateDetail({ initialTemplate }) {
           )
         )}
 
-        {/* â”€â”€ Client Team tab â”€â”€ */}
+        {/* ── Client Team tab ── */}
         {tab === 'team' && (
           loadingTeam ? <Spinner center /> : (
             <div className="workspace-stack">
@@ -2216,13 +2216,13 @@ function MandateDetail({ initialTemplate }) {
                         {interview?.interviewer_first && (
                           <div style={{ paddingLeft: 46, marginTop: 5, fontSize: 11, color: 'var(--fg-muted)' }}>
                             Interviewer: {interview.interviewer_first} {interview.interviewer_last}
-                            {interview.assignment_status ? ` Â· ${interview.assignment_status}` : ''}
+                            {interview.assignment_status ? ` · ${interview.assignment_status}` : ''}
                           </div>
                         )}
                         {interview?.assignment_status === 'completed' && (
                           <div style={{ marginLeft: 46, marginTop: 8, padding: 10, borderRadius: 8, background: 'var(--bg-surface-alt)', fontSize: 12, color: 'var(--fg-body)' }}>
                             <strong>Interviewer feedback ({interview.interviewer_outcome})</strong>
-                            {interview.interviewer_first && <span> Â· {interview.interviewer_first} {interview.interviewer_last}</span>}
+                            {interview.interviewer_first && <span> · {interview.interviewer_first} {interview.interviewer_last}</span>}
                             {interview.feedback && <p style={{ margin: '5px 0 0' }}>{interview.feedback}</p>}
                             {interview.feedback_file_url && <a href={interview.feedback_file_url} target="_blank" rel="noreferrer" style={{ display: 'inline-block', marginTop: 5 }}>{interview.original_filename || 'Feedback document'}</a>}
                           </div>
@@ -2300,7 +2300,7 @@ function MandateDetail({ initialTemplate }) {
                           <span className="status-pill">{stage.stage_order}</span>
                           <div className="assignment-row__content">
                             <strong>{stage.stage_name}</strong>
-                            <span>{stage.type} Â· attempt {stage.attempt_number} Â· {stage.stage_status}</span>
+                            <span>{stage.type} · attempt {stage.attempt_number} · {stage.stage_status}</span>
                             {stage.feedback && <span>Feedback: {stage.feedback}</span>}
                           </div>
                           {stage.interviewer_first && <span style={{ fontSize: 12, color: 'var(--fg-muted)' }}>{stage.interviewer_first} {stage.interviewer_last}</span>}
@@ -2352,7 +2352,7 @@ function MandateDetail({ initialTemplate }) {
           </div>
         )}
 
-        {/* â”€â”€ Reports tab â”€â”€ */}
+        {/* ── Reports tab ── */}
         {tab === 'reports' && (
           <div className="workspace-stack">
             {reportsError && <ErrorMessage message={reportsError} />}
@@ -2499,7 +2499,7 @@ function MandateDetail({ initialTemplate }) {
   )
 }
 
-// â”€â”€ List page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── List page ─────────────────────────────────────────────────────────────────
 
 const PAGE_SIZE = 10
 
