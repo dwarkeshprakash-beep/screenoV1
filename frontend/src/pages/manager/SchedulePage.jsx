@@ -1,15 +1,25 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { CalendarPlus, Mail, RotateCw } from 'lucide-react'
+import { CalendarDays, CalendarPlus, Eye, List, Mail, RotateCw } from 'lucide-react'
 import Spinner from '../../components/shared/Spinner'
 import ErrorMessage from '../../components/shared/ErrorMessage'
+import EmptyState from '../../components/shared/EmptyState'
 import Button from '../../components/shared/Button'
 import Modal from '../../components/shared/Modal'
 import ScheduleModal from '../../components/manager/ScheduleModal'
+import RescheduleModal from '../../components/manager/RescheduleModal'
 import * as api from '../../services/api'
+import { formatDateTime } from '../../utils/helpers'
 
 const HOURS = Array.from({ length: 9 }, (_, i) => i + 9)
 const H = 60
+
+const LIST_CATEGORIES = [
+  { id: 'all', label: 'All' },
+  { id: 'mandate', label: 'Client Mandate' },
+  { id: 'monthly', label: 'Monthly Assessment' },
+  { id: 'general', label: 'General Assessment' },
+]
 
 const TYPE_STYLE = {
   ai:       { bg: 'var(--warning-50)',  border: 'var(--warning-500)', color: 'var(--warning-700)', label: 'AI screen' },
@@ -49,12 +59,15 @@ function getTypeStyle(type) {
 
 function SchedulePage() {
   const navigate = useNavigate()
+  const [view, setView] = useState('list')
+  const [listCategory, setListCategory] = useState('all')
   const [weekStart, setWeekStart] = useState(() => getWeekStart(new Date()))
   const [events, setEvents]       = useState([])
   const [loading, setLoading]     = useState(true)
   const [error, setError]         = useState(null)
   const [scheduleOpen, setScheduleOpen] = useState(false)
   const [selectedEvent, setSelectedEvent] = useState(null)
+  const [rescheduleTarget, setRescheduleTarget] = useState(null)
   const [deliveries, setDeliveries] = useState([])
   const [deliveryLoading, setDeliveryLoading] = useState(false)
   const [deliveryError, setDeliveryError] = useState(null)
@@ -64,15 +77,26 @@ function SchedulePage() {
     setLoading(true)
     setError(null)
     try {
-      const res = await api.getCalendarEvents(weekStart.toISOString().slice(0, 10))
+      const category = listCategory !== 'all' ? listCategory : undefined
+      // Only the calendar is scoped to the visible week — the list tabs show everything
+      // matching the category filter regardless of date.
+      const range = view === 'calendar'
+        ? {
+            dateFrom: weekStart.toISOString().slice(0, 10),
+            dateTo: addDays(weekStart, 6).toISOString().slice(0, 10),
+          }
+        : {}
+      const res = await api.getScheduledInterviews({ ...range, category })
       setEvents(res.data || [])
     } catch {
-      setError('Could not load calendar.')
+      setError('Could not load interviews.')
     } finally {
       setLoading(false)
     }
-  }, [weekStart])
+  }, [view, listCategory, weekStart])
 
+  // Refetch whenever the manager switches Calendar/List, changes week, or picks a list
+  // sub-tab, so data created on another device/session while this page sat idle isn't stale.
   useEffect(() => { void load() }, [load])
 
   function prevWeek() { setWeekStart(d => addDays(d, -7)) }
@@ -131,22 +155,60 @@ function SchedulePage() {
     return 1
   }
 
+  // Already filtered server-side by category when in list view — just sort chronologically.
+  const sortedEvents = [...events].sort((a, b) => new Date(a.start || a.created) - new Date(b.start || b.created))
+
+  function tabButtonStyle(active) {
+    return {
+      display: 'inline-flex', alignItems: 'center', gap: 6, padding: '5px 12px', borderRadius: 6, border: 0,
+      background: active ? 'var(--bg-surface)' : 'transparent', fontSize: 12, fontWeight: 600,
+      color: active ? 'var(--brand-600)' : 'var(--slate-700)', cursor: 'pointer', fontFamily: 'inherit',
+    }
+  }
+
+  function subTabStyle(active) {
+    return {
+      padding: '8px 2px', border: 0, borderBottom: active ? '2px solid var(--brand-500)' : '2px solid transparent',
+      background: 'transparent', fontSize: 12, fontWeight: 600,
+      color: active ? 'var(--brand-600)' : 'var(--fg-muted)', cursor: 'pointer', fontFamily: 'inherit',
+    }
+  }
+
+  function statusPillClass(status) {
+    if (status === 'completed') return 'status-pill--success'
+    if (status === 'cancelled') return 'status-pill--danger'
+    if (status === 'in_progress') return 'status-pill--warning'
+    return 'status-pill--brand'
+  }
+
   return (
     <div className="workspace-page workspace-stack" style={{ gap: 16 }}>
       <div className="workspace-toolbar">
         <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
-          <h2 style={{ fontSize: 22, fontWeight: 700, color: 'var(--slate-900)', margin: 0, letterSpacing: '-0.015em' }}>{weekLabel(weekStart)}</h2>
           <div style={{ display: 'inline-flex', gap: 2, background: 'var(--slate-100)', padding: 3, borderRadius: 8, border: '1px solid var(--slate-200)' }}>
-            {[
-              { label: '‹', action: prevWeek },
-              { label: 'Today', action: goToday },
-              { label: '›', action: nextWeek },
-            ].map((btn, i) => (
-              <button key={i} onClick={btn.action} style={{ padding: '5px 10px', borderRadius: 6, border: 0, background: btn.label === 'Today' ? 'var(--bg-surface)' : 'transparent', fontSize: 12, fontWeight: 500, color: 'var(--slate-700)', cursor: 'pointer', fontFamily: 'inherit' }}>
-                {btn.label}
-              </button>
-            ))}
+            <button onClick={() => setView('list')} style={tabButtonStyle(view === 'list')}>
+              <List size={13} /> List
+            </button>
+            <button onClick={() => setView('calendar')} style={tabButtonStyle(view === 'calendar')}>
+              <CalendarDays size={13} /> Calendar
+            </button>
           </div>
+          {view === 'calendar' && (
+            <>
+              <h2 style={{ fontSize: 22, fontWeight: 700, color: 'var(--slate-900)', margin: 0, letterSpacing: '-0.015em' }}>{weekLabel(weekStart)}</h2>
+              <div style={{ display: 'inline-flex', gap: 2, background: 'var(--slate-100)', padding: 3, borderRadius: 8, border: '1px solid var(--slate-200)' }}>
+                {[
+                  { label: '‹', action: prevWeek },
+                  { label: 'Today', action: goToday },
+                  { label: '›', action: nextWeek },
+                ].map((btn, i) => (
+                  <button key={i} onClick={btn.action} style={{ padding: '5px 10px', borderRadius: 6, border: 0, background: btn.label === 'Today' ? 'var(--bg-surface)' : 'transparent', fontSize: 12, fontWeight: 500, color: 'var(--slate-700)', cursor: 'pointer', fontFamily: 'inherit' }}>
+                    {btn.label}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           <Button variant="secondary" onClick={() => navigate('/manager/team')}>My Team</Button>
@@ -156,25 +218,79 @@ function SchedulePage() {
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: 18, fontSize: 12, color: 'var(--slate-500)' }}>
-        {[
-          { t: 'AI screen', type: 'ai' },
-          { t: 'Coding exam', type: 'exam' },
-        ].map(l => {
-          const ts = TYPE_STYLE[l.type]
-          return (
-            <span key={l.t} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ width: 10, height: 10, borderRadius: 3, background: ts.bg, border: `1px solid ${ts.border}`, display: 'inline-block' }} />
-              {l.t}
-            </span>
-          )
-        })}
+      <div style={{ display: 'flex', gap: 20, borderBottom: '1px solid var(--border-default)' }}>
+        {LIST_CATEGORIES.map(c => (
+          <button key={c.id} onClick={() => setListCategory(c.id)} style={subTabStyle(listCategory === c.id)}>
+            {c.label}
+          </button>
+        ))}
       </div>
+
+      {view === 'calendar' && (
+        <div style={{ display: 'flex', gap: 18, fontSize: 12, color: 'var(--slate-500)' }}>
+          {[
+            { t: 'AI screen', type: 'ai' },
+            { t: 'Coding exam', type: 'exam' },
+          ].map(l => {
+            const ts = TYPE_STYLE[l.type]
+            return (
+              <span key={l.t} style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ width: 10, height: 10, borderRadius: 3, background: ts.bg, border: `1px solid ${ts.border}`, display: 'inline-block' }} />
+                {l.t}
+              </span>
+            )
+          })}
+        </div>
+      )}
 
       {loading ? (
         <Spinner center />
       ) : error ? (
         <ErrorMessage message={error} />
+      ) : view === 'list' ? (
+        sortedEvents.length === 0 ? (
+          <EmptyState message="No interviews found for this filter." />
+        ) : (
+          <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--slate-200)', borderRadius: 12, overflowX: 'auto', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
+            <table style={{ width: '100%', minWidth: 680, borderCollapse: 'collapse', fontSize: 13 }}>
+              <thead>
+                <tr style={{ background: 'var(--bg-surface-alt)' }}>
+                  {['CANDIDATE', 'TYPE', 'DATE & TIME', 'STATUS', 'ACTIONS'].map(h => (
+                    <th key={h} style={{ textAlign: 'left', padding: '11px 16px', fontSize: 11, fontWeight: 600, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--fg-subtle)', borderBottom: '1px solid var(--border-default)' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {sortedEvents.map(ev => {
+                  const ts = getTypeStyle(ev.type)
+                  return (
+                    <tr key={ev.id} onClick={() => openEvent(ev)} style={{ cursor: 'pointer' }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface-alt)'}
+                      onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-surface)'}>
+                      <td style={{ padding: '12px 16px', borderBottom: '1px solid var(--border-default)', fontWeight: 600, color: 'var(--fg-primary)' }}>
+                        {ev.candidateName || ev.title || 'Candidate'}
+                      </td>
+                      <td style={{ padding: '12px 16px', borderBottom: '1px solid var(--border-default)' }}>
+                        <span style={{ fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 9999, background: ts.bg, color: ts.color }}>{ts.label}</span>
+                      </td>
+                      <td style={{ padding: '12px 16px', borderBottom: '1px solid var(--border-default)', color: 'var(--fg-muted)' }}>
+                        {formatDateTime(ev.start)}
+                      </td>
+                      <td style={{ padding: '12px 16px', borderBottom: '1px solid var(--border-default)' }}>
+                        <span className={`status-pill ${statusPillClass(ev.status)}`}>{ev.status || 'scheduled'}</span>
+                      </td>
+                      <td style={{ padding: '12px 16px', borderBottom: '1px solid var(--border-default)' }} onClick={e => e.stopPropagation()}>
+                        <Button size="sm" variant="secondary" onClick={() => openEvent(ev)}>
+                          <Eye size={12} /> View
+                        </Button>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )
       ) : (
         <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--slate-200)', borderRadius: 12, overflowX: 'auto', boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
           <div style={{ minWidth: 780 }}>
@@ -277,6 +393,11 @@ function SchedulePage() {
               {(selectedEvent.teamMemberId || selectedEvent.team_member_id) && (
                 <Button variant="secondary" onClick={() => navigate(`/manager/team/${selectedEvent.teamMemberId || selectedEvent.team_member_id}`)}>Open profile</Button>
               )}
+              {selectedEvent.status !== 'completed' && selectedEvent.status !== 'cancelled' && (
+                <Button variant="secondary" onClick={() => { setRescheduleTarget(selectedEvent); setSelectedEvent(null) }}>
+                  <CalendarDays size={14} />Reschedule
+                </Button>
+              )}
               {selectedEvent.type !== 'offline' && selectedEvent.status !== 'completed' && (
                 <Button onClick={resendInvite} loading={resending}>
                   <RotateCw size={14} />Resend magic link
@@ -286,6 +407,13 @@ function SchedulePage() {
           </div>
         )}
       </Modal>
+
+      <RescheduleModal
+        open={!!rescheduleTarget}
+        interview={rescheduleTarget}
+        onClose={() => setRescheduleTarget(null)}
+        onDone={load}
+      />
     </div>
   )
 }

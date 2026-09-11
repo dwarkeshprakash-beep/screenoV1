@@ -298,8 +298,14 @@ export const cancelInterview = interviewId =>
 export const rescheduleInterview = (interviewId, data) =>
   request(`/api/schedule/${interviewId}/reschedule`, { method: 'POST', body: JSON.stringify(data) })
 export const getScheduleOrgUsers = () => request('/api/schedule/org-users')
-export const getCalendarEvents = week =>
-  request(`/api/schedule/calendar${week ? `?week=${week}` : ''}`)
+export const getScheduledInterviews = ({ dateFrom, dateTo, category } = {}) => {
+  const params = new URLSearchParams()
+  if (dateFrom) params.set('dateFrom', dateFrom)
+  if (dateTo) params.set('dateTo', dateTo)
+  if (category) params.set('category', category)
+  const query = params.toString()
+  return request(`/api/schedule/interviews${query ? `?${query}` : ''}`)
+}
 export const getEmailDeliveries = interviewId =>
   request(`/api/schedule/email-deliveries/${interviewId}`)
 export const resendMagicLink = interviewId =>
