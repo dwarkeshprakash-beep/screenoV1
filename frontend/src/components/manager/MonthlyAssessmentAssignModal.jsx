@@ -6,53 +6,28 @@ import Avatar from '../shared/Avatar'
 import ReportRecipientsSelector from './ReportRecipientsSelector'
 import * as api from '../../services/api'
 
-function toDateTimeLocalValue(date) {
+function toDateValue(date) {
   const year = date.getFullYear()
   const month = String(date.getMonth() + 1).padStart(2, '0')
   const day = String(date.getDate()).padStart(2, '0')
-  const hours = String(date.getHours()).padStart(2, '0')
-  const minutes = String(date.getMinutes()).padStart(2, '0')
-  return `${year}-${month}-${day}T${hours}:${minutes}`
+  return `${year}-${month}-${day}`
 }
 
-function nowDateTime() {
-  return toDateTimeLocalValue(new Date())
+function todayDate() {
+  return toDateValue(new Date())
 }
 
-function defaultOpenDateTime(defaultDate) {
-  const now = new Date()
-  const date = defaultDate ? new Date(defaultDate) : now
-  if (Number.isNaN(date.getTime())) return toDateTimeLocalValue(now)
-  date.setHours(9, 0, 0, 0)
-  if (date <= now) return toDateTimeLocalValue(now)
-  return toDateTimeLocalValue(date)
-}
-
-function addOffset(baseStr, amount, unit) {
-  const base = new Date(baseStr)
-  if (Number.isNaN(base.getTime())) return baseStr
-  const d = new Date(base)
-  if (unit === 'minutes') d.setMinutes(d.getMinutes() + amount)
-  else if (unit === 'hours') d.setHours(d.getHours() + amount)
-  else if (unit === 'days') d.setDate(d.getDate() + amount)
-  else if (unit === 'months') d.setMonth(d.getMonth() + amount)
-  return toDateTimeLocalValue(d)
+function defaultStartDate(defaultDate) {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const date = defaultDate ? new Date(defaultDate) : today
+  if (Number.isNaN(date.getTime()) || date < today) return toDateValue(today)
+  return toDateValue(date)
 }
 
 function generateRequestKey() {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`
 }
-
-const DURATION_PRESETS = [
-  { label: '15 min', amount: 15, unit: 'minutes' },
-  { label: '30 min', amount: 30, unit: 'minutes' },
-  { label: '1 hr', amount: 1, unit: 'hours' },
-  { label: '3 hr', amount: 3, unit: 'hours' },
-  { label: '1 day', amount: 1, unit: 'days' },
-  { label: '3 days', amount: 3, unit: 'days' },
-  { label: '1 week', amount: 7, unit: 'days' },
-  { label: '1 month', amount: 1, unit: 'months' },
-]
 
 function MonthlyAssessmentAssignModal({
   open,
@@ -65,8 +40,7 @@ function MonthlyAssessmentAssignModal({
   const [team, setTeam] = useState([])
   const [selectedIds, setSelectedIds] = useState(new Set())
   const [reportUserIds, setReportUserIds] = useState([])
-  const [availableFrom, setAvailableFrom] = useState(nowDateTime)
-  const [dueAt, setDueAt] = useState(() => addOffset(nowDateTime(), 3, 'hours'))
+  const [startDate, setStartDate] = useState(todayDate)
   const [questionCount, setQuestionCount] = useState(10)
   const [durationMinutes, setDurationMinutes] = useState(60)
   const [query, setQuery] = useState('')
@@ -81,9 +55,7 @@ function MonthlyAssessmentAssignModal({
     setStep('details')
     setSelectedIds(new Set())
     setReportUserIds([])
-    const base = defaultOpenDateTime(defaultDate)
-    setAvailableFrom(base)
-    setDueAt(addOffset(base, 3, 'hours'))
+    setStartDate(defaultStartDate(defaultDate))
     setQuestionCount(10)
     setDurationMinutes(60)
     setQuery('')
@@ -105,9 +77,9 @@ function MonthlyAssessmentAssignModal({
   }, [open, defaultDate])
 
   useEffect(() => {
-    if (!open || !availableFrom) return
+    if (!open || !startDate) return
     let active = true
-    const month = availableFrom.slice(0, 7)
+    const month = startDate.slice(0, 7)
     async function loadConflicts() {
       try {
         const response = await api.getMonthlyAssessmentPlan(month)
@@ -134,7 +106,7 @@ function MonthlyAssessmentAssignModal({
     }
     void loadConflicts()
     return () => { active = false }
-  }, [open, availableFrom])
+  }, [open, startDate])
 
   const visibleTeam = useMemo(() => {
     const normalized = query.trim().toLowerCase()
@@ -157,36 +129,17 @@ function MonthlyAssessmentAssignModal({
     })
   }
 
-  function applyDurationPreset(amount, unit) {
-    const newDue = addOffset(availableFrom, amount, unit)
-    setDueAt(newDue)
-  }
-
-  function handleOpenChange(val) {
-    setAvailableFrom(val)
-    // Keep same duration gap when open date changes
-    const openDate = new Date(val)
-    const dueDate = new Date(dueAt)
-    const gapMs = dueDate - new Date(availableFrom)
-    if (!Number.isNaN(gapMs) && gapMs > 0) {
-      setDueAt(toDateTimeLocalValue(new Date(openDate.getTime() + gapMs)))
-    }
-  }
-
   function validateDetails() {
-    const openDate = new Date(availableFrom)
-    const closeDate = new Date(dueAt)
+    const openDate = new Date(`${startDate}T00:00:00`)
 
-    if (!availableFrom || Number.isNaN(openDate.getTime())) {
-      setError('Opens date is required.')
+    if (!startDate || Number.isNaN(openDate.getTime())) {
+      setError('Start date is required.')
       return null
     }
-    if (!dueAt || Number.isNaN(closeDate.getTime())) {
-      setError('Due date is required.')
-      return null
-    }
-    if (closeDate <= openDate) {
-      setError('Due date/time must be after the Opens date/time.')
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    if (openDate < today) {
+      setError('Start date cannot be in the past.')
       return null
     }
     if (selectedIds.size === 0) {
@@ -202,7 +155,7 @@ function MonthlyAssessmentAssignModal({
       return null
     }
     setError(null)
-    return { openDate, closeDate }
+    return { openDate }
   }
 
   function continueToReports() {
@@ -212,14 +165,12 @@ function MonthlyAssessmentAssignModal({
   async function handleAssign() {
     const validated = validateDetails()
     if (!validated) return
-    const { openDate, closeDate } = validated
     setSaving(true)
     setError(null)
     try {
       const result = await api.assignMonthlyAssessment(assessment.id, {
         request_key: requestKey,
-        available_from: openDate.toISOString(),
-        due_at: closeDate.toISOString(),
+        start_date: startDate,
         schedule_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         question_count: Number(questionCount),
         duration_minutes: Number(durationMinutes),
@@ -272,65 +223,21 @@ function MonthlyAssessmentAssignModal({
 
         {step === 'details' && (
           <>
-        {/* Opens date row */}
+        {/* Start date row — the due date for each monthly window is derived automatically */}
         <div>
-          <label htmlFor="monthly-available-from" style={labelStyle}>
-            Opens (first month) — defaults to now
+          <label htmlFor="monthly-start-date" style={labelStyle}>
+            Start date
           </label>
           <input
-            id="monthly-available-from"
-            type="datetime-local"
-            value={availableFrom}
-            onChange={e => handleOpenChange(e.target.value)}
+            id="monthly-start-date"
+            type="date"
+            value={startDate}
+            min={todayDate()}
+            onChange={e => setStartDate(e.target.value)}
             style={inputStyle}
           />
-        </div>
-
-        {/* Due date row with presets */}
-        <div>
-          <label htmlFor="monthly-due-at" style={labelStyle}>
-            Due (first month) — pick a preset or set manually
-          </label>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
-            {DURATION_PRESETS.map(p => (
-              <button
-                key={p.label}
-                type="button"
-                onClick={() => applyDurationPreset(p.amount, p.unit)}
-                style={{
-                  padding: '4px 10px',
-                  fontSize: 11,
-                  fontWeight: 600,
-                  border: '1px solid var(--border-default)',
-                  borderRadius: 20,
-                  background: 'var(--bg-surface-alt)',
-                  color: 'var(--fg-muted)',
-                  cursor: 'pointer',
-                  lineHeight: 1.6,
-                }}
-              >
-                + {p.label}
-              </button>
-            ))}
-          </div>
-          <input
-            id="monthly-due-at"
-            type="datetime-local"
-            value={dueAt}
-            onChange={e => setDueAt(e.target.value)}
-            style={{
-              ...inputStyle,
-              borderColor: dueAt && availableFrom && new Date(dueAt) <= new Date(availableFrom)
-                ? 'var(--danger-500)' : 'var(--border-default)',
-            }}
-          />
-          {dueAt && availableFrom && new Date(dueAt) <= new Date(availableFrom) && (
-            <p style={{ margin: '4px 0 0', fontSize: 11, color: 'var(--danger-600)' }}>
-              Due must be after Opens
-            </p>
-          )}
           <p style={{ fontSize: 11, color: 'var(--fg-muted)', margin: '4px 0 0' }}>
-            Timezone: {Intl.DateTimeFormat().resolvedOptions().timeZone}
+            Each month's window runs for a full month from its open date, for {assessment.duration_months || 1} month{Number(assessment.duration_months) === 1 ? '' : 's'} total.
           </p>
         </div>
 

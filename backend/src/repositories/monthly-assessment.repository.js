@@ -222,11 +222,25 @@ async function getByIdForManager(id, managerId) {
 }
 
 async function getEnrollmentsByAssessment(assessmentId) {
+  // start_date/end_date describe the whole multi-month enrollment plan, which is NOT the same
+  // as when any single occurrence actually opens/closes. Pull the currently-relevant occurrence's
+  // real window too (whichever hasn't expired yet, or the earliest one if all have) so the UI can
+  // show what actually gates the candidate's access instead of only the outer plan range.
   return db.query(
-    `SELECT e.*, tm.user_id, tm.manager_id, u.first_name, u.last_name, u.email, u.availability
+    `SELECT e.*, tm.user_id, tm.manager_id, u.first_name, u.last_name, u.email, u.availability,
+            occ.available_from AS occurrence_available_from,
+            occ.due_at AS occurrence_due_at,
+            occ.status AS occurrence_status
      FROM monthly_assessment_enrollments e
      JOIN team_members tm ON tm.id = e.team_member_id
      JOIN users u ON u.id = tm.user_id
+     LEFT JOIN LATERAL (
+       SELECT available_from, due_at, status
+       FROM monthly_assessment_occurrences o
+       WHERE o.enrollment_id = e.id
+       ORDER BY (due_at < NOW()) ASC, period_month ASC
+       LIMIT 1
+     ) occ ON true
      WHERE e.assessment_id = @assessmentId`,
     { assessmentId }
   )

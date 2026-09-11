@@ -43,7 +43,7 @@ function AssignmentCard({ assignment, onCompleted }) {
 
   return (
     <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderRadius: 10, padding: 18 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
         <div><strong>{assignment.candidate_first} {assignment.candidate_last}</strong><p style={{ margin: '4px 0', color: 'var(--fg-muted)', fontSize: 12 }}>{assignment.client_name} · {assignment.stage_name}</p></div>
         <span className={`status-pill${assignment.status === 'completed' ? ' status-pill--success' : ' status-pill--brand'}`}>{assignment.status}</span>
       </div>

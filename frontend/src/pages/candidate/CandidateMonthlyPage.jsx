@@ -5,6 +5,16 @@ import Spinner from '../../components/shared/Spinner'
 import * as api from '../../services/api'
 import { formatDateTime, parseStoredArray } from '../../utils/helpers'
 
+function formatPeriodMonth(value) {
+  if (!value) return '—'
+  const raw = String(value)
+  // A short "YYYY-MM" needs a day appended to parse; a full date or ISO timestamp
+  // (what the API actually sends) parses as-is — never concatenate onto it.
+  const normalized = raw.length === 7 ? `${raw}-01` : raw
+  const date = new Date(normalized)
+  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
+}
+
 const STATE_LABELS = {
   upcoming: { label: 'Upcoming', color: 'var(--fg-muted)', bg: 'var(--bg-subtle)' },
   open: { label: 'Open', color: 'var(--success-700)', bg: 'var(--success-50)' },
@@ -26,9 +36,7 @@ function OccurrenceRow({ occ, onLaunch, launchingId }) {
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
           <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--fg-primary)' }}>
-            {occ.period_month
-              ? new Date(occ.period_month + (occ.period_month.length === 7 ? '-01' : '') + 'T00:00:00').toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
-              : '—'}
+            {formatPeriodMonth(occ.period_month)}
           </span>
           <span style={{
             fontSize: 11, fontWeight: 600, padding: '2px 7px', borderRadius: 5,

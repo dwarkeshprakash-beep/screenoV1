@@ -1010,7 +1010,7 @@ function MandateReportDetailModal({ report, loading, error, onClose }) {
     <Modal open={!!report} onClose={onClose} title="Report detail" size="lg">
       {loading ? <Spinner center /> : error ? <ErrorMessage message={error} /> : report && (
         <div className="workspace-stack">
-          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap' }}>
             <div>
               <h3 style={{ fontSize: 18, fontWeight: 700, color: 'var(--fg-primary)', margin: '0 0 4px' }}>{name}</h3>
               <p style={{ fontSize: 13, color: 'var(--fg-muted)', margin: 0 }}>{report.candidate_email || 'No email'} | {report.interview_type || 'Interview'}</p>

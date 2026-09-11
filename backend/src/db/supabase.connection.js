@@ -4,7 +4,15 @@
 // Port 6543 = pgBouncer transaction pooler — no session-level commands (Supabase-specific).
 // Converts @paramName → $1, $2 so all repos can use readable named params.
 
-const { Pool } = require('pg')
+const { Pool, types } = require('pg')
+
+// node-postgres parses DATE columns (OID 1082) into a JS Date anchored to *local* midnight,
+// not UTC. Serializing that with toISOString() (as res.json() does) shifts it onto the
+// previous/next UTC day whenever the server's local timezone offset is non-zero — e.g. a
+// period_month of "2026-09-01" silently becomes "2026-08-31T18:30:00.000Z" in IST, bucketing
+// it into August everywhere it's displayed. Keep DATE columns as their raw "YYYY-MM-DD"
+// string instead — a bare date string parses as UTC midnight everywhere it's later consumed.
+types.setTypeParser(1082, value => value)
 
 // Supabase requires SSL with a self-signed cert, so SSL is on by default.
 // Set DB_SSL=false in .env for a host that doesn't support/require SSL (e.g. local Postgres).
