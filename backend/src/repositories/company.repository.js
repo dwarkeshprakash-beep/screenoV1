@@ -5,4 +5,8 @@ async function getById(id) {
   return rows[0] || null
 }
 
-module.exports = { getById }
+async function getAll() {
+  return db.query(`SELECT id, name FROM companies ORDER BY name`)
+}
+
+module.exports = { getById, getAll }

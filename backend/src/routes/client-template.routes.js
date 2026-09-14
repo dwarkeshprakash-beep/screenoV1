@@ -18,7 +18,7 @@ const interviewFlowService = require('../services/interview-flow.service')
 const { parseStoredArray } = require('../utils/parse')
 
 const router = express.Router()
-router.use(authMiddleware, requireRole('manager'))
+router.use(authMiddleware, requireRole('manager', 'bde'))
 
 const parseTags = parseStoredArray
 
@@ -192,9 +192,27 @@ async function syncRequirementProfiles(mandateId, managerId, profiles) {
 router.post('/', async (req, res) => {
   try {
     const requirementProfiles = normalizeRequirementProfiles(req.body.requirement_profiles ?? req.body.requirementProfiles) || []
-    const data = { ...req.body, manager_id: req.user.id }
+    const data = { ...req.body }
     delete data.requirement_profiles
     delete data.requirementProfiles
+    delete data.assigned_manager_id
+    delete data.assignedManagerId
+
+    if (req.user.role === 'bde') {
+      const assignedManagerId = parseInt(req.body.assigned_manager_id ?? req.body.assignedManagerId, 10)
+      if (!Number.isInteger(assignedManagerId)) {
+        return res.status(400).json({ success: false, error: 'Select a manager to assign this mandate to' })
+      }
+      const targetManager = await userRepository.getByIdForCompany(assignedManagerId, req.user.companyId)
+      if (!targetManager || targetManager.role !== 'manager') {
+        return res.status(400).json({ success: false, error: 'Select a valid manager in your organization' })
+      }
+      data.manager_id = assignedManagerId
+      data.created_by_user_id = req.user.id
+    } else {
+      data.manager_id = req.user.id
+      data.created_by_user_id = req.user.id
+    }
     if (requirementProfiles.length > 0) {
       data.headcount = requirementHeadcount(requirementProfiles)
       if (!String(data.requirements || '').trim()) {
@@ -215,7 +233,7 @@ router.post('/', async (req, res) => {
     }
     const template = await clientTemplateRepo.create(data)
     const savedProfiles = requirementProfiles.length > 0
-      ? await syncRequirementProfiles(template.id, req.user.id, requirementProfiles)
+      ? await syncRequirementProfiles(template.id, template.manager_id, requirementProfiles)
       : []
     res.status(201).json({ success: true, data: { ...template, requirement_profiles: savedProfiles } })
   } catch (err) {
@@ -229,11 +247,24 @@ router.get('/', async (req, res) => {
   try {
     const requestedState = String(req.query.state || 'active')
     const state = ['active', 'archived', 'all'].includes(requestedState) ? requestedState : 'active'
-    const templates = await clientTemplateRepo.getByManager(req.user.id, state)
+    const templates = req.user.role === 'bde'
+      ? await clientTemplateRepo.getByCreator(req.user.id, state)
+      : await clientTemplateRepo.getByManager(req.user.id, state)
     res.json({ success: true, data: templates })
   } catch (err) {
     console.error('GET /client-templates failed:', err.message)
     res.status(500).json({ success: false, error: 'Could not load templates' })
+  }
+})
+
+// Registered before /:id so Express doesn't treat "managers" as a mandate id.
+router.get('/managers', async (req, res) => {
+  try {
+    const managers = await userRepository.getByRole(req.user.companyId, 'manager')
+    res.json({ success: true, data: managers })
+  } catch (err) {
+    console.error('GET /client-templates/managers failed:', err.message)
+    res.status(500).json({ success: false, error: 'Could not load managers' })
   }
 })
 
@@ -287,7 +318,9 @@ router.delete('/:id', async (req, res) => {
 
 router.get('/:id', async (req, res) => {
   try {
-    const template = await clientTemplateRepo.getById(parseInt(req.params.id, 10), req.user.id)
+    const template = req.user.role === 'bde'
+      ? await clientTemplateRepo.getByIdForCreator(parseInt(req.params.id, 10), req.user.id)
+      : await clientTemplateRepo.getById(parseInt(req.params.id, 10), req.user.id)
     if (!template) return res.status(404).json({ success: false, error: 'Template not found' })
     res.json({ success: true, data: template })
   } catch (err) {
@@ -530,7 +563,9 @@ router.get('/:id/matches', async (req, res) => {
 router.get('/:id/team', async (req, res) => {
   try {
     const mandateId = parseInt(req.params.id, 10)
-    const template = await clientTemplateRepo.getById(mandateId, req.user.id)
+    const template = req.user.role === 'bde'
+      ? await clientTemplateRepo.getByIdForCreator(mandateId, req.user.id)
+      : await clientTemplateRepo.getById(mandateId, req.user.id)
     if (!template) return res.status(404).json({ success: false, error: 'Mandate not found' })
     const team = await clientTeamRepo.getByMandate(mandateId)
 

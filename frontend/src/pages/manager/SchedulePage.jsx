@@ -59,6 +59,9 @@ function getTypeStyle(type) {
 
 function SchedulePage() {
   const navigate = useNavigate()
+  let currentRole = 'manager'
+  try { currentRole = JSON.parse(localStorage.getItem('user') || '{}').role || 'manager' } catch { /* ignore */ }
+  const isBde = currentRole === 'bde'
   const [view, setView] = useState('list')
   const [listCategory, setListCategory] = useState('all')
   const [weekStart, setWeekStart] = useState(() => getWeekStart(new Date()))
@@ -107,6 +110,7 @@ function SchedulePage() {
     setSelectedEvent(ev)
     setDeliveries([])
     setDeliveryError(null)
+    if (isBde) return
     setDeliveryLoading(true)
     try {
       const res = await api.getEmailDeliveries(ev.id)
@@ -210,12 +214,14 @@ function SchedulePage() {
             </>
           )}
         </div>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <Button variant="secondary" onClick={() => navigate('/manager/team')}>My Team</Button>
-          <Button onClick={() => setScheduleOpen(true)}>
-            <CalendarPlus size={13} /> Schedule interview
-          </Button>
-        </div>
+        {!isBde && (
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <Button variant="secondary" onClick={() => navigate('/manager/team')}>My Team</Button>
+            <Button onClick={() => setScheduleOpen(true)}>
+              <CalendarPlus size={13} /> Schedule interview
+            </Button>
+          </div>
+        )}
       </div>
 
       <div style={{ display: 'flex', gap: 20, borderBottom: '1px solid var(--border-default)' }}>
@@ -365,45 +371,51 @@ function SchedulePage() {
               <div className="detail-fact"><div className="detail-fact__label">Duration</div><div className="detail-fact__value">{selectedEvent.duration_minutes || 60} min</div></div>
             </div>
 
-            <div className="workspace-section-heading">
-              <div><h3 style={{ fontSize: 15 }}>Email delivery</h3><p>Magic-link delivery log for this interview.</p></div>
-              <Mail size={18} color="var(--brand-500)" />
-            </div>
+            {!isBde && (
+              <>
+                <div className="workspace-section-heading">
+                  <div><h3 style={{ fontSize: 15 }}>Email delivery</h3><p>Magic-link delivery log for this interview.</p></div>
+                  <Mail size={18} color="var(--brand-500)" />
+                </div>
 
-            {deliveryLoading ? <Spinner center /> : deliveries.length === 0 ? (
-              <span style={{ color: 'var(--fg-muted)', fontSize: 12 }}>No delivery rows logged yet.</span>
-            ) : (
-              <div className="assignment-list">
-                {deliveries.map(row => (
-                  <div className="assignment-row" key={row.id}>
-                    <div className="assignment-row__content">
-                      <strong>{row.kind}</strong>
-                      <span>{row.intended_to || 'No recipient'} | {row.created ? new Date(row.created).toLocaleString() : ''}</span>
-                      {row.error && <span style={{ color: 'var(--danger-700)' }}>{row.error}</span>}
-                    </div>
-                    <span className={`status-pill${row.status === 'sent' ? ' status-pill--success' : ' status-pill--danger'}`}>{row.status}</span>
+                {deliveryLoading ? <Spinner center /> : deliveries.length === 0 ? (
+                  <span style={{ color: 'var(--fg-muted)', fontSize: 12 }}>No delivery rows logged yet.</span>
+                ) : (
+                  <div className="assignment-list">
+                    {deliveries.map(row => (
+                      <div className="assignment-row" key={row.id}>
+                        <div className="assignment-row__content">
+                          <strong>{row.kind}</strong>
+                          <span>{row.intended_to || 'No recipient'} | {row.created ? new Date(row.created).toLocaleString() : ''}</span>
+                          {row.error && <span style={{ color: 'var(--danger-700)' }}>{row.error}</span>}
+                        </div>
+                        <span className={`status-pill${row.status === 'sent' ? ' status-pill--success' : ' status-pill--danger'}`}>{row.status}</span>
+                      </div>
+                    ))}
                   </div>
-                ))}
-              </div>
+                )}
+
+                {deliveryError && <ErrorMessage message={deliveryError} />}
+              </>
             )}
 
-            {deliveryError && <ErrorMessage message={deliveryError} />}
-
-            <div className="form-actions" style={{ justifyContent: 'flex-end' }}>
-              {(selectedEvent.teamMemberId || selectedEvent.team_member_id) && (
-                <Button variant="secondary" onClick={() => navigate(`/manager/team/${selectedEvent.teamMemberId || selectedEvent.team_member_id}`)}>Open profile</Button>
-              )}
-              {selectedEvent.status !== 'completed' && selectedEvent.status !== 'cancelled' && (
-                <Button variant="secondary" onClick={() => { setRescheduleTarget(selectedEvent); setSelectedEvent(null) }}>
-                  <CalendarDays size={14} />Reschedule
-                </Button>
-              )}
-              {selectedEvent.type !== 'offline' && selectedEvent.status !== 'completed' && (
-                <Button onClick={resendInvite} loading={resending}>
-                  <RotateCw size={14} />Resend magic link
-                </Button>
-              )}
-            </div>
+            {!isBde && (
+              <div className="form-actions" style={{ justifyContent: 'flex-end' }}>
+                {(selectedEvent.teamMemberId || selectedEvent.team_member_id) && (
+                  <Button variant="secondary" onClick={() => navigate(`/manager/team/${selectedEvent.teamMemberId || selectedEvent.team_member_id}`)}>Open profile</Button>
+                )}
+                {selectedEvent.status !== 'completed' && selectedEvent.status !== 'cancelled' && (
+                  <Button variant="secondary" onClick={() => { setRescheduleTarget(selectedEvent); setSelectedEvent(null) }}>
+                    <CalendarDays size={14} />Reschedule
+                  </Button>
+                )}
+                {selectedEvent.type !== 'offline' && selectedEvent.status !== 'completed' && (
+                  <Button onClick={resendInvite} loading={resending}>
+                    <RotateCw size={14} />Resend magic link
+                  </Button>
+                )}
+              </div>
+            )}
           </div>
         )}
       </Modal>

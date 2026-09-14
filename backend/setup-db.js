@@ -30,6 +30,7 @@ const MIGRATIONS = [
   '021_flow_report_recipients.sql',
   '022_flow_runtime_safety.sql',
   '023_mandate_updated_at.sql',
+  '024_bde_mandate_creator.sql',
 ]
 
 async function main() {

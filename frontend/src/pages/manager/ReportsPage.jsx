@@ -198,6 +198,9 @@ export function ReportDetailModal({ report, loading, error, onClose }) {
 
 function ReportsPage() {
   const location = useLocation()
+  let currentRole = 'manager'
+  try { currentRole = JSON.parse(localStorage.getItem('user') || '{}').role || 'manager' } catch { /* ignore */ }
+  const isBde = currentRole === 'bde'
   const [mainTab, setMainTab]         = useState('all')
   const [reports, setReports]         = useState([])
   const [reportJobs, setReportJobs]   = useState([])
@@ -361,7 +364,7 @@ function ReportsPage() {
                     {job.last_error && <span style={{ color: 'var(--danger-700)' }}>{job.last_error}</span>}
                   </div>
                   <span className={`status-pill${job.status === 'failed' ? ' status-pill--danger' : ' status-pill--brand'}`}>{job.status}</span>
-                  {job.status === 'failed' && (
+                  {job.status === 'failed' && !isBde && (
                     <button type="button" onClick={() => retryJob(job)} disabled={retryingJobId === job.id} style={btnSecondary}>
                       <RotateCw size={12} />{retryingJobId === job.id ? 'Retrying...' : 'Retry'}
                     </button>

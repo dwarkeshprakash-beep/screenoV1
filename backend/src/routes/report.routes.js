@@ -9,7 +9,7 @@ const storageService = require('../services/storage.service')
 
 const router = express.Router()
 
-router.use(authMiddleware, requireRole('manager'))
+router.use(authMiddleware, requireRole('manager', 'bde'))
 
 async function attachSignedReportUrl(report) {
   if (!report || !report.pdf_url) return report
@@ -36,6 +36,10 @@ async function attachSignedReportUrls(reports) {
 // GET /api/reports/team — all reports for the manager's team
 router.get('/team', async (req, res) => {
   try {
+    if (req.user.role === 'bde') {
+      const reports = await reportRepository.getReportsByCreator(req.user.id)
+      return res.json({ success: true, data: { reports: await attachSignedReportUrls(reports), stats: { total_reports: reports.length } } })
+    }
     const source = ['client', 'monthly', 'general'].includes(req.query.source) ? req.query.source : null
     const [reports, stats] = await Promise.all([
       reportRepository.getReportsByManager(req.user.id, source),
@@ -73,7 +77,9 @@ router.post('/jobs/:id/retry', async (req, res) => {
 router.get('/interview/:id', async (req, res) => {
   try {
     const interviewId = parseInt(req.params.id, 10)
-    const report = await reportRepository.getDetailByInterviewForManager(interviewId, req.user.id)
+    const report = req.user.role === 'bde'
+      ? await reportRepository.getDetailByInterviewForCreator(interviewId, req.user.id)
+      : await reportRepository.getDetailByInterviewForManager(interviewId, req.user.id)
     if (!report) return res.status(404).json({ success: false, error: 'Report not found' })
     report.transcripts = await transcriptRepository.getByInterview(interviewId)
     res.json({ success: true, data: await attachSignedReportUrl(report) })
@@ -87,7 +93,9 @@ router.get('/interview/:id', async (req, res) => {
 router.get('/detail/:id', async (req, res) => {
   try {
     const reportId = parseInt(req.params.id, 10)
-    const report = await reportRepository.getDetailByIdForManager(reportId, req.user.id)
+    const report = req.user.role === 'bde'
+      ? await reportRepository.getDetailByIdForCreator(reportId, req.user.id)
+      : await reportRepository.getDetailByIdForManager(reportId, req.user.id)
     if (!report) return res.status(404).json({ success: false, error: 'Report not found' })
     report.transcripts = await transcriptRepository.getByInterview(report.interview_id)
     res.json({ success: true, data: await attachSignedReportUrl(report) })
@@ -101,7 +109,9 @@ router.get('/detail/:id', async (req, res) => {
 router.get('/candidate/:userId', async (req, res) => {
   try {
     const userId = parseInt(req.params.userId, 10)
-    const report = await reportRepository.getLatestByInternalUserForManager(userId, req.user.id)
+    const report = req.user.role === 'bde'
+      ? await reportRepository.getLatestByInternalUserForCreator(userId, req.user.id)
+      : await reportRepository.getLatestByInternalUserForManager(userId, req.user.id)
     res.json({ success: true, data: await attachSignedReportUrl(report) || null })
   } catch (err) {
     console.error('GET /reports/candidate/:userId failed:', err)
@@ -141,7 +151,9 @@ router.get('/detail/:id', async (req, res) => {
 router.get('/candidate/:userId/history', async (req, res) => {
   try {
     const userId = parseInt(req.params.userId, 10)
-    const reports = await reportRepository.getHistoryByUserForManager(userId, req.user.id)
+    const reports = req.user.role === 'bde'
+      ? await reportRepository.getHistoryByUserForCreator(userId, req.user.id)
+      : await reportRepository.getHistoryByUserForManager(userId, req.user.id)
     res.json({ success: true, data: await attachSignedReportUrls(reports) })
   } catch (err) {
     console.error('GET /reports/candidate/:userId/history failed:', err)

@@ -285,10 +285,10 @@ async function updateOrgProfile(
   })
 }
 
-async function createMinimal(companyId, { firstName, lastName, email, passwordHash }) {
+async function createMinimal(companyId, { firstName, lastName, email, passwordHash, role = 'employee' }) {
   const rows = await db.query(
     `INSERT INTO users (company_id, first_name, last_name, email, password, role)
-     VALUES (@company_id, @first_name, @last_name, @email, @password, 'employee')
+     VALUES (@company_id, @first_name, @last_name, @email, @password, @role)
      ON CONFLICT (email) DO NOTHING
      RETURNING id`,
     {
@@ -297,6 +297,7 @@ async function createMinimal(companyId, { firstName, lastName, email, passwordHa
       last_name:  lastName  || '',
       email,
       password:   passwordHash,
+      role,
     }
   )
   return rows[0] || null

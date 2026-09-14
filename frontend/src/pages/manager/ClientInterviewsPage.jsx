@@ -190,7 +190,7 @@ function RequirementProfilesEditor({ profiles, setProfiles, allowEmpty = false }
 
 // ── Mandate creation wizard ───────────────────────────────────────────────────
 
-function CreateMandateModal({ open, onClose, onCreated }) {
+function CreateMandateModal({ open, onClose, onCreated, isBde = false }) {
   const [step, setStep] = useState(1)
   const [form, setForm] = useState({ clientName: '', clientEmail: '', requirements: '', customInfo: '' })
   const [profiles, setProfiles] = useState([newRequirementProfile()])
@@ -204,6 +204,8 @@ function CreateMandateModal({ open, onClose, onCreated }) {
   const [highlightedCompanyIndex, setHighlightedCompanyIndex] = useState(-1)
   const [selectedCompany, setSelectedCompany] = useState(null)
   const [editingTemplate, setEditingTemplate] = useState(null)
+  const [managers, setManagers] = useState([])
+  const [assignedManagerId, setAssignedManagerId] = useState('')
 
   useEffect(() => {
     if (!open) return
@@ -217,12 +219,18 @@ function CreateMandateModal({ open, onClose, onCreated }) {
     setEditingTemplate(null)
     setCompanyMenuOpen(false)
     setHighlightedCompanyIndex(-1)
+    setAssignedManagerId('')
     setCompaniesLoading(true)
     api.getClientTemplates('all')
       .then(response => setExistingMandates(response.data || []))
       .catch(() => setExistingMandates([]))
       .finally(() => setCompaniesLoading(false))
-  }, [open])
+    if (isBde) {
+      api.getClientTemplateManagers()
+        .then(response => setManagers(response.data || []))
+        .catch(() => setManagers([]))
+    }
+  }, [open, isBde])
 
   const companies = useMemo(() => {
     const grouped = new Map()
@@ -387,6 +395,10 @@ function CreateMandateModal({ open, onClose, onCreated }) {
   }
 
   async function saveMandate() {
+    if (isBde && !editingTemplate && !assignedManagerId) {
+      setError('Select a manager to assign this mandate to.')
+      return
+    }
     setSaving(true)
     setError(null)
     try {
@@ -408,6 +420,7 @@ function CreateMandateModal({ open, onClose, onCreated }) {
         jd_text: null,
         custom_info: form.customInfo.trim() || null,
         tags: null,
+        assigned_manager_id: isBde && !editingTemplate ? Number(assignedManagerId) : undefined,
       }
       if (editingTemplate) await api.updateClientTemplate(editingTemplate.id, payload)
       else await api.createClientTemplate(payload)
@@ -499,6 +512,15 @@ function CreateMandateModal({ open, onClose, onCreated }) {
             <Field label="Client email" help="Optional contact for the company.">
               <input className="form-input" type="email" value={form.clientEmail} onChange={event => update('clientEmail', event.target.value)} placeholder="contact@client.com" />
             </Field>
+
+            {isBde && !editingTemplate && (
+              <Field label="Assign to manager" help="This mandate will belong to the selected manager once created.">
+                <select className="form-input" value={assignedManagerId} onChange={event => setAssignedManagerId(event.target.value)}>
+                  <option value="">Select manager...</option>
+                  {managers.map(m => <option key={m.id} value={m.id}>{m.first_name} {m.last_name} ({m.email})</option>)}
+                </select>
+              </Field>
+            )}
 
             {selectedCompany && !editingTemplate && (
               <div className="form-field form-field--full" style={{ padding: 12, border: '1px solid var(--border-default)', borderRadius: 10, background: 'var(--bg-surface-alt)' }}>
@@ -1354,7 +1376,7 @@ function freshOutcomeRoundForm() {
   return { ...EMPTY_OUTCOME_ROUND_FORM }
 }
 
-function OutcomeRoundsModal({ open, onClose, onSaved, member, template }) {
+function OutcomeRoundsModal({ open, onClose, onSaved, member, template, isBde = false }) {
   const [rounds, setRounds] = useState([])
   const [editingRound, setEditingRound] = useState(null)
   const [form, setForm] = useState(freshOutcomeRoundForm)
@@ -1479,50 +1501,54 @@ function OutcomeRoundsModal({ open, onClose, onSaved, member, template }) {
                   {round.feedback && <div style={{ marginTop: 8, color: 'var(--fg-body)', fontSize: 12, lineHeight: 1.55 }}>{round.feedback}</div>}
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8, flexWrap: 'wrap' }}>
-                  <Button size="sm" variant="secondary" disabled={saving || round.candidate_visible} onClick={() => editRound(round)}>Edit</Button>
-                  <Button size="sm" variant={round.candidate_visible ? 'secondary' : 'primary'} disabled={saving} onClick={() => togglePublish(round)}>
-                    {round.candidate_visible ? 'Unpublish' : 'Publish'}
-                  </Button>
+                  {!isBde && <Button size="sm" variant="secondary" disabled={saving || round.candidate_visible} onClick={() => editRound(round)}>Edit</Button>}
+                  {!isBde && (
+                    <Button size="sm" variant={round.candidate_visible ? 'secondary' : 'primary'} disabled={saving} onClick={() => togglePublish(round)}>
+                      {round.candidate_visible ? 'Unpublish' : 'Publish'}
+                    </Button>
+                  )}
                 </div>
               </div>
             ))}
           </div>
         )}
 
-        <div style={{ padding: 18, border: '1px solid var(--brand-100)', borderRadius: 16, background: 'linear-gradient(180deg, var(--bg-surface) 0%, var(--bg-surface-alt) 100%)', boxShadow: 'var(--shadow-xs)' }}>
-          <div className="workspace-section-heading" style={{ marginBottom: 12 }}>
-            <div>
-              <h3 style={{ fontSize: 15 }}>{editingRound ? `Edit round ${editingRound.round_number}` : 'Add client round'}</h3>
-              <p>Only published rounds are visible to candidates. Manager notes stay private.</p>
+        {!isBde && (
+          <div style={{ padding: 18, border: '1px solid var(--brand-100)', borderRadius: 16, background: 'linear-gradient(180deg, var(--bg-surface) 0%, var(--bg-surface-alt) 100%)', boxShadow: 'var(--shadow-xs)' }}>
+            <div className="workspace-section-heading" style={{ marginBottom: 12 }}>
+              <div>
+                <h3 style={{ fontSize: 15 }}>{editingRound ? `Edit round ${editingRound.round_number}` : 'Add client round'}</h3>
+                <p>Only published rounds are visible to candidates. Manager notes stay private.</p>
+              </div>
+              {editingRound && <Button size="sm" variant="secondary" onClick={() => { setEditingRound(null); setForm(freshOutcomeRoundForm()) }}>Cancel edit</Button>}
             </div>
-            {editingRound && <Button size="sm" variant="secondary" onClick={() => { setEditingRound(null); setForm(freshOutcomeRoundForm()) }}>Cancel edit</Button>}
+            <div className="form-grid">
+              <Field label="Interview date">
+                <input className="form-input" type="datetime-local" value={form.interview_at} onChange={e => setForm(c => ({ ...c, interview_at: e.target.value }))} />
+              </Field>
+              <Field label="Outcome">
+                <select className="form-input" value={form.outcome} onChange={e => setForm(c => ({ ...c, outcome: e.target.value }))}>
+                  <option value="pending">Pending</option>
+                  <option value="passed">Passed</option>
+                  <option value="failed">Failed</option>
+                  <option value="on_hold">On hold</option>
+                  <option value="offer_made">Offer made</option>
+                  <option value="hired">Hired</option>
+                  <option value="withdrawn">Withdrawn</option>
+                </select>
+              </Field>
+              <Field label="Candidate-visible feedback" full>
+                <textarea className="form-input" rows={3} value={form.feedback} onChange={e => setForm(c => ({ ...c, feedback: e.target.value }))} style={{ resize: 'vertical' }} />
+              </Field>
+              <Field label="Private manager notes" full>
+                <textarea className="form-input" rows={3} value={form.manager_notes} onChange={e => setForm(c => ({ ...c, manager_notes: e.target.value }))} style={{ resize: 'vertical' }} />
+              </Field>
+            </div>
+            <div className="form-actions" style={{ justifyContent: 'flex-end' }}>
+              <Button onClick={saveRound} loading={saving}>{editingRound ? 'Save changes' : 'Add round'}</Button>
+            </div>
           </div>
-          <div className="form-grid">
-            <Field label="Interview date">
-              <input className="form-input" type="datetime-local" value={form.interview_at} onChange={e => setForm(c => ({ ...c, interview_at: e.target.value }))} />
-            </Field>
-            <Field label="Outcome">
-              <select className="form-input" value={form.outcome} onChange={e => setForm(c => ({ ...c, outcome: e.target.value }))}>
-                <option value="pending">Pending</option>
-                <option value="passed">Passed</option>
-                <option value="failed">Failed</option>
-                <option value="on_hold">On hold</option>
-                <option value="offer_made">Offer made</option>
-                <option value="hired">Hired</option>
-                <option value="withdrawn">Withdrawn</option>
-              </select>
-            </Field>
-            <Field label="Candidate-visible feedback" full>
-              <textarea className="form-input" rows={3} value={form.feedback} onChange={e => setForm(c => ({ ...c, feedback: e.target.value }))} style={{ resize: 'vertical' }} />
-            </Field>
-            <Field label="Private manager notes" full>
-              <textarea className="form-input" rows={3} value={form.manager_notes} onChange={e => setForm(c => ({ ...c, manager_notes: e.target.value }))} style={{ resize: 'vertical' }} />
-            </Field>
-          </div>
-          <div className="form-actions" style={{ justifyContent: 'flex-end' }}>
-            <Button onClick={saveRound} loading={saving}>{editingRound ? 'Save changes' : 'Add round'}</Button>
-          </div>
-        </div>
+        )}
 
         {error && <ErrorMessage message={error} />}
       </div>
@@ -1530,7 +1556,7 @@ function OutcomeRoundsModal({ open, onClose, onSaved, member, template }) {
   )
 }
 
-function MandateDetail({ initialTemplate }) {
+function MandateDetail({ initialTemplate, isBde = false, basePath = '/manager' }) {
   const navigate = useNavigate()
   const { setPageMeta } = useOutletContext()
   const [template, setTemplate] = useState(initialTemplate)
@@ -1737,7 +1763,7 @@ function MandateDetail({ initialTemplate }) {
   }
 
   function viewCandidateProfile(candidate) {
-    if (!candidate) return
+    if (!candidate || isBde) return
     if (candidate.team_member_id) {
       navigate(`/manager/team/${candidate.team_member_id}`)
     } else if (candidate.role || candidate.employee_id !== undefined) {
@@ -1871,7 +1897,7 @@ function MandateDetail({ initialTemplate }) {
   return (
     <div className="workspace-page workspace-stack">
       <div className="mandate-detail-toolbar">
-        <Link className="detail-header__back" to="/manager/clients"><ArrowLeft size={15} />All mandates</Link>
+        <Link className="detail-header__back" to={`${basePath}/clients`}><ArrowLeft size={15} />All mandates</Link>
         <div className="workspace-tabs" aria-label="Mandate sections">
           {[['overview', 'Overview'], ['jd', 'Job description'], ['candidates', 'Candidates'], ['team', 'Client team'], ['flows', 'Schedules'], ['reports', 'Reports']].map(([id, label]) => (
             <button key={id} type="button" className={`workspace-tabs__button${tab === id ? ' is-active' : ''}`} onClick={() => setTab(id)}>{label}</button>
@@ -1879,7 +1905,7 @@ function MandateDetail({ initialTemplate }) {
         </div>
         <div className="mandate-detail-toolbar__actions">
           {isArchived && <span className="status-pill">Archived</span>}
-          {isArchived ? (
+          {!isBde && (isArchived ? (
             <>
               <Button variant="secondary" onClick={() => handleRestore()}>Restore mandate</Button>
               <Button variant="danger" onClick={() => setDeleteMandateOpen(true)}>Delete mandate</Button>
@@ -1889,7 +1915,7 @@ function MandateDetail({ initialTemplate }) {
               <Button variant="secondary" onClick={() => setEditOpen(true)}>Edit mandate</Button>
               <Button variant="secondary" onClick={() => handleArchive()}>Archive</Button>
             </>
-          )}
+          ))}
         </div>
       </div>
 
@@ -1930,7 +1956,7 @@ function MandateDetail({ initialTemplate }) {
             <section>
               <div className="workspace-section-heading" style={{ marginBottom: 9 }}>
                 <div><h3 style={{ fontSize: 15 }}>Matching skills</h3></div>
-                <Button variant="secondary" size="sm" onClick={() => setEditOpen(true)} disabled={isArchived}><Sparkles size={13} />Edit JD and skills</Button>
+                <Button variant="secondary" size="sm" onClick={() => setEditOpen(true)} disabled={isArchived || isBde}><Sparkles size={13} />Edit JD and skills</Button>
               </div>
               {tags.length > 0 ? <div className="tag-list">{tags.map(tag => <span className="tag" key={tag}>{tag}</span>)}</div>
                 : <span style={{ color: 'var(--fg-muted)', fontSize: 12 }}>No matching skills defined.</span>}
@@ -1939,7 +1965,7 @@ function MandateDetail({ initialTemplate }) {
             <section>
               <div className="workspace-section-heading" style={{ marginBottom: 12 }}>
                 <div><h3 style={{ fontSize: 15 }}>Requirement profiles</h3><p>Define multiple profiles for this mandate (e.g. junior vs senior).</p></div>
-                <Button size="sm" onClick={() => setReqModal('new')} disabled={isArchived}><Plus size={13} />Add profile</Button>
+                <Button size="sm" onClick={() => setReqModal('new')} disabled={isArchived || isBde}><Plus size={13} />Add profile</Button>
               </div>
               {requirementsError && <ErrorMessage message={requirementsError} />}
               {requirements.length === 0 && !requirementsError ? (
@@ -1959,7 +1985,7 @@ function MandateDetail({ initialTemplate }) {
                         </span>
                       </div>
                       <button type="button" className="danger-icon-button" style={{ background: 'transparent', border: '1px solid var(--border-default)', borderRadius: 6, padding: '4px 10px', fontSize: 11, color: 'var(--fg-muted)', cursor: 'pointer' }}
-                        onClick={() => setReqModal(r)} disabled={isArchived}>
+                        onClick={() => setReqModal(r)} disabled={isArchived || isBde}>
                         Edit
                       </button>
                     </div>
@@ -1976,7 +2002,7 @@ function MandateDetail({ initialTemplate }) {
             ? <div className="workspace-stack" style={{ gap: 14 }}>
               <div className="workspace-section-heading">
                 <div><h3 style={{ fontSize: 16 }}>Job description</h3><p>Used for matching, communication, and AI interview context.</p></div>
-                <Button variant="secondary" size="sm" onClick={() => setEditOpen(true)} disabled={isArchived}><FileText size={13} />Edit mandate JD</Button>
+                <Button variant="secondary" size="sm" onClick={() => setEditOpen(true)} disabled={isArchived || isBde}><FileText size={13} />Edit mandate JD</Button>
               </div>
               {template.jd_text && (
                 <section>
@@ -1988,7 +2014,7 @@ function MandateDetail({ initialTemplate }) {
                 <section key={r.id}>
                   <div className="workspace-section-heading" style={{ marginBottom: 8 }}>
                     <h4 style={{ fontSize: 13, margin: 0, color: 'var(--fg-primary)' }}>{r.profile_name || 'Role'} JD</h4>
-                    <Button variant="secondary" size="sm" onClick={() => setReqModal(r)} disabled={isArchived}>Edit role JD</Button>
+                    <Button variant="secondary" size="sm" onClick={() => setReqModal(r)} disabled={isArchived || isBde}>Edit role JD</Button>
                   </div>
                   <div style={{ padding: 18, border: '1px solid var(--border-default)', borderRadius: 10, background: 'var(--slate-50)', fontSize: 13, lineHeight: 1.75, whiteSpace: 'pre-wrap' }}>{r.jd_text}</div>
                 </section>
@@ -1996,7 +2022,7 @@ function MandateDetail({ initialTemplate }) {
             </div>
             : <div className="workspace-stack" style={{ alignItems: 'center' }}>
               <EmptyState message="No JD text attached. Add a mandate JD or edit a role profile." />
-              <Button onClick={() => setEditOpen(true)} disabled={isArchived}><FileText size={14} />Add mandate JD</Button>
+              <Button onClick={() => setEditOpen(true)} disabled={isArchived || isBde}><FileText size={14} />Add mandate JD</Button>
             </div>
         )}
 
@@ -2037,7 +2063,7 @@ function MandateDetail({ initialTemplate }) {
                             <span>{assignment.candidate_email} · {assignment.question_count} questions · {formatDate(assignment.created)}</span>
                           </div>
                           <span className={`status-pill${assignment.status === 'completed' ? ' status-pill--success' : assignment.status === 'cancelled' ? ' status-pill--danger' : ' status-pill--brand'}`}>{assignment.status}</span>
-                          {assignment.status === 'scheduled' && (
+                          {assignment.status === 'scheduled' && !isBde && (
                             <button type="button" className="danger-icon-button" disabled={isArchived || cancellingId === assignment.id} onClick={() => cancelAssignment(assignment)}><Trash2 size={14} /></button>
                           )}
                         </div>
@@ -2061,7 +2087,7 @@ function MandateDetail({ initialTemplate }) {
                   {displayedMembers.map(member => {
                     const name = `${member.first_name || ''} ${member.last_name || ''}`.trim()
                     return (
-                      <button type="button" className="workspace-card" key={member.id} disabled={isArchived} onClick={() => { setCandidateActionTarget(member); setCandidateActionError(null) }} style={{ textAlign: 'left' }}>
+                      <button type="button" className="workspace-card" key={member.id} disabled={isArchived || isBde} onClick={() => { setCandidateActionTarget(member); setCandidateActionError(null) }} style={{ textAlign: 'left' }}>
                         <div className="workspace-card__body" style={{ padding: 16 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 11 }}>
                             <Avatar name={name} size={34} />
@@ -2090,7 +2116,7 @@ function MandateDetail({ initialTemplate }) {
               )}
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: 8, borderTop: '1px solid var(--border-default)' }}>
-                <Button onClick={() => setAddProspectsOpen(true)} disabled={isArchived}>
+                <Button onClick={() => setAddProspectsOpen(true)} disabled={isArchived || isBde}>
                   <UserCheck size={14} />Add prospects to client team
                 </Button>
               </div>
@@ -2107,7 +2133,7 @@ function MandateDetail({ initialTemplate }) {
                   <h3 style={{ fontSize: 16 }}>Client team</h3>
                   <p>Prospects added to this mandate. Send the JD, schedule interviews, and track client interview outcomes.</p>
                 </div>
-                <Button onClick={() => setAddProspectsOpen(true)} disabled={isArchived}><Plus size={14} />Add prospects</Button>
+                <Button onClick={() => setAddProspectsOpen(true)} disabled={isArchived || isBde}><Plus size={14} />Add prospects</Button>
               </div>
 
               {loadClientTeamError && <ErrorMessage message={loadClientTeamError} />}
@@ -2147,13 +2173,15 @@ function MandateDetail({ initialTemplate }) {
                           </div>
 
                           <div style={{ display: 'flex', gap: 6 }}>
-                            <Button size="sm" variant="secondary" onClick={() => setSendJdTarget(member)} disabled={isArchived}><Mail size={12} />Send JD</Button>
-                            <Button size="sm" variant="secondary" onClick={() => setScheduleChoiceTarget(member)} disabled={isArchived}><Calendar size={12} />Schedule</Button>
+                            <Button size="sm" variant="secondary" onClick={() => setSendJdTarget(member)} disabled={isArchived || isBde}><Mail size={12} />Send JD</Button>
+                            <Button size="sm" variant="secondary" onClick={() => setScheduleChoiceTarget(member)} disabled={isArchived || isBde}><Calendar size={12} />Schedule</Button>
                             <Button size="sm" variant="secondary" onClick={() => setRoundsTarget(member)}><AlertCircle size={12} />Rounds</Button>
-                            <button type="button" className="danger-icon-button" disabled={isArchived || removingId === member.id}
-                              onClick={() => removeFromTeam(member)} style={{ padding: '5px 8px' }}>
-                              <Trash2 size={13} />
-                            </button>
+                            {!isBde && (
+                              <button type="button" className="danger-icon-button" disabled={isArchived || removingId === member.id}
+                                onClick={() => removeFromTeam(member)} style={{ padding: '5px 8px' }}>
+                                <Trash2 size={13} />
+                              </button>
+                            )}
                           </div>
                         </div>
                         {interview?.scheduled_at && (
@@ -2339,7 +2367,7 @@ function MandateDetail({ initialTemplate }) {
         open={deleteMandateOpen}
         template={template}
         onClose={() => setDeleteMandateOpen(false)}
-        onSuccess={() => { setDeleteMandateOpen(false); navigate('/manager/clients') }}
+        onSuccess={() => { setDeleteMandateOpen(false); navigate(`${basePath}/clients`) }}
       />
 
       <RequirementModal
@@ -2431,6 +2459,7 @@ function MandateDetail({ initialTemplate }) {
           onClose={() => setRoundsTarget(null)}
           member={roundsTarget}
           template={template}
+          isBde={isBde}
           onSaved={() => { loadClientTeam(); setMessage({ text: 'Outcome rounds updated.', type: 'success' }) }}
         />
       )}
@@ -2471,7 +2500,7 @@ function Pagination({ page, pages, total, onChange }) {
   )
 }
 
-function MandateListView({ templates }) {
+function MandateListView({ templates, basePath = '/manager' }) {
   return (
     <div className="workspace-panel" style={{ padding: 0, overflow: 'hidden' }}>
       <div style={{ overflowX: 'auto' }}>
@@ -2502,7 +2531,7 @@ function MandateListView({ templates }) {
                   <span className={'status-pill ' + (template.archived_at ? '' : 'status-pill--brand')}>{template.archived_at ? 'Archived' : 'Active'}</span>
                 </td>
                 <td style={{ padding: '12px 14px' }}>
-                  <Link className="product-button product-button--secondary product-button--sm" to={`/manager/clients/${template.id}`}>Open <ArrowRight size={12} /></Link>
+                  <Link className="product-button product-button--secondary product-button--sm" to={`${basePath}/clients/${template.id}`}>Open <ArrowRight size={12} /></Link>
                 </td>
               </tr>
             ))}
@@ -2515,6 +2544,10 @@ function MandateListView({ templates }) {
 
 function ClientInterviewsPage() {
   const { mandateId } = useParams()
+  let currentRole = 'manager'
+  try { currentRole = JSON.parse(localStorage.getItem('user') || '{}').role || 'manager' } catch { /* ignore */ }
+  const isBde = currentRole === 'bde'
+  const basePath = isBde ? '/bde' : '/manager'
   const [wizardOpen, setWizardOpen] = useState(false)
   const [selectedTemplate, setSelectedTemplate] = useState(null)
   const [detailLoading, setDetailLoading] = useState(!!mandateId)
@@ -2584,7 +2617,7 @@ function ClientInterviewsPage() {
 
   if (mandateId && detailLoading) return <Spinner center />
   if (mandateId && detailError) return <div className="workspace-page"><ErrorMessage message={detailError} /></div>
-  if (mandateId && selectedTemplate) return <MandateDetail initialTemplate={selectedTemplate} />
+  if (mandateId && selectedTemplate) return <MandateDetail initialTemplate={selectedTemplate} isBde={isBde} basePath={basePath} />
 
   const hasActiveFilters = query.trim() !== '' || listState !== 'active'
 
@@ -2633,14 +2666,14 @@ function ClientInterviewsPage() {
           {!loading && !error && templates.length === 0 && <div className="workspace-panel"><EmptyState message="No client mandates yet. Create one to begin matching organization members." /></div>}
           {!loading && !error && templates.length > 0 && visibleTemplates.length === 0 && <div className="workspace-panel"><EmptyState message="No client mandates match this search." /></div>}
           {!loading && !error && pageTemplates.length > 0 && view === 'list' && (
-            <MandateListView templates={pageTemplates} />
+            <MandateListView templates={pageTemplates} basePath={basePath} />
           )}
           {!loading && !error && pageTemplates.length > 0 && view === 'cards' && (
             <div className="workspace-grid workspace-grid--wide">
               {pageTemplates.map(template => {
                 const tags = parseTags(template.tags)
                 return (
-                  <Link className="workspace-card" key={template.id} to={`/manager/clients/${template.id}`}>
+                  <Link className="workspace-card" key={template.id} to={`${basePath}/clients/${template.id}`}>
                     <div className="workspace-card__body">
                       <div className="workspace-card__topline">
                         <div className="workspace-card__icon"><BriefcaseBusiness size={20} /></div>
@@ -2677,7 +2710,7 @@ function ClientInterviewsPage() {
           )}
       </>
 
-      <CreateMandateModal open={wizardOpen} onClose={() => setWizardOpen(false)} onCreated={load} />
+      <CreateMandateModal open={wizardOpen} onClose={() => setWizardOpen(false)} onCreated={load} isBde={isBde} />
     </div>
   )
 }

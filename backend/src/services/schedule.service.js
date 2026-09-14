@@ -246,6 +246,15 @@ function dateRangeBounds(dateFrom, dateTo) {
 
 async function getScheduledInterviews(managerId, { dateFrom, dateTo, category } = {}) {
   const interviews = await interviewRepository.getByManager(managerId)
+  return filterAndMapScheduledInterviews(interviews, { dateFrom, dateTo, category })
+}
+
+async function getScheduledInterviewsForCreator(creatorUserId, { dateFrom, dateTo, category } = {}) {
+  const interviews = await interviewRepository.getByMandateCreator(creatorUserId)
+  return filterAndMapScheduledInterviews(interviews, { dateFrom, dateTo, category })
+}
+
+function filterAndMapScheduledInterviews(interviews, { dateFrom, dateTo, category } = {}) {
   const bounds = dateRangeBounds(dateFrom, dateTo)
   return interviews
     .filter(interview => {
@@ -457,6 +466,7 @@ async function rescheduleInterview(interviewId, managerId, data) {
 module.exports = {
   createSchedule,
   getScheduledInterviews,
+  getScheduledInterviewsForCreator,
   getOrgUsers,
   getEmailDeliveries,
   resendMagicLink,

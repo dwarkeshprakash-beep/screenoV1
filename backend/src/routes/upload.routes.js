@@ -9,9 +9,9 @@ const userRepository = require('../repositories/user.repository')
 const llmService = require('../services/llm.service')
 
 const router = express.Router()
-router.use(authMiddleware, requireRole('manager'))
+router.use(authMiddleware)
 
-router.post('/resume', documentUpload.single('resume'), async (req, res) => {
+router.post('/resume', requireRole('manager'), documentUpload.single('resume'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ success: false, error: 'No file provided' })
 
@@ -83,7 +83,7 @@ router.post('/resume', documentUpload.single('resume'), async (req, res) => {
   }
 })
 
-router.post('/extract-text', documentUpload.single('file'), async (req, res) => {
+router.post('/extract-text', requireRole('manager', 'bde'), documentUpload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ success: false, error: 'No file provided' })
     const text = await documentTextService.extractTextFromBuffer(
@@ -98,7 +98,7 @@ router.post('/extract-text', documentUpload.single('file'), async (req, res) => 
   }
 })
 
-router.post('/analyze-resume', async (req, res) => {
+router.post('/analyze-resume', requireRole('manager', 'bde'), async (req, res) => {
   const { jd, resume } = req.body || {}
   if (!jd || !resume) {
     return res.status(400).json({ success: false, error: 'jd and resume are required' })

@@ -106,6 +106,21 @@ async function getByManager(managerId) {
   )
 }
 
+async function getByMandateCreator(creatorUserId) {
+  return db.query(
+    `SELECT i.*, ${INTERVIEW_COLS}, tm.id AS team_member_id,
+            sc.overall AS overall_score
+     FROM interviews i
+     ${INTERVIEW_JOINS}
+     LEFT JOIN team_members tm
+       ON tm.user_id = i.internal_user_id AND tm.manager_id = i.manager_id
+     LEFT JOIN scorecards sc ON sc.interview_id = i.id
+     WHERE ct.created_by_user_id = @creatorUserId
+     ORDER BY i.created DESC`,
+    { creatorUserId }
+  )
+}
+
 async function getByClientTemplateForManager(clientTemplateId, managerId) {
   return db.query(
     `SELECT i.id, i.internal_user_id, i.external_candidate_id, i.status, i.result,
@@ -328,6 +343,7 @@ module.exports = {
   getById,
   getByToken,
   getByManager,
+  getByMandateCreator,
   getByClientTemplateForManager,
   getByClientTeamId,
   cancelScheduledClientInterview,

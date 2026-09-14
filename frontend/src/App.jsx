@@ -99,6 +99,7 @@ function roleHome(role) {
   if (role === 'manager') return '/manager/dashboard'
   if (role === 'candidate') return '/candidate/overview'
   if (role === 'admin') return '/admin/dashboard'
+  if (role === 'bde') return '/bde/clients'
   return '/login'
 }
 
@@ -174,6 +175,19 @@ function App() {
             <Route path="mandates" element={<AdminMandatesPage />} />
             <Route path="interviews" element={<AdminInterviewsPage />} />
             <Route path="broken-states" element={<AdminBrokenStatesPage />} />
+            <Route path="profile" element={<ManagerProfilePage />} />
+          </Route>
+
+          <Route
+            path="/bde"
+            element={<RequireAuth role="bde"><AppLayout role="bde" /></RequireAuth>}
+          >
+            <Route index element={<Navigate to="clients" replace />} />
+            <Route path="clients" element={<ClientInterviewsPage />} />
+            <Route path="clients/:mandateId" element={<ClientInterviewsPage />} />
+            <Route path="resume-analyzer" element={<ResumeAnalyzerPage />} />
+            <Route path="schedule" element={<SchedulePage />} />
+            <Route path="reports" element={<ReportsPage />} />
             <Route path="profile" element={<ManagerProfilePage />} />
           </Route>
 

@@ -7,6 +7,10 @@ export default function AdminDashboardPage() {
   const [stats, setStats] = useState(null)
   const [brokenStates, setBrokenStates] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [companies, setCompanies] = useState([])
+  const [bdeForm, setBdeForm] = useState({ companyId: '', firstName: '', lastName: '', email: '' })
+  const [bdeSaving, setBdeSaving] = useState(false)
+  const [bdeMessage, setBdeMessage] = useState(null)
 
   const loadDashboardData = useCallback(async () => {
     try {
@@ -41,7 +45,29 @@ export default function AdminDashboardPage() {
 
   useEffect(() => {
     void loadDashboardData()
+    api.get('/api/admin/companies').then(res => setCompanies(res.data || [])).catch(() => setCompanies([]))
   }, [loadDashboardData])
+
+  async function createBde() {
+    setBdeSaving(true)
+    setBdeMessage(null)
+    try {
+      if (!bdeForm.companyId) throw new Error('Select a company')
+      if (!bdeForm.email.trim()) throw new Error('Email is required')
+      await api.post('/api/admin/users/bde', {
+        companyId: Number(bdeForm.companyId),
+        firstName: bdeForm.firstName.trim(),
+        lastName: bdeForm.lastName.trim(),
+        email: bdeForm.email.trim(),
+      })
+      setBdeMessage({ text: 'BDE user created. A password-reset email has been sent.', type: 'success' })
+      setBdeForm({ companyId: '', firstName: '', lastName: '', email: '' })
+    } catch (err) {
+      setBdeMessage({ text: err.message || 'Could not create BDE user.', type: 'error' })
+    } finally {
+      setBdeSaving(false)
+    }
+  }
 
   if (loading) {
     return (
@@ -151,6 +177,76 @@ export default function AdminDashboardPage() {
             Fix Broken States ({brokenStates?.issueCount || 0})
           </button>
         </div>
+      </div>
+
+      {/* Create BDE user */}
+      <div style={{
+        backgroundColor: 'white',
+        padding: '1.5rem',
+        borderRadius: '8px',
+        border: '1px solid #e5e7eb',
+        marginBottom: '2rem'
+      }}>
+        <h2 style={{ fontSize: '1.25rem', fontWeight: 600, marginBottom: '0.25rem' }}>Create BDE user</h2>
+        <p style={{ color: '#666', marginBottom: '1rem', fontSize: '0.875rem' }}>
+          BDE users can create client mandates and assign them to a manager in the same company.
+        </p>
+        <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: '0.8rem', color: '#374151' }}>
+            Company
+            <select
+              value={bdeForm.companyId}
+              onChange={e => setBdeForm(f => ({ ...f, companyId: e.target.value }))}
+              style={{ padding: '0.5rem', borderRadius: 6, border: '1px solid #d1d5db', minWidth: 180 }}
+            >
+              <option value="">Select company...</option>
+              {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: '0.8rem', color: '#374151' }}>
+            First name
+            <input value={bdeForm.firstName} onChange={e => setBdeForm(f => ({ ...f, firstName: e.target.value }))}
+              style={{ padding: '0.5rem', borderRadius: 6, border: '1px solid #d1d5db' }} />
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: '0.8rem', color: '#374151' }}>
+            Last name
+            <input value={bdeForm.lastName} onChange={e => setBdeForm(f => ({ ...f, lastName: e.target.value }))}
+              style={{ padding: '0.5rem', borderRadius: 6, border: '1px solid #d1d5db' }} />
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: '0.8rem', color: '#374151' }}>
+            Email
+            <input type="email" value={bdeForm.email} onChange={e => setBdeForm(f => ({ ...f, email: e.target.value }))}
+              style={{ padding: '0.5rem', borderRadius: 6, border: '1px solid #d1d5db', minWidth: 220 }} />
+          </label>
+          <button
+            onClick={createBde}
+            disabled={bdeSaving}
+            style={{
+              padding: '0.6rem 1.25rem',
+              backgroundColor: '#3b82f6',
+              color: 'white',
+              border: 'none',
+              borderRadius: '6px',
+              cursor: bdeSaving ? 'default' : 'pointer',
+              fontWeight: 500,
+              opacity: bdeSaving ? 0.7 : 1,
+            }}
+          >
+            {bdeSaving ? 'Creating...' : 'Create BDE user'}
+          </button>
+        </div>
+        {bdeMessage && (
+          <div style={{
+            marginTop: '0.75rem',
+            padding: '0.6rem 0.9rem',
+            borderRadius: 6,
+            fontSize: '0.85rem',
+            backgroundColor: bdeMessage.type === 'error' ? '#fef2f2' : '#ecfdf5',
+            color: bdeMessage.type === 'error' ? '#dc2626' : '#047857',
+          }}>
+            {bdeMessage.text}
+          </div>
+        )}
       </div>
 
       {/* Broken States Summary */}

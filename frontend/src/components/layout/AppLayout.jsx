@@ -20,6 +20,11 @@ const PAGE_META = {
   '/admin/mandates':           { title: 'Admin Mandates',      subtitle: 'Inspect and repair client mandates' },
   '/admin/interviews':         { title: 'Admin Interviews',    subtitle: 'Inspect and repair interview states' },
   '/admin/broken-states':      { title: 'Broken States',       subtitle: 'Detect and resolve inconsistent data' },
+  '/bde/clients':              { title: 'Client Mandates',    subtitle: 'Create a mandate and assign it to a manager' },
+  '/bde/resume-analyzer':      { title: 'Resume Analyzer',   subtitle: 'JD-match scoring and keyword gap analysis' },
+  '/bde/schedule':             { title: 'Schedule',           subtitle: 'Interviews for mandates you’ve assigned' },
+  '/bde/reports':              { title: 'Reports',            subtitle: 'Reports for mandates you’ve assigned' },
+  '/bde/profile':              { title: 'My Profile',         subtitle: 'Account and notification settings' },
 }
 
 function getPageMeta(pathname) {
@@ -44,6 +49,7 @@ const ROLE_LABELS = {
   manager:     'MANAGER',
   candidate:   'CANDIDATE',
   admin:       'ADMIN',
+  bde:         'BDE',
 }
 
 function RoleBar({ role, onLogout, onLogoClick }) {
@@ -117,7 +123,9 @@ function AppLayout({ role = 'manager' }) {
   }
 
   function handleLogoClick() {
-    navigate(role === 'admin' ? '/admin/dashboard' : `/${role}/dashboard`)
+    if (role === 'admin') return navigate('/admin/dashboard')
+    if (role === 'bde') return navigate('/bde/clients')
+    navigate(`/${role}/dashboard`)
   }
 
   return (

@@ -27,7 +27,7 @@ const SCHEMA = {
   },
   client_templates: {
     columns: [
-      'id', 'manager_id', 'client_name', 'client_email', 'headcount',
+      'id', 'manager_id', 'created_by_user_id', 'client_name', 'client_email', 'headcount',
       'requirements', 'jd_text', 'custom_info', 'tags', 'resume_deadline',
       'archived_at', 'created', 'updated_at',
     ],

@@ -4,12 +4,13 @@ const db = require('../db/connection')
 async function create(data) {
   const rows = await db.query(
     `INSERT INTO client_templates
-      (manager_id, client_name, client_email, headcount, requirements, jd_text, custom_info, tags, resume_deadline)
+      (manager_id, created_by_user_id, client_name, client_email, headcount, requirements, jd_text, custom_info, tags, resume_deadline)
      VALUES
-      (@manager_id, @client_name, @client_email, @headcount, @requirements, @jd_text, @custom_info, @tags, @resume_deadline)
+      (@manager_id, @created_by_user_id, @client_name, @client_email, @headcount, @requirements, @jd_text, @custom_info, @tags, @resume_deadline)
      RETURNING *`,
     {
-      manager_id:      data.manager_id,
+      manager_id:         data.manager_id,
+      created_by_user_id: data.created_by_user_id || data.manager_id,
       client_name:     data.client_name,
       client_email:    data.client_email    || null,
       headcount:       data.headcount       || 1,
@@ -49,6 +50,36 @@ async function getById(id, managerId) {
   const rows = await db.query(
     `SELECT * FROM client_templates WHERE id = @id AND manager_id = @managerId`,
     { id, managerId }
+  )
+  return rows[0] || null
+}
+
+async function getByCreator(creatorUserId, state = 'active') {
+  let query = `SELECT client_templates.*,
+                      COALESCE((
+                        SELECT STRING_AGG(
+                          CONCAT_WS(' ', users.first_name, users.last_name, users.email),
+                          ' '
+                        )
+                        FROM client_teams
+                        JOIN users ON users.id = client_teams.user_id
+                        WHERE client_teams.mandate_id = client_templates.id
+                      ), '') AS candidate_search_text
+               FROM client_templates
+               WHERE created_by_user_id = @creatorUserId`
+  if (state === 'active') {
+    query += ` AND archived_at IS NULL`
+  } else if (state === 'archived') {
+    query += ` AND archived_at IS NOT NULL`
+  }
+  query += ` ORDER BY COALESCE(updated_at, created) DESC, created DESC`
+  return db.query(query, { creatorUserId })
+}
+
+async function getByIdForCreator(id, creatorUserId) {
+  const rows = await db.query(
+    `SELECT * FROM client_templates WHERE id = @id AND created_by_user_id = @creatorUserId`,
+    { id, creatorUserId }
   )
   return rows[0] || null
 }
@@ -103,4 +134,4 @@ async function restore(id, managerId) {
   return rows[0] || null
 }
 
-module.exports = { create, getByManager, getById, update, archive, restore }
+module.exports = { create, getByManager, getById, getByCreator, getByIdForCreator, update, archive, restore }

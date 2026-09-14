@@ -93,6 +93,54 @@ async function getDetailByInterviewForManager(interviewId, managerId) {
   return rows[0] || null
 }
 
+async function getDetailByIdForCreator(reportId, creatorUserId) {
+  const rows = await db.query(`
+    ${REPORT_DETAIL_SELECT}
+    WHERE r.id = @reportId
+      AND ct.created_by_user_id = @creatorUserId
+    LIMIT 1
+  `, { reportId, creatorUserId })
+  return rows[0] || null
+}
+
+async function getDetailByInterviewForCreator(interviewId, creatorUserId) {
+  const rows = await db.query(`
+    ${REPORT_DETAIL_SELECT}
+    WHERE i.id = @interviewId
+      AND ct.created_by_user_id = @creatorUserId
+    ORDER BY r.created DESC
+    LIMIT 1
+  `, { interviewId, creatorUserId })
+  return rows[0] || null
+}
+
+async function getReportsByCreator(creatorUserId) {
+  return db.query(`
+    SELECT r.*,
+           COALESCE(iu.first_name, ec.first_name) AS candidate_first,
+           COALESCE(iu.last_name, ec.last_name) AS candidate_last,
+           i.type AS interview_type,
+           i.created AS interview_date,
+           i.client_template_id,
+           i.monthly_assessment_id,
+           tm.id AS team_member_id,
+           sc.decision,
+           sc.overall AS overall_score,
+           ct.client_name,
+           ma.subject_name AS assessment_subject
+    FROM reports r
+    JOIN interviews i ON i.id = r.interview_id
+    LEFT JOIN users iu ON iu.id = i.internal_user_id
+    LEFT JOIN external_candidates ec ON ec.id = i.external_candidate_id
+    LEFT JOIN team_members tm ON tm.user_id = i.internal_user_id AND tm.manager_id = i.manager_id
+    LEFT JOIN scorecards sc ON sc.interview_id = r.interview_id
+    LEFT JOIN client_templates ct ON ct.id = i.client_template_id
+    LEFT JOIN monthly_assessments ma ON ma.id = i.monthly_assessment_id
+    WHERE ct.created_by_user_id = @creatorUserId
+    ORDER BY r.created DESC
+  `, { creatorUserId })
+}
+
 async function getReportsByManager(managerId, source = null) {
   const sourceFilter = source === 'client' ? 'AND i.client_template_id IS NOT NULL'
     : source === 'monthly' ? 'AND i.monthly_assessment_id IS NOT NULL'
@@ -209,16 +257,50 @@ async function getHistoryByUserForManager(userId, managerId) {
   `, { userId, managerId })
 }
 
+async function getLatestByInternalUserForCreator(userId, creatorUserId) {
+  const rows = await db.query(`
+    SELECT r.*
+    FROM reports r
+    JOIN interviews i ON i.id = r.interview_id
+    JOIN client_templates ct ON ct.id = i.client_template_id
+    WHERE i.internal_user_id = @userId
+      AND ct.created_by_user_id = @creatorUserId
+    ORDER BY r.created DESC
+    LIMIT 1
+  `, { userId, creatorUserId })
+  return rows[0] || null
+}
+
+async function getHistoryByUserForCreator(userId, creatorUserId) {
+  return db.query(`
+    SELECT r.*, i.type AS interview_type, i.created AS interview_date,
+           sc.overall AS overall_score, sc.confidence, sc.tech_knowledge, sc.communication,
+           sc.problem_solving, sc.decision
+    FROM reports r
+    JOIN interviews i ON i.id = r.interview_id
+    JOIN client_templates ct ON ct.id = i.client_template_id
+    LEFT JOIN scorecards sc ON sc.interview_id = r.interview_id
+    WHERE i.internal_user_id = @userId
+      AND ct.created_by_user_id = @creatorUserId
+    ORDER BY r.created DESC
+  `, { userId, creatorUserId })
+}
+
 module.exports = {
   upsertGenerating,
   updateStatus,
   getByInterview,
   getDetailByIdForManager,
   getDetailByInterviewForManager,
+  getDetailByIdForCreator,
+  getDetailByInterviewForCreator,
   getReportsByManager,
+  getReportsByCreator,
   getStatsByManager,
   getLatestByCandidateIdentity,
   getHistoryByCandidateIdentity,
   getLatestByInternalUserForManager,
   getHistoryByUserForManager,
+  getLatestByInternalUserForCreator,
+  getHistoryByUserForCreator,
 }

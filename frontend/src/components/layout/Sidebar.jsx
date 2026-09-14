@@ -32,6 +32,18 @@ const MANAGER_NAV = [
   },
 ]
 
+const BDE_NAV = [
+  {
+    section: 'CLIENT MANDATES',
+    items: [
+      { to: '/bde/clients',         icon: Users,      label: 'Client Mandates' },
+      { to: '/bde/resume-analyzer', icon: ScanSearch, label: 'Resume Analyzer' },
+      { to: '/bde/schedule',        icon: Calendar,   label: 'Schedule' },
+      { to: '/bde/reports',         icon: BarChart3,  label: 'Reports' },
+    ],
+  },
+]
+
 const ADMIN_NAV = [
   {
     section: 'SYSTEM',
@@ -52,7 +64,7 @@ function getInitials(name) {
 function Sidebar({ role = 'manager', open = false, onNavigate }) {
   const navigate  = useNavigate()
   const location  = useLocation()
-  const nav = role === 'admin' ? ADMIN_NAV : MANAGER_NAV
+  const nav = { admin: ADMIN_NAV, bde: BDE_NAV }[role] || MANAGER_NAV
 
   let user = {}
   try {
@@ -63,7 +75,7 @@ function Sidebar({ role = 'manager', open = false, onNavigate }) {
   }
 
   const userName = [user.first_name, user.last_name].filter(Boolean).join(' ') || user.name || user.email || 'User'
-  const userRole = role === 'admin' ? 'Admin' : 'Manager'
+  const userRole = { admin: 'Admin', bde: 'BDE' }[role] || 'Manager'
 
   return (
     <aside className={`manager-sidebar${open ? ' is-open' : ''}`} style={{
@@ -132,7 +144,7 @@ function Sidebar({ role = 'manager', open = false, onNavigate }) {
       {/* User footer */}
       <div
         onClick={() => {
-          navigate(role === 'admin' ? '/admin/profile' : '/manager/profile')
+          navigate({ admin: '/admin/profile', bde: '/bde/profile' }[role] || '/manager/profile')
           onNavigate?.()
         }}
         style={{

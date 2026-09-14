@@ -97,6 +97,7 @@ function roleRedirect(role) {
   if (role === 'manager') return '/manager/dashboard'
   if (role === 'candidate') return '/candidate/dashboard'
   if (role === 'admin') return '/admin/dashboard'
+  if (role === 'bde') return '/bde/clients'
   return '/login'
 }
 
@@ -134,7 +135,7 @@ function LoginPage() {
     setLoading(true)
     try {
       const result = await api.login(loginEmail, loginPassword)
-      if (!['manager', 'candidate', 'admin'].includes(result.data.user.role)) {
+      if (!['manager', 'candidate', 'admin', 'bde'].includes(result.data.user.role)) {
         throw new Error('This account type is paused in Screeno V2.')
       }
       localStorage.setItem('accessToken', result.data.accessToken)
