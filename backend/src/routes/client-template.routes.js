@@ -198,6 +198,7 @@ router.post('/', async (req, res) => {
     delete data.assigned_manager_id
     delete data.assignedManagerId
 
+    let assignedManager = null
     if (req.user.role === 'bde') {
       const assignedManagerId = parseInt(req.body.assigned_manager_id ?? req.body.assignedManagerId, 10)
       if (!Number.isInteger(assignedManagerId)) {
@@ -209,6 +210,7 @@ router.post('/', async (req, res) => {
       }
       data.manager_id = assignedManagerId
       data.created_by_user_id = req.user.id
+      assignedManager = targetManager
     } else {
       data.manager_id = req.user.id
       data.created_by_user_id = req.user.id
@@ -235,6 +237,19 @@ router.post('/', async (req, res) => {
     const savedProfiles = requirementProfiles.length > 0
       ? await syncRequirementProfiles(template.id, template.manager_id, requirementProfiles)
       : []
+
+    if (assignedManager) {
+      const bde = await userRepository.getByIdForCompany(req.user.id, req.user.companyId)
+      emailService.sendMandateAssigned(assignedManager.email, {
+        managerName: `${assignedManager.first_name} ${assignedManager.last_name}`.trim(),
+        bdeName: bde ? `${bde.first_name} ${bde.last_name}`.trim() : 'A BDE teammate',
+        clientName: template.client_name,
+        requirements: template.requirements,
+        headcount: template.headcount,
+        mandateId: template.id,
+      }).catch(err => console.error('sendMandateAssigned failed:', err.message))
+    }
+
     res.status(201).json({ success: true, data: { ...template, requirement_profiles: savedProfiles } })
   } catch (err) {
     console.error('POST /client-templates failed:', err.message)

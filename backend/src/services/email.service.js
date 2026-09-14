@@ -750,6 +750,43 @@ async function sendInterviewerAssignmentCancelled(to, data) {
   })
 }
 
+/** Notify a manager that a BDE created a client mandate and assigned it to them. */
+async function sendMandateAssigned(to, { managerName, bdeName, clientName, requirements, headcount, mandateId }) {
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173'
+  const link = `${frontendUrl}/manager/clients/${mandateId}`
+
+  await sendMail({
+    to,
+    subject: `New client mandate assigned - ${clientName}`,
+    text: [
+      `Hi ${managerName},`,
+      '',
+      `${bdeName} created a new client mandate for ${clientName} and assigned it to you.`,
+      requirements ? `Requirements: ${requirements}` : '',
+      headcount ? `Headcount: ${headcount}` : '',
+      '',
+      `Open the mandate: ${link}`,
+    ].filter(Boolean).join('\n'),
+    html: `
+      <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px">
+        <h2 style="color:#0F172A">New client mandate assigned to you</h2>
+        <p>Hi <strong>${escapeHtml(managerName)}</strong>,</p>
+        <p><strong>${escapeHtml(bdeName)}</strong> created a new client mandate for <strong>${escapeHtml(clientName)}</strong> and assigned it to you.</p>
+        <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:16px;margin:18px 0;font-size:14px;color:#374151;line-height:1.7">
+          ${requirements ? `<div><strong>Requirements:</strong> ${escapeHtml(requirements)}</div>` : ''}
+          ${headcount ? `<div><strong>Headcount:</strong> ${escapeHtml(String(headcount))}</div>` : ''}
+        </div>
+        <p style="margin:24px 0">
+          <a href="${link}" style="background:#5B4FE9;color:#fff;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:600">
+            Open Mandate &rarr;
+          </a>
+        </p>
+        <p style="color:#94A3B8;font-size:12px">This is an automated email from Screeno. Please do not reply to this email.</p>
+      </div>
+    `,
+  })
+}
+
 async function sendInterviewCancelled(to, data) {
   const dateText = data.scheduledAt
     ? new Date(data.scheduledAt).toLocaleString('en-IN', {
@@ -790,5 +827,6 @@ module.exports = {
   sendInterviewScheduleUpdate,
   sendInterviewerAssignmentCancelled,
   sendInterviewCancelled,
+  sendMandateAssigned,
   getDeliveredRecipients,
 }
