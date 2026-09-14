@@ -203,6 +203,7 @@ async function finishScheduleSetup({
         assessmentDate: data.assessmentDate || null,
         scheduleTimezone: data.scheduleTimezone || null,
         details: data.details || null,
+        meetingUrl: data.meetingUrl || null,
       })
     }
     inviteSent = true

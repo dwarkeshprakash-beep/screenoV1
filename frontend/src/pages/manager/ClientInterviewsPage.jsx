@@ -3,7 +3,7 @@ import { Link, useNavigate, useOutletContext, useParams } from 'react-router-dom
 import {
   ArrowLeft, ArrowRight, BriefcaseBusiness, Calendar, CheckCircle2,
   Clock, FileText, Mail, Plus, ChevronLeft, ChevronRight,
-  Search, Sparkles, Trash2, Upload, UserCheck, Users, X, AlertCircle, Video,
+  Search, Sparkles, Trash2, Upload, UserCheck, Users, X, AlertCircle,
   LayoutGrid, List,
 } from 'lucide-react'
 import Avatar from '../../components/shared/Avatar'
@@ -1120,16 +1120,10 @@ const INTERVIEW_TYPES = [
   { value: 'offline', label: 'Offline Interview', desc: 'In-person interview — sends email with date and location' },
 ]
 
-const HUMAN_VIDEO_PLATFORMS = [
-  { value: 'google_meet', label: 'Google Meet', Icon: Video, disabled: false },
-  { value: 'teams', label: 'Microsoft Teams', Icon: BriefcaseBusiness, disabled: true },
-]
-
 function ScheduleClientTeamModal({ open, onClose, onScheduled, member, template }) {
   const [step, setStep] = useState('details')
   const [type, setType] = useState('ai_voice')
-  const [videoPlatform, setVideoPlatform] = useState('google_meet')
-  const [platformStatus, setPlatformStatus] = useState({ google_meet: false, teams: false })
+  const [manualMeetingUrl, setManualMeetingUrl] = useState('')
   const [mode, setMode] = useState('simple')
   const [difficulty, setDifficulty] = useState('medium')
   const [questionCount, setQuestionCount] = useState(10)
@@ -1147,7 +1141,6 @@ function ScheduleClientTeamModal({ open, onClose, onScheduled, member, template 
     if (!open) return
     setStep('details')
     setType('ai_voice')
-    setVideoPlatform('google_meet')
     setMode('simple')
     setDifficulty('medium')
     setQuestionCount(10)
@@ -1155,13 +1148,10 @@ function ScheduleClientTeamModal({ open, onClose, onScheduled, member, template 
     setScheduledAt('')
     setLocation('')
     setNotes('')
+    setManualMeetingUrl('')
     setReportUserIds([])
     setInterviewerUserId('')
     setError(null)
-    // Load which platforms are configured
-    api.getVideoPlatforms()
-      .then(r => setPlatformStatus(r.data || {}))
-      .catch(() => { })
     api.getScheduleOrgUsers()
       .then(response => setOrganizationUsers((response.data || []).filter(user => Number(user.id) !== Number(member.user_id))))
       .catch(() => setOrganizationUsers([]))
@@ -1181,15 +1171,9 @@ function ScheduleClientTeamModal({ open, onClose, onScheduled, member, template 
       setError('Scheduled time must be in the future.')
       return false
     }
-    if (type === 'human') {
-      if (videoPlatform === 'teams') {
-        setError('Microsoft Teams scheduling needs organization setup before it can be used.')
-        return false
-      }
-      if (!platformStatus.google_meet) {
-        setError('Google Meet is not configured yet. Add the Google Calendar service-account settings first.')
-        return false
-      }
+    if (type === 'human' && !/^https?:\/\//i.test(manualMeetingUrl.trim())) {
+      setError('Paste a valid meeting link (starting with http:// or https://).')
+      return false
     }
     if ((type === 'human' || type === 'offline') && !interviewerUserId) {
       setError('Select an interviewer.')
@@ -1215,7 +1199,7 @@ function ScheduleClientTeamModal({ open, onClose, onScheduled, member, template 
     try {
       await api.scheduleClientTeamInterview(template.id, member.id, {
         type,
-        videoPlatform: type === 'human' ? videoPlatform : undefined,
+        manualMeetingUrl: type === 'human' ? manualMeetingUrl.trim() : undefined,
         mode,
         difficulty,
         questionCount: Number(questionCount),
@@ -1234,8 +1218,7 @@ function ScheduleClientTeamModal({ open, onClose, onScheduled, member, template 
   }
 
   const selectedTypeInfo = INTERVIEW_TYPES.find(t => t.value === type)
-  const humanScheduleBlocked = type === 'human'
-    && (!scheduledAt || videoPlatform === 'teams' || !platformStatus.google_meet)
+  const humanScheduleBlocked = type === 'human' && (!scheduledAt || !manualMeetingUrl.trim())
 
   return (
     <Modal open={open} onClose={onClose} title="Schedule interview" size="md">
@@ -1309,44 +1292,10 @@ function ScheduleClientTeamModal({ open, onClose, onScheduled, member, template 
           <input className="form-input" type="datetime-local" value={scheduledAt} onChange={e => setScheduledAt(e.target.value)} />
         </Field>
 
-        {/* Video platform selector — only for human interviews */}
         {type === 'human' && (
-          <Field label="Video platform" help="A meeting link will be auto-created and shared with the candidate.">
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-              {HUMAN_VIDEO_PLATFORMS.map(p => {
-                const configured = Boolean(platformStatus[p.value])
-                const isDisabled = p.disabled || !configured
-                const Icon = p.Icon
-                return (
-                  <label key={p.value} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 12px', borderRadius: 8, border: `1px solid ${videoPlatform === p.value ? 'var(--brand-400)' : 'var(--border-default)'}`, background: videoPlatform === p.value ? 'var(--brand-50)' : isDisabled ? 'var(--bg-surface-alt)' : 'var(--bg-surface)', cursor: isDisabled ? 'not-allowed' : 'pointer', opacity: isDisabled ? 0.55 : 1 }}>
-                    <input type="radio" name="video-platform" value={p.value} checked={videoPlatform === p.value}
-                      onChange={() => !isDisabled && setVideoPlatform(p.value)}
-                      disabled={isDisabled}
-                      style={{ accentColor: 'var(--brand-500)' }} />
-                    <span style={{ width: 24, height: 24, borderRadius: 6, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg-surface)', color: p.value === 'google_meet' ? 'var(--success-600)' : 'var(--brand-600)', border: '1px solid var(--border-default)' }}>
-                      <Icon size={14} />
-                    </span>
-                    <span style={{ fontSize: 13, fontWeight: 500, color: isDisabled ? 'var(--fg-subtle)' : 'var(--fg-primary)', flex: 1 }}>{p.label}</span>
-                    {p.value === 'teams' && <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 6px', borderRadius: 4, background: 'var(--border-default)', color: 'var(--fg-subtle)' }}>ORG SETUP NEEDED</span>}
-                    {p.value !== 'teams' && !platformStatus[p.value] && (
-                      <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 6px', borderRadius: 4, background: 'var(--warning-50)', color: 'var(--warning-700)' }}>NOT CONFIGURED</span>
-                    )}
-                    {p.value !== 'teams' && platformStatus[p.value] && (
-                      <span style={{ fontSize: 10, fontWeight: 600, padding: '2px 6px', borderRadius: 4, background: 'var(--success-50)', color: 'var(--success-700)' }}>READY</span>
-                    )}
-                  </label>
-                )
-              })}
-            </div>
+          <Field label="Meeting link" help="Paste the Google Meet, Zoom, Teams, or other link for this interview.">
+            <input className="form-input" value={manualMeetingUrl} onChange={e => setManualMeetingUrl(e.target.value)} placeholder="https://..." />
           </Field>
-        )}
-
-        {type === 'human' && (
-          <div style={{ padding: '10px 12px', borderRadius: 8, background: platformStatus.google_meet ? 'var(--bg-surface-alt)' : 'var(--warning-50)', color: platformStatus.google_meet ? 'var(--fg-muted)' : 'var(--warning-700)', fontSize: 12, lineHeight: 1.5 }}>
-            {platformStatus.google_meet
-              ? 'Microsoft Teams needs organization setup before it can be scheduled.'
-              : 'Google Meet is not configured yet. Microsoft Teams needs organization setup before it can be scheduled.'}
-          </div>
         )}
 
         {type === 'offline' && (

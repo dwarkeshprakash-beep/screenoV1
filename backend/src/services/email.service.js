@@ -271,6 +271,7 @@ async function sendMagicLink(to, {
   assessmentDate,
   scheduleTimezone,
   details,
+  meetingUrl,
 }) {
   const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173'
   const portalLink = `${frontendUrl}/candidate/interviews`
@@ -300,6 +301,7 @@ async function sendMagicLink(to, {
       '',
       `You've been invited to complete an interview for ${jobTitle || 'an assessment'} at ${companyName}.`,
       dateText ? `Assessment date: ${dateText}` : '',
+      meetingUrl ? `Meeting: ${meetingUrl}` : '',
       details ? `Details:\n${details}` : '',
       '',
       'Please log in to your Screeno candidate portal and use the Join/Start button from your interviews page when the interview window opens.',
@@ -312,6 +314,7 @@ async function sendMagicLink(to, {
         <h2 style="color:#0F172A">Hi ${candidateName},</h2>
         <p>You've been invited to complete an interview for <strong>${jobTitle || 'an assessment'}</strong> at <strong>${companyName}</strong>.</p>
         ${dateText ? `<p><strong>Assessment date:</strong> ${escapeHtml(dateText)}</p>` : ''}
+        ${meetingUrl ? `<p><a href="${escapeHtml(meetingUrl)}">Join meeting</a></p>` : ''}
         ${details ? `<div style="background:#F8FAFC;border-left:4px solid #5B4FE9;padding:16px;margin:16px 0;font-size:14px;color:#374151;white-space:pre-line">${escapeHtml(details).slice(0, 3000)}</div>` : ''}
         <div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:10px;padding:14px 16px;margin:20px 0;color:#1E40AF;font-size:14px;line-height:1.6">
           Please log in to your Screeno candidate portal and use the time-restricted Join/Start button from your interviews page.

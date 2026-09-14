@@ -511,8 +511,6 @@ export const updateInterviewerFeedback = (assignmentId, feedback) =>
   request(`/api/interview-flows/assignments/${assignmentId}/feedback`, {
     method: 'PATCH', body: JSON.stringify({ feedback }),
   })
-export const getVideoPlatforms = () => request('/api/templates/client/video-platforms')
-
 // Outcome rounds (new multi-round model)
 export const getOutcomeRounds = (id, ctId) =>
   request(`/api/templates/client/${id}/team/${ctId}/rounds`)

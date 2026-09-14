@@ -10,7 +10,6 @@ const userRepository = require('../repositories/user.repository')
 const interviewRepository = require('../repositories/interview.repository')
 const emailService = require('../services/email.service')
 const scheduleService = require('../services/schedule.service')
-const googleMeetService = require('../services/google-meet.service')
 const llmService = require('../services/llm.service')
 const storageService = require('../services/storage.service')
 const mandateLifecycleService = require('../services/mandate-lifecycle.service')
@@ -284,18 +283,6 @@ router.delete('/:id', async (req, res) => {
     }
     res.status(500).json({ success: false, error: 'Could not permanently delete template' })
   }
-})
-
-// Returns which video meeting platforms are currently configured on this server.
-// Keep this before /:id so Express does not treat "video-platforms" as a mandate id.
-router.get('/video-platforms', (req, res) => {
-  res.json({
-    success: true,
-    data: {
-      google_meet: googleMeetService.isConfigured(),
-      teams: false,
-    },
-  })
 })
 
 router.get('/:id', async (req, res) => {
@@ -770,7 +757,7 @@ router.post('/:id/team/:ctId/schedule', async (req, res) => {
   try {
     const mandateId = parseInt(req.params.id, 10)
     const ctId = parseInt(req.params.ctId, 10)
-    const { type, mode, difficulty, questionCount, scheduledAt, location, videoPlatform, durationMinutes, notes, reportUserIds, interviewerUserId } = req.body
+    const { type, mode, difficulty, questionCount, scheduledAt, location, manualMeetingUrl, durationMinutes, notes, reportUserIds, interviewerUserId } = req.body
 
     const template = await clientTemplateRepo.getById(mandateId, req.user.id)
     if (!template) return res.status(404).json({ success: false, error: 'Mandate not found' })
@@ -791,49 +778,14 @@ router.post('/:id/team/:ctId/schedule', async (req, res) => {
       }
     }
 
-    if (type === 'human' && scheduledAt) {
-      if (videoPlatform === 'teams') {
-        return res.status(400).json({
-          success: false,
-          error: 'Microsoft Teams scheduling needs organization setup before it can be used.',
-        })
-      }
-      if (!googleMeetService.isConfigured()) {
-        return res.status(400).json({
-          success: false,
-          error: 'Google Meet is not configured yet. Add the Google Calendar service-account settings first.',
-        })
-      }
-    }
-
-    let videoLink = null
-    let calendarEventId = null
-    if (type === 'human' && scheduledAt && videoPlatform) {
-      const meetingMinutes = Number(durationMinutes) || 60
-      const endAt = new Date(new Date(scheduledAt).getTime() + meetingMinutes * 60 * 1000).toISOString()
-      const meetingTopic = `Interview - ${requirementDisplay(teamMember, template.requirements)} @ ${template.client_name}`
-
-      if (videoPlatform === 'google_meet' && googleMeetService.isConfigured()) {
-        const meeting = await googleMeetService.createMeeting({
-          summary: meetingTopic,
-          startAt: scheduledAt,
-          endAt,
-          attendeeEmails: [req.user.email, teamMember.email, interviewer?.email].filter(Boolean),
-        })
-        if (meeting) {
-          videoLink = meeting.joinUrl
-          calendarEventId = meeting.eventId || null
-        }
-      }
-      // 'teams' is disabled, skip
-    }
-
-    if (type === 'human' && !videoLink) {
-      return res.status(502).json({
+    if (type === 'human' && !/^https?:\/\//i.test(String(manualMeetingUrl || '').trim())) {
+      return res.status(400).json({
         success: false,
-        error: 'Could not create the Google Meet link. Check the Google Calendar setup.',
+        error: 'Paste a valid meeting link (starting with http:// or https://).',
       })
     }
+
+    const videoLink = type === 'human' ? String(manualMeetingUrl).trim() : null
 
     const interview = await scheduleService.createSchedule(
       {
@@ -852,7 +804,7 @@ router.post('/:id/team/:ctId/schedule', async (req, res) => {
         jobTitle:         requirementDisplay(teamMember, template.requirements),
         location:         location || null,
         meetingUrl:       videoLink || null,
-        calendarEventId,
+        calendarEventId:  null,
         details:          notes || null,
         reportUserIds:    Array.isArray(reportUserIds) ? reportUserIds : [],
       },

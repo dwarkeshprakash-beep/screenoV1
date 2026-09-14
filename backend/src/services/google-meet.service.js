@@ -1,7 +1,9 @@
 // backend/src/services/google-meet.service.js
 // Creates Google Meet links via the Google Calendar API using a Service Account.
-// The service account must have Calendar API access and domain-wide delegation
-// (or be the calendar owner) to create events on behalf of an organizer.
+//
+// A plain service account (no Domain-Wide Delegation) is forbidden by Google from
+// inviting attendees to events it creates, so events here carry no attendees — the
+// meeting link is emailed to candidate/interviewer separately by email.service.js.
 //
 // Required env vars (from Google Cloud Console → Service Accounts):
 //   GOOGLE_SERVICE_ACCOUNT_EMAIL — service account email (xxx@project.iam.gserviceaccount.com)
@@ -57,7 +59,7 @@ async function getAccessToken() {
 
 // Creates a Google Calendar event with a Meet link.
 // Returns { joinUrl, eventId } or null on failure.
-async function createMeeting({ summary, startAt, endAt, attendeeEmails = [] }) {
+async function createMeeting({ summary, startAt, endAt }) {
   if (!isConfigured()) return null
   try {
     const token = await getAccessToken()
@@ -67,7 +69,7 @@ async function createMeeting({ summary, startAt, endAt, attendeeEmails = [] }) {
     const endIso = endAt || new Date(new Date(startAt).getTime() + 60 * 60 * 1000).toISOString()
 
     const res = await fetch(
-      `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events?conferenceDataVersion=1&sendUpdates=all`,
+      `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events?conferenceDataVersion=1`,
       {
         method:  'POST',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -75,7 +77,6 @@ async function createMeeting({ summary, startAt, endAt, attendeeEmails = [] }) {
           summary,
           start:     { dateTime: new Date(startAt).toISOString() },
           end:       { dateTime: new Date(endIso).toISOString() },
-          attendees: attendeeEmails.map(email => ({ email })),
           conferenceData: {
             createRequest: {
               requestId:             `screeno-${Date.now()}`,
@@ -100,7 +101,7 @@ async function createMeeting({ summary, startAt, endAt, attendeeEmails = [] }) {
   }
 }
 
-async function updateMeeting(eventId, { summary, startAt, endAt, attendeeEmails = [] }) {
+async function updateMeeting(eventId, { summary, startAt, endAt }) {
   if (!isConfigured() || !eventId) return null
   try {
     const token = await getAccessToken()
@@ -108,7 +109,7 @@ async function updateMeeting(eventId, { summary, startAt, endAt, attendeeEmails 
     const calendarId = encodeURIComponent(organizer)
     const endIso = endAt || new Date(new Date(startAt).getTime() + 60 * 60 * 1000).toISOString()
     const res = await fetch(
-      `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events/${encodeURIComponent(eventId)}?conferenceDataVersion=1&sendUpdates=all`,
+      `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events/${encodeURIComponent(eventId)}?conferenceDataVersion=1`,
       {
         method: 'PATCH',
         headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -116,7 +117,6 @@ async function updateMeeting(eventId, { summary, startAt, endAt, attendeeEmails 
           summary,
           start: { dateTime: new Date(startAt).toISOString() },
           end: { dateTime: new Date(endIso).toISOString() },
-          attendees: attendeeEmails.map(email => ({ email })),
         }),
         signal: AbortSignal.timeout(15000),
       }
@@ -137,7 +137,7 @@ async function cancelMeeting(eventId) {
   const organizer = process.env.GOOGLE_CALENDAR_ORGANIZER || process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL
   const calendarId = encodeURIComponent(organizer)
   const res = await fetch(
-    `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events/${encodeURIComponent(eventId)}?sendUpdates=all`,
+    `https://www.googleapis.com/calendar/v3/calendars/${calendarId}/events/${encodeURIComponent(eventId)}`,
     { method: 'DELETE', headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(15000) }
   )
   if (!res.ok && res.status !== 404 && res.status !== 410) {

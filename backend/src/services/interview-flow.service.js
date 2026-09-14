@@ -285,7 +285,7 @@ async function updateFlow(flowId, data, managerId, companyId, { allowRunSpecific
       : []
     if (flow.status === 'run_specific' && synchronized.length > 0) {
       const previousStage = flow.stages.find(item => Number(item.id) === Number(saved.id)) || null
-      await notifyUpdatedStageInterviews(synchronized, previousStage, saved, managerId, companyId)
+      await notifyUpdatedStageInterviews(synchronized, previousStage, saved, companyId)
     }
     updated.stages.push(saved)
   }
@@ -301,15 +301,14 @@ function stageScheduleChanged(previous, current) {
   return fields.some(field => String(previous[field] ?? '') !== String(current[field] ?? ''))
 }
 
-async function notifyUpdatedStageInterviews(interviews, previousStage, stage, managerId, companyId) {
+async function notifyUpdatedStageInterviews(interviews, previousStage, stage, companyId) {
   const scheduleChanged = stageScheduleChanged(previousStage, stage)
   for (const row of interviews) {
     const interview = await interviewRepository.getById(row.id)
     if (!interview) continue
     const pendingCalendarRetry = !!interview.calendar_sync_error
     if (!scheduleChanged && !pendingCalendarRetry) continue
-    const [manager, newInterviewer, assignedInterviewer] = await Promise.all([
-      userRepository.getByIdForCompany(managerId, companyId),
+    const [newInterviewer, assignedInterviewer] = await Promise.all([
       stage.interviewer_user_id
         ? userRepository.getByIdForCompany(stage.interviewer_user_id, companyId)
         : null,
@@ -324,7 +323,6 @@ async function notifyUpdatedStageInterviews(interviews, previousStage, stage, ma
     const endAt = new Date(
       new Date(stage.scheduled_at).getTime() + Number(stage.duration_minutes || 60) * 60000
     ).toISOString()
-    const attendeeEmails = [interview.candidate_email, newInterviewer?.email, manager?.email].filter(Boolean)
     try {
       if (stage.type !== 'human' && calendarEventId) {
         const cancelled = await googleMeetService.cancelMeeting(calendarEventId)
@@ -350,12 +348,12 @@ async function notifyUpdatedStageInterviews(interviews, previousStage, stage, ma
         const meeting = calendarEventId
           ? await googleMeetService.updateMeeting(calendarEventId, {
             summary: `${stage.name} - ${interview.context_title || 'Interview'}`,
-            startAt: stage.scheduled_at, endAt, attendeeEmails,
+            startAt: stage.scheduled_at, endAt,
           })
           : !meetingUrl
             ? await googleMeetService.createMeeting({
               summary: `${stage.name} - ${interview.context_title || 'Interview'}`,
-              startAt: stage.scheduled_at, endAt, attendeeEmails,
+              startAt: stage.scheduled_at, endAt,
             })
             : null
         if (calendarEventId && !meeting) throw new Error('Could not update the Google Calendar event')
@@ -548,12 +546,10 @@ async function activateStage(run, stage, stageRun, managerId, companyId, schedul
   }
   if (stage.type === 'human' && !meetingUrl) {
     if (!googleMeetService.isConfigured()) throw new Error('Google Meet is not configured and this stage has no meeting link')
-    const manager = await userRepository.getByIdForCompany(managerId, companyId)
     const endAt = new Date(new Date(scheduledAt).getTime() + Number(stage.duration_minutes || 60) * 60000).toISOString()
     const meeting = await googleMeetService.createMeeting({
       summary: `${stage.name} - ${run.client_name}`,
       startAt: scheduledAt, endAt,
-      attendeeEmails: [candidate?.email, interviewer?.email, manager?.email].filter(Boolean),
     })
     if (!meeting?.joinUrl) throw new Error('Could not create Google Meet for the human interview stage')
     meetingUrl = meeting.joinUrl
