@@ -40,10 +40,10 @@ router.delete('/:flowId', requireRole('manager'), async (req, res) => {
   }
 })
 
-/** List definitions for an owned mandate. */
-router.get('/mandate/:mandateId', requireRole('manager'), async (req, res) => {
+/** List definitions for an owned (or BDE-visible) mandate. */
+router.get('/mandate/:mandateId', requireRole('manager', 'bde'), async (req, res) => {
   try {
-    const flows = await flowService.listFlows(req.params.mandateId, req.user.id)
+    const flows = await flowService.listFlows(req.params.mandateId, req.user.id, req.user.role)
     res.json({ success: true, data: flows })
   } catch (err) {
     console.error('GET /interview-flows/mandate failed:', err.message)
@@ -52,9 +52,9 @@ router.get('/mandate/:mandateId', requireRole('manager'), async (req, res) => {
 })
 
 /** List candidate run progress and interviewer feedback for a mandate. */
-router.get('/mandate/:mandateId/runs', requireRole('manager'), async (req, res) => {
+router.get('/mandate/:mandateId/runs', requireRole('manager', 'bde'), async (req, res) => {
   try {
-    const runs = await flowService.listRuns(req.params.mandateId, req.user.id)
+    const runs = await flowService.listRuns(req.params.mandateId, req.user.id, req.user.role)
     res.json({ success: true, data: runs })
   } catch (err) {
     console.error('GET /interview-flows/mandate/runs failed:', err.message)
@@ -62,10 +62,10 @@ router.get('/mandate/:mandateId/runs', requireRole('manager'), async (req, res) 
   }
 })
 
-/** List one-off and flow-generated schedules for an owned mandate. */
-router.get('/mandate/:mandateId/schedules', requireRole('manager'), async (req, res) => {
+/** List one-off and flow-generated schedules for an owned (or BDE-visible) mandate. */
+router.get('/mandate/:mandateId/schedules', requireRole('manager', 'bde'), async (req, res) => {
   try {
-    const schedules = await flowService.listSchedules(req.params.mandateId, req.user.id)
+    const schedules = await flowService.listSchedules(req.params.mandateId, req.user.id, req.user.role)
     res.json({ success: true, data: schedules })
   } catch (err) {
     console.error('GET /interview-flows/mandate/schedules failed:', err.message)

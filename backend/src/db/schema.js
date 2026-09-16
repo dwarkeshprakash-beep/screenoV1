@@ -27,7 +27,7 @@ const SCHEMA = {
   },
   client_templates: {
     columns: [
-      'id', 'manager_id', 'created_by_user_id', 'client_name', 'client_email', 'headcount',
+      'id', 'manager_id', 'created_by_user_id', 'assigned_bde_id', 'client_name', 'client_email', 'headcount',
       'requirements', 'jd_text', 'jd_file_path', 'jd_original_filename', 'custom_info', 'tags',
       'resume_deadline', 'archived_at', 'created', 'updated_at',
     ],

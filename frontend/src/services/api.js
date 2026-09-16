@@ -444,6 +444,7 @@ export const getCandidateMonthlyAssessments = () => request('/api/candidate/mont
 
 export const getClientTemplates = (state = 'active') => request(`/api/templates/client?state=${state}`)
 export const getClientTemplateManagers = () => request('/api/templates/client/managers')
+export const getClientTemplateBdes = () => request('/api/templates/client/bdes')
 export const getClientTemplate = id => request(`/api/templates/client/${id}`)
 export const archiveClientTemplate = id => request(`/api/templates/client/${id}/archive`, { method: 'POST' })
 export const restoreClientTemplate = id => request(`/api/templates/client/${id}/restore`, { method: 'POST' })

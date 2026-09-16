@@ -4,13 +4,14 @@ const db = require('../db/connection')
 async function create(data) {
   const rows = await db.query(
     `INSERT INTO client_templates
-      (manager_id, created_by_user_id, client_name, client_email, headcount, requirements, jd_text, jd_file_path, jd_original_filename, custom_info, tags, resume_deadline)
+      (manager_id, created_by_user_id, assigned_bde_id, client_name, client_email, headcount, requirements, jd_text, jd_file_path, jd_original_filename, custom_info, tags, resume_deadline)
      VALUES
-      (@manager_id, @created_by_user_id, @client_name, @client_email, @headcount, @requirements, @jd_text, @jd_file_path, @jd_original_filename, @custom_info, @tags, @resume_deadline)
+      (@manager_id, @created_by_user_id, @assigned_bde_id, @client_name, @client_email, @headcount, @requirements, @jd_text, @jd_file_path, @jd_original_filename, @custom_info, @tags, @resume_deadline)
      RETURNING *`,
     {
       manager_id:         data.manager_id,
       created_by_user_id: data.created_by_user_id || data.manager_id,
+      assigned_bde_id:    data.assigned_bde_id || null,
       client_name:     data.client_name,
       client_email:    data.client_email    || null,
       headcount:       data.headcount       || 1,
@@ -68,7 +69,7 @@ async function getByCreator(creatorUserId, state = 'active') {
                         WHERE client_teams.mandate_id = client_templates.id
                       ), '') AS candidate_search_text
                FROM client_templates
-               WHERE created_by_user_id = @creatorUserId`
+               WHERE (created_by_user_id = @creatorUserId OR assigned_bde_id = @creatorUserId)`
   if (state === 'active') {
     query += ` AND archived_at IS NULL`
   } else if (state === 'archived') {
@@ -80,7 +81,7 @@ async function getByCreator(creatorUserId, state = 'active') {
 
 async function getByIdForCreator(id, creatorUserId) {
   const rows = await db.query(
-    `SELECT * FROM client_templates WHERE id = @id AND created_by_user_id = @creatorUserId`,
+    `SELECT * FROM client_templates WHERE id = @id AND (created_by_user_id = @creatorUserId OR assigned_bde_id = @creatorUserId)`,
     { id, creatorUserId }
   )
   return rows[0] || null
@@ -99,6 +100,7 @@ async function update(id, managerId, data) {
          custom_info          = COALESCE(@custom_info,          custom_info),
          tags                 = COALESCE(@tags,                 tags),
          resume_deadline      = COALESCE(@resume_deadline,      resume_deadline),
+         assigned_bde_id      = COALESCE(@assigned_bde_id,      assigned_bde_id),
          updated_at           = CURRENT_TIMESTAMP
      WHERE id = @id AND manager_id = @managerId
      RETURNING *`,
@@ -115,6 +117,7 @@ async function update(id, managerId, data) {
       custom_info:     data.custom_info     || null,
       tags:            data.tags ? (typeof data.tags === 'string' ? data.tags : JSON.stringify(data.tags)) : null,
       resume_deadline: data.resume_deadline || null,
+      assigned_bde_id: data.assigned_bde_id || null,
     }
   )
   return rows[0]

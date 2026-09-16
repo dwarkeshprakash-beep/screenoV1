@@ -160,11 +160,14 @@ async function createFlow(data, managerId, companyId) {
   return flow
 }
 
-/** List flow definitions for a mandate. */
-async function listFlows(mandateId, managerId) {
-  const template = await clientTemplateRepository.getById(Number(mandateId), managerId)
+/** List flow definitions for a mandate. `role` lets a BDE view a mandate they created
+ * or were assigned to, without being the owning manager. */
+async function listFlows(mandateId, userId, role) {
+  const template = role === 'bde'
+    ? await clientTemplateRepository.getByIdForCreator(Number(mandateId), userId)
+    : await clientTemplateRepository.getById(Number(mandateId), userId)
   if (!template) throw new Error('Mandate not found')
-  return groupFlows(await flowRepository.listByMandate(template.id, managerId))
+  return groupFlows(await flowRepository.listByMandate(template.id, template.manager_id))
 }
 
 function editableFlow(flow) {
@@ -463,26 +466,33 @@ async function deleteRun(runId, managerId) {
   return { id: deleted.id, deleted: true }
 }
 
-/** List manager-visible run progress and sign feedback documents. */
-async function listRuns(mandateId, managerId) {
-  const template = await clientTemplateRepository.getById(Number(mandateId), managerId)
+/** List manager-visible run progress and sign feedback documents. `role` lets a BDE
+ * view a mandate they created or were assigned to, without being the owning manager. */
+async function listRuns(mandateId, userId, role) {
+  const template = role === 'bde'
+    ? await clientTemplateRepository.getByIdForCreator(Number(mandateId), userId)
+    : await clientTemplateRepository.getById(Number(mandateId), userId)
   if (!template) throw new Error('Mandate not found')
-  await processExpiredFlows({ managerId, mandateId: template.id })
+  await processExpiredFlows({ managerId: template.manager_id, mandateId: template.id })
     .catch(err => console.error('Expired flow processing failed while listing runs:', err.message))
-  const rows = await flowRepository.listRunsByMandate(template.id, managerId)
+  const rows = await flowRepository.listRunsByMandate(template.id, template.manager_id)
   return Promise.all(rows.map(async row => ({
     ...row,
     file_url: row.storage_path ? await storageService.getSignedUrl(row.storage_path).catch(() => null) : null,
   })))
 }
 
-/** List one-off and flow-generated interview records for the manager schedule view. */
-async function listSchedules(mandateId, managerId) {
-  const template = await clientTemplateRepository.getById(Number(mandateId), managerId)
+/** List one-off and flow-generated interview records for the manager schedule view.
+ * `role` lets a BDE view a mandate they created or were assigned to, without being
+ * the owning manager. */
+async function listSchedules(mandateId, userId, role) {
+  const template = role === 'bde'
+    ? await clientTemplateRepository.getByIdForCreator(Number(mandateId), userId)
+    : await clientTemplateRepository.getById(Number(mandateId), userId)
   if (!template) throw new Error('Mandate not found')
-  await processExpiredFlows({ managerId, mandateId: template.id })
+  await processExpiredFlows({ managerId: template.manager_id, mandateId: template.id })
     .catch(err => console.error('Expired flow processing failed while listing schedules:', err.message))
-  return flowRepository.listSchedulesByMandate(template.id, managerId)
+  return flowRepository.listSchedulesByMandate(template.id, template.manager_id)
 }
 
 /** Resolve unattended expired automated stages and apply their configured pass rule.

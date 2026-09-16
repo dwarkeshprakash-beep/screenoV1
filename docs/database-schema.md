@@ -40,7 +40,9 @@ External candidates without a Screeno user account.
 
 Top-level client mandate summary and legacy fallback JD/tag fields.
 
-`id`, `manager_id`, `client_name`, `client_email`, `headcount`, `requirements`, `jd_text`, `custom_info`, `tags`, `resume_deadline`, `archived_at`, `created`
+`id`, `manager_id`, `created_by_user_id`, `assigned_bde_id`, `client_name`, `client_email`, `headcount`, `requirements`, `jd_text`, `custom_info`, `tags`, `resume_deadline`, `archived_at`, `created`
+
+`created_by_user_id` tracks the BDE who originally created the mandate (migration `024`); `assigned_bde_id` is the BDE a manager optionally assigns to a mandate they own (migration `027`). Either one makes the mandate visible to that BDE (read-only) alongside `manager_id`, which is the owning manager.
 
 ### `client_mandate_requirements`
 

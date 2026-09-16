@@ -97,7 +97,7 @@ async function getDetailByIdForCreator(reportId, creatorUserId) {
   const rows = await db.query(`
     ${REPORT_DETAIL_SELECT}
     WHERE r.id = @reportId
-      AND ct.created_by_user_id = @creatorUserId
+      AND (ct.created_by_user_id = @creatorUserId OR ct.assigned_bde_id = @creatorUserId)
     LIMIT 1
   `, { reportId, creatorUserId })
   return rows[0] || null
@@ -107,7 +107,7 @@ async function getDetailByInterviewForCreator(interviewId, creatorUserId) {
   const rows = await db.query(`
     ${REPORT_DETAIL_SELECT}
     WHERE i.id = @interviewId
-      AND ct.created_by_user_id = @creatorUserId
+      AND (ct.created_by_user_id = @creatorUserId OR ct.assigned_bde_id = @creatorUserId)
     ORDER BY r.created DESC
     LIMIT 1
   `, { interviewId, creatorUserId })
@@ -136,7 +136,7 @@ async function getReportsByCreator(creatorUserId) {
     LEFT JOIN scorecards sc ON sc.interview_id = r.interview_id
     LEFT JOIN client_templates ct ON ct.id = i.client_template_id
     LEFT JOIN monthly_assessments ma ON ma.id = i.monthly_assessment_id
-    WHERE ct.created_by_user_id = @creatorUserId
+    WHERE (ct.created_by_user_id = @creatorUserId OR ct.assigned_bde_id = @creatorUserId)
     ORDER BY r.created DESC
   `, { creatorUserId })
 }
@@ -264,7 +264,7 @@ async function getLatestByInternalUserForCreator(userId, creatorUserId) {
     JOIN interviews i ON i.id = r.interview_id
     JOIN client_templates ct ON ct.id = i.client_template_id
     WHERE i.internal_user_id = @userId
-      AND ct.created_by_user_id = @creatorUserId
+      AND (ct.created_by_user_id = @creatorUserId OR ct.assigned_bde_id = @creatorUserId)
     ORDER BY r.created DESC
     LIMIT 1
   `, { userId, creatorUserId })
@@ -281,7 +281,7 @@ async function getHistoryByUserForCreator(userId, creatorUserId) {
     JOIN client_templates ct ON ct.id = i.client_template_id
     LEFT JOIN scorecards sc ON sc.interview_id = r.interview_id
     WHERE i.internal_user_id = @userId
-      AND ct.created_by_user_id = @creatorUserId
+      AND (ct.created_by_user_id = @creatorUserId OR ct.assigned_bde_id = @creatorUserId)
     ORDER BY r.created DESC
   `, { userId, creatorUserId })
 }

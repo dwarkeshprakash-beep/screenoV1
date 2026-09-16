@@ -788,6 +788,43 @@ async function sendMandateAssigned(to, { managerName, bdeName, clientName, requi
   })
 }
 
+/** Notify a BDE that a manager assigned them to a client mandate. */
+async function sendMandateAssignedToBde(to, { bdeName, managerName, clientName, requirements, headcount, mandateId }) {
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173'
+  const link = `${frontendUrl}/bde/clients/${mandateId}`
+
+  await sendMail({
+    to,
+    subject: `You've been assigned to a client mandate - ${clientName}`,
+    text: [
+      `Hi ${bdeName},`,
+      '',
+      `${managerName} assigned you to the client mandate for ${clientName}.`,
+      requirements ? `Requirements: ${requirements}` : '',
+      headcount ? `Headcount: ${headcount}` : '',
+      '',
+      `Open the mandate: ${link}`,
+    ].filter(Boolean).join('\n'),
+    html: `
+      <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px">
+        <h2 style="color:#0F172A">You've been assigned to a client mandate</h2>
+        <p>Hi <strong>${escapeHtml(bdeName)}</strong>,</p>
+        <p><strong>${escapeHtml(managerName)}</strong> assigned you to the client mandate for <strong>${escapeHtml(clientName)}</strong>.</p>
+        <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:16px;margin:18px 0;font-size:14px;color:#374151;line-height:1.7">
+          ${requirements ? `<div><strong>Requirements:</strong> ${escapeHtml(requirements)}</div>` : ''}
+          ${headcount ? `<div><strong>Headcount:</strong> ${escapeHtml(String(headcount))}</div>` : ''}
+        </div>
+        <p style="margin:24px 0">
+          <a href="${link}" style="background:#5B4FE9;color:#fff;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:600">
+            Open Mandate &rarr;
+          </a>
+        </p>
+        <p style="color:#94A3B8;font-size:12px">This is an automated email from ${escapeHtml(APP_NAME)}. Please do not reply to this email.</p>
+      </div>
+    `,
+  })
+}
+
 async function sendInterviewCancelled(to, data) {
   const dateText = data.scheduledAt
     ? new Date(data.scheduledAt).toLocaleString('en-IN', {
@@ -829,5 +866,6 @@ module.exports = {
   sendInterviewerAssignmentCancelled,
   sendInterviewCancelled,
   sendMandateAssigned,
+  sendMandateAssignedToBde,
   getDeliveredRecipients,
 }

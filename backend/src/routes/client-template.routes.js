@@ -147,6 +147,17 @@ function cleanupReplacedJdFile(oldPath, newPath) {
   storageService.deleteFile(oldPath).catch(err => console.error('Failed to clean up replaced JD file:', err.message))
 }
 
+// A BDE only has read access to a mandate they created or were assigned to (via
+// created_by_user_id / assigned_bde_id); a manager has full access to mandates they own
+// (manager_id). Use this for any handler a BDE should be able to view. Downstream repo
+// calls that filter by manager_id must keep using the returned template's manager_id
+// (the real owner), never req.user.id, since a BDE viewer isn't the owning manager.
+async function loadMandateForUser(mandateId, user) {
+  return user.role === 'bde'
+    ? clientTemplateRepo.getByIdForCreator(mandateId, user.id)
+    : clientTemplateRepo.getById(mandateId, user.id)
+}
+
 function checkNotArchived(template, res) {
   if (template.archived_at) {
     res.status(409).json({ success: false, error: 'Mandate is archived and read-only' })
@@ -211,8 +222,11 @@ router.post('/', async (req, res) => {
     delete data.requirementProfiles
     delete data.assigned_manager_id
     delete data.assignedManagerId
+    delete data.assigned_bde_id
+    delete data.assignedBdeId
 
     let assignedManager = null
+    let assignedBde = null
     if (req.user.role === 'bde') {
       const assignedManagerId = parseInt(req.body.assigned_manager_id ?? req.body.assignedManagerId, 10)
       if (!Number.isInteger(assignedManagerId)) {
@@ -228,6 +242,19 @@ router.post('/', async (req, res) => {
     } else {
       data.manager_id = req.user.id
       data.created_by_user_id = req.user.id
+      const rawBdeId = req.body.assigned_bde_id ?? req.body.assignedBdeId
+      if (rawBdeId !== undefined && rawBdeId !== null && rawBdeId !== '') {
+        const assignedBdeId = parseInt(rawBdeId, 10)
+        if (!Number.isInteger(assignedBdeId)) {
+          return res.status(400).json({ success: false, error: 'Select a valid BDE to assign' })
+        }
+        const targetBde = await userRepository.getByIdForCompany(assignedBdeId, req.user.companyId)
+        if (!targetBde || targetBde.role !== 'bde') {
+          return res.status(400).json({ success: false, error: 'Select a valid BDE in your organization' })
+        }
+        data.assigned_bde_id = assignedBdeId
+        assignedBde = targetBde
+      }
     }
     if (requirementProfiles.length > 0) {
       data.headcount = requirementHeadcount(requirementProfiles)
@@ -264,6 +291,18 @@ router.post('/', async (req, res) => {
       }).catch(err => console.error('sendMandateAssigned failed:', err.message))
     }
 
+    if (assignedBde) {
+      const manager = await userRepository.getByIdForCompany(req.user.id, req.user.companyId)
+      emailService.sendMandateAssignedToBde(assignedBde.email, {
+        bdeName: `${assignedBde.first_name} ${assignedBde.last_name}`.trim(),
+        managerName: manager ? `${manager.first_name} ${manager.last_name}`.trim() : 'A manager',
+        clientName: template.client_name,
+        requirements: template.requirements,
+        headcount: template.headcount,
+        mandateId: template.id,
+      }).catch(err => console.error('sendMandateAssignedToBde failed:', err.message))
+    }
+
     res.status(201).json({ success: true, data: { ...template, requirement_profiles: savedProfiles } })
   } catch (err) {
     console.error('POST /client-templates failed:', err.message)
@@ -294,6 +333,17 @@ router.get('/managers', async (req, res) => {
   } catch (err) {
     console.error('GET /client-templates/managers failed:', err.message)
     res.status(500).json({ success: false, error: 'Could not load managers' })
+  }
+})
+
+// Registered before /:id so Express doesn't treat "bdes" as a mandate id.
+router.get('/bdes', async (req, res) => {
+  try {
+    const bdes = await userRepository.getByRole(req.user.companyId, 'bde')
+    res.json({ success: true, data: bdes })
+  } catch (err) {
+    console.error('GET /client-templates/bdes failed:', err.message)
+    res.status(500).json({ success: false, error: 'Could not load BDEs' })
   }
 })
 
@@ -364,13 +414,29 @@ router.get('/:id', async (req, res) => {
 router.patch('/:id', async (req, res) => {
   try {
     const templateId = parseInt(req.params.id, 10)
-    const existing = await clientTemplateRepo.getById(templateId, req.user.id)
+    const isBdeCaller = req.user.role === 'bde'
+    const existing = await loadMandateForUser(templateId, req.user)
     if (!existing) return res.status(404).json({ success: false, error: 'Template not found' })
     if (!checkNotArchived(existing, res)) return
-    const requirementProfiles = normalizeRequirementProfiles(req.body.requirement_profiles ?? req.body.requirementProfiles)
+    // The real owning manager — every downstream call scoped by manager_id must use this,
+    // never req.user.id, since a BDE caller here isn't the mandate's manager.
+    const ownerManagerId = existing.manager_id
+    // Bulk requirement-profile replace/delete stays manager-only; a BDE adds/edits/deletes
+    // profiles one at a time through the dedicated /:id/requirements routes instead.
+    const requirementProfiles = isBdeCaller
+      ? null
+      : normalizeRequirementProfiles(req.body.requirement_profiles ?? req.body.requirementProfiles)
     const data = { ...req.body }
     delete data.requirement_profiles
     delete data.requirementProfiles
+    if (isBdeCaller) {
+      // A BDE may only touch JD fields through this endpoint — everything else
+      // (client info, internal notes, headcount/requirements text, BDE assignment) stays manager-only.
+      const allowedForBde = new Set(['jd_text', 'jd_file_path', 'jd_original_filename', 'tags'])
+      for (const key of Object.keys(data)) {
+        if (!allowedForBde.has(key)) delete data[key]
+      }
+    }
     if (requirementProfiles?.length) {
       data.headcount = requirementHeadcount(requirementProfiles)
       data.requirements = requirementProfiles.map(profile => profile.profile_name).join(', ')
@@ -388,15 +454,47 @@ router.patch('/:id', async (req, res) => {
     if (jdChanged && (!data.tags || !hasTags(data.tags))) {
       data.tags = await llmService.extractTagsFromText(data.jd_text)
     }
-    const template = await clientTemplateRepo.update(templateId, req.user.id, data)
+
+    let assignedBde = null
+    if (!isBdeCaller) {
+      const rawBdeId = req.body.assigned_bde_id ?? req.body.assignedBdeId
+      if (rawBdeId !== undefined && rawBdeId !== null && rawBdeId !== '') {
+        const assignedBdeId = parseInt(rawBdeId, 10)
+        if (!Number.isInteger(assignedBdeId)) {
+          return res.status(400).json({ success: false, error: 'Select a valid BDE to assign' })
+        }
+        const targetBde = await userRepository.getByIdForCompany(assignedBdeId, req.user.companyId)
+        if (!targetBde || targetBde.role !== 'bde') {
+          return res.status(400).json({ success: false, error: 'Select a valid BDE in your organization' })
+        }
+        data.assigned_bde_id = assignedBdeId
+        if (Number(existing.assigned_bde_id) !== assignedBdeId) assignedBde = targetBde
+      } else {
+        delete data.assigned_bde_id
+      }
+    }
+
+    const template = await clientTemplateRepo.update(templateId, ownerManagerId, data)
     if (!template) return res.status(404).json({ success: false, error: 'Template not found' })
+
+    if (assignedBde) {
+      const manager = await userRepository.getByIdForCompany(req.user.id, req.user.companyId)
+      emailService.sendMandateAssignedToBde(assignedBde.email, {
+        bdeName: `${assignedBde.first_name} ${assignedBde.last_name}`.trim(),
+        managerName: manager ? `${manager.first_name} ${manager.last_name}`.trim() : 'A manager',
+        clientName: template.client_name,
+        requirements: template.requirements,
+        headcount: template.headcount,
+        mandateId: template.id,
+      }).catch(err => console.error('sendMandateAssignedToBde failed:', err.message))
+    }
     // client_templates.update() COALESCEs jd_file_path, so it only ever really changes
     // when the new value is truthy — a null/empty value here is a no-op in the DB.
     if (data.jd_file_path) cleanupReplacedJdFile(existing.jd_file_path, data.jd_file_path)
     const savedProfiles = requirementProfiles
-      ? await syncRequirementProfiles(templateId, req.user.id, requirementProfiles)
+      ? await syncRequirementProfiles(templateId, ownerManagerId, requirementProfiles)
       : await clientRequirementsRepo.getByMandate(templateId)
-    const updatedTemplate = await clientTemplateRepo.getById(templateId, req.user.id)
+    const updatedTemplate = await clientTemplateRepo.getById(templateId, ownerManagerId)
     res.json({ success: true, data: { ...(updatedTemplate || template), requirement_profiles: savedProfiles } })
   } catch (err) {
     console.error('PATCH /client-templates/:id failed:', err.message)
@@ -422,7 +520,7 @@ router.post('/extract-tags', async (req, res) => {
 router.get('/:id/requirements', async (req, res) => {
   try {
     const mandateId = parseInt(req.params.id, 10)
-    const template = await clientTemplateRepo.getById(mandateId, req.user.id)
+    const template = await loadMandateForUser(mandateId, req.user)
     if (!template) return res.status(404).json({ success: false, error: 'Mandate not found' })
     const requirements = await clientRequirementsRepo.getByMandate(mandateId)
     await Promise.all(requirements.map(async requirement => {
@@ -439,7 +537,7 @@ router.get('/:id/requirements', async (req, res) => {
 router.post('/:id/requirements', async (req, res) => {
   try {
     const mandateId = parseInt(req.params.id, 10)
-    const template = await clientTemplateRepo.getById(mandateId, req.user.id)
+    const template = await loadMandateForUser(mandateId, req.user)
     if (!template) return res.status(404).json({ success: false, error: 'Mandate not found' })
     if (!checkNotArchived(template, res)) return
     const payload = normalizeRequirementPayload(req.body)
@@ -448,7 +546,7 @@ router.post('/:id/requirements', async (req, res) => {
       payload.tags = await llmService.extractTagsFromText(payload.jd_text)
     }
     const req_ = await clientRequirementsRepo.create(mandateId, payload)
-    await syncMandateHeadcount(mandateId, req.user.id)
+    await syncMandateHeadcount(mandateId, template.manager_id)
     res.status(201).json({ success: true, data: req_ })
   } catch (err) {
     console.error('POST /requirements failed:', err.message)
@@ -461,26 +559,26 @@ router.patch('/:id/requirements/:rqId', async (req, res) => {
   try {
     const mandateId = parseInt(req.params.id, 10)
     const rqId = parseInt(req.params.rqId, 10)
-    const template = await clientTemplateRepo.getById(mandateId, req.user.id)
+    const template = await loadMandateForUser(mandateId, req.user)
     if (!template) return res.status(404).json({ success: false, error: 'Mandate not found' })
     if (!checkNotArchived(template, res)) return
     const payload = normalizeRequirementPayload({ ...req.body, id: rqId })
     await assertUniqueRequirementName(mandateId, payload.profile_name, rqId)
-    
+
     // Determine if jd_text changed to trigger tag extraction
     const existingReq = await clientRequirementsRepo.getByIdForMandate(rqId, mandateId)
     const jdChanged = payload.jd_text !== undefined
       && String(payload.jd_text || '').trim()
       && String(payload.jd_text || '') !== String(existingReq.jd_text || '')
-      
+
     if (jdChanged && (!payload.tags || !hasTags(payload.tags))) {
       payload.tags = await llmService.extractTagsFromText(payload.jd_text)
     }
-    
+
     const updated = await clientRequirementsRepo.update(rqId, mandateId, payload)
     if (!updated) return res.status(404).json({ success: false, error: 'Requirement not found' })
     cleanupReplacedJdFile(existingReq.jd_file_path, payload.jd_file_path)
-    await syncMandateHeadcount(mandateId, req.user.id)
+    await syncMandateHeadcount(mandateId, template.manager_id)
     res.json({ success: true, data: updated })
   } catch (err) {
     console.error('PATCH /requirements/:id failed:', err.message)
@@ -493,7 +591,7 @@ router.delete('/:id/requirements/:rqId', async (req, res) => {
   try {
     const mandateId = parseInt(req.params.id, 10)
     const rqId = parseInt(req.params.rqId, 10)
-    const template = await clientTemplateRepo.getById(mandateId, req.user.id)
+    const template = await loadMandateForUser(mandateId, req.user)
     if (!template) return res.status(404).json({ success: false, error: 'Mandate not found' })
     if (!checkNotArchived(template, res)) return
     const team = await clientTeamRepo.getByMandate(mandateId)
@@ -504,7 +602,7 @@ router.delete('/:id/requirements/:rqId', async (req, res) => {
     const deleted = await clientRequirementsRepo.deleteReq(rqId, mandateId)
     if (!deleted) return res.status(404).json({ success: false, error: 'Requirement not found' })
     cleanupReplacedJdFile(deleted.jd_file_path, null)
-    await syncMandateHeadcount(mandateId, req.user.id)
+    await syncMandateHeadcount(mandateId, template.manager_id)
     res.json({ success: true })
   } catch (err) {
     console.error('DELETE /requirements/:id failed:', err.message)
@@ -518,7 +616,7 @@ router.delete('/:id/requirements/:rqId', async (req, res) => {
 
 router.get('/:id/matches', async (req, res) => {
   try {
-    const template = await clientTemplateRepo.getById(parseInt(req.params.id, 10), req.user.id)
+    const template = await loadMandateForUser(parseInt(req.params.id, 10), req.user)
     if (!template) return res.status(404).json({ success: false, error: 'Template not found' })
 
     let templateTags = []
@@ -528,7 +626,7 @@ router.get('/:id/matches', async (req, res) => {
       userRepository.getByCompany(req.user.companyId),
       require('../db/connection').query(
         `SELECT id, user_id FROM team_members WHERE manager_id = @managerId`,
-        { managerId: req.user.id }
+        { managerId: template.manager_id }
       ),
       clientTeamRepo.getByMandate(parseInt(req.params.id, 10)),
       clientRequirementsRepo.getByMandate(template.id),
@@ -965,9 +1063,9 @@ router.post('/:id/send-jd', async (req, res) => {
 router.get('/:id/assignments', async (req, res) => {
   try {
     const templateId = parseInt(req.params.id, 10)
-    const template = await clientTemplateRepo.getById(templateId, req.user.id)
+    const template = await loadMandateForUser(templateId, req.user)
     if (!template) return res.status(404).json({ success: false, error: 'Template not found' })
-    const assignments = await interviewRepository.getByClientTemplateForManager(templateId, req.user.id)
+    const assignments = await interviewRepository.getByClientTemplateForManager(templateId, template.manager_id)
     res.json({ success: true, data: assignments })
   } catch (err) {
     console.error('GET /assignments failed:', err.message)
@@ -997,7 +1095,7 @@ router.delete('/:id/assignments/:interviewId', async (req, res) => {
 
 router.get('/:id/team/:ctId/rounds', async (req, res) => {
   try {
-    const template = await clientTemplateRepo.getById(parseInt(req.params.id, 10), req.user.id)
+    const template = await loadMandateForUser(parseInt(req.params.id, 10), req.user)
     if (!template) return res.status(404).json({ success: false, error: 'Mandate not found' })
     const rounds = await clientOutcomeRoundsRepo.listByClientTeamId(
       parseInt(req.params.ctId, 10),

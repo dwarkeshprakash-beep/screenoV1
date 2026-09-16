@@ -233,6 +233,8 @@ function CreateMandateModal({ open, onClose, onCreated, isBde = false }) {
   const [editingTemplate, setEditingTemplate] = useState(null)
   const [managers, setManagers] = useState([])
   const [assignedManagerId, setAssignedManagerId] = useState('')
+  const [bdes, setBdes] = useState([])
+  const [assignedBdeId, setAssignedBdeId] = useState('')
 
   useEffect(() => {
     if (!open) return
@@ -247,6 +249,7 @@ function CreateMandateModal({ open, onClose, onCreated, isBde = false }) {
     setCompanyMenuOpen(false)
     setHighlightedCompanyIndex(-1)
     setAssignedManagerId('')
+    setAssignedBdeId('')
     setCompaniesLoading(true)
     api.getClientTemplates('all')
       .then(response => setExistingMandates(response.data || []))
@@ -256,6 +259,10 @@ function CreateMandateModal({ open, onClose, onCreated, isBde = false }) {
       api.getClientTemplateManagers()
         .then(response => setManagers(response.data || []))
         .catch(() => setManagers([]))
+    } else {
+      api.getClientTemplateBdes()
+        .then(response => setBdes(response.data || []))
+        .catch(() => setBdes([]))
     }
   }, [open, isBde])
 
@@ -346,6 +353,7 @@ function CreateMandateModal({ open, onClose, onCreated, isBde = false }) {
       })
       setProfiles(nextProfiles)
       setTagsByRole(nextTags)
+      setAssignedBdeId(template.assigned_bde_id ? String(template.assigned_bde_id) : '')
       setStep(1)
     } catch (err) {
       setError(err.message || 'Could not load the existing mandate.')
@@ -448,6 +456,7 @@ function CreateMandateModal({ open, onClose, onCreated, isBde = false }) {
         custom_info: form.customInfo.trim() || null,
         tags: null,
         assigned_manager_id: isBde && !editingTemplate ? Number(assignedManagerId) : undefined,
+        assigned_bde_id: !isBde && assignedBdeId ? Number(assignedBdeId) : undefined,
       }
       if (editingTemplate) await api.updateClientTemplate(editingTemplate.id, payload)
       else await api.createClientTemplate(payload)
@@ -549,6 +558,15 @@ function CreateMandateModal({ open, onClose, onCreated, isBde = false }) {
               </Field>
             )}
 
+            {!isBde && (
+              <Field label="Assign BDE (optional)" help="Lets a BDE view this mandate too. Leave unselected if not needed.">
+                <select className="form-input" value={assignedBdeId} onChange={event => setAssignedBdeId(event.target.value)}>
+                  <option value="">No BDE assigned</option>
+                  {bdes.map(b => <option key={b.id} value={b.id}>{b.first_name} {b.last_name} ({b.email})</option>)}
+                </select>
+              </Field>
+            )}
+
             {selectedCompany && !editingTemplate && (
               <div className="form-field form-field--full" style={{ padding: 12, border: '1px solid var(--border-default)', borderRadius: 10, background: 'var(--bg-surface-alt)' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: 9 }}>
@@ -622,13 +640,15 @@ function CreateMandateModal({ open, onClose, onCreated, isBde = false }) {
     </Modal>
   )
 }
-function EditMandateModal({ open, template, onClose, onSaved }) {
+function EditMandateModal({ open, template, onClose, onSaved, isBde = false }) {
   const [form, setForm] = useState({})
   const [tags, setTags] = useState([])
   const [saving, setSaving] = useState(false)
   const [extractingFile, setExtractingFile] = useState(false)
   const [extractingTags, setExtractingTags] = useState(false)
   const [error, setError] = useState(null)
+  const [bdes, setBdes] = useState([])
+  const [assignedBdeId, setAssignedBdeId] = useState('')
 
   useEffect(() => {
     if (!open) return
@@ -642,8 +662,14 @@ function EditMandateModal({ open, template, onClose, onSaved }) {
       jd_original_filename: template.jd_original_filename || '',
     })
     setTags(parseTags(template.tags))
+    setAssignedBdeId(template.assigned_bde_id ? String(template.assigned_bde_id) : '')
     setError(null)
-  }, [open, template])
+    if (!isBde) {
+      api.getClientTemplateBdes()
+        .then(response => setBdes(response.data || []))
+        .catch(() => setBdes([]))
+    }
+  }, [open, template, isBde])
 
   async function readJdFile(event) {
     const file = event.target.files?.[0]
@@ -692,7 +718,9 @@ function EditMandateModal({ open, template, onClose, onSaved }) {
     setSaving(true)
     setError(null)
     try {
-      const payload = { ...form, tags: JSON.stringify(tags) }
+      const payload = isBde
+        ? { jd_text: form.jd_text, jd_file_path: form.jd_file_path, jd_original_filename: form.jd_original_filename, tags: JSON.stringify(tags) }
+        : { ...form, tags: JSON.stringify(tags), assigned_bde_id: assignedBdeId ? Number(assignedBdeId) : undefined }
       const response = await api.updateClientTemplate(template.id, payload)
       onSaved(response.data || { ...template, ...payload })
     } catch (err) { setError(err.message || 'Could not update the mandate.') }
@@ -703,10 +731,20 @@ function EditMandateModal({ open, template, onClose, onSaved }) {
     <Modal open={open} onClose={onClose} title="Edit client mandate" size="md">
       <div className="workspace-stack">
         <div className="form-grid">
-          <Field label="Client name"><input className="form-input" value={form.client_name || ''} onChange={e => setForm(c => ({ ...c, client_name: e.target.value }))} /></Field>
-          <Field label="Client email"><input className="form-input" type="email" value={form.client_email || ''} onChange={e => setForm(c => ({ ...c, client_email: e.target.value }))} /></Field>
-          <Field label="Mandate summary" full><textarea className="form-input" rows={3} value={form.requirements || ''} onChange={e => setForm(c => ({ ...c, requirements: e.target.value }))} style={{ resize: 'vertical' }} /></Field>
-          <Field label="Internal notes" full><textarea className="form-input" rows={4} value={form.custom_info || ''} onChange={e => setForm(c => ({ ...c, custom_info: e.target.value }))} style={{ resize: 'vertical' }} /></Field>
+          {!isBde && (
+            <>
+              <Field label="Client name"><input className="form-input" value={form.client_name || ''} onChange={e => setForm(c => ({ ...c, client_name: e.target.value }))} /></Field>
+              <Field label="Client email"><input className="form-input" type="email" value={form.client_email || ''} onChange={e => setForm(c => ({ ...c, client_email: e.target.value }))} /></Field>
+              <Field label="Mandate summary" full><textarea className="form-input" rows={3} value={form.requirements || ''} onChange={e => setForm(c => ({ ...c, requirements: e.target.value }))} style={{ resize: 'vertical' }} /></Field>
+              <Field label="Assign BDE (optional)" help="Lets a BDE view this mandate too. Leave unselected if not needed.">
+                <select className="form-input" value={assignedBdeId} onChange={event => setAssignedBdeId(event.target.value)}>
+                  <option value="">No BDE assigned</option>
+                  {bdes.map(b => <option key={b.id} value={b.id}>{b.first_name} {b.last_name} ({b.email})</option>)}
+                </select>
+              </Field>
+              <Field label="Internal notes" full><textarea className="form-input" rows={4} value={form.custom_info || ''} onChange={e => setForm(c => ({ ...c, custom_info: e.target.value }))} style={{ resize: 'vertical' }} /></Field>
+            </>
+          )}
           <Field label="Mandate job description" full help="This is the shared JD. Role profiles can keep their own JDs. The uploaded file is kept even if text extraction misses something.">
             <div className="workspace-stack" style={{ gap: 8 }}>
               <input id="edit-mandate-jd-file" type="file" accept=".pdf,.doc,.docx,.txt" onChange={readJdFile} style={{ display: 'none' }} />
@@ -2035,7 +2073,7 @@ function MandateDetail({ initialTemplate, isBde = false, basePath = '/manager' }
             <section>
               <div className="workspace-section-heading" style={{ marginBottom: 9 }}>
                 <div><h3 style={{ fontSize: 15 }}>Matching skills</h3></div>
-                <Button variant="secondary" size="sm" onClick={() => setEditOpen(true)} disabled={isArchived || isBde}><Sparkles size={13} />Edit JD and skills</Button>
+                <Button variant="secondary" size="sm" onClick={() => setEditOpen(true)} disabled={isArchived}><Sparkles size={13} />Edit JD and skills</Button>
               </div>
               {tags.length > 0 ? <div className="tag-list">{tags.map(tag => <span className="tag" key={tag}>{tag}</span>)}</div>
                 : <span style={{ color: 'var(--fg-muted)', fontSize: 12 }}>No matching skills defined.</span>}
@@ -2044,7 +2082,7 @@ function MandateDetail({ initialTemplate, isBde = false, basePath = '/manager' }
             <section>
               <div className="workspace-section-heading" style={{ marginBottom: 12 }}>
                 <div><h3 style={{ fontSize: 15 }}>Requirement profiles</h3><p>Define multiple profiles for this mandate (e.g. junior vs senior).</p></div>
-                <Button size="sm" onClick={() => setReqModal('new')} disabled={isArchived || isBde}><Plus size={13} />Add profile</Button>
+                <Button size="sm" onClick={() => setReqModal('new')} disabled={isArchived}><Plus size={13} />Add profile</Button>
               </div>
               {requirementsError && <ErrorMessage message={requirementsError} />}
               {requirements.length === 0 && !requirementsError ? (
@@ -2064,7 +2102,7 @@ function MandateDetail({ initialTemplate, isBde = false, basePath = '/manager' }
                         </span>
                       </div>
                       <button type="button" className="danger-icon-button" style={{ background: 'transparent', border: '1px solid var(--border-default)', borderRadius: 6, padding: '4px 10px', fontSize: 11, color: 'var(--fg-muted)', cursor: 'pointer' }}
-                        onClick={() => setReqModal(r)} disabled={isArchived || isBde}>
+                        onClick={() => setReqModal(r)} disabled={isArchived}>
                         Edit
                       </button>
                     </div>
@@ -2081,7 +2119,7 @@ function MandateDetail({ initialTemplate, isBde = false, basePath = '/manager' }
             ? <div className="workspace-stack" style={{ gap: 14 }}>
               <div className="workspace-section-heading">
                 <div><h3 style={{ fontSize: 16 }}>Job description</h3><p>Used for matching, communication, and AI interview context.</p></div>
-                <Button variant="secondary" size="sm" onClick={() => setEditOpen(true)} disabled={isArchived || isBde}><FileText size={13} />Edit mandate JD</Button>
+                <Button variant="secondary" size="sm" onClick={() => setEditOpen(true)} disabled={isArchived}><FileText size={13} />Edit mandate JD</Button>
               </div>
               {(template.jd_text || template.jd_file_path) && (
                 <section>
@@ -2108,7 +2146,7 @@ function MandateDetail({ initialTemplate, isBde = false, basePath = '/manager' }
                           <FileText size={12} />{r.jd_original_filename || 'Original file'}
                         </a>
                       )}
-                      <Button variant="secondary" size="sm" onClick={() => setReqModal(r)} disabled={isArchived || isBde}>Edit role JD</Button>
+                      <Button variant="secondary" size="sm" onClick={() => setReqModal(r)} disabled={isArchived}>Edit role JD</Button>
                     </div>
                   </div>
                   {r.jd_text
@@ -2119,7 +2157,7 @@ function MandateDetail({ initialTemplate, isBde = false, basePath = '/manager' }
             </div>
             : <div className="workspace-stack" style={{ alignItems: 'center' }}>
               <EmptyState message="No JD text attached. Add a mandate JD or edit a role profile." />
-              <Button onClick={() => setEditOpen(true)} disabled={isArchived || isBde}><FileText size={14} />Add mandate JD</Button>
+              <Button onClick={() => setEditOpen(true)} disabled={isArchived}><FileText size={14} />Add mandate JD</Button>
             </div>
         )}
 
@@ -2360,11 +2398,15 @@ function MandateDetail({ initialTemplate, isBde = false, basePath = '/manager' }
                     <div className="workspace-section-heading">
                       <div><h3>{run.candidate_first} {run.candidate_last}</h3><p>{run.flow_name}</p></div>
                       <div style={{ display: 'flex', gap: 7, alignItems: 'center', flexWrap: 'wrap' }}>
-                        <Button size="sm" variant="secondary" onClick={() => setFlowEditTarget({
-                          runId: run.run_id,
-                          member: { id: run.client_team_id, user_id: run.candidate_user_id, first_name: run.candidate_first, last_name: run.candidate_last },
-                        })}>Edit</Button>
-                        <button type="button" className="danger-icon-button" title="Delete candidate flow" onClick={() => deleteCandidateFlow(run)}><Trash2 size={14} /></button>
+                        {!isBde && (
+                          <>
+                            <Button size="sm" variant="secondary" onClick={() => setFlowEditTarget({
+                              runId: run.run_id,
+                              member: { id: run.client_team_id, user_id: run.candidate_user_id, first_name: run.candidate_first, last_name: run.candidate_last },
+                            })}>Edit</Button>
+                            <button type="button" className="danger-icon-button" title="Delete candidate flow" onClick={() => deleteCandidateFlow(run)}><Trash2 size={14} /></button>
+                          </>
+                        )}
                         <span className={`status-pill${run.run_status === 'completed' ? ' status-pill--success' : run.run_status.includes('paused') ? ' status-pill--danger' : ' status-pill--brand'}`}>{run.run_status.replaceAll('_', ' ')}</span>
                       </div>
                     </div>
@@ -2382,20 +2424,20 @@ function MandateDetail({ initialTemplate, isBde = false, basePath = '/manager' }
                         </div>
                       ))}
                     </div>
-                    {run.run_status === 'paused_failed' && (
+                    {!isBde && run.run_status === 'paused_failed' && (
                       <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
                         <input className="form-input" style={{ maxWidth: 230 }} type="datetime-local" value={retryDates[run.run_id] || ''} onChange={event => setRetryDates(current => ({ ...current, [run.run_id]: event.target.value }))} />
                         <Button size="sm" variant="secondary" onClick={() => retryPausedRun(run.run_id)}>Retry stage</Button>
                         <Button size="sm" onClick={() => continuePausedRun(run.run_id)}>Continue anyway</Button>
                       </div>
                     )}
-                    {run.run_status === 'paused_schedule_required' && (
+                    {!isBde && run.run_status === 'paused_schedule_required' && (
                       <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
                         <input className="form-input" style={{ maxWidth: 230 }} type="datetime-local" value={retryDates[run.run_id] || ''} onChange={event => setRetryDates(current => ({ ...current, [run.run_id]: event.target.value }))} />
                         <Button size="sm" onClick={() => retryPausedRun(run.run_id)}>Schedule stage</Button>
                       </div>
                     )}
-                    {run.run_status === 'active' && run.stages.some(stage => (
+                    {!isBde && run.run_status === 'active' && run.stages.some(stage => (
                       Number(stage.stage_order) === Number(run.current_stage_order)
                       && stage.stage_status === 'scheduled'
                       && stage.interview_status === 'scheduled'
@@ -2457,6 +2499,7 @@ function MandateDetail({ initialTemplate, isBde = false, basePath = '/manager' }
         open={editOpen}
         template={template}
         requirements={requirements}
+        isBde={isBde}
         onClose={() => setEditOpen(false)}
         onSaved={updated => { setTemplate(updated); setEditOpen(false); void loadRequirements() }}
       />
