@@ -406,6 +406,10 @@ export const uploadOwnResume = file => {
   formData.append('resume', file)
   return request('/api/profile/resume', { method: 'POST', body: formData })
 }
+export const getResumes = () => request('/api/profile/resumes')
+export const deleteResume = assetId => request(`/api/profile/resume/${assetId}`, { method: 'DELETE' })
+export const setDefaultResume = assetId =>
+  request(`/api/profile/resume/${assetId}/default`, { method: 'PATCH' })
 
 export const getMonthlyAssessments = () => request('/api/assessments/monthly')
 export const createMonthlyAssessment = data =>
@@ -551,6 +555,11 @@ export const useExistingResumeForClient = ctId =>
   request(`/api/candidate/client-mandates/${ctId}/resume`, {
     method: 'POST',
     body: JSON.stringify({ useExisting: true }),
+  })
+export const submitExistingResumeForClient = (ctId, resumeAssetId) =>
+  request(`/api/candidate/client-mandates/${ctId}/resume`, {
+    method: 'POST',
+    body: JSON.stringify({ resumeAssetId }),
   })
 
 export const get = (url, opts) => request(url, { ...opts, method: 'GET' })

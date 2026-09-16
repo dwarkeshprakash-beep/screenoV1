@@ -3,9 +3,9 @@ const bcrypt = require('bcryptjs')
 const authMiddleware = require('../middleware/auth')
 const { documentUpload } = require('../middleware/upload')
 const userRepository = require('../repositories/user.repository')
+const resumeRepository = require('../repositories/resume.repository')
 const storageService = require('../services/storage.service')
-const documentTextService = require('../services/document-text.service')
-const llmService = require('../services/llm.service')
+const resumeService = require('../services/resume.service')
 const { applicationRole } = require('../services/auth.service')
 const { validatePassword } = require('../utils/password-policy')
 
@@ -112,61 +112,71 @@ router.patch('/', async (req, res) => {
   }
 })
 
-const resumeRepository = require('../repositories/resume.repository')
-
 router.post('/resume', documentUpload.single('resume'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ success: false, error: 'No file provided' })
-    const buffer = req.file.buffer
-    
-    // Upload the file to immutable versioned storage
-    const uploaded = await storageService.uploadResumeAsset(buffer, req.user.id, req.file)
-    
-    // Create the resume asset record
-    const asset = await resumeRepository.createAsset({
-      owner_user_id: req.user.id,
-      purpose: 'profile',
-      original_filename: uploaded.originalName,
-      mime_type: uploaded.mimeType,
-      size: uploaded.size,
-      storage_path: uploaded.path,
-    })
 
-    // Update the user profile with the new asset ID
-    // Note: We need a new function in userRepository to update the current_resume_asset_id
-    // Wait, the migration adds current_resume_asset_id, but updateProfile might not support it yet.
-    // For now we'll update resume_url to the path as a fallback or add it to updateProfile.
-    await userRepository.updateProfile(req.user.id, { 
-      resumeUrl: uploaded.path, // keep legacy field for backward compatibility
-      currentResumeAssetId: asset.id 
-    })
-
-    async function extractTags() {
-      try {
-        const text = await documentTextService.extractTextFromBuffer(
-          buffer,
-          req.file.mimetype,
-          req.file.originalname
-        )
-        if (text.length < 50) {
-          await userRepository.updateProfile(req.user.id, { resumeText: text })
-          return
-        }
-        const tags = await llmService.extractTagsFromText(text)
-        await userRepository.updateProfile(req.user.id, { resumeText: text, tags })
-      } catch (err) {
-        console.error('profile resume tag extraction failed:', err.message)
-      }
+    const result = await resumeService.addResume(req.user.id, req.file.buffer, req.file)
+    if (result.error === 'limit_reached') {
+      return res.status(400).json({
+        success: false,
+        error: `You can have at most ${resumeService.MAX_RESUMES_PER_OWNER} resumes — delete one to add another.`,
+      })
     }
-    void extractTags()
 
-    // Generate a signed URL for immediate use
-    const signedUrl = await storageService.getSignedUrl(uploaded.path)
-
-    res.json({ success: true, data: { resumeUrl: signedUrl, asset } })
+    const signedUrl = await storageService.getSignedUrl(result.asset.storage_path)
+    res.json({ success: true, data: { resumeUrl: signedUrl, asset: result.asset } })
   } catch (err) {
     console.error('POST /profile/resume failed:', err)
     res.status(500).json({ success: false, error: 'Upload failed' })
+  }
+})
+
+router.get('/resumes', async (req, res) => {
+  try {
+    const resumes = await resumeService.listResumes(req.user.id)
+    res.json({ success: true, data: resumes })
+  } catch (err) {
+    console.error('GET /profile/resumes failed:', err)
+    res.status(500).json({ success: false, error: 'Could not load resumes' })
+  }
+})
+
+router.patch('/resume/:assetId/default', async (req, res) => {
+  try {
+    const assetId = parseInt(req.params.assetId, 10)
+    const result = await resumeService.setDefault(req.user.id, assetId)
+    if (result.error === 'not_found') {
+      return res.status(404).json({ success: false, error: 'Resume not found' })
+    }
+    res.json({ success: true, data: result.asset })
+  } catch (err) {
+    console.error('PATCH /profile/resume/:assetId/default failed:', err)
+    res.status(500).json({ success: false, error: 'Could not set default resume' })
+  }
+})
+
+const DELETE_ERROR_MESSAGES = {
+  is_default: 'Set another resume as default before deleting this one.',
+  in_use: 'This resume is linked to a client submission and cannot be deleted.',
+}
+
+router.delete('/resume/:assetId', async (req, res) => {
+  try {
+    const assetId = parseInt(req.params.assetId, 10)
+    const check = await resumeService.canDeleteResume(req.user.id, assetId)
+    if (!check.allowed) {
+      if (check.reason === 'not_found') {
+        return res.status(404).json({ success: false, error: 'Resume not found' })
+      }
+      return res.status(400).json({ success: false, error: DELETE_ERROR_MESSAGES[check.reason] })
+    }
+
+    await resumeService.deleteResume(check.asset)
+    res.json({ success: true })
+  } catch (err) {
+    console.error('DELETE /profile/resume/:assetId failed:', err)
+    res.status(500).json({ success: false, error: 'Could not delete resume' })
   }
 })
 

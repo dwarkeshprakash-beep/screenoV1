@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react'
-import { CheckCircle2, XCircle, FileText, AlertTriangle, UploadCloud, Clock, MapPin, BriefcaseBusiness } from 'lucide-react'
+import { CheckCircle2, XCircle, FileText, AlertTriangle, Clock, MapPin, BriefcaseBusiness } from 'lucide-react'
 import Spinner from '../../components/shared/Spinner'
 import Modal from '../../components/shared/Modal'
+import FileUploadButton from '../../components/shared/FileUploadButton'
 import * as api from '../../services/api'
 import { formatDate, formatDateTime, parseStoredArray } from '../../utils/helpers'
 
@@ -35,6 +36,8 @@ function requirementMeta(mandate) {
 
 function CandidateMandatesPage() {
   const [mandates, setMandates] = useState([])
+  const [resumes, setResumes] = useState([])
+  const [selectedResumeId, setSelectedResumeId] = useState({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [message, setMessage] = useState(null)
@@ -45,22 +48,31 @@ function CandidateMandatesPage() {
     setLoading(true)
     setError(null)
     try {
-      const res = await api.getCandidateClientMandates()
-      setMandates(res.data || [])
+      const [mandatesRes, resumesRes] = await Promise.all([api.getCandidateClientMandates(), api.getResumes()])
+      setMandates(mandatesRes.data || [])
+      setResumes(resumesRes.data || [])
     } catch { setError('Could not load client mandates.') }
     finally { setLoading(false) }
   }, [])
 
   useEffect(() => { void load() }, [load])
 
-  async function submitClientResume(ctId, file) {
+  async function submitExistingResume(ctId) {
+    const resumeAssetId = selectedResumeId[ctId]
+    if (!resumeAssetId) return
     setResumeSubmitting(ctId)
     try {
-      if (file) {
-        await api.submitClientResume(ctId, file)
-      } else {
-        await api.useExistingResumeForClient(ctId)
-      }
+      await api.submitExistingResumeForClient(ctId, resumeAssetId)
+      setMessage({ type: 'success', text: 'Resume submitted for this client mandate.' })
+      await load()
+    } catch (err) { setMessage({ type: 'error', text: err.message || 'Could not submit resume.' }) }
+    finally { setResumeSubmitting(null) }
+  }
+
+  async function submitUploadedResume(ctId, file) {
+    setResumeSubmitting(ctId)
+    try {
+      await api.submitClientResume(ctId, file)
       setMessage({ type: 'success', text: 'Resume submitted for this client mandate.' })
       await load()
     } catch (err) { setMessage({ type: 'error', text: err.message || 'Could not submit resume.' }) }
@@ -197,18 +209,30 @@ function CandidateMandatesPage() {
                       <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--warning-700)', margin: '0 0 10px' }}>
                         Action needed - submit your resume for this client
                       </p>
-                      <div style={{ display: 'flex', gap: 8 }}>
-                        <button disabled={resumeSubmitting === mandate.id} onClick={() => submitClientResume(mandate.id, null)}
-                          style={{ flex: 1, padding: '8px 12px', background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderRadius: 7, fontSize: 12, fontWeight: 600, color: 'var(--fg-body)', cursor: 'pointer' }}>
-                          {resumeSubmitting === mandate.id ? 'Submitting…' : 'Use My Main Resume'}
-                        </button>
-                        <label style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '8px 12px', background: 'var(--fg-primary)', borderRadius: 7, fontSize: 12, fontWeight: 600, color: 'var(--bg-surface)', cursor: 'pointer' }}>
-                          <UploadCloud size={13} />Upload Custom
-                          <input type="file" accept=".pdf,.doc,.docx" style={{ display: 'none' }}
-                            onChange={e => { const f = e.target.files?.[0]; if (f) submitClientResume(mandate.id, f); e.target.value = '' }}
-                            disabled={resumeSubmitting === mandate.id} />
-                        </label>
-                      </div>
+                      {resumes.length > 0 && (
+                        <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                          <select
+                            value={selectedResumeId[mandate.id] ?? resumes.find(r => r.isDefault)?.id ?? resumes[0].id}
+                            onChange={e => setSelectedResumeId(prev => ({ ...prev, [mandate.id]: Number(e.target.value) }))}
+                            disabled={resumeSubmitting === mandate.id}
+                            style={{ flex: 1, padding: '8px 10px', borderRadius: 7, border: '1px solid var(--border-default)', fontSize: 12, fontWeight: 600, color: 'var(--fg-body)', background: 'var(--bg-surface)' }}>
+                            {resumes.map(r => (
+                              <option key={r.id} value={r.id}>{r.filename}{r.isDefault ? ' (Default)' : ''}</option>
+                            ))}
+                          </select>
+                          <button disabled={resumeSubmitting === mandate.id} onClick={() => submitExistingResume(mandate.id)}
+                            style={{ padding: '8px 14px', background: 'var(--fg-primary)', border: 0, borderRadius: 7, fontSize: 12, fontWeight: 600, color: 'var(--bg-surface)', cursor: 'pointer' }}>
+                            {resumeSubmitting === mandate.id ? 'Submitting…' : 'Submit'}
+                          </button>
+                        </div>
+                      )}
+                      <FileUploadButton
+                        label="Upload a new resume for this client"
+                        accept=".pdf,.doc,.docx"
+                        uploading={resumeSubmitting === mandate.id}
+                        disabled={resumeSubmitting === mandate.id}
+                        onFileSelected={file => submitUploadedResume(mandate.id, file)}
+                      />
                     </div>
                   )}
 

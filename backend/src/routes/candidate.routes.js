@@ -8,6 +8,7 @@ const reportRepository = require('../repositories/report.repository')
 const clientTeamRepo = require('../repositories/client-team.repository')
 const userRepository = require('../repositories/user.repository')
 const storageService = require('../services/storage.service')
+const resumeService = require('../services/resume.service')
 const candidateIdentityService = require('../services/candidate-identity.service')
 const authService = require('../services/auth.service')
 const monthlyAssessmentRepository = require('../repositories/monthly-assessment.repository')
@@ -202,9 +203,10 @@ router.get('/client-mandates', async (req, res) => {
   }
 })
 
-// Submit resume for a specific client mandate.
-// Option 1 (JSON): { useExisting: true } — creates immutable copy of current profile resume
-// Option 2 (multipart): upload a new mandate-specific resume file
+// Submit a resume for a specific client mandate. Three ways to provide one:
+// 1. multipart file upload — added to the candidate's resume pool and linked to this mandate
+// 2. JSON { resumeAssetId } — link one of the candidate's existing resumes to this mandate
+// 3. JSON { useExisting: true } — link the candidate's current default resume (back-compat)
 router.post(
   '/client-mandates/:ctId/resume',
   documentUpload.single('resume'),
@@ -216,83 +218,32 @@ router.post(
         return res.status(404).json({ success: false, error: 'Client mandate entry not found' })
       }
 
-      const resumeRepository = require('../repositories/resume.repository')
-      let resumeAsset = null
-      let resumeUrlToStore = null
+      let asset = null
 
-      if (req.body.useExisting === 'true' || req.body.useExisting === true) {
-        // Create immutable snapshot of current profile resume
+      if (req.file) {
+        const result = await resumeService.addResume(req.user.id, req.file.buffer, req.file)
+        if (result.error === 'limit_reached') {
+          return res.status(400).json({
+            success: false,
+            error: `You can have at most ${resumeService.MAX_RESUMES_PER_OWNER} resumes — delete one to add another.`,
+          })
+        }
+        asset = result.asset
+      } else if (req.body.resumeAssetId) {
+        asset = await resumeService.getOwnedActiveAsset(req.user.id, parseInt(req.body.resumeAssetId, 10))
+        if (!asset) return res.status(400).json({ success: false, error: 'Resume not found' })
+      } else if (req.body.useExisting === 'true' || req.body.useExisting === true) {
         const profile = await userRepository.getById(req.user.id)
-        if (!profile?.current_resume_asset_id && !profile?.resume_url) {
+        if (!profile?.current_resume_asset_id) {
           return res.status(400).json({ success: false, error: 'No existing resume on your profile' })
         }
-
-        let sourcePath = profile.resume_url || null
-        let sourceFilename = 'resume.pdf'
-        let sourceMimeType = null
-        let sourceSize = null
-
-        if (profile.current_resume_asset_id) {
-          const profileAsset = await resumeRepository.getAssetById(profile.current_resume_asset_id)
-          if (profileAsset) {
-            sourcePath = profileAsset.storage_path
-            sourceFilename = profileAsset.original_filename || sourceFilename
-            sourceMimeType = profileAsset.mime_type || null
-            sourceSize = profileAsset.size || null
-          }
-        }
-
-        if (!sourcePath) {
-          return res.status(400).json({ success: false, error: 'Profile resume asset not found' })
-        }
-
-        if (isHttpUrl(sourcePath)) {
-          // Legacy external URLs cannot be copied through Supabase Storage. Keep the URL,
-          // but do not expose it as a raw in-app route.
-          resumeUrlToStore = sourcePath
-        } else {
-          // Create immutable copy for this mandate
-          const snapshot = await storageService.copyResumeForMandateSnapshot(
-            sourcePath,
-            entry.mandate_id,
-            ctId
-          )
-
-          // Create new resume asset record for mandate snapshot
-          resumeAsset = await resumeRepository.createAsset({
-            owner_user_id: req.user.id,
-            purpose: 'mandate_submission',
-            client_team_id: ctId,
-            mandate_id: entry.mandate_id,
-            original_filename: sourceFilename,
-            mime_type: sourceMimeType,
-            size: sourceSize,
-            storage_path: snapshot.path,
-          })
-          resumeUrlToStore = resumeAsset.storage_path
-        }
-      } else if (req.file) {
-        // Upload a new mandate-specific resume
-        const uploaded = await storageService.uploadResumeAsset(req.file.buffer, req.user.id, req.file)
-
-        // Create resume asset record for uploaded file
-        resumeAsset = await resumeRepository.createAsset({
-          owner_user_id: req.user.id,
-          purpose: 'mandate_submission',
-          client_team_id: ctId,
-          mandate_id: entry.mandate_id,
-          original_filename: uploaded.originalName,
-          mime_type: uploaded.mimeType,
-          size: uploaded.size,
-          storage_path: uploaded.path,
-        })
-        resumeUrlToStore = resumeAsset.storage_path
+        asset = await resumeService.getOwnedActiveAsset(req.user.id, profile.current_resume_asset_id)
+        if (!asset) return res.status(400).json({ success: false, error: 'Profile resume asset not found' })
       } else {
-        return res.status(400).json({ success: false, error: 'Provide either useExisting=true or a resume file' })
+        return res.status(400).json({ success: false, error: 'Provide resumeAssetId, useExisting=true, or a resume file' })
       }
 
-      // Update client team with new resume asset
-      const updated = await clientTeamRepo.updateClientResume(ctId, resumeUrlToStore, resumeAsset?.id)
+      const updated = await clientTeamRepo.updateClientResume(ctId, asset.storage_path, asset.id)
       const resumeDownloadUrl = await safeSignedResumeUrl(updated.client_resume_url)
 
       res.json({
@@ -304,7 +255,7 @@ router.post(
             : null,
           client_resume_url: resumeDownloadUrl,
           client_resume_download_url: resumeDownloadUrl,
-          resume_asset: resumeAsset
+          resume_asset: asset
         }
       })
     } catch (err) {

@@ -228,6 +228,11 @@ POST   /api/upload/analyze-resume
 
 GET    /api/profile
 PATCH  /api/profile
+GET    /api/profile/resume-metadata            ← metadata for the candidate's default resume
+POST   /api/profile/resume                     ← add a resume to the candidate's pool (up to 5)
+GET    /api/profile/resumes                    ← list the candidate's resume pool
+PATCH  /api/profile/resume/:assetId/default    ← mark one resume as the default
+DELETE /api/profile/resume/:assetId            ← delete a resume (blocked if default or linked to a mandate)
 
 GET    /health                                 ← health check
 ```

@@ -32,6 +32,7 @@ const MIGRATIONS = [
   '023_mandate_updated_at.sql',
   '024_bde_mandate_creator.sql',
   '025_mandate_jd_file.sql',
+  '026_resume_indexes.sql',
 ]
 
 async function main() {

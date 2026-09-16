@@ -168,36 +168,16 @@ async function cleanupOrphanedFiles(paths) {
 }
 
 /**
- * Create an immutable copy of an existing resume for mandate-specific submission.
- * This prevents the original file from being overwritten if the user updates their profile resume.
- * @param {string} sourcePath - path to the source resume file
- * @param {number|string} mandateId - mandate ID for immutable storage path
- * @param {number|string} clientTeamId - client team ID for immutable storage path
- * @returns {Promise<{ path: string }>}
+ * Download a file's raw bytes from storage (e.g. to re-extract text from a resume
+ * that's being set as the default without a fresh upload).
+ * @param {string} path - storage path
+ * @returns {Promise<Buffer>}
  */
-async function copyResumeForMandateSnapshot(sourcePath, mandateId, clientTeamId) {
-  if (!sourcePath) throw new Error('Source path is required')
-  
-  const uuid = crypto.randomUUID()
-  const extension = sourcePath.split('.').pop() || 'pdf'
-  const snapshotPath = `resumes/mandates/${mandateId}/${clientTeamId}/${uuid}.${extension}`
-
-  const { data: sourceFile, error: downloadError } = await supabase.storage
-    .from(BUCKET)
-    .download(sourcePath)
-    
-  if (downloadError) throw downloadError
-
-  const { data, error: uploadError } = await supabase.storage
-    .from(BUCKET)
-    .upload(snapshotPath, sourceFile, {
-      contentType: sourceFile.type || 'application/pdf',
-      upsert: false,
-    })
-    
-  if (uploadError) throw uploadError
-
-  return { path: snapshotPath }
+async function downloadFile(path) {
+  const { data, error } = await supabase.storage.from(BUCKET).download(path)
+  if (error) throw error
+  const arrayBuffer = await data.arrayBuffer()
+  return Buffer.from(arrayBuffer)
 }
 
 module.exports = {
@@ -209,6 +189,6 @@ module.exports = {
   getSignedUrl,
   deleteFile,
   cleanupOrphanedFiles,
-  copyResumeForMandateSnapshot,
+  downloadFile,
   uploadInterviewFeedbackAsset,
 }
