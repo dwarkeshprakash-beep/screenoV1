@@ -4,8 +4,8 @@ const db = require('../db/connection')
 async function create(mandateId, data) {
   const rows = await db.query(
     `INSERT INTO client_mandate_requirements
-       (mandate_id, profile_name, years_min, years_max, headcount, notes, jd_text, tags, resume_deadline)
-     VALUES (@mandateId, @profileName, @yearsMin, @yearsMax, @headcount, @notes, @jdText, @tags, @resumeDeadline)
+       (mandate_id, profile_name, years_min, years_max, headcount, notes, jd_text, jd_file_path, jd_original_filename, tags, resume_deadline)
+     VALUES (@mandateId, @profileName, @yearsMin, @yearsMax, @headcount, @notes, @jdText, @jdFilePath, @jdOriginalFilename, @tags, @resumeDeadline)
      RETURNING *`,
     {
       mandateId,
@@ -15,6 +15,8 @@ async function create(mandateId, data) {
       headcount:   data.headcount    != null ? Number(data.headcount)   : 1,
       notes:       data.notes        || null,
       jdText:      data.jd_text      || null,
+      jdFilePath:         data.jd_file_path         || null,
+      jdOriginalFilename: data.jd_original_filename || null,
       tags:        data.tags ? (typeof data.tags === 'string' ? data.tags : JSON.stringify(data.tags)) : null,
       resumeDeadline: data.resume_deadline || null,
     }
@@ -40,6 +42,8 @@ async function update(id, mandateId, data) {
          headcount    = @headcount,
          notes        = @notes,
          jd_text      = @jdText,
+         jd_file_path = @jdFilePath,
+         jd_original_filename = @jdOriginalFilename,
          tags         = @tags,
          resume_deadline = @resumeDeadline
      WHERE id = @id AND mandate_id = @mandateId
@@ -53,6 +57,8 @@ async function update(id, mandateId, data) {
       headcount:   data.headcount    != null ? Number(data.headcount)  : 1,
       notes:       data.notes        || null,
       jdText:      data.jd_text      || null,
+      jdFilePath:         data.jd_file_path         || null,
+      jdOriginalFilename: data.jd_original_filename || null,
       tags:        data.tags ? (typeof data.tags === 'string' ? data.tags : JSON.stringify(data.tags)) : null,
       resumeDeadline: data.resume_deadline || null,
     }

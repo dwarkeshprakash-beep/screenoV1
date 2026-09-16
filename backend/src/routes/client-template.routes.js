@@ -95,6 +95,8 @@ function normalizeRequirementPayload(input = {}) {
     headcount,
     notes: String(input.notes || '').trim() || null,
     jd_text: String(input.jd_text ?? input.jdText ?? '').trim() || null,
+    jd_file_path: String(input.jd_file_path ?? input.jdFilePath ?? '').trim() || null,
+    jd_original_filename: String(input.jd_original_filename ?? input.jdOriginalFilename ?? '').trim() || null,
     resume_deadline: optionalDateTime(input.resume_deadline ?? input.resumeDeadline),
     tags: input.tags || null,
   }
@@ -138,6 +140,13 @@ async function assertUniqueRequirementName(mandateId, profileName, excludeId = n
   if (duplicate) throw new Error(`Requirement profile "${profileName}" already exists`)
 }
 
+// Deletes the previous JD file from storage once it's been replaced by a new upload
+// (or removed). Fire-and-forget — never blocks the request on a storage hiccup.
+function cleanupReplacedJdFile(oldPath, newPath) {
+  if (!oldPath || oldPath === newPath) return
+  storageService.deleteFile(oldPath).catch(err => console.error('Failed to clean up replaced JD file:', err.message))
+}
+
 function checkNotArchived(template, res) {
   if (template.archived_at) {
     res.status(409).json({ success: false, error: 'Mandate is archived and read-only' })
@@ -166,12 +175,14 @@ async function assertRequirementExists(mandateId, requirementId) {
 
 async function syncRequirementProfiles(mandateId, managerId, profiles) {
   const existing = await clientRequirementsRepo.getByMandate(mandateId)
-  const existingIds = new Set(existing.map(item => Number(item.id)))
+  const existingById = new Map(existing.map(item => [Number(item.id), item]))
   const keptIds = new Set()
 
   for (const profile of profiles) {
-    if (profile.id && existingIds.has(Number(profile.id))) {
+    if (profile.id && existingById.has(Number(profile.id))) {
+      const previous = existingById.get(Number(profile.id))
       await clientRequirementsRepo.update(profile.id, mandateId, profile)
+      cleanupReplacedJdFile(previous.jd_file_path, profile.jd_file_path)
       keptIds.add(Number(profile.id))
     } else {
       await clientRequirementsRepo.create(mandateId, profile)
@@ -181,7 +192,10 @@ async function syncRequirementProfiles(mandateId, managerId, profiles) {
   await Promise.all(
     existing
       .filter(item => !keptIds.has(Number(item.id)))
-      .map(item => clientRequirementsRepo.deleteReq(item.id, mandateId))
+      .map(async item => {
+        await clientRequirementsRepo.deleteReq(item.id, mandateId)
+        cleanupReplacedJdFile(item.jd_file_path, null)
+      })
   )
 
   return syncMandateHeadcount(mandateId, managerId)
@@ -337,6 +351,9 @@ router.get('/:id', async (req, res) => {
       ? await clientTemplateRepo.getByIdForCreator(parseInt(req.params.id, 10), req.user.id)
       : await clientTemplateRepo.getById(parseInt(req.params.id, 10), req.user.id)
     if (!template) return res.status(404).json({ success: false, error: 'Template not found' })
+    if (template.jd_file_path) {
+      template.jd_file_url = await storageService.getSignedUrl(template.jd_file_path).catch(() => null)
+    }
     res.json({ success: true, data: template })
   } catch (err) {
     console.error('GET /client-templates/:id failed:', err.message)
@@ -373,6 +390,9 @@ router.patch('/:id', async (req, res) => {
     }
     const template = await clientTemplateRepo.update(templateId, req.user.id, data)
     if (!template) return res.status(404).json({ success: false, error: 'Template not found' })
+    // client_templates.update() COALESCEs jd_file_path, so it only ever really changes
+    // when the new value is truthy — a null/empty value here is a no-op in the DB.
+    if (data.jd_file_path) cleanupReplacedJdFile(existing.jd_file_path, data.jd_file_path)
     const savedProfiles = requirementProfiles
       ? await syncRequirementProfiles(templateId, req.user.id, requirementProfiles)
       : await clientRequirementsRepo.getByMandate(templateId)
@@ -405,6 +425,10 @@ router.get('/:id/requirements', async (req, res) => {
     const template = await clientTemplateRepo.getById(mandateId, req.user.id)
     if (!template) return res.status(404).json({ success: false, error: 'Mandate not found' })
     const requirements = await clientRequirementsRepo.getByMandate(mandateId)
+    await Promise.all(requirements.map(async requirement => {
+      if (!requirement.jd_file_path) return
+      requirement.jd_file_url = await storageService.getSignedUrl(requirement.jd_file_path).catch(() => null)
+    }))
     res.json({ success: true, data: requirements })
   } catch (err) {
     console.error('GET /requirements failed:', err.message)
@@ -455,6 +479,7 @@ router.patch('/:id/requirements/:rqId', async (req, res) => {
     
     const updated = await clientRequirementsRepo.update(rqId, mandateId, payload)
     if (!updated) return res.status(404).json({ success: false, error: 'Requirement not found' })
+    cleanupReplacedJdFile(existingReq.jd_file_path, payload.jd_file_path)
     await syncMandateHeadcount(mandateId, req.user.id)
     res.json({ success: true, data: updated })
   } catch (err) {
@@ -478,6 +503,7 @@ router.delete('/:id/requirements/:rqId', async (req, res) => {
 
     const deleted = await clientRequirementsRepo.deleteReq(rqId, mandateId)
     if (!deleted) return res.status(404).json({ success: false, error: 'Requirement not found' })
+    cleanupReplacedJdFile(deleted.jd_file_path, null)
     await syncMandateHeadcount(mandateId, req.user.id)
     res.json({ success: true })
   } catch (err) {

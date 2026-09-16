@@ -98,6 +98,40 @@ async function uploadInterviewFeedbackAsset(buffer, assignmentId, file = {}) {
 }
 
 /**
+ * Upload the original JD document a manager/BDE attaches to a mandate or role profile.
+ * Kept alongside the extracted jd_text so a bad extraction never loses the source file.
+ * @param {Buffer} buffer
+ * @param {number|string} ownerId - uploader's user id (mandate may not exist yet while drafting)
+ * @param {object} file - file metadata from multer
+ * @returns {Promise<{ path: string, size: number, mimeType: string, originalName: string }>}
+ */
+async function uploadJdAsset(buffer, ownerId, file = {}) {
+  const extensionByMime = {
+    'application/pdf': 'pdf',
+    'application/msword': 'doc',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+    'text/plain': 'txt',
+  }
+  const extension = extensionByMime[file.mimetype] || 'pdf'
+  const contentType = file.mimetype || 'application/pdf'
+  const uuid = crypto.randomUUID()
+  const path = `jd/${ownerId}/${uuid}.${extension}`
+
+  const { error } = await supabase.storage.from(BUCKET).upload(path, buffer, {
+    contentType,
+    upsert: false,
+  })
+  if (error) throw error
+
+  return {
+    path,
+    size: buffer.length,
+    mimeType: contentType,
+    originalName: file.originalname || `jd.${extension}`,
+  }
+}
+
+/**
  * Fetch a short-lived signed URL for a file in storage.
  * @param {string} path - storage path
  * @param {number} expiresIn - expiration in seconds (default 3600)
@@ -166,13 +200,14 @@ async function copyResumeForMandateSnapshot(sourcePath, mandateId, clientTeamId)
   return { path: snapshotPath }
 }
 
-module.exports = { 
+module.exports = {
   uploadResumeAsset,
   uploadResume,
-  uploadReportAsset, 
+  uploadReportAsset,
   uploadReport,
-  getSignedUrl, 
-  deleteFile, 
+  uploadJdAsset,
+  getSignedUrl,
+  deleteFile,
   cleanupOrphanedFiles,
   copyResumeForMandateSnapshot,
   uploadInterviewFeedbackAsset,

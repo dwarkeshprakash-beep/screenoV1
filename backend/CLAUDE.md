@@ -223,6 +223,7 @@ POST   /api/exam/:token/submit
 
 POST   /api/upload/resume
 POST   /api/upload/extract-text
+POST   /api/upload/jd                          ← uploads + stores the original JD file, plus its extracted text
 POST   /api/upload/analyze-resume
 
 GET    /api/profile

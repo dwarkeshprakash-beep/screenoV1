@@ -381,6 +381,13 @@ export const extractTextFromFile = file => {
   formData.append('file', file)
   return request('/api/upload/extract-text', { method: 'POST', body: formData })
 }
+// Uploads the actual JD file (kept in storage) and also returns its extracted text,
+// so a bad extraction never loses the source document.
+export const uploadJdFile = file => {
+  const formData = new FormData()
+  formData.append('file', file)
+  return request('/api/upload/jd', { method: 'POST', body: formData })
+}
 export const analyzeResumeMatch = (jd, resume) =>
   request('/api/upload/analyze-resume', {
     method: 'POST',

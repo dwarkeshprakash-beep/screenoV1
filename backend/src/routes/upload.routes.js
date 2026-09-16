@@ -98,6 +98,39 @@ router.post('/extract-text', requireRole('manager', 'bde'), documentUpload.singl
   }
 })
 
+router.post('/jd', requireRole('manager', 'bde'), documentUpload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ success: false, error: 'No file provided' })
+
+    const uploaded = await storageService.uploadJdAsset(req.file.buffer, req.user.id, req.file)
+
+    let text = ''
+    try {
+      text = await documentTextService.extractTextFromBuffer(
+        req.file.buffer,
+        req.file.mimetype,
+        req.file.originalname
+      )
+    } catch (err) {
+      console.error('JD text extraction failed (file was still uploaded):', err.message)
+    }
+
+    res.json({
+      success: true,
+      data: {
+        text,
+        filePath: uploaded.path,
+        fileName: uploaded.originalName,
+        mimeType: uploaded.mimeType,
+        size: uploaded.size,
+      },
+    })
+  } catch (err) {
+    console.error('POST /upload/jd failed:', err)
+    res.status(500).json({ success: false, error: 'Could not upload JD file' })
+  }
+})
+
 router.post('/analyze-resume', requireRole('manager', 'bde'), async (req, res) => {
   const { jd, resume } = req.body || {}
   if (!jd || !resume) {

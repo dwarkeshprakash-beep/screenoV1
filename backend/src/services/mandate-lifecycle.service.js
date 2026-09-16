@@ -17,12 +17,19 @@ async function permanentlyDeleteMandate(mandateId, managerId) {
 
   await db.transaction(async (tx) => {
     const mandateCheck = await tx.query(
-      `SELECT id FROM client_templates WHERE id = @mandateId AND manager_id = @managerId`,
+      `SELECT id, jd_file_path FROM client_templates WHERE id = @mandateId AND manager_id = @managerId`,
       { mandateId, managerId }
     )
     if (mandateCheck.length === 0) {
       throw new Error('Mandate not found or not owned by manager')
     }
+    if (mandateCheck[0].jd_file_path) storagePathsToDelete.push(mandateCheck[0].jd_file_path)
+
+    const requirementJdPaths = await tx.query(
+      `SELECT jd_file_path FROM client_mandate_requirements WHERE mandate_id = @mandateId AND jd_file_path IS NOT NULL`,
+      { mandateId }
+    )
+    storagePathsToDelete.push(...requirementJdPaths.map(row => row.jd_file_path))
 
     const interviewRows = await tx.query(
       `SELECT id FROM interviews WHERE client_template_id = @mandateId`,

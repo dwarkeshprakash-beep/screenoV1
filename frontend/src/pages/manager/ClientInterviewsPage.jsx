@@ -57,6 +57,8 @@ function newRequirementProfile(seed = {}) {
     headcount: seed.headcount || 1,
     notes: seed.notes || '',
     jd_text: seed.jd_text || '',
+    jd_file_path: seed.jd_file_path || null,
+    jd_original_filename: seed.jd_original_filename || '',
   }
 }
 
@@ -70,6 +72,8 @@ function normalizeRequirementProfilesForSave(profiles) {
       headcount: Number(profile.headcount) || 1,
       notes: String(profile.notes || '').trim() || null,
       jd_text: String(profile.jd_text || '').trim() || null,
+      jd_file_path: profile.jd_file_path || null,
+      jd_original_filename: String(profile.jd_original_filename || '').trim() || null,
     }))
     .filter(profile => profile.profile_name)
 }
@@ -96,30 +100,42 @@ function requirementProfilesHeadcount(profiles) {
 }
 
 function RequirementProfilesEditor({ profiles, setProfiles, allowEmpty = false }) {
-  function updateProfile(key, field, value) {
+  function updateProfileFields(key, patch) {
     setProfiles(current => current.map(profile => (
-      profile.key === key ? { ...profile, [field]: value } : profile
+      profile.key === key ? { ...profile, ...patch } : profile
     )))
+  }
+
+  function updateProfile(key, field, value) {
+    updateProfileFields(key, { [field]: value })
   }
 
   function removeProfile(key) {
     setProfiles(current => current.length > 1 || allowEmpty ? current.filter(profile => profile.key !== key) : current)
   }
 
+  function clearRoleJdFile(profileKey) {
+    updateProfileFields(profileKey, { jd_file_path: null, jd_original_filename: '' })
+  }
+
   const totalHeadcount = requirementProfilesHeadcount(profiles)
   const [extractingFiles, setExtractingFiles] = useState({})
+  const [fileErrors, setFileErrors] = useState({})
 
   async function readRoleJdFile(event, profileKey) {
     const file = event.target.files?.[0]
     event.target.value = ''
     if (!file) return
     setExtractingFiles(c => ({ ...c, [profileKey]: true }))
+    setFileErrors(c => ({ ...c, [profileKey]: null }))
     try {
-      const response = await api.extractTextFromFile(file)
-      const text = response.data?.text || ''
-      if (text.trim()) updateProfile(profileKey, 'jd_text', text)
+      const response = await api.uploadJdFile(file)
+      const { text, filePath, fileName } = response.data || {}
+      const patch = { jd_file_path: filePath || null, jd_original_filename: fileName || file.name }
+      if (String(text || '').trim()) patch.jd_text = text
+      updateProfileFields(profileKey, patch)
     } catch (err) {
-      console.error('Could not read JD document', err)
+      setFileErrors(c => ({ ...c, [profileKey]: err.message || 'Could not upload JD file.' }))
     } finally {
       setExtractingFiles(c => ({ ...c, [profileKey]: false }))
     }
@@ -163,12 +179,22 @@ function RequirementProfilesEditor({ profiles, setProfiles, allowEmpty = false }
                 <input className="form-input" type="number" min="1" value={profile.headcount} onChange={e => updateProfile(profile.key, 'headcount', e.target.value)} />
               </Field>
 
-              <Field label="Role JD" full help="Paste JD below or upload PDF/DOC/DOCX/TXT.">
+              <Field label="Role JD" full help="Paste JD below or upload PDF/DOC/DOCX/TXT. The uploaded file is kept even if text extraction misses something.">
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   <input id={`role-jd-file-${profile.key}`} type="file" accept=".pdf,.doc,.docx,.txt" onChange={e => readRoleJdFile(e, profile.key)} style={{ display: 'none' }} />
                   <label htmlFor={`role-jd-file-${profile.key}`} className="product-button product-button--secondary product-button--md" style={{ alignSelf: 'flex-start', cursor: extractingFiles[profile.key] ? 'wait' : 'pointer' }}>
-                    <Upload size={14} />{extractingFiles[profile.key] ? 'Reading...' : 'Upload JD file'}
+                    <Upload size={14} />{extractingFiles[profile.key] ? 'Uploading...' : 'Upload JD file'}
                   </label>
+                  {profile.jd_original_filename && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--fg-muted)' }}>
+                      <FileText size={13} />
+                      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{profile.jd_original_filename}</span>
+                      <button type="button" onClick={() => clearRoleJdFile(profile.key)} title="Remove file" style={{ border: 0, background: 'transparent', cursor: 'pointer', color: 'var(--fg-muted)', display: 'inline-flex' }}>
+                        <X size={12} />
+                      </button>
+                    </div>
+                  )}
+                  {fileErrors[profile.key] && <span style={{ color: 'var(--danger-500)', fontSize: 11 }}>{fileErrors[profile.key]}</span>}
                   <textarea className="form-input" rows={5} value={profile.jd_text} onChange={e => updateProfile(profile.key, 'jd_text', e.target.value)} placeholder="Paste JD for this role..." style={{ resize: 'vertical' }} />
                 </div>
               </Field>
@@ -605,7 +631,15 @@ function EditMandateModal({ open, template, onClose, onSaved }) {
 
   useEffect(() => {
     if (!open) return
-    setForm({ client_name: template.client_name || '', client_email: template.client_email || '', requirements: template.requirements || '', custom_info: template.custom_info || '', jd_text: template.jd_text || '' })
+    setForm({
+      client_name: template.client_name || '',
+      client_email: template.client_email || '',
+      requirements: template.requirements || '',
+      custom_info: template.custom_info || '',
+      jd_text: template.jd_text || '',
+      jd_file_path: template.jd_file_path || null,
+      jd_original_filename: template.jd_original_filename || '',
+    })
     setTags(parseTags(template.tags))
     setError(null)
   }, [open, template])
@@ -617,13 +651,23 @@ function EditMandateModal({ open, template, onClose, onSaved }) {
     setExtractingFile(true)
     setError(null)
     try {
-      const response = await api.extractTextFromFile(file)
-      setForm(current => ({ ...current, jd_text: response.data?.text || '' }))
+      const response = await api.uploadJdFile(file)
+      const { text, filePath, fileName } = response.data || {}
+      setForm(current => ({
+        ...current,
+        jd_text: String(text || '').trim() ? text : current.jd_text,
+        jd_file_path: filePath || null,
+        jd_original_filename: fileName || file.name,
+      }))
     } catch (err) {
-      setError(err.message || 'Could not read the JD document.')
+      setError(err.message || 'Could not upload the JD file.')
     } finally {
       setExtractingFile(false)
     }
+  }
+
+  function clearJdFile() {
+    setForm(current => ({ ...current, jd_file_path: null, jd_original_filename: '' }))
   }
 
   async function regenerateTags() {
@@ -662,12 +706,23 @@ function EditMandateModal({ open, template, onClose, onSaved }) {
           <Field label="Client email"><input className="form-input" type="email" value={form.client_email || ''} onChange={e => setForm(c => ({ ...c, client_email: e.target.value }))} /></Field>
           <Field label="Mandate summary" full><textarea className="form-input" rows={3} value={form.requirements || ''} onChange={e => setForm(c => ({ ...c, requirements: e.target.value }))} style={{ resize: 'vertical' }} /></Field>
           <Field label="Internal notes" full><textarea className="form-input" rows={4} value={form.custom_info || ''} onChange={e => setForm(c => ({ ...c, custom_info: e.target.value }))} style={{ resize: 'vertical' }} /></Field>
-          <Field label="Mandate job description" full help="This is the shared JD. Role profiles can keep their own JDs.">
+          <Field label="Mandate job description" full help="This is the shared JD. Role profiles can keep their own JDs. The uploaded file is kept even if text extraction misses something.">
             <div className="workspace-stack" style={{ gap: 8 }}>
               <input id="edit-mandate-jd-file" type="file" accept=".pdf,.doc,.docx,.txt" onChange={readJdFile} style={{ display: 'none' }} />
               <label htmlFor="edit-mandate-jd-file" className="product-button product-button--secondary product-button--sm" style={{ alignSelf: 'flex-start', cursor: extractingFile ? 'wait' : 'pointer' }}>
-                <Upload size={13} />{extractingFile ? 'Reading…' : 'Upload JD file'}
+                <Upload size={13} />{extractingFile ? 'Uploading…' : 'Upload JD file'}
               </label>
+              {form.jd_original_filename && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--fg-muted)' }}>
+                  <FileText size={13} />
+                  {template.jd_file_url
+                    ? <a href={template.jd_file_url} target="_blank" rel="noreferrer" style={{ color: 'var(--brand-600)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{form.jd_original_filename}</a>
+                    : <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{form.jd_original_filename}</span>}
+                  <button type="button" onClick={clearJdFile} title="Remove file" style={{ border: 0, background: 'transparent', cursor: 'pointer', color: 'var(--fg-muted)', display: 'inline-flex' }}>
+                    <X size={12} />
+                  </button>
+                </div>
+              )}
               <textarea className="form-input" rows={10} value={form.jd_text || ''} onChange={event => setForm(current => ({ ...current, jd_text: event.target.value }))} placeholder="Paste the mandate JD…" style={{ resize: 'vertical' }} />
             </div>
           </Field>
@@ -712,8 +767,10 @@ function RequirementModal({ open, onClose, onSaved, existing, mandateId }) {
         headcount: existing.headcount || 1,
         jd_text: existing.jd_text || '',
         notes: existing.notes || '',
+        jd_file_path: existing.jd_file_path || null,
+        jd_original_filename: existing.jd_original_filename || '',
       }
-      : { profile_name: '', years_min: '', years_max: '', headcount: 1, jd_text: '', notes: '' })
+      : { profile_name: '', years_min: '', years_max: '', headcount: 1, jd_text: '', notes: '', jd_file_path: null, jd_original_filename: '' })
     setTags(existing ? parseStoredArray(existing.tags) : [])
     setCustomTag('')
     setError(null)
@@ -726,11 +783,20 @@ function RequirementModal({ open, onClose, onSaved, existing, mandateId }) {
     setExtractingFile(true)
     setError(null)
     try {
-      const response = await api.extractTextFromFile(file)
-      const text = response.data?.text || ''
-      if (text.trim()) setForm(c => ({ ...c, jd_text: text }))
-    } catch (err) { setError(err.message || 'Could not read the JD document.') }
+      const response = await api.uploadJdFile(file)
+      const { text, filePath, fileName } = response.data || {}
+      setForm(c => ({
+        ...c,
+        jd_text: String(text || '').trim() ? text : c.jd_text,
+        jd_file_path: filePath || null,
+        jd_original_filename: fileName || file.name,
+      }))
+    } catch (err) { setError(err.message || 'Could not upload the JD file.') }
     finally { setExtractingFile(false) }
+  }
+
+  function clearJdFile() {
+    setForm(c => ({ ...c, jd_file_path: null, jd_original_filename: '' }))
   }
 
   async function regenerateRoleTags() {
@@ -797,12 +863,23 @@ function RequirementModal({ open, onClose, onSaved, existing, mandateId }) {
           <Field label="Notes" help="Additional notes for this profile.">
             <input className="form-input" value={form.notes} onChange={e => setForm(c => ({ ...c, notes: e.target.value }))} />
           </Field>
-          <Field label="Role-specific JD" full help="Paste JD below or upload PDF/DOC/DOCX/TXT.">
+          <Field label="Role-specific JD" full help="Paste JD below or upload PDF/DOC/DOCX/TXT. The uploaded file is kept even if text extraction misses something.">
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               <input id={`role-modal-jd-file`} type="file" accept=".pdf,.doc,.docx,.txt" onChange={readJdFile} style={{ display: 'none' }} />
               <label htmlFor={`role-modal-jd-file`} className="product-button product-button--secondary product-button--md" style={{ alignSelf: 'flex-start', cursor: extractingFile ? 'wait' : 'pointer' }}>
-                <Upload size={14} />{extractingFile ? 'Reading...' : 'Upload JD file'}
+                <Upload size={14} />{extractingFile ? 'Uploading...' : 'Upload JD file'}
               </label>
+              {form.jd_original_filename && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--fg-muted)' }}>
+                  <FileText size={13} />
+                  {existing?.jd_file_url
+                    ? <a href={existing.jd_file_url} target="_blank" rel="noreferrer" style={{ color: 'var(--brand-600)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{form.jd_original_filename}</a>
+                    : <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{form.jd_original_filename}</span>}
+                  <button type="button" onClick={clearJdFile} title="Remove file" style={{ border: 0, background: 'transparent', cursor: 'pointer', color: 'var(--fg-muted)', display: 'inline-flex' }}>
+                    <X size={12} />
+                  </button>
+                </div>
+              )}
               <textarea className="form-input" rows={8} value={form.jd_text} onChange={e => setForm(c => ({ ...c, jd_text: e.target.value }))} placeholder="Paste the JD for this role..." style={{ resize: 'vertical' }} />
             </div>
           </Field>
@@ -1895,7 +1972,7 @@ function MandateDetail({ initialTemplate, isBde = false, basePath = '/manager' }
   }
 
   return (
-    <div className="workspace-page workspace-stack">
+    <div className="workspace-page mandate-detail-page">
       <div className="mandate-detail-toolbar">
         <Link className="detail-header__back" to={`${basePath}/clients`}><ArrowLeft size={15} />All mandates</Link>
         <div className="workspace-tabs" aria-label="Mandate sections">
@@ -1919,21 +1996,22 @@ function MandateDetail({ initialTemplate, isBde = false, basePath = '/manager' }
         </div>
       </div>
 
-      {message && <div
-        style={{
-          padding: 11,
-          borderRadius: 8,
-          background: message.type === 'error' ? 'var(--danger-50)' : 'var(--success-50)',
-          color: message.type === 'error' ? 'var(--danger-700)' : 'var(--success-700)',
-          fontSize: 12,
-          cursor: 'pointer'
-        }}
-        onClick={() => setMessage(null)}
-      >
-        {message.text}
-      </div>}
+      <div className="mandate-detail-scroll workspace-stack">
+        {message && <div
+          style={{
+            padding: 11,
+            borderRadius: 8,
+            background: message.type === 'error' ? 'var(--danger-50)' : 'var(--success-50)',
+            color: message.type === 'error' ? 'var(--danger-700)' : 'var(--success-700)',
+            fontSize: 12,
+            cursor: 'pointer'
+          }}
+          onClick={() => setMessage(null)}
+        >
+          {message.text}
+        </div>}
 
-      <div className="workspace-panel detail-panel">
+        <div className="workspace-panel detail-panel">
 
         {/* ── Overview tab ── */}
         {tab === 'overview' && (
@@ -1981,7 +2059,7 @@ function MandateDetail({ initialTemplate, isBde = false, basePath = '/manager' }
                           {r.notes ? ` · ${r.notes}` : ''}
                         </span>
                         <span>
-                          {r.jd_text ? 'Role JD attached' : 'Uses mandate JD'}
+                          {(r.jd_text || r.jd_file_path) ? 'Role JD attached' : 'Uses mandate JD'}
                         </span>
                       </div>
                       <button type="button" className="danger-icon-button" style={{ background: 'transparent', border: '1px solid var(--border-default)', borderRadius: 6, padding: '4px 10px', fontSize: 11, color: 'var(--fg-muted)', cursor: 'pointer' }}
@@ -1998,25 +2076,43 @@ function MandateDetail({ initialTemplate, isBde = false, basePath = '/manager' }
 
         {/* ── JD tab ── */}
         {tab === 'jd' && (
-          (template.jd_text || requirements.some(r => r.jd_text))
+          (template.jd_text || template.jd_file_path || requirements.some(r => r.jd_text || r.jd_file_path))
             ? <div className="workspace-stack" style={{ gap: 14 }}>
               <div className="workspace-section-heading">
                 <div><h3 style={{ fontSize: 16 }}>Job description</h3><p>Used for matching, communication, and AI interview context.</p></div>
                 <Button variant="secondary" size="sm" onClick={() => setEditOpen(true)} disabled={isArchived || isBde}><FileText size={13} />Edit mandate JD</Button>
               </div>
-              {template.jd_text && (
+              {(template.jd_text || template.jd_file_path) && (
                 <section>
-                  <h4 style={{ fontSize: 13, margin: '0 0 8px', color: 'var(--fg-primary)' }}>Mandate JD</h4>
-                  <div style={{ padding: 18, border: '1px solid var(--border-default)', borderRadius: 10, background: 'var(--slate-50)', fontSize: 13, lineHeight: 1.75, whiteSpace: 'pre-wrap' }}>{template.jd_text}</div>
+                  <div className="workspace-section-heading" style={{ marginBottom: 8 }}>
+                    <h4 style={{ fontSize: 13, margin: 0, color: 'var(--fg-primary)' }}>Mandate JD</h4>
+                    {template.jd_file_url && (
+                      <a href={template.jd_file_url} target="_blank" rel="noreferrer" className="product-button product-button--secondary product-button--sm">
+                        <FileText size={12} />{template.jd_original_filename || 'Original file'}
+                      </a>
+                    )}
+                  </div>
+                  {template.jd_text
+                    ? <div style={{ padding: 18, border: '1px solid var(--border-default)', borderRadius: 10, background: 'var(--slate-50)', fontSize: 13, lineHeight: 1.75, whiteSpace: 'pre-wrap' }}>{template.jd_text}</div>
+                    : <span className="form-help">No extracted text — open the original file above.</span>}
                 </section>
               )}
-              {requirements.filter(r => r.jd_text).map(r => (
+              {requirements.filter(r => r.jd_text || r.jd_file_path).map(r => (
                 <section key={r.id}>
                   <div className="workspace-section-heading" style={{ marginBottom: 8 }}>
                     <h4 style={{ fontSize: 13, margin: 0, color: 'var(--fg-primary)' }}>{r.profile_name || 'Role'} JD</h4>
-                    <Button variant="secondary" size="sm" onClick={() => setReqModal(r)} disabled={isArchived || isBde}>Edit role JD</Button>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      {r.jd_file_url && (
+                        <a href={r.jd_file_url} target="_blank" rel="noreferrer" className="product-button product-button--secondary product-button--sm">
+                          <FileText size={12} />{r.jd_original_filename || 'Original file'}
+                        </a>
+                      )}
+                      <Button variant="secondary" size="sm" onClick={() => setReqModal(r)} disabled={isArchived || isBde}>Edit role JD</Button>
+                    </div>
                   </div>
-                  <div style={{ padding: 18, border: '1px solid var(--border-default)', borderRadius: 10, background: 'var(--slate-50)', fontSize: 13, lineHeight: 1.75, whiteSpace: 'pre-wrap' }}>{r.jd_text}</div>
+                  {r.jd_text
+                    ? <div style={{ padding: 18, border: '1px solid var(--border-default)', borderRadius: 10, background: 'var(--slate-50)', fontSize: 13, lineHeight: 1.75, whiteSpace: 'pre-wrap' }}>{r.jd_text}</div>
+                    : <span className="form-help">No extracted text — open the original file above.</span>}
                 </section>
               ))}
             </div>
@@ -2353,6 +2449,7 @@ function MandateDetail({ initialTemplate, isBde = false, basePath = '/manager' }
             }
           </div>
         )}
+        </div>
       </div>
 
       <EditMandateModal
@@ -2525,7 +2622,7 @@ function MandateListView({ templates, basePath = '/manager' }) {
                 </td>
                 <td style={{ padding: '12px 14px', maxWidth: 320 }}>{template.requirements || 'Role not specified'}</td>
                 <td style={{ padding: '12px 14px' }}>{template.hired_count ?? 0} hired / {template.headcount ?? 1}</td>
-                <td style={{ padding: '12px 14px' }}>{template.jd_text ? 'Ready' : 'Missing'}</td>
+                <td style={{ padding: '12px 14px' }}>{(template.jd_text || template.jd_file_path) ? 'Ready' : 'Missing'}</td>
                 <td style={{ padding: '12px 14px', whiteSpace: 'nowrap' }}>{formatDate(template.updated_at || template.created)}</td>
                 <td style={{ padding: '12px 14px' }}>
                   <span className={'status-pill ' + (template.archived_at ? '' : 'status-pill--brand')}>{template.archived_at ? 'Archived' : 'Active'}</span>
@@ -2687,7 +2784,7 @@ function ClientInterviewsPage() {
                       <div className="workspace-card__meta">
                         <span><Mail size={13} /> {template.client_email || 'No client email'}</span>
                         <span><Users size={13} /> {template.hired_count ?? 0} hired / {template.headcount ?? 1} positions</span>
-                        <span><FileText size={13} /> {template.jd_text ? 'JD ready' : 'JD missing'}</span>
+                        <span><FileText size={13} /> {(template.jd_text || template.jd_file_path) ? 'JD ready' : 'JD missing'}</span>
                       </div>
                       {tags.length > 0 && (
                         <div className="tag-list" style={{ marginTop: 15 }}>

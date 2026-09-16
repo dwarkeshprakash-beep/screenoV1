@@ -4,9 +4,9 @@ const db = require('../db/connection')
 async function create(data) {
   const rows = await db.query(
     `INSERT INTO client_templates
-      (manager_id, created_by_user_id, client_name, client_email, headcount, requirements, jd_text, custom_info, tags, resume_deadline)
+      (manager_id, created_by_user_id, client_name, client_email, headcount, requirements, jd_text, jd_file_path, jd_original_filename, custom_info, tags, resume_deadline)
      VALUES
-      (@manager_id, @created_by_user_id, @client_name, @client_email, @headcount, @requirements, @jd_text, @custom_info, @tags, @resume_deadline)
+      (@manager_id, @created_by_user_id, @client_name, @client_email, @headcount, @requirements, @jd_text, @jd_file_path, @jd_original_filename, @custom_info, @tags, @resume_deadline)
      RETURNING *`,
     {
       manager_id:         data.manager_id,
@@ -16,6 +16,8 @@ async function create(data) {
       headcount:       data.headcount       || 1,
       requirements:    data.requirements    || '',
       jd_text:         data.jd_text         || '',
+      jd_file_path:         data.jd_file_path         || null,
+      jd_original_filename: data.jd_original_filename || null,
       custom_info:     data.custom_info     || '',
       tags:            typeof data.tags === 'string' ? data.tags : JSON.stringify(data.tags || []),
       resume_deadline: data.resume_deadline || null,
@@ -87,15 +89,17 @@ async function getByIdForCreator(id, creatorUserId) {
 async function update(id, managerId, data) {
   const rows = await db.query(
     `UPDATE client_templates
-     SET client_name     = COALESCE(@client_name,     client_name),
-         client_email    = COALESCE(@client_email,    client_email),
-         headcount       = COALESCE(@headcount,       headcount),
-         requirements    = COALESCE(@requirements,    requirements),
-         jd_text         = COALESCE(@jd_text,         jd_text),
-         custom_info     = COALESCE(@custom_info,     custom_info),
-         tags            = COALESCE(@tags,            tags),
-         resume_deadline = COALESCE(@resume_deadline, resume_deadline),
-         updated_at      = CURRENT_TIMESTAMP
+     SET client_name          = COALESCE(@client_name,          client_name),
+         client_email         = COALESCE(@client_email,         client_email),
+         headcount            = COALESCE(@headcount,            headcount),
+         requirements         = COALESCE(@requirements,         requirements),
+         jd_text              = COALESCE(@jd_text,              jd_text),
+         jd_file_path         = COALESCE(@jd_file_path,         jd_file_path),
+         jd_original_filename = COALESCE(@jd_original_filename, jd_original_filename),
+         custom_info          = COALESCE(@custom_info,          custom_info),
+         tags                 = COALESCE(@tags,                 tags),
+         resume_deadline      = COALESCE(@resume_deadline,      resume_deadline),
+         updated_at           = CURRENT_TIMESTAMP
      WHERE id = @id AND manager_id = @managerId
      RETURNING *`,
     {
@@ -106,6 +110,8 @@ async function update(id, managerId, data) {
       headcount:       data.headcount       || null,
       requirements:    data.requirements    || null,
       jd_text:         data.jd_text         || null,
+      jd_file_path:         data.jd_file_path         || null,
+      jd_original_filename: data.jd_original_filename || null,
       custom_info:     data.custom_info     || null,
       tags:            data.tags ? (typeof data.tags === 'string' ? data.tags : JSON.stringify(data.tags)) : null,
       resume_deadline: data.resume_deadline || null,
