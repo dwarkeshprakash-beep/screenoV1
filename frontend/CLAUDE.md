@@ -188,6 +188,10 @@ The module exposes three layers:
 - Named exports per resource (`login`, `getTeam`, `saveAnswer`, `uploadResume`, `getCandidateClientMandates`, ...)
   — these are what components actually import
 
+The app's display name (shown in the topbar, login screen, browser tab, and interview copy) comes from
+`src/config/app.config.js`, which reads `VITE_APP_NAME` from `.env` (default `'Screeno'` if unset). Rebrand
+the whole frontend by changing that one env var; never hardcode the name in a component.
+
 ```js
 // src/services/api.js — add new endpoints as named exports here
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000'  // Vite: env vars must be prefixed VITE_

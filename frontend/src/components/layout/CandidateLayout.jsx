@@ -1,6 +1,7 @@
 import { Outlet, useNavigate } from 'react-router-dom'
 import { LogOut } from 'lucide-react'
 import * as api from '../../services/api'
+import { APP_NAME } from '../../config/app.config'
 
 function LogoMark({ size = 22 }) {
   return (
@@ -65,7 +66,7 @@ function CandidateLayout() {
           style={{ display: 'inline-flex', alignItems: 'center', gap: 8, cursor: canOpenCandidateDashboard ? 'pointer' : 'default' }}
         >
           <LogoMark size={22} />
-          <span style={{ color: 'var(--bg-surface)', fontSize: 15, fontWeight: 700, letterSpacing: '-0.02em' }}>Screeno</span>
+          <span style={{ color: 'var(--bg-surface)', fontSize: 15, fontWeight: 700, letterSpacing: '-0.02em' }}>{APP_NAME}</span>
           <div style={{ width: 1, height: 18, background: '#1E293B', margin: '0 8px' }} />
           <span style={{
             padding: '4px 12px',

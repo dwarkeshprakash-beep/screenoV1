@@ -132,6 +132,10 @@ the full shape.
 PORT=4000
 NODE_ENV=development
 
+# App branding — single source for the display name used in emails, PDF
+# reports, and the frontend UI/title. Change this one value to rebrand.
+APP_NAME=Screeno
+
 # DB
 DATABASE_URL=postgresql://USER:PASSWORD@HOST:6543/postgres
 

@@ -18,6 +18,7 @@ import InterviewFlowModal from '../../components/manager/InterviewFlowModal'
 import Spinner from '../../components/shared/Spinner'
 import * as api from '../../services/api'
 import { formatDate, formatDateTime, parseStoredArray, serializeDatetimeLocal } from '../../utils/helpers'
+import { APP_NAME } from '../../config/app.config'
 
 const parseTags = parseStoredArray
 const MANDATE_FILTERS = [
@@ -1196,7 +1197,7 @@ function SendJDModal({ open, onClose, onSent, member, template }) {
                 {jdPreview}{jdSource.length > 600 ? '...' : ''}
               </div>
             )}
-            <p style={{ margin: '12px 0 0', fontSize: 12, color: 'var(--fg-subtle)' }}>Log in to Screeno portal to submit your resume for this opportunity.</p>
+            <p style={{ margin: '12px 0 0', fontSize: 12, color: 'var(--fg-subtle)' }}>Log in to {APP_NAME} portal to submit your resume for this opportunity.</p>
           </div>
         </div>
 

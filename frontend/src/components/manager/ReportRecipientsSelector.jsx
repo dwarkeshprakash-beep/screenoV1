@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Search, X } from 'lucide-react'
 import * as api from '../../services/api'
+import { APP_NAME } from '../../config/app.config'
 
 function matchesUser(user, query) {
   const normalized = query.trim().toLowerCase()
@@ -19,7 +20,7 @@ function ReportRecipientsSelector({
   selectedIds,
   onChange,
   label = 'Report email recipients',
-  help = 'When the interview report is ready, Screeno emails only these selected users. Leave empty to send no report email.',
+  help = `When the interview report is ready, ${APP_NAME} emails only these selected users. Leave empty to send no report email.`,
 }) {
   const [orgUsers, setOrgUsers] = useState([])
   const [query, setQuery] = useState('')

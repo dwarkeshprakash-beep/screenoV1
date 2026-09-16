@@ -4,6 +4,7 @@ import Sidebar from './Sidebar'
 import TopBar from './TopBar'
 import * as api from '../../services/api'
 import { LogOut } from 'lucide-react'
+import { APP_NAME } from '../../config/app.config'
 
 // ── Page meta ─────────────────────────────────────────────────
 const PAGE_META = {
@@ -34,7 +35,7 @@ function getPageMeta(pathname) {
   return { title: '', subtitle: '' }
 }
 
-// ── Screeno logo mark ─────────────────────────────────────────
+// ── App logo mark ─────────────────────────────────────────
 function LogoMark({ size = 22 }) {
   return (
     <div style={{ width: size, height: size, borderRadius: Math.round(size * 0.27), background: 'linear-gradient(135deg,var(--brand-500),var(--brand-600))', display: 'inline-flex', flexShrink: 0, position: 'relative' }}>
@@ -69,7 +70,7 @@ function RoleBar({ role, onLogout, onLogoClick }) {
         style={{ display: 'flex', alignItems: 'center', gap: 8, marginRight: 12, cursor: 'pointer' }}
       >
         <LogoMark size={22} />
-        <span style={{ color: 'var(--bg-surface)', fontSize: 15, fontWeight: 700, letterSpacing: '-0.02em' }}>Screeno</span>
+        <span style={{ color: 'var(--bg-surface)', fontSize: 15, fontWeight: 700, letterSpacing: '-0.02em' }}>{APP_NAME}</span>
       </div>
       <div style={{ width: 1, height: 18, background: '#1E293B', margin: '0 8px' }} />
       <span style={{

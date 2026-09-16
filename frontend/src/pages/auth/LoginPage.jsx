@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Eye, EyeOff } from 'lucide-react'
 import * as api from '../../services/api'
 import { PASSWORD_RULES, validatePassword } from '../../utils/password-policy'
+import { APP_NAME } from '../../config/app.config'
 
 function initialsFor(account) {
   const source = account.name || account.email || account.role || 'U'
@@ -136,7 +137,7 @@ function LoginPage() {
     try {
       const result = await api.login(loginEmail, loginPassword)
       if (!['manager', 'candidate', 'admin', 'bde'].includes(result.data.user.role)) {
-        throw new Error('This account type is paused in Screeno V2.')
+        throw new Error(`This account type is paused in ${APP_NAME} V2.`)
       }
       localStorage.setItem('accessToken', result.data.accessToken)
       localStorage.setItem('user', JSON.stringify(result.data.user))
@@ -221,7 +222,7 @@ function LoginPage() {
               <div style={{ position: 'absolute', left: '25%', top: '32%', width: '50%', height: '10%', background: 'var(--bg-surface)', borderRadius: '0.125rem', opacity: 0.95 }} />
               <div style={{ position: 'absolute', left: '25%', top: '56%', width: '50%', height: '10%', background: 'var(--bg-surface)', borderRadius: '0.125rem', opacity: 0.6 }} />
             </div>
-            <span style={{ fontSize: '1.75rem', fontWeight: 700, color: 'var(--bg-surface)', letterSpacing: '-0.025em' }}>Screeno</span>
+            <span style={{ fontSize: '1.75rem', fontWeight: 700, color: 'var(--bg-surface)', letterSpacing: '-0.025em' }}>{APP_NAME}</span>
           </div>
           <p style={{ fontSize: '0.875rem', color: '#64748B' }}>AI-powered hiring platform</p>
         </div>

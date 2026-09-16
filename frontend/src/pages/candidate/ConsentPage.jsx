@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowRight, Check, Mic, Monitor, Sparkles } from 'lucide-react'
 import * as api from '../../services/api'
+import { APP_NAME } from '../../config/app.config'
 
 function isTokenExpired(token) {
   try {
@@ -16,7 +17,7 @@ const CONSENT_ITEMS = [
   {
     icon: Mic,
     title: 'Audio transcription',
-    body: 'Your spoken answers are sent for transcription. Screeno stores the resulting text, not the audio recording.',
+    body: `Your spoken answers are sent for transcription. ${APP_NAME} stores the resulting text, not the audio recording.`,
   },
   {
     icon: Monitor,

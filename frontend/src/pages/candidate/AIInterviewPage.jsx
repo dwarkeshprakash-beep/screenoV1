@@ -6,6 +6,7 @@ import useProctoring from '../../hooks/useProctoring'
 import Avatar from '../../components/shared/Avatar'
 import Modal from '../../components/shared/Modal'
 import Button from '../../components/shared/Button'
+import { APP_NAME } from '../../config/app.config'
 
 function clk(s) { return `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}` }
 
@@ -219,7 +220,7 @@ function AIInterviewPage() {
 
         <div style={{ textAlign: 'center' }}>
           <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--brand-500)', marginBottom: 4 }}>
-            Screeno AI · {questionProgress}
+            {APP_NAME} AI · {questionProgress}
           </div>
           <div style={{ fontSize: 13, color: orbConfig.labelColor, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
             <orbConfig.Icon size={14} style={{ animation: aiState === 'thinking' ? 'v2spin 1.2s linear infinite' : 'none' }} />
@@ -333,7 +334,7 @@ function AIInterviewPage() {
               <div style={{ flex: 1 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
                   <span style={{ fontSize: 12, fontWeight: 600, color: (!t.who || t.who === 'ai') ? 'var(--brand-500)' : 'var(--slate-900)' }}>
-                    {(!t.who || t.who === 'ai') ? 'Screeno AI' : candidateName}
+                    {(!t.who || t.who === 'ai') ? `${APP_NAME} AI` : candidateName}
                   </span>
                 </div>
                 <div style={{ fontSize: 14, color: 'var(--slate-700)', lineHeight: 1.65 }}>

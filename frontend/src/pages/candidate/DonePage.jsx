@@ -2,9 +2,10 @@ import { useEffect, useState } from 'react'
 import { Mail, Search, UserCheck } from 'lucide-react'
 import * as api from '../../services/api'
 import { parseStoredArray } from '../../utils/helpers'
+import { APP_NAME } from '../../config/app.config'
 
 const NEXT_STEPS = [
-  { icon: Search, title: 'Report generation', body: 'Screeno generates feedback from your submitted answers.' },
+  { icon: Search, title: 'Report generation', body: `${APP_NAME} generates feedback from your submitted answers.` },
   { icon: UserCheck, title: 'Manager review', body: 'The responsible manager reviews the report and supporting transcript.' },
   { icon: Mail, title: 'Follow-up', body: 'The hiring or assessment team will contact you with the next step.' },
 ]
