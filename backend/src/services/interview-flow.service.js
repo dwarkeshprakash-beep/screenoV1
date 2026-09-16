@@ -738,16 +738,13 @@ async function continueRun(runId, managerId, companyId) {
 async function completeAssignment(assignmentId, userId, data, file) {
   const assignment = await flowRepository.getAssignmentForUser(Number(assignmentId), userId)
   if (!assignment) throw new Error('Interviewer assignment not found')
-  if (!['pass', 'fail'].includes(data.outcome)) throw new Error('Choose pass or fail')
+  if (!['pass', 'fail', 'on_hold'].includes(data.outcome)) throw new Error('Choose pass, fail, or on hold')
   if (assignment.interview_status === 'cancelled') throw new Error('This interview has been cancelled')
   if (assignment.status === 'completed') {
-    await interviewRepository.markCompleted(assignment.interview_id, assignment.outcome || data.outcome)
-    if (assignment.stage_run_id) {
-      await handleInterviewResult(
-        assignment.interview_id,
-        assignment.outcome || data.outcome,
-        (assignment.outcome || data.outcome) === 'pass' ? 10 : 0
-      )
+    const finalOutcome = assignment.outcome || data.outcome
+    await interviewRepository.markCompleted(assignment.interview_id, finalOutcome)
+    if (assignment.stage_run_id && finalOutcome !== 'on_hold') {
+      await handleInterviewResult(assignment.interview_id, finalOutcome, finalOutcome === 'pass' ? 10 : 0)
     }
     return assignment
   }
@@ -759,7 +756,8 @@ async function completeAssignment(assignmentId, userId, data, file) {
   }
   const completed = await flowRepository.completeAssignment(assignment.id, userId, data.outcome, String(data.feedback || '').trim() || null)
   await interviewRepository.markCompleted(assignment.interview_id, data.outcome)
-  if (assignment.stage_run_id) {
+  // On hold means the interviewer hasn't reached a final call — don't auto-advance or auto-fail the mandate flow.
+  if (assignment.stage_run_id && data.outcome !== 'on_hold') {
     await handleInterviewResult(assignment.interview_id, data.outcome, data.outcome === 'pass' ? 10 : 0)
   }
   return completed
