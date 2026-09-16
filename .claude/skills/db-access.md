@@ -254,5 +254,13 @@ keeping Supabase Storage for resumes/reports.
 
 ## Running migrations
 
-Apply `backend/migrations/*.sql` in order (see `docs/database-schema.md`), or run
-`node setup-db.js` from `backend/` — it's idempotent and safe to re-run against the live database.
+From `backend/`, run `npm run migrate` (or `node migrations/migrate.js`). It applies every
+`migrations/*.sql` file not yet recorded in the `schema_migrations` tracking table, in
+filename order, and is safe to re-run — already-applied files are skipped. Add a new
+migration by dropping a numbered `.sql` file in `migrations/`; nothing else needs editing
+to register it.
+
+This same command also bootstraps a brand-new database: point `DATABASE_URL` at an empty
+Postgres instance and run `npm run migrate` — it detects there's no existing schema and
+actually executes every migration file in order, instead of just recording them as already
+applied (which is what it does against a database that already has the schema).

@@ -109,17 +109,20 @@ backend/
 │   └── db/
 │       ├── connection.js           ← factory (import this everywhere)
 │       └── supabase.connection.js  ← PostgreSQL
-├── migrations/   ← 001-019 numbered SQL files; apply via setup-db.js (new DBs) or
-│                    run-migration-NNN.js scripts (existing DBs)
+├── migrations/   ← numbered SQL files, plus migrate.js — the one runner that
+│                    applies them, whether the DB is brand-new or already exists
 ├── server.js   ← mounts routes, security headers, CORS, rate limits, starts report-job worker
 ├── package.json
 └── .env
 ```
 
 There is no `jobs/` folder — the only background worker is `reportJobService.startReportJobWorker()`,
-started in-process from `server.js`. Schema changes go through `migrations/` (paired SQL files) AND a
-matching `await run(...)` alignment call in `setup-db.js` — running `node setup-db.js` applies them to
-the live Supabase DB (it's idempotent, safe to re-run). See `docs/database-schema.md` for the full shape.
+started in-process from `server.js`. Schema changes are numbered `.sql` files dropped straight into
+`migrations/` — run `npm run migrate` (from `backend/`) to apply whatever's pending. It tracks applied
+files in a `schema_migrations` table and works against either a brand-new database (a fresh clone with
+just `DATABASE_URL` set) or the existing live Supabase DB — it detects which case it's in and applies
+accordingly. Nothing else needs editing to register a new migration. See `docs/database-schema.md` for
+the full shape.
 
 ---
 

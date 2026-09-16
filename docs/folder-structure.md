@@ -45,8 +45,8 @@ frontend/
 ```text
 backend/
   server.js                 Express app, middleware, route mounts, workers
-  setup-db.js               Applies migrations 001-019 to new databases
-  migrations/               Numbered PostgreSQL migrations
+  migrations/               Numbered PostgreSQL migrations, plus migrate.js — applies
+                              whatever's pending, on a fresh DB or an existing one
   test/                     Node test runner and API regression
   src/
     routes/                 HTTP handlers only
