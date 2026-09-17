@@ -165,6 +165,9 @@ const SCHEMA = {
       'deleted_at',
     ],
   },
+  mandate_status_history: {
+    columns: ['id', 'mandate_id', 'status', 'actor_user_id', 'created'],
+  },
 }
 
 module.exports = { SCHEMA }

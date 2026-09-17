@@ -27,6 +27,22 @@ const MANDATE_FILTERS = [
   { value: 'all', label: 'All' },
 ]
 
+// Full mandate lifecycle, in order. Mirrors STATUS_ORDER/STATUS_LABELS in
+// backend/src/services/mandate-status.service.js — each step is auto-recorded the
+// first time its triggering event happens (created, candidate added, first mock or
+// client interview scheduled). "Interview in progress" stays generic on purpose:
+// with several candidates on a mandate, one can be mid-mock while another is already
+// in a client round, so there's no single "which stage exactly" to show at the
+// mandate level. "Completed" fires once every candidate has a final client outcome,
+// or the manager marks it complete manually.
+const MANDATE_STATUS_STEPS = [
+  { status: 'created', label: 'Created' },
+  { status: 'assigned_to_manager', label: 'Assigned to manager' },
+  { status: 'candidates_assigned', label: 'Candidates assigned' },
+  { status: 'interview_in_progress', label: 'Interview in progress' },
+  { status: 'completed', label: 'Completed' },
+]
+
 function Field({ label, help, full = false, children }) {
   return (
     <div className={`form-field${full ? ' form-field--full' : ''}`}>
@@ -35,6 +51,16 @@ function Field({ label, help, full = false, children }) {
       {help && <span className="form-help">{help}</span>}
     </div>
   )
+}
+
+function mandateStatusLabel(status) {
+  return MANDATE_STATUS_STEPS.find(step => step.status === status)?.label || null
+}
+
+function mandateStatusPillClass(status) {
+  if (status === 'completed') return 'status-pill--success'
+  if (status === 'interview_in_progress') return 'status-pill--warning'
+  return 'status-pill--brand'
 }
 
 function requirementMeta(item) {
@@ -1679,6 +1705,8 @@ function MandateDetail({ initialTemplate, isBde = false, basePath = '/manager' }
   const [tab, setTab] = useState('overview')
   const [requirements, setRequirements] = useState([])
   const [requirementsError, setRequirementsError] = useState(null)
+  const [statusSummary, setStatusSummary] = useState(null)
+  const [statusError, setStatusError] = useState(null)
   const [reqModal, setReqModal] = useState(null)
   const [members, setMembers] = useState([])
   const [clientTeam, setClientTeam] = useState([])
@@ -1755,6 +1783,22 @@ function MandateDetail({ initialTemplate, isBde = false, basePath = '/manager' }
     } catch (err) { setMessage({ text: err.message || 'Could not restore mandate.', type: 'error' }) }
   }
 
+  function handleMarkComplete() {
+    setConfirmDialog({
+      open: true,
+      title: 'Mark mandate complete',
+      message: 'Mark this mandate as complete? Use this when the position is filled or the mandate is otherwise done, even if not every candidate has a final client interview outcome.',
+      confirmText: 'Mark complete',
+      onConfirm: async () => {
+        try {
+          const res = await api.markMandateComplete(template.id)
+          setStatusSummary(res.data)
+          setMessage({ text: 'Mandate marked complete.', type: 'success' })
+        } catch (err) { setMessage({ text: err.message || 'Could not mark mandate complete.', type: 'error' }) }
+      }
+    })
+  }
+
   const loadRequirements = useCallback(async () => {
     setRequirementsError(null)
     try {
@@ -1763,6 +1807,16 @@ function MandateDetail({ initialTemplate, isBde = false, basePath = '/manager' }
     } catch (err) {
       setRequirementsError(err.message || 'Failed to load requirement profiles')
       // Keep previous data if exists instead of clearing
+    }
+  }, [template.id])
+
+  const loadStatus = useCallback(async () => {
+    setStatusError(null)
+    try {
+      const r = await api.getMandateStatus(template.id)
+      setStatusSummary(r.data)
+    } catch (err) {
+      setStatusError(err.message || 'Failed to load mandate status')
     }
   }, [template.id])
 
@@ -1797,6 +1851,7 @@ function MandateDetail({ initialTemplate, isBde = false, basePath = '/manager' }
   }, [template.id])
 
   useEffect(() => { void loadRequirements() }, [loadRequirements])
+  useEffect(() => { void loadStatus() }, [loadStatus])
   useEffect(() => { if (tab === 'candidates') void loadCandidates() }, [tab, loadCandidates])
   useEffect(() => { if (tab === 'team') void loadClientTeam() }, [tab, loadClientTeam])
   useEffect(() => {
@@ -2020,6 +2075,9 @@ function MandateDetail({ initialTemplate, isBde = false, basePath = '/manager' }
           ))}
         </div>
         <div className="mandate-detail-toolbar__actions">
+          {statusSummary?.current_status_label && (
+            <span className={`status-pill ${mandateStatusPillClass(statusSummary.current_status)}`}>{statusSummary.current_status_label}</span>
+          )}
           {isArchived && <span className="status-pill">Archived</span>}
           {!isBde && (isArchived ? (
             <>
@@ -2055,6 +2113,46 @@ function MandateDetail({ initialTemplate, isBde = false, basePath = '/manager' }
         {/* ── Overview tab ── */}
         {tab === 'overview' && (
           <div className="workspace-stack">
+            <section>
+              <div className="workspace-section-heading" style={{ marginBottom: 9 }}>
+                <div><h3 style={{ fontSize: 15 }}>Mandate status</h3><p>Created by {statusSummary?.created_by_name || '—'}</p></div>
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  {statusSummary?.current_status_label && (
+                    <span className={`status-pill ${mandateStatusPillClass(statusSummary.current_status)}`}>{statusSummary.current_status_label}</span>
+                  )}
+                  {statusSummary?.completed_at ? (
+                    <span className="status-pill status-pill--success"><CheckCircle2 size={12} /> {formatDateTime(statusSummary.completed_at)}</span>
+                  ) : (
+                    !isBde && !isArchived && (
+                      <Button variant="secondary" size="sm" onClick={handleMarkComplete}><CheckCircle2 size={13} />Mark complete</Button>
+                    )
+                  )}
+                </div>
+              </div>
+              {statusError && <ErrorMessage message={statusError} />}
+              <div className="assignment-list">
+                {MANDATE_STATUS_STEPS.map(step => {
+                  const reached = statusSummary?.timeline?.find(entry => entry.status === step.status)
+                  const isCurrent = statusSummary?.current_status === step.status
+                  return (
+                    <div className="assignment-row" key={step.status}>
+                      <div className="assignment-row__content">
+                        <strong style={{ color: reached ? 'var(--fg-primary)' : 'var(--fg-muted)' }}>
+                          {reached ? <CheckCircle2 size={13} style={{ verticalAlign: -2, marginRight: 6, color: 'var(--brand-500)' }} /> : <Clock size={13} style={{ verticalAlign: -2, marginRight: 6, color: 'var(--fg-subtle)' }} />}
+                          {step.label}{isCurrent ? ' (current)' : ''}
+                        </strong>
+                        <span>
+                          {reached
+                            ? `${formatDateTime(reached.at)}${reached.actor_name ? ` · ${reached.actor_name}` : ''}`
+                            : 'Not yet reached'}
+                        </span>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </section>
+
             <div className="detail-facts">
               {[['Client', template.client_name], ['Role', template.requirements || 'Not set'], ['Hiring target', template.headcount ?? 1], ['Hired', template.hired_count ?? 0], ['Pipeline', template.pipeline_count ?? 0], ['Client email', template.client_email || 'Not provided'], ['Created', formatDate(template.created)], ['Skills', tags.length]].map(([label, value]) => (
                 <div className="detail-fact" key={label}><div className="detail-fact__label">{label}</div><div className="detail-fact__value">{value}</div></div>
@@ -2669,7 +2767,12 @@ function MandateListView({ templates, basePath = '/manager' }) {
                 <td style={{ padding: '12px 14px' }}>{(template.jd_text || template.jd_file_path) ? 'Ready' : 'Missing'}</td>
                 <td style={{ padding: '12px 14px', whiteSpace: 'nowrap' }}>{formatDate(template.updated_at || template.created)}</td>
                 <td style={{ padding: '12px 14px' }}>
-                  <span className={'status-pill ' + (template.archived_at ? '' : 'status-pill--brand')}>{template.archived_at ? 'Archived' : 'Active'}</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4, alignItems: 'flex-start' }}>
+                    <span className={'status-pill ' + (template.archived_at ? '' : 'status-pill--brand')}>{template.archived_at ? 'Archived' : 'Active'}</span>
+                    {mandateStatusLabel(template.current_status) && (
+                      <span className={`status-pill ${mandateStatusPillClass(template.current_status)}`}>{mandateStatusLabel(template.current_status)}</span>
+                    )}
+                  </div>
                 </td>
                 <td style={{ padding: '12px 14px' }}>
                   <Link className="product-button product-button--secondary product-button--sm" to={`${basePath}/clients/${template.id}`}>Open <ArrowRight size={12} /></Link>
@@ -2825,6 +2928,11 @@ function ClientInterviewsPage() {
                         <h3 className="workspace-card__title">{template.requirements || 'Role not specified'}</h3>
                         <p className="workspace-card__subtitle">{template.custom_info || 'Open this mandate to review the JD and manage candidates.'}</p>
                       </div>
+                      {mandateStatusLabel(template.current_status) && (
+                        <div style={{ marginTop: 10 }}>
+                          <span className={`status-pill ${mandateStatusPillClass(template.current_status)}`}>{mandateStatusLabel(template.current_status)}</span>
+                        </div>
+                      )}
                       <div className="workspace-card__meta">
                         <span><Mail size={13} /> {template.client_email || 'No client email'}</span>
                         <span><Users size={13} /> {template.hired_count ?? 0} hired / {template.headcount ?? 1} positions</span>

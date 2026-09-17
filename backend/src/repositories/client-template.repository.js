@@ -37,7 +37,12 @@ async function getByManager(managerId, state = 'active') {
                         FROM client_teams
                         JOIN users ON users.id = client_teams.user_id
                         WHERE client_teams.mandate_id = client_templates.id
-                      ), '') AS candidate_search_text
+                      ), '') AS candidate_search_text,
+                      (
+                        SELECT h.status FROM mandate_status_history h
+                        WHERE h.mandate_id = client_templates.id
+                        ORDER BY h.created DESC LIMIT 1
+                      ) AS current_status
                FROM client_templates
                WHERE manager_id = @managerId`
   if (state === 'active') {
@@ -67,7 +72,12 @@ async function getByCreator(creatorUserId, state = 'active') {
                         FROM client_teams
                         JOIN users ON users.id = client_teams.user_id
                         WHERE client_teams.mandate_id = client_templates.id
-                      ), '') AS candidate_search_text
+                      ), '') AS candidate_search_text,
+                      (
+                        SELECT h.status FROM mandate_status_history h
+                        WHERE h.mandate_id = client_templates.id
+                        ORDER BY h.created DESC LIMIT 1
+                      ) AS current_status
                FROM client_templates
                WHERE (created_by_user_id = @creatorUserId OR assigned_bde_id = @creatorUserId)`
   if (state === 'active') {

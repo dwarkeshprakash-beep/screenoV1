@@ -13,6 +13,7 @@ const scheduleService = require('../services/schedule.service')
 const llmService = require('../services/llm.service')
 const storageService = require('../services/storage.service')
 const mandateLifecycleService = require('../services/mandate-lifecycle.service')
+const mandateStatusService = require('../services/mandate-status.service')
 const interviewFlowRepository = require('../repositories/interview-flow.repository')
 const interviewFlowService = require('../services/interview-flow.service')
 const { parseStoredArray } = require('../utils/parse')
@@ -275,6 +276,7 @@ router.post('/', async (req, res) => {
       data.tags = await llmService.extractTagsFromText(data.jd_text)
     }
     const template = await clientTemplateRepo.create(data)
+    await mandateStatusService.recordCreated(template.id, template.created_by_user_id, template.manager_id)
     const savedProfiles = requirementProfiles.length > 0
       ? await syncRequirementProfiles(template.id, template.manager_id, requirementProfiles)
       : []
@@ -408,6 +410,36 @@ router.get('/:id', async (req, res) => {
   } catch (err) {
     console.error('GET /client-templates/:id failed:', err.message)
     res.status(500).json({ success: false, error: 'Could not load template' })
+  }
+})
+
+router.get('/:id/status', async (req, res) => {
+  try {
+    const mandateId = parseInt(req.params.id, 10)
+    const template = await loadMandateForUser(mandateId, req.user)
+    if (!template) return res.status(404).json({ success: false, error: 'Mandate not found' })
+    const summary = await mandateStatusService.getSummary(mandateId)
+    res.json({ success: true, data: summary })
+  } catch (err) {
+    console.error('GET /client-templates/:id/status failed:', err.message)
+    res.status(500).json({ success: false, error: 'Could not load mandate status' })
+  }
+})
+
+// Manual override for mandates the auto-complete check won't catch (e.g. cancelled,
+// or the position was filled without every candidate reaching a final client outcome).
+// Owning-manager only — a BDE viewer cannot change mandate state.
+router.post('/:id/status/complete', async (req, res) => {
+  try {
+    const mandateId = parseInt(req.params.id, 10)
+    const template = await clientTemplateRepo.getById(mandateId, req.user.id)
+    if (!template) return res.status(404).json({ success: false, error: 'Mandate not found' })
+    await mandateStatusService.recordCompleted(mandateId, req.user.id)
+    const summary = await mandateStatusService.getSummary(mandateId)
+    res.json({ success: true, data: summary })
+  } catch (err) {
+    console.error('POST /client-templates/:id/status/complete failed:', err.message)
+    res.status(500).json({ success: false, error: 'Could not mark mandate complete' })
   }
 })
 
@@ -807,6 +839,9 @@ router.post('/:id/team', async (req, res) => {
       })
       added.push(created)
     }
+    if (added.length > 0) {
+      await mandateStatusService.recordCandidatesAssigned(mandateId, req.user.id)
+    }
     res.status(201).json({ success: true, data: added })
   } catch (err) {
     console.error('POST /team failed:', err.message)
@@ -1116,6 +1151,8 @@ router.post('/:id/team/:ctId/rounds', async (req, res) => {
     if (!template) return res.status(404).json({ success: false, error: 'Mandate not found' })
     if (template.archived_at) return res.status(409).json({ success: false, error: 'Mandate is archived' })
     const round = await clientOutcomeRoundsRepo.create(ctId, mandateId, req.user.id, req.body)
+    await mandateStatusService.recordInterviewInProgress(mandateId, req.user.id)
+    await mandateStatusService.checkAutoComplete(mandateId, req.user.id)
     res.status(201).json({ success: true, data: round })
   } catch (err) {
     console.error('POST /:id/team/:ctId/rounds failed:', err.message)
@@ -1132,6 +1169,7 @@ router.patch('/:id/team/:ctId/rounds/:roundId', async (req, res) => {
     const template = await clientTemplateRepo.getById(mandateId, req.user.id)
     if (!template) return res.status(404).json({ success: false, error: 'Mandate not found' })
     const round = await clientOutcomeRoundsRepo.update(roundId, ctId, mandateId, req.user.id, req.body)
+    await mandateStatusService.checkAutoComplete(mandateId, req.user.id)
     res.json({ success: true, data: round })
   } catch (err) {
     console.error('PATCH /:id/team/:ctId/rounds/:roundId failed:', err.message)

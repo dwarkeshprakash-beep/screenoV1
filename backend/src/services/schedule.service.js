@@ -7,6 +7,7 @@ const clientTemplateRepository = require('../repositories/client-template.reposi
 const monthlyAssessmentRepository = require('../repositories/monthly-assessment.repository')
 const emailDeliveryRepository = require('../repositories/email-delivery.repository')
 const emailService = require('./email.service')
+const mandateStatusService = require('./mandate-status.service')
 
 const inviteWindowDays = Number(process.env.INVITE_WINDOW_DAYS || 14)
 
@@ -153,6 +154,12 @@ async function createSchedule(data, managerId, companyId) {
     calendarEventId: data.calendarEventId || null,
     reportEmails: reportEmails.join(',') || null,
   })
+
+  // Scheduling any interview against a mandate — mock or client-facing — moves it
+  // into the generic "interview in progress" stage.
+  if (data.clientTemplateId) {
+    await mandateStatusService.recordInterviewInProgress(data.clientTemplateId, managerId)
+  }
 
   if (!data.monthlyAssessmentId) {
     finishScheduleSetup({
