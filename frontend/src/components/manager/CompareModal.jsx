@@ -1,4 +1,4 @@
-// CompareModal — side-by-side comparison of two team members.
+// CompareModal - side-by-side comparison of two team members.
 // Shows skills match/gap, assessment status, scores, and basic info.
 
 import Modal from '../shared/Modal'
@@ -88,13 +88,13 @@ function CompareModal({ open, onClose, members = [] }) {
         <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--slate-400)', marginBottom: 6 }}>Profile</div>
         <Row
           label="ROLE"
-          left={a.current_position || '—'}
-          right={b.current_position || '—'}
+          left={a.current_position || '-'}
+          right={b.current_position || '-'}
         />
         <Row
           label="LOCATION"
-          left={a.location || '—'}
-          right={b.location || '—'}
+          left={a.location || '-'}
+          right={b.location || '-'}
         />
         <Row
           label="LAST"

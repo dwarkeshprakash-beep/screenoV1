@@ -1,5 +1,5 @@
 // backend/src/services/user.service.js
-// Business logic for the Users module — validation and orchestration only, no SQL here.
+// Business logic for the Users module - validation and orchestration only, no SQL here.
 // See docs/rbac-multi-tenant-plan.md.
 
 const crypto = require('crypto')
@@ -11,7 +11,7 @@ const emailOutboxRepository = require('../repositories/email-outbox.repository')
 const { resolvePagination, buildPaginationMeta } = require('../utils/pagination')
 const { toSearchPattern } = require('../utils/sql-search')
 
-// The users.role column still exists and is still what every requireRole() guard reads —
+// The users.role column still exists and is still what every requireRole() guard reads -
 // see the note on updateUser/createUser below. It's just no longer exposed in the Users
 // module UI: new users get this inert default, and edits never touch an existing value.
 const DEFAULT_LEGACY_ROLE = 'employee'
@@ -75,7 +75,7 @@ async function createUser(companyId, input) {
   const roleIds = await resolveRoleIds(companyId, input.roleIds)
 
   // No password is collected from the admin. A random, never-shared value fills
-  // the NOT NULL column so the account exists but can't be logged into — the
+  // the NOT NULL column so the account exists but can't be logged into - the
   // user sets their real password from the emailed one-time link below.
   const placeholderPassword = crypto.randomBytes(32).toString('hex')
   const passwordHash = await bcrypt.hash(placeholderPassword, BCRYPT_SALT_ROUNDS)
@@ -100,7 +100,7 @@ async function updateUser(companyId, id, input) {
   const { firstName, lastName, email } = validateBasicInfo(input)
   const roleIds = await resolveRoleIds(companyId, input.roleIds)
 
-  // Deliberately does not touch users.role — see the module-level note above.
+  // Deliberately does not touch users.role - see the module-level note above.
   let updated
   try {
     updated = await userRepository.updateBasicInfo(id, companyId, { firstName, lastName, email })
@@ -116,7 +116,7 @@ async function updateUser(companyId, id, input) {
 
 async function deleteUser(companyId, id) {
   const blocked = await userRepository.hasBlockingReferences(id)
-  if (blocked) throw new Error('Cannot delete this user — they are associated with a mandate or interview')
+  if (blocked) throw new Error('Cannot delete this user - they are associated with a mandate or interview')
 
   const deleted = await userRepository.remove(id, companyId)
   if (!deleted) throw new Error('User not found')

@@ -1,4 +1,4 @@
-// RoleFormModal — create or edit a Role for the selected company.
+// RoleFormModal - create or edit a Role for the selected company.
 // Same modal handles both: pass `role` to edit, omit it to create.
 
 import { useState, useEffect } from 'react'
@@ -54,7 +54,7 @@ function RoleFormModal({ open, onClose, companyId, role, onDone }) {
             label="Description"
             value={description}
             onChange={e => setDescription(e.target.value)}
-            placeholder="Optional — what this role is for"
+            placeholder="Optional - what this role is for"
           />
           {error && <p style={{ fontSize: 12, color: 'var(--danger-500)', margin: 0 }}>{error}</p>}
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 4 }}>

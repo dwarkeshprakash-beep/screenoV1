@@ -1,4 +1,4 @@
-// ErrorBoundary — catches render-time crashes in its subtree and shows a
+// ErrorBoundary - catches render-time crashes in its subtree and shows a
 // fallback instead of leaving the user with a blank white page.
 // Class component required: React only supports error boundaries via
 // componentDidCatch / getDerivedStateFromError, no hook equivalent exists.
@@ -57,7 +57,7 @@ class ErrorBoundary extends Component {
         >
           <h2 style={{ fontSize: 18, fontWeight: 700, color: 'var(--fg-heading, var(--slate-900))' }}>Something went wrong</h2>
           <p style={{ fontSize: 14, color: 'var(--fg-muted, #64748B)', maxWidth: 420 }}>
-            This page ran into an unexpected error. Reloading usually fixes it — your data is safe.
+            This page ran into an unexpected error. Reloading usually fixes it - your data is safe.
           </p>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
             <button

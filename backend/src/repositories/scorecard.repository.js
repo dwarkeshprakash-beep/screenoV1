@@ -60,7 +60,7 @@ async function getByInterview(interviewId) {
   return rows[0] || null
 }
 
-// Alias for interviewer routes — same as getByInterview (one scorecard per interview now)
+// Alias for interviewer routes - same as getByInterview (one scorecard per interview now)
 async function getByInterviewForInterviewer(interviewId, _interviewerId) {
   return getByInterview(interviewId)
 }

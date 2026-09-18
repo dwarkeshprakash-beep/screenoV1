@@ -1,5 +1,5 @@
 // backend/src/services/role.service.js
-// Business logic for the Roles module — validation only, no SQL here.
+// Business logic for the Roles module - validation only, no SQL here.
 // See docs/rbac-multi-tenant-plan.md for the full RBAC design this feeds into.
 
 const roleRepository = require('../repositories/role.repository')
@@ -21,7 +21,7 @@ function validateRoleInput({ name, description }) {
 }
 
 async function listRoles(companyId, { page, pageSize, search } = {}) {
-  // No page requested — full list (used internally, e.g. the role-assignment picker in the Users module).
+  // No page requested - full list (used internally, e.g. the role-assignment picker in the Users module).
   if (!page) return { data: await roleRepository.getByCompany(companyId), pagination: null }
 
   const resolved = resolvePagination({ page, pageSize })
@@ -58,7 +58,7 @@ async function updateRole(companyId, id, input) {
 
 async function deleteRole(companyId, id) {
   // NOTE: once roles can be assigned to users (user_roles) and ACLs (role_acl_permissions),
-  // this needs a guard against deleting a role that's still in use. Not needed yet — those
+  // this needs a guard against deleting a role that's still in use. Not needed yet - those
   // tables don't exist until later steps of docs/rbac-multi-tenant-plan.md.
   const deleted = await roleRepository.remove(id, companyId)
   if (!deleted) throw new Error('Role not found')

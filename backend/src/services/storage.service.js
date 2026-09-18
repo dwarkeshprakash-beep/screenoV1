@@ -1,5 +1,5 @@
 // backend/src/services/storage.service.js
-// Supabase Storage helpers — upload and delete raw files (resumes, reports).
+// Supabase Storage helpers - upload and delete raw files (resumes, reports).
 // Files are streamed from memory buffer; nothing is written to disk.
 
 const { createClient } = require('@supabase/supabase-js')

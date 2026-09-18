@@ -44,7 +44,7 @@ async function hasRecentPasswordReset(userId) {
 
 /**
  * Queue a "welcome, set your password" email for a newly created user.
- * Same JIT-token pattern as enqueuePasswordReset — the worker mints the
+ * Same JIT-token pattern as enqueuePasswordReset - the worker mints the
  * actual token right before sending so nothing usable sits in the queue.
  * @param {Object} data
  * @returns {Promise<Object>}

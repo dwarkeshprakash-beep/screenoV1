@@ -1,5 +1,5 @@
 // backend/src/routes/auth.routes.js
-// Auth endpoints — login, token refresh, logout, magic link.
+// Auth endpoints - login, token refresh, logout, magic link.
 // HTTP layer only: validate input, call service, respond.
 
 const express = require('express')
@@ -32,7 +32,7 @@ router.post('/login', async (req, res) => {
         error: 'Login service is temporarily unavailable. Please try again.',
       })
     }
-    // Always return the same message — don't reveal if email exists
+    // Always return the same message - don't reveal if email exists
     res.status(401).json({ success: false, error: 'Invalid email or password' })
   }
 })
@@ -112,7 +112,7 @@ router.post('/forgot-password', async (req, res) => {
   }
 })
 
-// GET /api/auth/reset-password/:token — check validity before the candidate fills the form
+// GET /api/auth/reset-password/:token - check validity before the candidate fills the form
 router.get('/reset-password/:token', async (req, res) => {
   try {
     await authService.validateResetToken(req.params.token)

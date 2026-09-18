@@ -1,7 +1,7 @@
-// ResumeAnalyzerPage — paste or upload JD and resume, get keyword match score.
+// ResumeAnalyzerPage - paste or upload JD and resume, get keyword match score.
 // Modes:
-//   Library mode — fast, local regex matching with word-boundary guards
-//   AI mode     — sends to backend LLM for deep semantic analysis
+//   Library mode - fast, local regex matching with word-boundary guards
+//   AI mode     - sends to backend LLM for deep semantic analysis
 
 import { useState, useRef } from 'react'
 import { Zap, Loader2, RotateCcw, CheckCircle2, XCircle, ThumbsUp, AlertTriangle, Target, Briefcase, Upload, FileText, Sparkles, BookOpen } from 'lucide-react'
@@ -39,7 +39,7 @@ const HARD_SKILL_PATTERNS = [
   { label: 'JavaScript',   re: /\bjavascript\b/i },
   { label: 'Node.js',      re: /\bnode\.?js\b/i },
   { label: 'Python',       re: /\bpython\b/i },
-  // "Java" must NOT match "JavaScript" — use negative lookahead
+  // "Java" must NOT match "JavaScript" - use negative lookahead
   { label: 'Java',         re: /\bjava(?!script)\b/i },
   { label: 'Spring',       re: /\bspring\b/i },
   { label: 'Go',           re: /\bgolang\b|\bgo\s+lang\b|\bwritten in go\b/i },
@@ -86,10 +86,10 @@ function chip(label, tone) {
 }
 
 function verdict(score) {
-  if (score >= 85) return { label: 'Strong match', c: 'var(--success-600)', bg: 'var(--success-50)', bd: 'var(--success-100)', icon: CheckCircle2, note: 'Highly aligned — most ATS filters will pass this resume.' }
+  if (score >= 85) return { label: 'Strong match', c: 'var(--success-600)', bg: 'var(--success-50)', bd: 'var(--success-100)', icon: CheckCircle2, note: 'Highly aligned - most ATS filters will pass this resume.' }
   if (score >= 65) return { label: 'Good match', c: 'var(--success-600)', bg: 'var(--success-50)', bd: 'var(--success-100)', icon: ThumbsUp, note: 'In good shape. Close remaining gaps for competitive roles.' }
   if (score >= 50) return { label: 'Borderline', c: 'var(--warning-600)', bg: 'var(--warning-50)', bd: 'var(--warning-100)', icon: AlertTriangle, note: 'May pass a small pool but likely filtered at high volume.' }
-  return { label: 'Major mismatch', c: 'var(--danger-700)', bg: 'var(--danger-50)', bd: 'var(--danger-200)', icon: XCircle, note: 'Significant skills gap — address required skills first.' }
+  return { label: 'Major mismatch', c: 'var(--danger-700)', bg: 'var(--danger-50)', bd: 'var(--danger-200)', icon: XCircle, note: 'Significant skills gap - address required skills first.' }
 }
 
 function libraryAnalyze(jd, resume) {
@@ -124,7 +124,7 @@ function libraryAnalyze(jd, resume) {
 async function extractText(file) {
   if (!file) return ''
   if (file.type === 'text/plain') return file.text()
-  // PDF and DOCX require server-side extraction — send to backend
+  // PDF and DOCX require server-side extraction - send to backend
   if (file.type === 'application/pdf' || file.name.endsWith('.pdf') ||
       file.type.includes('wordprocessing') || file.name.endsWith('.docx') || file.name.endsWith('.doc')) {
     const json = await api.extractTextFromFile(file)
@@ -165,7 +165,7 @@ function ResumeAnalyzerPage() {
     }
 
     if (aiMode) {
-      // AI mode — call backend
+      // AI mode - call backend
       try {
         const json = await api.analyzeResumeMatch(jd, resume)
         if (!json.success) throw new Error(json.error || 'AI analysis failed.')
@@ -173,11 +173,11 @@ function ResumeAnalyzerPage() {
         setPhase('results')
       } catch {
         // Fall back to library mode if AI fails
-        setRes({ ...libraryAnalyze(jd, resume), aiNote: 'AI mode unavailable — showing library results.' })
+        setRes({ ...libraryAnalyze(jd, resume), aiNote: 'AI mode unavailable - showing library results.' })
         setPhase('results')
       }
     } else {
-      // Library mode — local, fast
+      // Library mode - local, fast
       setTimeout(() => {
         setRes(libraryAnalyze(jd, resume))
         setPhase('results')
@@ -291,7 +291,7 @@ function ResumeAnalyzerPage() {
                   </div>
                 )}
 
-                {/* Textarea — fills remaining panel height */}
+                {/* Textarea - fills remaining panel height */}
                 <textarea
                   value={c.text}
                   onChange={e => c.setText(e.target.value)}
@@ -383,7 +383,7 @@ function ResumeAnalyzerPage() {
                 {res.yJd && (
                   <div style={{ marginTop: 12, fontSize: 12, color: 'var(--slate-600)', display: 'inline-flex', alignItems: 'center', gap: 6, background: 'rgba(255,255,255,0.5)', padding: '6px 10px', borderRadius: 8 }}>
                     <Briefcase size={13} />
-                    JD needs {res.yJd}+ yrs · Resume shows {res.yRes || '—'} yrs {res.yRes && Number(res.yRes) >= Number(res.yJd) ? '✓' : '⚠'}
+                    JD needs {res.yJd}+ yrs · Resume shows {res.yRes || '-'} yrs {res.yRes && Number(res.yRes) >= Number(res.yJd) ? '✓' : '⚠'}
                   </div>
                 )}
               </div>
@@ -443,7 +443,7 @@ function ResumeAnalyzerPage() {
                     </div>
                     <div>
                       <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--danger-700)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Missing ({res.missH?.length || 0})</div>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>{res.missH?.length ? res.missH.map(s => chip(s, 'miss')) : <span style={{ fontSize: 13, color: 'var(--slate-400)' }}>Nothing missing — great</span>}</div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>{res.missH?.length ? res.missH.map(s => chip(s, 'miss')) : <span style={{ fontSize: 13, color: 'var(--slate-400)' }}>Nothing missing - great</span>}</div>
                     </div>
                   </div>
                 )}

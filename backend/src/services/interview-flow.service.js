@@ -766,7 +766,7 @@ async function completeAssignment(assignmentId, userId, data, file) {
   }
   const completed = await flowRepository.completeAssignment(assignment.id, userId, data.outcome, String(data.feedback || '').trim() || null)
   await interviewRepository.markCompleted(assignment.interview_id, data.outcome)
-  // On hold means the interviewer hasn't reached a final call — don't auto-advance or auto-fail the mandate flow.
+  // On hold means the interviewer hasn't reached a final call - don't auto-advance or auto-fail the mandate flow.
   if (assignment.stage_run_id && data.outcome !== 'on_hold') {
     await handleInterviewResult(assignment.interview_id, data.outcome, data.outcome === 'pass' ? 10 : 0)
   }

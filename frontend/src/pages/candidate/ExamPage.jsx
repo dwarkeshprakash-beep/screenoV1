@@ -268,7 +268,7 @@ function ExamPage() {
                         {current.test_cases.map((tc, ti) => (
                           <div key={ti} style={{ background: 'var(--slate-50)', border: '1px solid var(--slate-200)', borderRadius: 8, padding: '10px 12px', fontSize: 13, fontFamily: 'monospace' }}>
                             {tc.hidden ? (
-                              <span style={{ color: 'var(--slate-400)' }}>Hidden test case — your code will be checked against this on submit</span>
+                              <span style={{ color: 'var(--slate-400)' }}>Hidden test case - your code will be checked against this on submit</span>
                             ) : (
                               <>
                                 <div><span style={{ color: 'var(--slate-500)' }}>Input:</span> {tc.input || '(none)'}</div>

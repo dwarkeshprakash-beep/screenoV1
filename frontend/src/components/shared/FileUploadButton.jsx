@@ -1,7 +1,7 @@
 import { UploadCloud } from 'lucide-react'
 
 // Dashed-border "pick a file" control shared by the candidate profile page and the
-// client-mandate resume picker — both need the same label/input-hidden pattern.
+// client-mandate resume picker - both need the same label/input-hidden pattern.
 function FileUploadButton({ label, helperText, accept, disabled, uploading, onFileSelected }) {
 
   function handleChange(e) {

@@ -1,4 +1,4 @@
-// Badge — small status pill. Used in tables and member cards.
+// Badge - small status pill. Used in tables and member cards.
 
 /**
  * @param {'success'|'warning'|'danger'|'info'|'neutral'} variant

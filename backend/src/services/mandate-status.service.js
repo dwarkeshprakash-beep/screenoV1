@@ -3,7 +3,7 @@
 // -> interview_in_progress -> completed. Each milestone is auto-recorded the first
 // time its triggering event happens (see call sites), never re-recorded, never regressed.
 // "Interview in progress" deliberately doesn't distinguish mock vs. client interviews,
-// or track per-candidate — with several candidates on a mandate, one could be mid-mock
+// or track per-candidate - with several candidates on a mandate, one could be mid-mock
 // while another is already in a client round, so a single generic status avoids a
 // misleading "which stage exactly" claim at the mandate level.
 const mandateStatusRepo = require('../repositories/mandate-status-history.repository')
@@ -33,7 +33,7 @@ async function record(mandateId, status, actorUserId = null) {
 // "Assigned to manager" is only a real, distinct event when someone other than the
 // owning manager created the mandate (a BDE creating it and picking a manager to own
 // it). When a manager creates their own mandate there's no separate assignment to
-// record — they were never "assigned", they just own it from the start.
+// record - they were never "assigned", they just own it from the start.
 async function recordCreated(mandateId, actorUserId, managerId) {
   await record(mandateId, 'created', actorUserId)
   if (managerId && Number(actorUserId) !== Number(managerId)) {
@@ -46,7 +46,7 @@ async function recordCandidatesAssigned(mandateId, actorUserId) {
 }
 
 // Fired by either a mock interview being scheduled (Schedule button / flow engine)
-// or a client round being scheduled (Rounds button) — whichever happens first.
+// or a client round being scheduled (Rounds button) - whichever happens first.
 async function recordInterviewInProgress(mandateId, actorUserId) {
   return record(mandateId, 'interview_in_progress', actorUserId)
 }

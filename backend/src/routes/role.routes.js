@@ -1,6 +1,6 @@
 // backend/src/routes/role.routes.js
-// HTTP only — receive, call roleService, respond. Admin manages roles per company
-// (the 'admin' role is platform-wide, not scoped to one company — see admin.routes.js).
+// HTTP only - receive, call roleService, respond. Admin manages roles per company
+// (the 'admin' role is platform-wide, not scoped to one company - see admin.routes.js).
 
 const express = require('express')
 const authMiddleware = require('../middleware/auth')

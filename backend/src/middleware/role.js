@@ -1,5 +1,5 @@
 // backend/src/middleware/role.js
-// Role-based access control — use AFTER authMiddleware.
+// Role-based access control - use AFTER authMiddleware.
 // Usage: router.get('/team', authMiddleware, requireRole('manager'), handler)
 
 /**
@@ -9,7 +9,7 @@
  */
 function requireRole(...roles) {
   return function (req, res, next) {
-    // authMiddleware must run first — req.user is set by it
+    // authMiddleware must run first - req.user is set by it
     if (!req.user) {
       return res.status(401).json({ success: false, error: 'Not authenticated' })
     }

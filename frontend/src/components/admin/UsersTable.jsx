@@ -1,4 +1,4 @@
-// UsersTable — renders the per-company user list with their RBAC role assignments.
+// UsersTable - renders the per-company user list with their RBAC role assignments.
 
 import { Pencil, Trash2 } from 'lucide-react'
 import Badge from '../shared/Badge'
@@ -29,7 +29,7 @@ function UsersTable({ users, onEdit, onDelete }) {
               <td style={{ ...tdStyle, color: 'var(--fg-muted)' }}>{u.email}</td>
               <td style={tdStyle}>
                 {u.roles.length === 0 ? (
-                  <span style={{ color: 'var(--fg-subtle)' }}>—</span>
+                  <span style={{ color: 'var(--fg-subtle)' }}>-</span>
                 ) : (
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                     {u.roles.map(r => <Badge key={r.id} variant="brand">{r.name}</Badge>)}

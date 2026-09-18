@@ -179,7 +179,7 @@ function CandidateProfilePage() {
         <FileUploadButton
           label={resumes.length >= MAX_RESUMES ? 'Resume limit reached' : 'Add Resume'}
           helperText={resumes.length >= MAX_RESUMES
-            ? `You've reached the ${MAX_RESUMES}-resume limit — delete one to add another.`
+            ? `You've reached the ${MAX_RESUMES}-resume limit - delete one to add another.`
             : 'PDF, DOC, DOCX or TXT'}
           accept=".pdf,.doc,.docx,.txt"
           disabled={resumes.length >= MAX_RESUMES}

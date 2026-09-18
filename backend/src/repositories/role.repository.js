@@ -1,5 +1,5 @@
 // backend/src/repositories/role.repository.js
-// SQL only — roles table, scoped by company_id. See docs/rbac-multi-tenant-plan.md.
+// SQL only - roles table, scoped by company_id. See docs/rbac-multi-tenant-plan.md.
 
 const db = require('../db/connection')
 

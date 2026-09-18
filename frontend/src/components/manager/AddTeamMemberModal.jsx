@@ -1,5 +1,5 @@
-// AddTeamMemberModal — search existing organisation users and add them to your team.
-// User accounts are created in the Users module (admin-only), not here — this modal only
+// AddTeamMemberModal - search existing organisation users and add them to your team.
+// User accounts are created in the Users module (admin-only), not here - this modal only
 // links an already-existing account to the current manager's team.
 
 import { useState, useEffect, useRef } from 'react'

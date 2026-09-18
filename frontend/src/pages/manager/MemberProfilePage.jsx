@@ -270,10 +270,10 @@ function MemberProfilePage() {
               <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--brand-500)', marginBottom: 14 }}>Performance summary</div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
                 {[
-                  { label: 'Last score',   value: report?.overall_score ? `${Number(report.overall_score).toFixed(1)}/10` : '—' },
+                  { label: 'Last score',   value: report?.overall_score ? `${Number(report.overall_score).toFixed(1)}/10` : '-' },
                   { label: 'Assessments',  value: assessmentCount || '0' },
-                  { label: 'Best score',   value: bestScore > 0 ? `${bestScore.toFixed(1)}/10` : '—' },
-                  { label: 'Days since',   value: member.last_assessed ? `${Math.round((now - new Date(member.last_assessed).getTime()) / 86400000)}d` : '—' },
+                  { label: 'Best score',   value: bestScore > 0 ? `${bestScore.toFixed(1)}/10` : '-' },
+                  { label: 'Days since',   value: member.last_assessed ? `${Math.round((now - new Date(member.last_assessed).getTime()) / 86400000)}d` : '-' },
                 ].map((s, i) => (
                   <div key={i} style={{ textAlign: 'center', padding: '12px 8px', background: 'var(--slate-50)', borderRadius: 8 }}>
                     <div style={{ fontFamily: "var(--font-display,'Inter')", fontSize: 22, fontWeight: 700, color: 'var(--slate-900)', letterSpacing: '-0.015em' }}>{s.value}</div>

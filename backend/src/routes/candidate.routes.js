@@ -204,9 +204,9 @@ router.get('/client-mandates', async (req, res) => {
 })
 
 // Submit a resume for a specific client mandate. Three ways to provide one:
-// 1. multipart file upload — added to the candidate's resume pool and linked to this mandate
-// 2. JSON { resumeAssetId } — link one of the candidate's existing resumes to this mandate
-// 3. JSON { useExisting: true } — link the candidate's current default resume (back-compat)
+// 1. multipart file upload - added to the candidate's resume pool and linked to this mandate
+// 2. JSON { resumeAssetId } - link one of the candidate's existing resumes to this mandate
+// 3. JSON { useExisting: true } - link the candidate's current default resume (back-compat)
 router.post(
   '/client-mandates/:ctId/resume',
   documentUpload.single('resume'),
@@ -225,7 +225,7 @@ router.post(
         if (result.error === 'limit_reached') {
           return res.status(400).json({
             success: false,
-            error: `You can have at most ${resumeService.MAX_RESUMES_PER_OWNER} resumes — delete one to add another.`,
+            error: `You can have at most ${resumeService.MAX_RESUMES_PER_OWNER} resumes - delete one to add another.`,
           })
         }
         asset = result.asset
@@ -458,7 +458,7 @@ router.get('/client-outcomes', async (req, res) => {
     )
 
     // Only return mandates that have at least one published round
-    // (or all mandates — candidate always sees their mandate list)
+    // (or all mandates - candidate always sees their mandate list)
     res.json({ success: true, data: mandates })
   } catch (err) {
     console.error('GET /candidate/client-outcomes failed:', err)

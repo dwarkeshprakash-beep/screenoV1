@@ -234,7 +234,7 @@ function AIInterviewPage() {
               {currentQuestion.phase || 'Question'}
             </div>
             <div style={{ fontSize: 16, color: 'var(--slate-900)', lineHeight: 1.5, fontWeight: 500 }}>
-              {isDone ? 'That\'s the last question — thanks! You can end the interview now.' : currentQuestion.text}
+              {isDone ? 'That\'s the last question - thanks! You can end the interview now.' : currentQuestion.text}
             </div>
             {!isDone && isRecording && (
               <div style={{ marginTop: 12, fontSize: 12, color: 'var(--slate-400)', display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: 'monospace' }}>

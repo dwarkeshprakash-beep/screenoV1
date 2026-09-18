@@ -7,7 +7,7 @@
  * @returns {string} e.g. "Jun 3, 2026"
  */
 export function formatDate(date) {
-  if (!date) return '—'
+  if (!date) return '-'
   return new Date(date).toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
@@ -21,7 +21,7 @@ export function formatDate(date) {
  * @returns {string}
  */
 export function formatDateTime(date) {
-  if (!date) return '—'
+  if (!date) return '-'
   const d = new Date(date)
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
        + ' · '
@@ -46,7 +46,7 @@ export function truncate(str, maxLen = 80) {
  */
 /**
  * Parse a JSON-stringified array or pass through a real array.
- * Returns [] on any failure — safe for tags, topics, and other stored arrays.
+ * Returns [] on any failure - safe for tags, topics, and other stored arrays.
  * @param {any} value
  * @returns {any[]}
  */

@@ -17,7 +17,7 @@ router.get('/', async (req, res) => {
     const user = await userRepository.getById(req.user.id)
     if (!user) return res.status(404).json({ success: false, error: 'User not found' })
 
-    // Frontend merges this response into the stored session user — always send the
+    // Frontend merges this response into the stored session user - always send the
     // app-facing role (e.g. 'employee' -> 'candidate'), never the raw DB value.
     user.role = applicationRole(user)
 
@@ -120,7 +120,7 @@ router.post('/resume', documentUpload.single('resume'), async (req, res) => {
     if (result.error === 'limit_reached') {
       return res.status(400).json({
         success: false,
-        error: `You can have at most ${resumeService.MAX_RESUMES_PER_OWNER} resumes — delete one to add another.`,
+        error: `You can have at most ${resumeService.MAX_RESUMES_PER_OWNER} resumes - delete one to add another.`,
       })
     }
 

@@ -6,13 +6,13 @@ import * as api from '../../services/api'
 import { formatDateTime, parseStoredArray } from '../../utils/helpers'
 
 function formatPeriodMonth(value) {
-  if (!value) return '—'
+  if (!value) return '-'
   const raw = String(value)
   // A short "YYYY-MM" needs a day appended to parse; a full date or ISO timestamp
-  // (what the API actually sends) parses as-is — never concatenate onto it.
+  // (what the API actually sends) parses as-is - never concatenate onto it.
   const normalized = raw.length === 7 ? `${raw}-01` : raw
   const date = new Date(normalized)
-  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
+  return Number.isNaN(date.getTime()) ? '-' : date.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
 }
 
 const STATE_LABELS = {

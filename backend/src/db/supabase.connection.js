@@ -1,17 +1,17 @@
 // backend/src/db/supabase.connection.js
 // PostgreSQL connection via pg (node-postgres). Works against Supabase or any other
-// Postgres host — point DATABASE_URL at it.
-// Port 6543 = pgBouncer transaction pooler — no session-level commands (Supabase-specific).
+// Postgres host - point DATABASE_URL at it.
+// Port 6543 = pgBouncer transaction pooler - no session-level commands (Supabase-specific).
 // Converts @paramName → $1, $2 so all repos can use readable named params.
 
 const { Pool, types } = require('pg')
 
 // node-postgres parses DATE columns (OID 1082) into a JS Date anchored to *local* midnight,
 // not UTC. Serializing that with toISOString() (as res.json() does) shifts it onto the
-// previous/next UTC day whenever the server's local timezone offset is non-zero — e.g. a
+// previous/next UTC day whenever the server's local timezone offset is non-zero - e.g. a
 // period_month of "2026-09-01" silently becomes "2026-08-31T18:30:00.000Z" in IST, bucketing
 // it into August everywhere it's displayed. Keep DATE columns as their raw "YYYY-MM-DD"
-// string instead — a bare date string parses as UTC midnight everywhere it's later consumed.
+// string instead - a bare date string parses as UTC midnight everywhere it's later consumed.
 types.setTypeParser(1082, value => value)
 
 // Supabase requires SSL with a self-signed cert, so SSL is on by default.

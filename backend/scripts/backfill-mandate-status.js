@@ -1,5 +1,5 @@
 // One-off backfill for mandates created before mandate_status_history existed.
-// Reconstructs each milestone from current data as a best-effort approximation —
+// Reconstructs each milestone from current data as a best-effort approximation -
 // NOT an accurate historical replay (see caveats per status below). Idempotent:
 // safe to re-run, existing (mandate_id, status) rows are never touched or duplicated.
 //
@@ -36,7 +36,7 @@ async function findInterviewInProgressEvent(mandateId) {
 }
 
 // True only if every client_team member has a terminal outcome on their latest
-// round — mirrors mandate-status.service.js's checkAutoComplete rule exactly, so a
+// round - mirrors mandate-status.service.js's checkAutoComplete rule exactly, so a
 // mandate that would auto-complete today under the new logic gets backfilled too.
 async function findCompletedEvent(mandateId, teamRows) {
   if (teamRows.length === 0) return null
@@ -63,16 +63,16 @@ async function findCompletedEvent(mandateId, teamRows) {
 async function planForMandate(mandate) {
   const entries = []
 
-  // created — exact.
+  // created - exact.
   entries.push({ status: 'created', actorUserId: mandate.created_by_user_id, at: mandate.created })
 
-  // assigned_to_manager — exact, same rule as going forward. Recorded at the same
+  // assigned_to_manager - exact, same rule as going forward. Recorded at the same
   // instant as "created" since we never tracked a separate assignment moment.
   if (mandate.created_by_user_id && Number(mandate.created_by_user_id) !== Number(mandate.manager_id)) {
     entries.push({ status: 'assigned_to_manager', actorUserId: mandate.created_by_user_id, at: mandate.created })
   }
 
-  // candidates_assigned — earliest client_teams row. Actor is NOT recoverable:
+  // candidates_assigned - earliest client_teams row. Actor is NOT recoverable:
   // client_teams never recorded who added a candidate, so this backfills with a
   // null actor (the timeline will just show no name for this entry).
   const teamRows = await db.query(
@@ -83,13 +83,13 @@ async function planForMandate(mandate) {
     entries.push({ status: 'candidates_assigned', actorUserId: null, at: teamRows[0].created })
   }
 
-  // interview_in_progress — exact timestamp/actor, first interview or round found.
+  // interview_in_progress - exact timestamp/actor, first interview or round found.
   const inProgress = await findInterviewInProgressEvent(mandate.id)
   if (inProgress) {
     entries.push({ status: 'interview_in_progress', actorUserId: inProgress.actor_user_id, at: inProgress.created })
   }
 
-  // completed — approximate: only whether it's true TODAY, using the latest
+  // completed - approximate: only whether it's true TODAY, using the latest
   // resolved round's updated time as a proxy for "when it became complete" (we
   // don't know the actual historical moment), and its manager as a best-guess actor.
   const completed = await findCompletedEvent(mandate.id, teamRows)
@@ -116,7 +116,7 @@ async function main() {
   }
 
   if (DRY_RUN) {
-    console.log('[backfill] Dry run only — nothing written. Re-run without --dry-run to apply.')
+    console.log('[backfill] Dry run only - nothing written. Re-run without --dry-run to apply.')
     process.exit(0)
   }
 
@@ -131,7 +131,7 @@ async function main() {
     )
     if (rows.length > 0) inserted++
   }
-  console.log(`[backfill] Done — inserted ${inserted} of ${plan.length} planned entrie(s) (the rest already existed).`)
+  console.log(`[backfill] Done - inserted ${inserted} of ${plan.length} planned entrie(s) (the rest already existed).`)
   process.exit(0)
 }
 

@@ -1,7 +1,7 @@
 // backend/src/routes/user.routes.js
-// HTTP only — receive, call userService, respond. Admin manages users per company
-// (the 'admin' role is platform-wide — see admin.routes.js / role.routes.js for the same pattern).
-// This is the ONLY place user accounts are created — Team management just links existing
+// HTTP only - receive, call userService, respond. Admin manages users per company
+// (the 'admin' role is platform-wide - see admin.routes.js / role.routes.js for the same pattern).
+// This is the ONLY place user accounts are created - Team management just links existing
 // accounts to a manager's team (see team.service.js addMember).
 
 const express = require('express')
@@ -29,7 +29,7 @@ function sendUserError(res, err, fallback) {
   if (err.message === 'User not found') {
     return res.status(404).json({ success: false, error: err.message })
   }
-  if (err.message === 'Cannot delete this user — they are associated with a mandate or interview') {
+  if (err.message === 'Cannot delete this user - they are associated with a mandate or interview') {
     return res.status(409).json({ success: false, error: err.message })
   }
   if (BAD_REQUEST_MESSAGES.includes(err.message)) {

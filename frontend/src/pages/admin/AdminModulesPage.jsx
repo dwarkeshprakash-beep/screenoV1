@@ -1,5 +1,5 @@
-// AdminModulesPage — read-only list of the global module catalog. Modules are seeded by
-// migration, not editable here — this page exists so admins can see what's available to
+// AdminModulesPage - read-only list of the global module catalog. Modules are seeded by
+// migration, not editable here - this page exists so admins can see what's available to
 // gate with an ACL. See docs/rbac-multi-tenant-plan.md.
 
 import { useState, useEffect } from 'react'

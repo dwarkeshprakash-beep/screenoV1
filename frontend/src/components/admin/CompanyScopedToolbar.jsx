@@ -1,4 +1,4 @@
-// CompanyScopedToolbar — company picker + search + item count + "Add" action, shown above a
+// CompanyScopedToolbar - company picker + search + item count + "Add" action, shown above a
 // per-company admin table (Roles, Users, ...). Admin is platform-wide, so every
 // per-company screen needs this same "pick a company first" header.
 

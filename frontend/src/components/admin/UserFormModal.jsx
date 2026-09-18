@@ -1,5 +1,5 @@
-// UserFormModal — create or edit a user for the selected company, and manage their
-// RBAC role assignments. The legacy single-role field is no longer shown here — see
+// UserFormModal - create or edit a user for the selected company, and manage their
+// RBAC role assignments. The legacy single-role field is no longer shown here - see
 // user.service.js for why it still exists under the hood (not yet safe to remove).
 
 import { useState, useEffect } from 'react'

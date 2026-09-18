@@ -155,7 +155,7 @@ async function createSchedule(data, managerId, companyId) {
     reportEmails: reportEmails.join(',') || null,
   })
 
-  // Scheduling any interview against a mandate — mock or client-facing — moves it
+  // Scheduling any interview against a mandate - mock or client-facing - moves it
   // into the generic "interview in progress" stage.
   if (data.clientTemplateId) {
     await mandateStatusService.recordInterviewInProgress(data.clientTemplateId, managerId)
@@ -243,7 +243,7 @@ function dateRangeBounds(dateFrom, dateTo) {
     const parsed = new Date(dateTo)
     if (!Number.isNaN(parsed.getTime())) {
       parsed.setUTCHours(0, 0, 0, 0)
-      parsed.setUTCDate(parsed.getUTCDate() + 1) // exclusive bound — include the whole "to" day
+      parsed.setUTCDate(parsed.getUTCDate() + 1) // exclusive bound - include the whole "to" day
       end = parsed
     }
   }

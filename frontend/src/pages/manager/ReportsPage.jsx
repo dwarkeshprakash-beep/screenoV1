@@ -60,7 +60,7 @@ export function ReportTable({ reports, onOpenReport, btnSecondary, thStyle }) {
                       <span style={{ display: 'block', height: '100%', width: `${Math.min(100, (overall / 10) * 100)}%`, background: 'var(--brand-500)', borderRadius: 9999 }} />
                     </span>
                   </div>
-                ) : <span style={{ color: 'var(--fg-subtle)' }}>—</span>}
+                ) : <span style={{ color: 'var(--fg-subtle)' }}>-</span>}
               </td>
               <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--border-default)' }}><DecisionBadge decision={r.decision} /></td>
               <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--border-default)' }}>
@@ -84,7 +84,7 @@ function ScoreMetric({ label, value }) {
   return (
     <div style={{ padding: '10px 12px', border: '1px solid var(--border-default)', borderRadius: 8, background: 'var(--bg-surface-alt)' }}>
       <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--fg-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>{label}</div>
-      <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--fg-primary)' }}>{score == null || Number.isNaN(score) ? '—' : score.toFixed(1)}</div>
+      <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--fg-primary)' }}>{score == null || Number.isNaN(score) ? '-' : score.toFixed(1)}</div>
     </div>
   )
 }
@@ -325,8 +325,8 @@ function ReportsPage() {
 
   const statCards = [
     { icon: FileText,   bg: 'var(--brand-50)',   color: 'var(--brand-500)',   label: 'Total reports',    value: reports.length,                              sub: 'Completed interviews' },
-    { icon: TrendingUp, bg: 'var(--success-50)', color: 'var(--success-500)', label: 'Pass rate',         value: passRate == null ? '—' : `${passRate}%`,      sub: `${passCount} pass decisions` },
-    { icon: Star,       bg: 'var(--warning-50)', color: 'var(--warning-500)', label: 'Avg score',         value: avgScore == null ? '—' : avgScore.toFixed(1), sub: 'Out of 10' },
+    { icon: TrendingUp, bg: 'var(--success-50)', color: 'var(--success-500)', label: 'Pass rate',         value: passRate == null ? '-' : `${passRate}%`,      sub: `${passCount} pass decisions` },
+    { icon: Star,       bg: 'var(--warning-50)', color: 'var(--warning-500)', label: 'Avg score',         value: avgScore == null ? '-' : avgScore.toFixed(1), sub: 'Out of 10' },
     { icon: Clock,      bg: 'var(--danger-50)',  color: 'var(--danger-600)',  label: 'Pending reports',   value: pendingCount,                                 sub: 'Generating…' },
   ]
 

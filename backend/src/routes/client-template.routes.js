@@ -142,7 +142,7 @@ async function assertUniqueRequirementName(mandateId, profileName, excludeId = n
 }
 
 // Deletes the previous JD file from storage once it's been replaced by a new upload
-// (or removed). Fire-and-forget — never blocks the request on a storage hiccup.
+// (or removed). Fire-and-forget - never blocks the request on a storage hiccup.
 function cleanupReplacedJdFile(oldPath, newPath) {
   if (!oldPath || oldPath === newPath) return
   storageService.deleteFile(oldPath).catch(err => console.error('Failed to clean up replaced JD file:', err.message))
@@ -428,7 +428,7 @@ router.get('/:id/status', async (req, res) => {
 
 // Manual override for mandates the auto-complete check won't catch (e.g. cancelled,
 // or the position was filled without every candidate reaching a final client outcome).
-// Owning-manager only — a BDE viewer cannot change mandate state.
+// Owning-manager only - a BDE viewer cannot change mandate state.
 router.post('/:id/status/complete', async (req, res) => {
   try {
     const mandateId = parseInt(req.params.id, 10)
@@ -450,7 +450,7 @@ router.patch('/:id', async (req, res) => {
     const existing = await loadMandateForUser(templateId, req.user)
     if (!existing) return res.status(404).json({ success: false, error: 'Template not found' })
     if (!checkNotArchived(existing, res)) return
-    // The real owning manager — every downstream call scoped by manager_id must use this,
+    // The real owning manager - every downstream call scoped by manager_id must use this,
     // never req.user.id, since a BDE caller here isn't the mandate's manager.
     const ownerManagerId = existing.manager_id
     // Bulk requirement-profile replace/delete stays manager-only; a BDE adds/edits/deletes
@@ -462,7 +462,7 @@ router.patch('/:id', async (req, res) => {
     delete data.requirement_profiles
     delete data.requirementProfiles
     if (isBdeCaller) {
-      // A BDE may only touch JD fields through this endpoint — everything else
+      // A BDE may only touch JD fields through this endpoint - everything else
       // (client info, internal notes, headcount/requirements text, BDE assignment) stays manager-only.
       const allowedForBde = new Set(['jd_text', 'jd_file_path', 'jd_original_filename', 'tags'])
       for (const key of Object.keys(data)) {
@@ -521,7 +521,7 @@ router.patch('/:id', async (req, res) => {
       }).catch(err => console.error('sendMandateAssignedToBde failed:', err.message))
     }
     // client_templates.update() COALESCEs jd_file_path, so it only ever really changes
-    // when the new value is truthy — a null/empty value here is a no-op in the DB.
+    // when the new value is truthy - a null/empty value here is a no-op in the DB.
     if (data.jd_file_path) cleanupReplacedJdFile(existing.jd_file_path, data.jd_file_path)
     const savedProfiles = requirementProfiles
       ? await syncRequirementProfiles(templateId, ownerManagerId, requirementProfiles)

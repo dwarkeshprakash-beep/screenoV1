@@ -39,9 +39,9 @@ function DashboardPage() {
   if (error) return <ErrorMessage message={error} />
 
   const statCards = [
-    { icon: Users,        bg: 'var(--brand-50)', color: 'var(--brand-500)', value: stats?.totalMembers ?? '—',        label: 'Team members',         link: 'View team →',  to: '/manager/team' },
-    { icon: CheckSquare,  bg: 'var(--success-50)', color: 'var(--success-500)', value: stats?.candidatesEvaluated ?? '—', label: 'Interviews completed',  link: 'This quarter', to: null },
-    { icon: CalendarPlus, bg: 'var(--warning-50)', color: 'var(--warning-500)', value: stats?.pendingScorecard ?? '—',    label: 'Pending scorecards',    link: 'Review now →', to: '/manager/reports' },
+    { icon: Users,        bg: 'var(--brand-50)', color: 'var(--brand-500)', value: stats?.totalMembers ?? '-',        label: 'Team members',         link: 'View team →',  to: '/manager/team' },
+    { icon: CheckSquare,  bg: 'var(--success-50)', color: 'var(--success-500)', value: stats?.candidatesEvaluated ?? '-', label: 'Interviews completed',  link: 'This quarter', to: null },
+    { icon: CalendarPlus, bg: 'var(--warning-50)', color: 'var(--warning-500)', value: stats?.pendingScorecard ?? '-',    label: 'Pending scorecards',    link: 'Review now →', to: '/manager/reports' },
   ]
 
   return (
@@ -79,7 +79,7 @@ function DashboardPage() {
         ))}
       </div>
 
-      {/* Bottom row — flex:1 so it fills remaining viewport height */}
+      {/* Bottom row - flex:1 so it fills remaining viewport height */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(20rem, 1fr))', gap: '1rem', flex: 1, minHeight: 0, maxHeight: '50vh' }}>
 
         {/* Assessment flow */}

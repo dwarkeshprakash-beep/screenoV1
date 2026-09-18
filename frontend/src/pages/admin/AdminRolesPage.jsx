@@ -1,4 +1,4 @@
-// AdminRolesPage — manage the per-company Role catalog for the RBAC system.
+// AdminRolesPage - manage the per-company Role catalog for the RBAC system.
 // Roles belong to one company at a time (admin is platform-wide), so a company
 // must be picked before the role list/actions are usable. See docs/rbac-multi-tenant-plan.md.
 

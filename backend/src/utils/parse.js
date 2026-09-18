@@ -3,7 +3,7 @@
 
 /**
  * Parse a JSON-stringified array or pass through a real array.
- * Returns [] on any failure — safe for tags, topics, and other stored arrays.
+ * Returns [] on any failure - safe for tags, topics, and other stored arrays.
  * @param {any} value
  * @returns {any[]}
  */

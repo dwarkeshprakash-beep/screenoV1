@@ -1,4 +1,4 @@
-// MultiSelect — dropdown of checkable options; selections shown as removable chips on the trigger.
+// MultiSelect - dropdown of checkable options; selections shown as removable chips on the trigger.
 
 import { useState, useRef, useEffect } from 'react'
 import { ChevronDown, X } from 'lucide-react'

@@ -1,4 +1,4 @@
-// Avatar — circular user image with initials fallback.
+// Avatar - circular user image with initials fallback.
 
 /**
  * @param {string} src - image URL (optional)

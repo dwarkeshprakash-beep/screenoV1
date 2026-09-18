@@ -1,4 +1,4 @@
-// RolesTable — renders the per-company roles list.
+// RolesTable - renders the per-company roles list.
 
 import { Pencil, Trash2 } from 'lucide-react'
 import { formatDate } from '../../utils/helpers'
@@ -26,7 +26,7 @@ function RolesTable({ roles, onEdit, onDelete }) {
           {roles.map(role => (
             <tr key={role.id} style={{ transition: 'background 120ms' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface-alt)'} onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-surface)'}>
               <td style={{ ...tdStyle, fontWeight: 600, color: 'var(--fg-primary)' }}>{role.name}</td>
-              <td style={{ ...tdStyle, color: role.description ? 'var(--fg-body)' : 'var(--fg-subtle)' }}>{role.description || '—'}</td>
+              <td style={{ ...tdStyle, color: role.description ? 'var(--fg-body)' : 'var(--fg-subtle)' }}>{role.description || '-'}</td>
               <td style={{ ...tdStyle, color: 'var(--fg-muted)' }}>{formatDate(role.created)}</td>
               <td style={tdStyle}>
                 <div style={{ display: 'flex', gap: 6 }}>

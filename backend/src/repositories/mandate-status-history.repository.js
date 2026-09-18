@@ -1,7 +1,7 @@
 // backend/src/repositories/mandate-status-history.repository.js
 const db = require('../db/connection')
 
-// One row per (mandate_id, status) — a milestone is only ever recorded the first
+// One row per (mandate_id, status) - a milestone is only ever recorded the first
 // time it's reached. Returns null if it was already recorded (no-op).
 async function record(mandateId, status, actorUserId) {
   const rows = await db.query(

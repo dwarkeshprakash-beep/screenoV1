@@ -24,6 +24,8 @@ const PAGE_META = {
   '/admin/roles':              { title: 'Roles',               subtitle: 'Manage the role catalog for each company' },
   '/admin/users':              { title: 'Users',               subtitle: 'Create users and manage their role assignments' },
   '/admin/modules':            { title: 'Modules',             subtitle: 'The fixed catalog of gate-able feature areas' },
+  '/admin/acls':               { title: 'ACLs',                subtitle: 'Each ACL gates one module for the selected company' },
+  '/admin/permissions':        { title: 'Permissions',         subtitle: 'The global catalog of actions an ACL can grant to a role' },
   '/bde/clients':              { title: 'Client Mandates',    subtitle: 'Create a mandate and assign it to a manager' },
   '/bde/resume-analyzer':      { title: 'Resume Analyzer',   subtitle: 'JD-match scoring and keyword gap analysis' },
   '/bde/schedule':             { title: 'Schedule',           subtitle: 'Interviews for mandates you’ve assigned' },

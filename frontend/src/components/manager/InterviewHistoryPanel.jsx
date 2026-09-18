@@ -9,7 +9,7 @@ const SOURCES = [
   { value: 'monthly_assessment', label: 'Monthly assessments' },
 ]
 
-function displayValue(value, fallback = '—') {
+function displayValue(value, fallback = '-') {
   return value === undefined || value === null || value === '' ? fallback : value
 }
 
@@ -24,9 +24,9 @@ function recordDate(item) {
 }
 
 function scoreLabel(item) {
-  if (item.overall_score === undefined || item.overall_score === null || item.overall_score === '') return '—'
+  if (item.overall_score === undefined || item.overall_score === null || item.overall_score === '') return '-'
   const score = Number(item.overall_score)
-  return Number.isFinite(score) ? score.toFixed(1) + '/10' : '—'
+  return Number.isFinite(score) ? score.toFixed(1) + '/10' : '-'
 }
 
 function resultLabel(item) {
@@ -155,7 +155,7 @@ export default function InterviewHistoryPanel({
               <tbody>
                 {rows.map(item => (
                   <tr key={item.record_kind + '-' + item.id} style={{ borderTop: '1px solid var(--border-default)', color: 'var(--fg-primary)', fontSize: 12 }}>
-                    <td style={{ padding: '12px 14px', whiteSpace: 'nowrap' }}>{recordDate(item) ? formatDate(recordDate(item)) : '—'}</td>
+                    <td style={{ padding: '12px 14px', whiteSpace: 'nowrap' }}>{recordDate(item) ? formatDate(recordDate(item)) : '-'}</td>
                     <td style={{ padding: '12px 14px', fontWeight: 600 }}>{displayValue(item.role_name || item.context_title)}</td>
                     <td style={{ padding: '12px 14px' }}>
                       {item.record_kind === 'client_round'
@@ -197,7 +197,7 @@ export default function InterviewHistoryPanel({
               <DetailFact label="Interview type" value={selected.record_kind === 'client_round' ? 'Client round ' + displayValue(selected.round_number, '') : titleCase(selected.type)} />
               <DetailFact label="Mode" value={titleCase(selected.interview_mode)} />
               <DetailFact label="Difficulty" value={titleCase(selected.difficulty)} />
-              <DetailFact label="Score" value={scoreLabel(selected) === '—' ? null : scoreLabel(selected)} />
+              <DetailFact label="Score" value={scoreLabel(selected) === '-' ? null : scoreLabel(selected)} />
               <DetailFact label="Duration" value={selected.duration_minutes ? selected.duration_minutes + ' minutes' : null} />
               <DetailFact label="Location" value={selected.location} />
               <DetailFact label="Feedback" value={selected.feedback} />

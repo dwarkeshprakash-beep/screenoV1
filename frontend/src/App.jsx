@@ -38,6 +38,8 @@ const AdminBrokenStatesPage = lazy(() => import('./pages/admin/AdminBrokenStates
 const AdminRolesPage = lazy(() => import('./pages/admin/AdminRolesPage'))
 const AdminUsersPage = lazy(() => import('./pages/admin/AdminUsersPage'))
 const AdminModulesPage = lazy(() => import('./pages/admin/AdminModulesPage'))
+const AdminAclsPage = lazy(() => import('./pages/admin/AdminAclsPage'))
+const AdminPermissionsPage = lazy(() => import('./pages/admin/AdminPermissionsPage'))
 
 function AuthProvider({ children }) {
   const navigate = useNavigate()
@@ -181,6 +183,8 @@ function App() {
             <Route path="roles" element={<AdminRolesPage />} />
             <Route path="users" element={<AdminUsersPage />} />
             <Route path="modules" element={<AdminModulesPage />} />
+            <Route path="acls" element={<AdminAclsPage />} />
+            <Route path="permissions" element={<AdminPermissionsPage />} />
             <Route path="profile" element={<ManagerProfilePage />} />
           </Route>
 

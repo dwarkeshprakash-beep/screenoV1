@@ -120,7 +120,7 @@ router.post('/users/bde', async (req, res) => {
       passwordHash: tempPasswordHash,
       role:         'bde',
     })
-    if (!created) return res.status(409).json({ success: false, error: 'Could not create user — email may already be in use' })
+    if (!created) return res.status(409).json({ success: false, error: 'Could not create user - email may already be in use' })
 
     await authService.requestPasswordReset(email)
     res.status(201).json({ success: true, data: { id: created.id, email } })

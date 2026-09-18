@@ -1,4 +1,4 @@
-// AdminUsersPage — the only place user accounts are created. Lists users per company
+// AdminUsersPage - the only place user accounts are created. Lists users per company
 // and manages their legacy role plus RBAC role assignments. See docs/rbac-multi-tenant-plan.md.
 
 import { useState, useEffect } from 'react'
@@ -64,7 +64,7 @@ function AdminUsersPage() {
     try {
       const [usersRes, rolesRes] = await Promise.all([
         api.getUsers(companyId, { page, pageSize, search }),
-        api.getRoles(companyId), // full list — feeds the role-assignment picker, not paginated
+        api.getRoles(companyId), // full list - feeds the role-assignment picker, not paginated
       ])
       const data = usersRes.data || []
       if (data.length === 0 && page > 1) {

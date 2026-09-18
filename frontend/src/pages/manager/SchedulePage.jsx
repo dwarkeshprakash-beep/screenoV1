@@ -81,7 +81,7 @@ function SchedulePage() {
     setError(null)
     try {
       const category = listCategory !== 'all' ? listCategory : undefined
-      // Only the calendar is scoped to the visible week — the list tabs show everything
+      // Only the calendar is scoped to the visible week - the list tabs show everything
       // matching the category filter regardless of date.
       const range = view === 'calendar'
         ? {
@@ -159,7 +159,7 @@ function SchedulePage() {
     return 1
   }
 
-  // Already filtered server-side by category when in list view — just sort chronologically.
+  // Already filtered server-side by category when in list view - just sort chronologically.
   const sortedEvents = [...events].sort((a, b) => new Date(a.start || a.created) - new Date(b.start || b.created))
 
   function tabButtonStyle(active) {

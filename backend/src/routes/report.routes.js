@@ -33,7 +33,7 @@ async function attachSignedReportUrls(reports) {
   return Promise.all((reports || []).map(attachSignedReportUrl))
 }
 
-// GET /api/reports/team — all reports for the manager's team
+// GET /api/reports/team - all reports for the manager's team
 router.get('/team', async (req, res) => {
   try {
     if (req.user.role === 'bde') {
@@ -105,7 +105,7 @@ router.get('/detail/:id', async (req, res) => {
   }
 })
 
-// GET /api/reports/candidate/:userId — latest report for a user (by internal_user_id)
+// GET /api/reports/candidate/:userId - latest report for a user (by internal_user_id)
 router.get('/candidate/:userId', async (req, res) => {
   try {
     const userId = parseInt(req.params.userId, 10)
@@ -147,7 +147,7 @@ router.get('/detail/:id', async (req, res) => {
   }
 })
 
-// GET /api/reports/candidate/:userId/history — all reports for a user
+// GET /api/reports/candidate/:userId/history - all reports for a user
 router.get('/candidate/:userId/history', async (req, res) => {
   try {
     const userId = parseInt(req.params.userId, 10)

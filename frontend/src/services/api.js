@@ -578,7 +578,7 @@ const _delete = (url, opts = {}) => {
 }
 export { _delete as delete }
 
-// Admin — RBAC Roles module (roles are per-company; admin picks a company first)
+// Admin - RBAC Roles module (roles are per-company; admin picks a company first)
 export const getAdminCompanies = () => request('/api/admin/companies')
 export const getRoles = (companyId, { page, pageSize, search } = {}) => {
   const params = new URLSearchParams({ companyId })
@@ -593,10 +593,10 @@ export const updateRole = (id, data) =>
 export const deleteRole = (id, companyId) =>
   request(`/api/roles/${id}?companyId=${companyId}`, { method: 'DELETE' })
 
-// Admin — RBAC Modules catalog (global, read-only — feeds the ACL module's module picker)
+// Admin - RBAC Modules catalog (global, read-only - feeds the ACL module's module picker)
 export const getModules = () => request('/api/modules')
 
-// Admin — RBAC Users module (users are per-company; admin picks a company first)
+// Admin - RBAC Users module (users are per-company; admin picks a company first)
 export const getUsers = (companyId, { page, pageSize, search } = {}) => {
   const params = new URLSearchParams({ companyId })
   if (page) params.set('page', page)
@@ -609,4 +609,30 @@ export const updateUser = (id, data) =>
   request(`/api/users/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
 export const deleteUser = (id, companyId) =>
   request(`/api/users/${id}?companyId=${companyId}`, { method: 'DELETE' })
+
+// Admin - RBAC ACLs module (ACLs are per-company; each gates exactly one module)
+export const getAcls = (companyId, { page, pageSize, search } = {}) => {
+  const params = new URLSearchParams({ companyId })
+  if (page) params.set('page', page)
+  if (pageSize) params.set('pageSize', pageSize)
+  if (search) params.set('search', search)
+  return request(`/api/acls?${params.toString()}`)
+}
+export const getAclModuleOptions = companyId => request(`/api/acls/modules?companyId=${companyId}`)
+export const createAcl = data => request('/api/acls', { method: 'POST', body: JSON.stringify(data) })
+export const updateAcl = (id, data) =>
+  request(`/api/acls/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
+export const deleteAcl = (id, companyId) =>
+  request(`/api/acls/${id}?companyId=${companyId}`, { method: 'DELETE' })
+export const getAclPermissions = (id, companyId) =>
+  request(`/api/acls/${id}/permissions?companyId=${companyId}`)
+export const updateAclPermissions = (id, companyId, grants) =>
+  request(`/api/acls/${id}/permissions`, { method: 'PUT', body: JSON.stringify({ companyId, grants }) })
+
+// Admin - Permissions module (global catalog of grantable actions, not per-company)
+export const getPermissions = () => request('/api/permissions')
+export const createPermission = data => request('/api/permissions', { method: 'POST', body: JSON.stringify(data) })
+export const updatePermission = (id, data) =>
+  request(`/api/permissions/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
+export const deletePermission = id => request(`/api/permissions/${id}`, { method: 'DELETE' })
 

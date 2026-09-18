@@ -1,4 +1,4 @@
-// EmptyState — shown when a data list is empty (not an error, just no records).
+// EmptyState - shown when a data list is empty (not an error, just no records).
 
 function EmptyState({ message = 'Nothing here yet.', action }) {
   return (

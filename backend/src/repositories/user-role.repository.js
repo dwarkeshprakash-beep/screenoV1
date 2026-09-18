@@ -1,5 +1,5 @@
 // backend/src/repositories/user-role.repository.js
-// SQL only — user_roles join table (user <-> role, many-to-many). See docs/rbac-multi-tenant-plan.md.
+// SQL only - user_roles join table (user <-> role, many-to-many). See docs/rbac-multi-tenant-plan.md.
 
 const db = require('../db/connection')
 

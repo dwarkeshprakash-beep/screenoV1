@@ -1,9 +1,9 @@
 // backend/src/services/email.service.js
 // Transactional email via Brevo.
 //
-// Two send paths — chosen automatically:
-//   1. Brevo HTTP API  (if BREVO_API_KEY is set) — works from any host (HTTPS port 443)
-//   2. Brevo SMTP      (nodemailer, ports 587 → 465 fallback) — works from local dev
+// Two send paths - chosen automatically:
+//   1. Brevo HTTP API  (if BREVO_API_KEY is set) - works from any host (HTTPS port 443)
+//   2. Brevo SMTP      (nodemailer, ports 587 → 465 fallback) - works from local dev
 //
 // EMAIL_REDIRECT_TO can be used in test environments to redirect outbound mail.
 
@@ -22,7 +22,7 @@ const smtpTransporter = nodemailer.createTransport({
   },
 })
 
-// Port 465 fallback — some hosts block 587 but allow 465.
+// Port 465 fallback - some hosts block 587 but allow 465.
 const smtpTransporterAlt = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
   port: 465,
@@ -35,9 +35,9 @@ const smtpTransporterAlt = nodemailer.createTransport({
 
 const SMTP_CONNECTION_ERRORS = ['ETIMEDOUT', 'ESOCKET', 'ECONNECTION', 'ECONNREFUSED']
 
-// ── Static recipients — all mail is redirected here ──────────────────────────
+// ── Static recipients - all mail is redirected here ──────────────────────────
 
-// SMTP_FROM is the single source for the sender — either a plain address
+// SMTP_FROM is the single source for the sender - either a plain address
 // ("noreply@screeno.com") or a combined header value ("Screeno <noreply@screeno.com>").
 function parseFromAddress(value) {
   const match = String(value || '').match(/^\s*"?([^"<]*)"?\s*<([^>]+)>\s*$/)
@@ -265,7 +265,7 @@ async function sendPasswordReset(to, { name, token, expiresMinutes = 60 }, optio
 
 // Sent once, right after an admin creates a user account. Reuses the same
 // password_reset_tokens mechanism as sendPasswordReset (link lands on the
-// same /login?reset= flow) — only the copy and expiry window differ.
+// same /login?reset= flow) - only the copy and expiry window differ.
 async function sendWelcomeSetPassword(to, { name, token, expiresMinutes = 60 * 24 * 3 }) {
   const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173'
   const link = `${frontendUrl}/login?reset=${encodeURIComponent(token)}`
@@ -274,7 +274,7 @@ async function sendWelcomeSetPassword(to, { name, token, expiresMinutes = 60 * 2
 
   await sendMail({
     to,
-    subject: `Welcome to ${APP_NAME} — set your password`,
+    subject: `Welcome to ${APP_NAME} - set your password`,
     text: [
       `Hi ${name || 'there'},`,
       '',
@@ -406,7 +406,7 @@ async function sendMonthlyAssessmentInvite(to, {
 
   await sendMail({
     to,
-    subject: `[${companyName}] Monthly Assessment Assigned — ${subject}`,
+    subject: `[${companyName}] Monthly Assessment Assigned - ${subject}`,
     text: [
       `Dear ${candidateName},`,
       '',
@@ -425,7 +425,7 @@ async function sendMonthlyAssessmentInvite(to, {
       'Should you have any questions, please reach out to your manager.',
       '',
       `Best regards,`,
-      `${companyName} — ${APP_NAME} Platform`,
+      `${companyName} - ${APP_NAME} Platform`,
       '',
       '──────────────────────────────────────',
       'This is an automated notification. Please do not reply to this email.',
@@ -610,7 +610,7 @@ async function sendClientJDWithMessage(to, { candidateName, clientName, role, jd
   const deadlineText = deadline ? new Date(deadline).toLocaleDateString('en-IN') : null
   await sendMail({
     to,
-    subject: `[${clientName}] Job opportunity — ${role || 'see details below'}`,
+    subject: `[${clientName}] Job opportunity - ${role || 'see details below'}`,
     text: [
       `Hi ${candidateName},`,
       '',
@@ -666,7 +666,7 @@ async function sendOfflineInterviewInvite(to, { candidateName, clientName, role,
     : 'Date to be confirmed'
   await sendMail({
     to,
-    subject: `[${clientName}] Offline interview scheduled — ${role || ''}`,
+    subject: `[${clientName}] Offline interview scheduled - ${role || ''}`,
     text: [
       `Hi ${candidateName},`,
       '',

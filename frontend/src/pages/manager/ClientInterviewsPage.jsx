@@ -28,7 +28,7 @@ const MANDATE_FILTERS = [
 ]
 
 // Full mandate lifecycle, in order. Mirrors STATUS_ORDER/STATUS_LABELS in
-// backend/src/services/mandate-status.service.js — each step is auto-recorded the
+// backend/src/services/mandate-status.service.js - each step is auto-recorded the
 // first time its triggering event happens (created, candidate added, first mock or
 // client interview scheduled). "Interview in progress" stays generic on purpose:
 // with several candidates on a mandate, one can be mid-mock while another is already
@@ -1048,7 +1048,7 @@ function AddProspectsModal({ open, onClose, onAdded, mandateId, requirements }) 
         </div>
 
         {requirements.length > 0 && (
-          <Field label="Assign to requirement profile" help="Required — tracks which profile each prospect is for.">
+          <Field label="Assign to requirement profile" help="Required - tracks which profile each prospect is for.">
             <select className="form-input" value={requirementId} onChange={e => setRequirementId(e.target.value)}>
               <option value="">Select a profile...</option>
               {requirements.map(r => <option key={r.id} value={r.id}>{r.profile_name}{r.years_min != null ? ` (${r.years_min}–${r.years_max ?? '+'} yrs)` : ''}</option>)}
@@ -1142,7 +1142,7 @@ function CandidateActionModal({ candidate, requirements, onClose, onViewProfile,
           </span>
         )}
         {requirements && requirements.length > 0 && (
-          <Field label="Assign to requirement profile" help="Required — tracks which profile each prospect is for.">
+          <Field label="Assign to requirement profile" help="Required - tracks which profile each prospect is for.">
             <select className="form-input" value={requirementId} onChange={e => setRequirementId(e.target.value)}>
               <option value="">Select a profile...</option>
               {requirements.map(r => <option key={r.id} value={r.id}>{r.profile_name}</option>)}
@@ -1253,7 +1253,7 @@ function SendJDModal({ open, onClose, onSent, member, template }) {
         <div>
           <p style={{ fontSize: 12, fontWeight: 600, color: 'var(--fg-muted)', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Email preview</p>
           <div style={{ border: '1px solid var(--border-default)', borderRadius: 10, padding: 18, background: 'var(--bg-page)', fontSize: 13, color: 'var(--fg-body)' }}>
-            <p style={{ margin: '0 0 10px', fontWeight: 600, color: 'var(--fg-primary)' }}>Subject: [{template?.client_name}] Job opportunity — {roleName}</p>
+            <p style={{ margin: '0 0 10px', fontWeight: 600, color: 'var(--fg-primary)' }}>Subject: [{template?.client_name}] Job opportunity - {roleName}</p>
             <p style={{ margin: '0 0 8px' }}>Hi <strong>{member?.first_name}</strong>,</p>
             <p style={{ margin: '0 0 12px', color: 'var(--fg-muted)' }}>{previewText}</p>
             {jdPreview && (
@@ -1281,7 +1281,7 @@ const INTERVIEW_TYPES = [
   { value: 'ai_voice', label: 'AI Voice Interview', desc: 'Automated voice interview with AI-generated questions' },
   { value: 'exam', label: 'Coding Exam', desc: 'Coding or multiple-choice assessment' },
   { value: 'human', label: 'Human Video Interview', desc: 'Live video interview with a managed meeting link' },
-  { value: 'offline', label: 'Offline Interview', desc: 'In-person interview — sends email with date and location' },
+  { value: 'offline', label: 'Offline Interview', desc: 'In-person interview - sends email with date and location' },
 ]
 
 function ScheduleClientTeamModal({ open, onClose, onScheduled, member, template }) {
@@ -2115,7 +2115,7 @@ function MandateDetail({ initialTemplate, isBde = false, basePath = '/manager' }
           <div className="workspace-stack">
             <section>
               <div className="workspace-section-heading" style={{ marginBottom: 9 }}>
-                <div><h3 style={{ fontSize: 15 }}>Mandate status</h3><p>Created by {statusSummary?.created_by_name || '—'}</p></div>
+                <div><h3 style={{ fontSize: 15 }}>Mandate status</h3><p>Created by {statusSummary?.created_by_name || '-'}</p></div>
                 <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                   {statusSummary?.current_status_label && (
                     <span className={`status-pill ${mandateStatusPillClass(statusSummary.current_status)}`}>{statusSummary.current_status_label}</span>
@@ -2231,7 +2231,7 @@ function MandateDetail({ initialTemplate, isBde = false, basePath = '/manager' }
                   </div>
                   {template.jd_text
                     ? <div style={{ padding: 18, border: '1px solid var(--border-default)', borderRadius: 10, background: 'var(--slate-50)', fontSize: 13, lineHeight: 1.75, whiteSpace: 'pre-wrap' }}>{template.jd_text}</div>
-                    : <span className="form-help">No extracted text — open the original file above.</span>}
+                    : <span className="form-help">No extracted text - open the original file above.</span>}
                 </section>
               )}
               {requirements.filter(r => r.jd_text || r.jd_file_path).map(r => (
@@ -2249,7 +2249,7 @@ function MandateDetail({ initialTemplate, isBde = false, basePath = '/manager' }
                   </div>
                   {r.jd_text
                     ? <div style={{ padding: 18, border: '1px solid var(--border-default)', borderRadius: 10, background: 'var(--slate-50)', fontSize: 13, lineHeight: 1.75, whiteSpace: 'pre-wrap' }}>{r.jd_text}</div>
-                    : <span className="form-help">No extracted text — open the original file above.</span>}
+                    : <span className="form-help">No extracted text - open the original file above.</span>}
                 </section>
               ))}
             </div>

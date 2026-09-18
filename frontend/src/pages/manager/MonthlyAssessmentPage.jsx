@@ -613,7 +613,7 @@ function MonthlyAssessmentPage() {
           }
         }
       } else {
-        // Fallback: no occurrence rows yet — show enrollment span from start_date
+        // Fallback: no occurrence rows yet - show enrollment span from start_date
         const duration = Number(row.duration_months) || 1
         const startDate = new Date(row.start_date || row.assessment_created || row.created)
         if (!Number.isNaN(startDate.getTime())) {

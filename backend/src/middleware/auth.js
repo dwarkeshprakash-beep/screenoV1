@@ -5,7 +5,7 @@
 const jwt = require('jsonwebtoken')
 
 /**
- * Express middleware — verify JWT Bearer token.
+ * Express middleware - verify JWT Bearer token.
  * Responds 401 if missing, expired, or invalid.
  * On success: attaches { id, role, companyId } to req.user.
  */
@@ -23,7 +23,7 @@ function authMiddleware(req, res, next) {
     req.user = decoded // { id, role, companyId }
     next()
   } catch (err) {
-    // expired and invalid both get a 401 — don't leak which one
+    // expired and invalid both get a 401 - don't leak which one
     return res.status(401).json({ success: false, error: 'Not authenticated' })
   }
 }

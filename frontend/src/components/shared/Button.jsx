@@ -1,4 +1,4 @@
-// Button — primary, secondary, and danger variants. Handles loading state.
+// Button - primary, secondary, and danger variants. Handles loading state.
 
 import Spinner from './Spinner'
 

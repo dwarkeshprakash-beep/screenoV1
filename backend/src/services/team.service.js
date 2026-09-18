@@ -43,10 +43,10 @@ async function getMember(id, managerId) {
 async function addMember(data, companyId, managerId) {
   if (!data.email) throw new Error('Email is required')
 
-  // Team management only links an existing account to a manager's team — it does not
+  // Team management only links an existing account to a manager's team - it does not
   // create user accounts. New users are created in the Users module (admin-only).
   const existing = await userRepository.getByEmailForCompany(data.email, companyId)
-  if (!existing) throw new Error('No user with this email exists yet — create the user first in the Users module')
+  if (!existing) throw new Error('No user with this email exists yet - create the user first in the Users module')
   const userId = existing.id
 
   await userRepository.updateOrgProfile(userId, {

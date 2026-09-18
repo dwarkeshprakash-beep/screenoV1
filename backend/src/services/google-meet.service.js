@@ -2,13 +2,13 @@
 // Creates Google Meet links via the Google Calendar API using a Service Account.
 //
 // A plain service account (no Domain-Wide Delegation) is forbidden by Google from
-// inviting attendees to events it creates, so events here carry no attendees — the
+// inviting attendees to events it creates, so events here carry no attendees - the
 // meeting link is emailed to candidate/interviewer separately by email.service.js.
 //
 // Required env vars (from Google Cloud Console → Service Accounts):
-//   GOOGLE_SERVICE_ACCOUNT_EMAIL — service account email (xxx@project.iam.gserviceaccount.com)
-//   GOOGLE_SERVICE_ACCOUNT_KEY   — private key from JSON key file (PEM, newlines as \n)
-//   GOOGLE_CALENDAR_ORGANIZER    — calendar/user the event is created under (organizer's email)
+//   GOOGLE_SERVICE_ACCOUNT_EMAIL - service account email (xxx@project.iam.gserviceaccount.com)
+//   GOOGLE_SERVICE_ACCOUNT_KEY   - private key from JSON key file (PEM, newlines as \n)
+//   GOOGLE_CALENDAR_ORGANIZER    - calendar/user the event is created under (organizer's email)
 //                                  Omit to default to the service account itself.
 
 const { createSign } = require('crypto')
@@ -21,7 +21,7 @@ async function getAccessToken() {
 
   const { GOOGLE_SERVICE_ACCOUNT_EMAIL, GOOGLE_SERVICE_ACCOUNT_KEY, GOOGLE_CALENDAR_ORGANIZER } = process.env
   if (!GOOGLE_SERVICE_ACCOUNT_EMAIL || !GOOGLE_SERVICE_ACCOUNT_KEY) {
-    throw new Error('GOOGLE_SERVICE_ACCOUNT_* env vars not configured — see google-meet.service.js')
+    throw new Error('GOOGLE_SERVICE_ACCOUNT_* env vars not configured - see google-meet.service.js')
   }
 
   const now = Math.floor(Date.now() / 1000)

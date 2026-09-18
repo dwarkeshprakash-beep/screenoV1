@@ -1,5 +1,5 @@
 // frontend/src/main.jsx
-// React entry point — mounts the app into #root, wraps with BrowserRouter.
+// React entry point - mounts the app into #root, wraps with BrowserRouter.
 
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'

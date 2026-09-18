@@ -378,10 +378,10 @@ function TeamPage() {
                             </div>
                           </div>
                         </td>
-                        <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--border-default)', color: m.employee_id ? 'var(--fg-primary)' : 'var(--fg-subtle)' }}>{m.employee_id || '—'}</td>
-                        <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--border-default)', color: m.department ? 'var(--fg-primary)' : 'var(--fg-subtle)' }}>{m.department || '—'}</td>
-                        <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--border-default)', color: m.location ? 'var(--fg-primary)' : 'var(--fg-subtle)' }}>{m.location || '—'}</td>
-                        <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--border-default)', color: m.current_position ? 'var(--fg-primary)' : 'var(--fg-subtle)', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.current_position || '—'}</td>
+                        <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--border-default)', color: m.employee_id ? 'var(--fg-primary)' : 'var(--fg-subtle)' }}>{m.employee_id || '-'}</td>
+                        <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--border-default)', color: m.department ? 'var(--fg-primary)' : 'var(--fg-subtle)' }}>{m.department || '-'}</td>
+                        <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--border-default)', color: m.location ? 'var(--fg-primary)' : 'var(--fg-subtle)' }}>{m.location || '-'}</td>
+                        <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--border-default)', color: m.current_position ? 'var(--fg-primary)' : 'var(--fg-subtle)', maxWidth: 160, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.current_position || '-'}</td>
                         <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--border-default)' }}>
                           <AssessBadge lastAssessed={m.last_assessed} now={now} />
                           {m.last_assessed && <div style={{ fontSize: 11, color: 'var(--fg-subtle)', marginTop: 3 }}>{formatDate(m.last_assessed)}</div>}
@@ -459,7 +459,7 @@ function TeamPage() {
                         </td>
                         <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--border-default)', color: 'var(--fg-muted)' }}>{c.email}</td>
                         <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--border-default)', color: 'var(--fg-primary)', fontWeight: 600 }}>{c.interview_count || 0}</td>
-                        <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--border-default)', color: 'var(--fg-muted)' }}>{c.last_interview ? formatDate(c.last_interview) : '—'}</td>
+                        <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--border-default)', color: 'var(--fg-muted)' }}>{c.last_interview ? formatDate(c.last_interview) : '-'}</td>
                         <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--border-default)' }}>
                           <button onClick={() => openSchedule({ ...c, external: true })} style={{ background: 'var(--bg-surface)', color: 'var(--fg-primary)', border: '1px solid var(--border-default)', borderRadius: 8, fontWeight: 600, padding: '5px 10px', fontSize: 12, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                             <CalendarPlus size={12} /> Schedule

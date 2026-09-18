@@ -1,6 +1,6 @@
 // backend/src/workers/outbox-worker.js
 // Processes pending email_outbox_jobs using FOR UPDATE SKIP LOCKED for safe concurrency.
-// Generates magic tokens JIT — never stores raw tokens for future months.
+// Generates magic tokens JIT - never stores raw tokens for future months.
 
 const db = require('../db/connection')
 const emailService = require('../services/email.service')
@@ -10,7 +10,7 @@ const crypto = require('crypto')
 const BATCH_SIZE = 10
 const MAX_ATTEMPTS = 3
 const inviteWindowDays = Number(process.env.INVITE_WINDOW_DAYS || 14)
-const WELCOME_SET_PASSWORD_EXPIRES_MINUTES = 60 * 24 * 3 // 3 days — onboarding link, not a forgot-password recovery
+const WELCOME_SET_PASSWORD_EXPIRES_MINUTES = 60 * 24 * 3 // 3 days - onboarding link, not a forgot-password recovery
 
 async function processOutboxJobs() {
   let processedCount = 0
@@ -107,7 +107,7 @@ async function processJob(job) {
   if (job.event_key && job.event_key.startsWith('monthly_occurrence_')) {
     if (!job.interview_id) throw new Error('monthly_occurrence job missing interview_id')
 
-    // Fetch interview — check it is still launchable
+    // Fetch interview - check it is still launchable
     const rows = await db.query(
       `SELECT id, status, due_at, available_from, schedule_timezone, duration_minutes
        FROM interviews WHERE id = @id`,
@@ -116,11 +116,11 @@ async function processJob(job) {
     const interview = rows[0]
     if (!interview) throw new Error(`Interview ${job.interview_id} not found`)
     if (interview.status === 'cancelled') {
-      // Skip silently — job will be marked finished
+      // Skip silently - job will be marked finished
       return
     }
 
-    // Generate token JIT — never stored raw for future months
+    // Generate token JIT - never stored raw for future months
     const rawToken = crypto.randomBytes(32).toString('hex')
     const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex')
 

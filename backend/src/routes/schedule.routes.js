@@ -8,7 +8,7 @@ const scheduleService = require('../services/schedule.service')
 
 const router = express.Router()
 
-// GET /api/schedule/slots/:token — public route, no auth needed
+// GET /api/schedule/slots/:token - public route, no auth needed
 router.get('/slots/:token', async (req, res) => {
   try {
     const slots = await scheduleService.getAvailableSlots(req.params.token)

@@ -1,4 +1,4 @@
-// Card — white surface container with border and optional padding.
+// Card - white surface container with border and optional padding.
 
 /**
  * @param {'sm'|'md'|'lg'} padding

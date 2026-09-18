@@ -1,5 +1,5 @@
 // backend/src/routes/module.routes.js
-// HTTP only — receive, call moduleService, respond. Read-only: modules are seeded by
+// HTTP only - receive, call moduleService, respond. Read-only: modules are seeded by
 // migration, not managed through the UI. Admin-only for now (feeds the ACL module's
 // "which module does this ACL gate" picker).
 

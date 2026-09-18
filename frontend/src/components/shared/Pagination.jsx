@@ -1,5 +1,5 @@
-// Pagination — page-size selector + previous/next pager for a server-paginated list.
-// Every page/page-size change is expected to trigger a fresh API call from the parent —
+// Pagination - page-size selector + previous/next pager for a server-paginated list.
+// Every page/page-size change is expected to trigger a fresh API call from the parent -
 // this component holds no data itself, only the current page/pageSize/totalPages it's given.
 
 import { ChevronDown } from 'lucide-react'

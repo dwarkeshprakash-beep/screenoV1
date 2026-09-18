@@ -1,6 +1,6 @@
 // backend/src/services/judge.service.js
 // Runs candidate code against test cases via the free hosted Piston judge API.
-// No API key required — see https://github.com/engineer-man/piston
+// No API key required - see https://github.com/engineer-man/piston
 
 const PISTON_URL = 'https://emkc.org/api/v2/piston/execute'
 const fetchWithTimeout = require('../utils/fetch-with-timeout')

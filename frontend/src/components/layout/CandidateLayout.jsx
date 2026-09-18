@@ -23,7 +23,7 @@ function CandidateLayout() {
     }
   })()
 
-  // Only logged-in candidates have a dashboard to return to — magic-link
+  // Only logged-in candidates have a dashboard to return to - magic-link
   // interview sessions have no authenticated user, so the logo stays static there.
   function handleLogoClick() {
     if (canOpenCandidateDashboard) navigate('/candidate/dashboard')

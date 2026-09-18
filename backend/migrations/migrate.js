@@ -1,4 +1,4 @@
-// General migration runner — applies every *.sql file in this folder that hasn't
+// General migration runner - applies every *.sql file in this folder that hasn't
 // been recorded in schema_migrations yet, in filename order, and records it once
 // applied. Run from backend/: npm run migrate  (or: node migrations/migrate.js)
 //
@@ -21,7 +21,7 @@ function listMigrationFiles() {
 //    without re-running so they aren't replayed.
 //  - Brand-new/empty database (e.g. a fresh clone): nothing has been applied yet,
 //    so leave schema_migrations empty and let every file actually run below.
-// Distinguish the two by checking whether core tables already exist — the same
+// Distinguish the two by checking whether core tables already exist - the same
 // check setup-db.js used to make.
 async function ensureMigrationsTable() {
   await db.query(`
@@ -47,7 +47,7 @@ async function ensureMigrationsTable() {
       { filename }
     )
   }
-  console.log(`[migrate] Existing database detected — seeded schema_migrations with ${files.length} already-applied migration(s).`)
+  console.log(`[migrate] Existing database detected - seeded schema_migrations with ${files.length} already-applied migration(s).`)
 }
 
 async function main() {
@@ -59,7 +59,7 @@ async function main() {
   const pending = files.filter(f => !applied.has(f))
 
   if (pending.length === 0) {
-    console.log('[migrate] No pending migrations — database is up to date.')
+    console.log('[migrate] No pending migrations - database is up to date.')
     process.exit(0)
   }
 
@@ -73,7 +73,7 @@ async function main() {
     console.log(`[migrate] Applied ${file}`)
   }
 
-  console.log(`[migrate] Done — applied ${pending.length} migration(s).`)
+  console.log(`[migrate] Done - applied ${pending.length} migration(s).`)
   process.exit(0)
 }
 

@@ -83,7 +83,7 @@ async function create(clientTeamId, mandateId, managerId, data) {
 }
 
 async function update(id, clientTeamId, mandateId, managerId, data) {
-  // Cannot edit a published round — must unpublish first
+  // Cannot edit a published round - must unpublish first
   const existing = await getByIdForMandate(id, mandateId)
   if (!existing) throw new Error('Round not found or access denied')
   if (existing.client_team_id !== clientTeamId) throw new Error('Forbidden')
@@ -174,7 +174,7 @@ function toSafeDto(round) {
     published_at: round.published_at,
     created: round.created,
     updated: round.updated,
-    // manager_notes: OMITTED — never included in candidate DTO
+    // manager_notes: OMITTED - never included in candidate DTO
   }
 }
 

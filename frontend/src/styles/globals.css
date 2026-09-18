@@ -1,7 +1,7 @@
 /* frontend/src/styles/globals.css
-   Global resets and base styles — imported once in main.jsx.
+   Global resets and base styles - imported once in main.jsx.
    All color/spacing values come from tokens.css at the project root.
-   Never add hardcoded colors here — use var(--token-name). */
+   Never add hardcoded colors here - use var(--token-name). */
 
 *, *::before, *::after {
   box-sizing: border-box;
