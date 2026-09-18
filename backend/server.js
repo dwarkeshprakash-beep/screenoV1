@@ -1,5 +1,5 @@
 // backend/server.js
-// Entry point — Express app with all middleware and routes mounted.
+// Entry point - Express app with all middleware and routes mounted.
 // Run: node server.js  OR  npx nodemon server.js
 
 require('dotenv').config()
@@ -27,6 +27,7 @@ const userRoutes = require('./src/routes/user.routes')
 const moduleRoutes = require('./src/routes/module.routes')
 const aclRoutes = require('./src/routes/acl.routes')
 const permissionRoutes = require('./src/routes/permission.routes')
+const organizationRoutes = require('./src/routes/organization.routes')
 const interviewFlowRoutes = require('./src/routes/interview-flow.routes')
 const reportJobService = require('./src/services/report-job.service')
 const interviewFlowExpiryService = require('./src/services/interview-flow-expiry.service')
@@ -41,7 +42,7 @@ const authRateLimitMax = Number.isFinite(configuredAuthRateLimit) && configuredA
   ? configuredAuthRateLimit
   : 30
 
-// Last-resort safety net — log and keep running instead of crashing the process.
+// Last-resort safety net - log and keep running instead of crashing the process.
 // Background work (report generation, email delivery) fires promise chains that
 // the request/response cycle never awaits, so a slipped-through rejection here
 // must not take down interviews that are already in progress.
@@ -98,9 +99,10 @@ app.use('/api/users', userRoutes)
 app.use('/api/modules', moduleRoutes)
 app.use('/api/acls', aclRoutes)
 app.use('/api/permissions', permissionRoutes)
+app.use('/api/organizations', organizationRoutes)
 app.use('/api/interview-flows', interviewFlowRoutes)
 
-// Health check — used by uptime monitors and deploy checks
+// Health check - used by uptime monitors and deploy checks
 app.get('/health', async (req, res) => {
   try {
     await db.query('SELECT 1')
@@ -117,12 +119,12 @@ app.get('/health', async (req, res) => {
   }
 })
 
-// 404 fallback — route not found
+// 404 fallback - route not found
 app.use((req, res) => {
   res.status(404).json({ success: false, error: 'Route not found' })
 })
 
-// Global error handler — catches anything thrown without a try/catch
+// Global error handler - catches anything thrown without a try/catch
 app.use((err, req, res, next) => {
   if (err.name === 'MulterError' || /file type not allowed/i.test(err.message)) {
     return res.status(400).json({ success: false, error: err.message })
@@ -147,7 +149,7 @@ let shuttingDown = false
 async function shutdown(signal, exitCode = 0) {
   if (shuttingDown) return
   shuttingDown = true
-  console.log(`[server] ${signal} received — graceful shutdown`)
+  console.log(`[server] ${signal} received - graceful shutdown`)
   const forceExit = setTimeout(() => process.exit(exitCode || 1), 10000)
   forceExit.unref()
   try {
