@@ -1,0 +1,90 @@
+// backend/src/routes/role.routes.js
+// HTTP only — receive, call roleService, respond. Admin manages roles per company
+// (the 'admin' role is platform-wide, not scoped to one company — see admin.routes.js).
+
+const express = require('express')
+const authMiddleware = require('../middleware/auth')
+const requireRole = require('../middleware/role')
+const roleService = require('../services/role.service')
+
+const router = express.Router()
+router.use(authMiddleware, requireRole('admin'))
+
+function parseCompanyId(rawValue) {
+  const companyId = Number(rawValue)
+  return Number.isInteger(companyId) && companyId > 0 ? companyId : null
+}
+
+function sendRoleError(res, err, fallback) {
+  if (err.message === 'Role not found') {
+    return res.status(404).json({ success: false, error: err.message })
+  }
+  if (['Role name is required', 'Role name is too long', 'Role description is too long',
+    'A role with this name already exists'].includes(err.message)) {
+    return res.status(400).json({ success: false, error: err.message })
+  }
+  return res.status(500).json({ success: false, error: fallback })
+}
+
+router.get('/', async (req, res) => {
+  const companyId = parseCompanyId(req.query.companyId)
+  if (!companyId) return res.status(400).json({ success: false, error: 'companyId is required' })
+
+  try {
+    const roles = await roleService.listRoles(companyId)
+    res.json({ success: true, data: roles })
+  } catch (err) {
+    console.error('GET /roles failed:', err)
+    res.status(500).json({ success: false, error: 'Could not load roles' })
+  }
+})
+
+router.get('/:id', async (req, res) => {
+  const companyId = parseCompanyId(req.query.companyId)
+  if (!companyId) return res.status(400).json({ success: false, error: 'companyId is required' })
+
+  try {
+    const role = await roleService.getRole(companyId, Number(req.params.id))
+    res.json({ success: true, data: role })
+  } catch (err) {
+    sendRoleError(res, err, 'Could not load role')
+  }
+})
+
+router.post('/', async (req, res) => {
+  const companyId = parseCompanyId(req.body.companyId)
+  if (!companyId) return res.status(400).json({ success: false, error: 'companyId is required' })
+
+  try {
+    const role = await roleService.createRole(companyId, req.body)
+    res.status(201).json({ success: true, data: role })
+  } catch (err) {
+    sendRoleError(res, err, 'Could not create role')
+  }
+})
+
+router.patch('/:id', async (req, res) => {
+  const companyId = parseCompanyId(req.body.companyId)
+  if (!companyId) return res.status(400).json({ success: false, error: 'companyId is required' })
+
+  try {
+    const role = await roleService.updateRole(companyId, Number(req.params.id), req.body)
+    res.json({ success: true, data: role })
+  } catch (err) {
+    sendRoleError(res, err, 'Could not update role')
+  }
+})
+
+router.delete('/:id', async (req, res) => {
+  const companyId = parseCompanyId(req.query.companyId)
+  if (!companyId) return res.status(400).json({ success: false, error: 'companyId is required' })
+
+  try {
+    await roleService.deleteRole(companyId, Number(req.params.id))
+    res.json({ success: true })
+  } catch (err) {
+    sendRoleError(res, err, 'Could not delete role')
+  }
+})
+
+module.exports = router

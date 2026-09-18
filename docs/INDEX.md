@@ -23,6 +23,7 @@ Every markdown file in this project. One place to find anything.
 | See the database schema | `docs/database-schema.md` |
 | See the full folder tree | `docs/folder-structure.md` |
 | Understand product requirements | `docs/PRD.md` |
+| RBAC / multi-tenant access control plan (proposed) | `docs/rbac-multi-tenant-plan.md` |
 | See all open bugs and issues with exact fixes | `docs/open-issues.md` |
 | Full audit: bug status, workflow tests, test runner | `docs/AUDIT-AND-TESTING.md` |
 | Understand tech choices | `docs/tech-stack.md` |
@@ -90,6 +91,7 @@ open-issues.md          All open bugs — prioritized, with exact code fixes; fi
 AUDIT-AND-TESTING.md    Full audit: bug status (✅/⚠️/❌), gated test runner, workflow map, test credentials
 AUDIT-FIXES-PROGRESS.md  2026-06-18 audit batch progress — completed fixes, remaining work, file list
 PRD.md                  Product requirements — what and why
+rbac-multi-tenant-plan.md  Proposed RBAC/ACL/Module model, permission resolution, migration plan (not yet built)
 frontend-guide.md       How the built frontend works — patterns, hooks, how to add pages
 backend-guide.md        How the built backend works — MVC layers, how to add endpoints
 database-schema.md      SQL schema reference (see also backend/migrations/ for source-of-truth SQL)

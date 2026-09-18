@@ -15,6 +15,17 @@ const db = require('../db/connection')
 const router = express.Router()
 router.use(authMiddleware, requireRole('admin'))
 
+// Company picker for admin screens that manage per-company data (e.g. Roles).
+router.get('/companies', async (req, res) => {
+  try {
+    const companies = await companyRepository.getAll()
+    res.json({ success: true, data: companies })
+  } catch (err) {
+    console.error('[Admin] GET /companies failed:', err.message)
+    res.status(500).json({ success: false, error: 'Could not load companies' })
+  }
+})
+
 router.get('/mandates', async (req, res) => {
   try {
     const mandates = await db.query(

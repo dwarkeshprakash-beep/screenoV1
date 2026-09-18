@@ -1,5 +1,5 @@
 import { Link, useNavigate, useLocation } from 'react-router-dom'
-import { LayoutDashboard, Users, ScanSearch, Calendar, BarChart3, Settings, CheckSquare, UserCheck } from 'lucide-react'
+import { LayoutDashboard, Users, ScanSearch, Calendar, BarChart3, Settings, CheckSquare, UserCheck, ShieldCheck } from 'lucide-react'
 
 const MANAGER_NAV = [
   {
@@ -52,6 +52,7 @@ const ADMIN_NAV = [
       { to: '/admin/mandates',       icon: Users,           label: 'Mandates' },
       { to: '/admin/interviews',     icon: Calendar,        label: 'Interviews' },
       { to: '/admin/broken-states',  icon: CheckSquare,     label: 'Broken States' },
+      { to: '/admin/roles',          icon: ShieldCheck,     label: 'Roles' },
     ],
   },
 ]

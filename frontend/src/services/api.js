@@ -578,3 +578,12 @@ const _delete = (url, opts = {}) => {
 }
 export { _delete as delete }
 
+// Admin — RBAC Roles module (roles are per-company; admin picks a company first)
+export const getAdminCompanies = () => request('/api/admin/companies')
+export const getRoles = companyId => request(`/api/roles?companyId=${companyId}`)
+export const createRole = data => request('/api/roles', { method: 'POST', body: JSON.stringify(data) })
+export const updateRole = (id, data) =>
+  request(`/api/roles/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
+export const deleteRole = (id, companyId) =>
+  request(`/api/roles/${id}?companyId=${companyId}`, { method: 'DELETE' })
+

@@ -21,6 +21,7 @@ const PAGE_META = {
   '/admin/mandates':           { title: 'Admin Mandates',      subtitle: 'Inspect and repair client mandates' },
   '/admin/interviews':         { title: 'Admin Interviews',    subtitle: 'Inspect and repair interview states' },
   '/admin/broken-states':      { title: 'Broken States',       subtitle: 'Detect and resolve inconsistent data' },
+  '/admin/roles':              { title: 'Roles',               subtitle: 'Manage the role catalog for each company' },
   '/bde/clients':              { title: 'Client Mandates',    subtitle: 'Create a mandate and assign it to a manager' },
   '/bde/resume-analyzer':      { title: 'Resume Analyzer',   subtitle: 'JD-match scoring and keyword gap analysis' },
   '/bde/schedule':             { title: 'Schedule',           subtitle: 'Interviews for mandates you’ve assigned' },
