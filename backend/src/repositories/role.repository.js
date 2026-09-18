@@ -54,6 +54,28 @@ async function update(id, companyId, { name, description }) {
   return rows[0] || null
 }
 
+async function getByCompanyPage(companyId, { limit, offset, searchPattern }) {
+  const rows = await db.query(
+    `SELECT id, company_id, name, description, created, COUNT(*) OVER() AS total_count
+     FROM roles
+     WHERE company_id = @companyId
+       AND (@searchPattern::text IS NULL OR name ILIKE @searchPattern OR description ILIKE @searchPattern)
+     ORDER BY name
+     LIMIT @limit OFFSET @offset`,
+    { companyId, limit, offset, searchPattern: searchPattern || null }
+  )
+  const total = rows[0] ? Number(rows[0].total_count) : 0
+  return { rows: rows.map(({ total_count, ...rest }) => rest), total }
+}
+
+async function getByIds(ids, companyId) {
+  if (!Array.isArray(ids) || ids.length === 0) return []
+  return db.query(
+    `SELECT id FROM roles WHERE company_id = @companyId AND id = ANY(@ids)`,
+    { companyId, ids }
+  )
+}
+
 async function remove(id, companyId) {
   const rows = await db.query(
     `DELETE FROM roles WHERE id = @id AND company_id = @companyId RETURNING id`,
@@ -62,4 +84,4 @@ async function remove(id, companyId) {
   return rows.length > 0
 }
 
-module.exports = { getByCompany, getById, getByName, create, update, remove }
+module.exports = { getByCompany, getByCompanyPage, getById, getByName, getByIds, create, update, remove }

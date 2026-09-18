@@ -43,30 +43,11 @@ async function getMember(id, managerId) {
 async function addMember(data, companyId, managerId) {
   if (!data.email) throw new Error('Email is required')
 
-  let userId = data.userId || null
-
-  if (!userId) {
-    const existing = await userRepository.getByEmailForCompany(data.email, companyId)
-    if (existing) {
-      userId = existing.id
-    } else {
-      const tempPw = await bcrypt.hash('TEMP_' + crypto.randomBytes(8).toString('hex'), 10)
-      const newUser = await userRepository.createMinimal(companyId, {
-        firstName:    data.firstName,
-        lastName:     data.lastName,
-        email:        data.email,
-        passwordHash: tempPw,
-      })
-      if (newUser) {
-        userId = newUser.id
-      } else {
-        const found = await userRepository.getByEmailForCompany(data.email, companyId)
-        userId = found?.id
-      }
-    }
-  }
-
-  if (!userId) throw new Error('Could not resolve user — email may not belong to this company')
+  // Team management only links an existing account to a manager's team — it does not
+  // create user accounts. New users are created in the Users module (admin-only).
+  const existing = await userRepository.getByEmailForCompany(data.email, companyId)
+  if (!existing) throw new Error('No user with this email exists yet — create the user first in the Users module')
+  const userId = existing.id
 
   await userRepository.updateOrgProfile(userId, {
     email: data.email,

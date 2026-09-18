@@ -1,36 +1,37 @@
-// AdminRolesPage — manage the per-company Role catalog for the RBAC system.
-// Roles belong to one company at a time (admin is platform-wide), so a company
-// must be picked before the role list/actions are usable. See docs/rbac-multi-tenant-plan.md.
+// AdminUsersPage — the only place user accounts are created. Lists users per company
+// and manages their legacy role plus RBAC role assignments. See docs/rbac-multi-tenant-plan.md.
 
 import { useState, useEffect } from 'react'
-import { ShieldPlus } from 'lucide-react'
+import { UserPlus } from 'lucide-react'
 import Spinner from '../../components/shared/Spinner'
 import ErrorMessage from '../../components/shared/ErrorMessage'
 import EmptyState from '../../components/shared/EmptyState'
 import ConfirmDialog from '../../components/shared/ConfirmDialog'
 import Pagination from '../../components/shared/Pagination'
-import RoleFormModal from '../../components/admin/RoleFormModal'
+import UserFormModal from '../../components/admin/UserFormModal'
 import CompanyScopedToolbar from '../../components/admin/CompanyScopedToolbar'
-import RolesTable from '../../components/admin/RolesTable'
+import UsersTable from '../../components/admin/UsersTable'
 import * as api from '../../services/api'
 
 const DEFAULT_PAGE_SIZE = 10
 const SEARCH_DEBOUNCE_MS = 300
 
-function AdminRolesPage() {
+function AdminUsersPage() {
   const [companies, setCompanies] = useState([])
   const [companyId, setCompanyId] = useState(null)
-  const [roles, setRoles] = useState([])
+  const [users, setUsers] = useState([])
   const [pagination, setPagination] = useState(null)
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE)
   const [searchInput, setSearchInput] = useState('')
   const [search, setSearch] = useState('')
+  const [roles, setRoles] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [formOpen, setFormOpen] = useState(false)
-  const [editingRole, setEditingRole] = useState(null)
+  const [editingUser, setEditingUser] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
+  const [actionError, setActionError] = useState(null)
 
   useEffect(() => { loadCompanies() }, [])
   useEffect(() => { setPage(1); setSearchInput(''); setSearch('') }, [companyId])
@@ -38,7 +39,7 @@ function AdminRolesPage() {
     const timeout = setTimeout(() => { setSearch(searchInput.trim()); setPage(1) }, SEARCH_DEBOUNCE_MS)
     return () => clearTimeout(timeout)
   }, [searchInput])
-  useEffect(() => { if (companyId) loadRoles() }, [companyId, page, pageSize, search])
+  useEffect(() => { if (companyId) loadData() }, [companyId, page, pageSize, search])
 
   function handlePageSizeChange(newSize) {
     setPageSize(newSize)
@@ -57,31 +58,38 @@ function AdminRolesPage() {
     }
   }
 
-  async function loadRoles() {
+  async function loadData() {
     setLoading(true)
     setError(null)
     try {
-      const res = await api.getRoles(companyId, { page, pageSize, search })
-      const data = res.data || []
+      const [usersRes, rolesRes] = await Promise.all([
+        api.getUsers(companyId, { page, pageSize, search }),
+        api.getRoles(companyId), // full list — feeds the role-assignment picker, not paginated
+      ])
+      const data = usersRes.data || []
       if (data.length === 0 && page > 1) {
         setPage(p => p - 1)
         return
       }
-      setRoles(data)
-      setPagination(res.pagination || null)
+      setUsers(data)
+      setPagination(usersRes.pagination || null)
+      setRoles(rolesRes.data || [])
     } catch {
-      setError('Could not load roles. Please try again.')
+      setError('Could not load users. Please try again.')
     } finally {
       setLoading(false)
     }
   }
 
   async function handleDelete() {
+    const target = deleteTarget
+    setDeleteTarget(null)
+    setActionError(null)
     try {
-      await api.deleteRole(deleteTarget.id, companyId)
-      await loadRoles()
+      await api.deleteUser(target.id, companyId)
+      await loadData()
     } catch (err) {
-      setError(err.message || 'Could not delete role')
+      setActionError(err.message || 'Could not delete user')
     }
   }
 
@@ -99,23 +107,29 @@ function AdminRolesPage() {
           onCompanyChange={setCompanyId}
           searchValue={searchInput}
           onSearchChange={setSearchInput}
-          searchPlaceholder="Search by role name…"
-          itemLabel="role"
-          count={pagination?.total ?? roles.length}
+          searchPlaceholder="Search by name or email…"
+          itemLabel="user"
+          count={pagination?.total ?? users.length}
           showCount={!loading && !error}
-          addLabel="Add Role"
-          addIcon={ShieldPlus}
-          onAdd={() => { setEditingRole(null); setFormOpen(true) }}
+          addLabel="Add User"
+          addIcon={UserPlus}
+          onAdd={() => { setEditingUser(null); setFormOpen(true) }}
         />
 
-        {loading ? <Spinner center /> : error ? <ErrorMessage message={error} onRetry={loadRoles} /> : roles.length === 0 ? (
-          <EmptyState message={search ? 'No roles match your search.' : 'No roles yet for this company. Add the first one.'} />
+        {actionError && (
+          <div role="alert" style={{ padding: '10px 20px', background: 'var(--danger-50)', color: 'var(--danger-700)', fontSize: 13, borderBottom: '1px solid var(--border-default)' }}>
+            {actionError}
+          </div>
+        )}
+
+        {loading ? <Spinner center /> : error ? <ErrorMessage message={error} onRetry={loadData} /> : users.length === 0 ? (
+          <EmptyState message={search ? 'No users match your search.' : 'No users yet for this company. Add the first one.'} />
         ) : (
           <>
-            <RolesTable
-              roles={roles}
-              onEdit={role => { setEditingRole(role); setFormOpen(true) }}
-              onDelete={role => setDeleteTarget(role)}
+            <UsersTable
+              users={users}
+              onEdit={u => { setEditingUser(u); setFormOpen(true) }}
+              onDelete={u => { setDeleteTarget(u); setActionError(null) }}
             />
             {pagination && (
               <Pagination
@@ -130,19 +144,20 @@ function AdminRolesPage() {
         )}
       </div>
 
-      <RoleFormModal
+      <UserFormModal
         open={formOpen}
         companyId={companyId}
-        role={editingRole}
+        roles={roles}
+        user={editingUser}
         onClose={() => setFormOpen(false)}
-        onDone={loadRoles}
+        onDone={loadData}
       />
       <ConfirmDialog
         open={!!deleteTarget}
         onClose={() => setDeleteTarget(null)}
         onConfirm={handleDelete}
-        title="Delete Role"
-        message={`Delete the "${deleteTarget?.name}" role? This cannot be undone.`}
+        title="Delete User"
+        message={`Delete ${deleteTarget?.first_name} ${deleteTarget?.last_name}? This cannot be undone.`}
         confirmText="Delete"
         danger
       />
@@ -150,4 +165,4 @@ function AdminRolesPage() {
   )
 }
 
-export default AdminRolesPage
+export default AdminUsersPage

@@ -3,6 +3,8 @@
 // See docs/rbac-multi-tenant-plan.md for the full RBAC design this feeds into.
 
 const roleRepository = require('../repositories/role.repository')
+const { resolvePagination, buildPaginationMeta } = require('../utils/pagination')
+const { toSearchPattern } = require('../utils/sql-search')
 
 const ROLE_NAME_MAX_LENGTH = 100
 const ROLE_DESCRIPTION_MAX_LENGTH = 255
@@ -18,8 +20,14 @@ function validateRoleInput({ name, description }) {
   return { name: trimmedName, description: trimmedDescription || null }
 }
 
-async function listRoles(companyId) {
-  return roleRepository.getByCompany(companyId)
+async function listRoles(companyId, { page, pageSize, search } = {}) {
+  // No page requested — full list (used internally, e.g. the role-assignment picker in the Users module).
+  if (!page) return { data: await roleRepository.getByCompany(companyId), pagination: null }
+
+  const resolved = resolvePagination({ page, pageSize })
+  const searchPattern = toSearchPattern(search)
+  const { rows, total } = await roleRepository.getByCompanyPage(companyId, { limit: resolved.pageSize, offset: resolved.offset, searchPattern })
+  return { data: rows, pagination: buildPaginationMeta({ ...resolved, total }) }
 }
 
 async function getRole(companyId, id) {

@@ -263,6 +263,45 @@ async function sendPasswordReset(to, { name, token, expiresMinutes = 60 }, optio
   })
 }
 
+// Sent once, right after an admin creates a user account. Reuses the same
+// password_reset_tokens mechanism as sendPasswordReset (link lands on the
+// same /login?reset= flow) — only the copy and expiry window differ.
+async function sendWelcomeSetPassword(to, { name, token, expiresMinutes = 60 * 24 * 3 }) {
+  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173'
+  const link = `${frontendUrl}/login?reset=${encodeURIComponent(token)}`
+  const safeName = escapeHtml(name || 'there')
+  const expiresDays = Math.round(expiresMinutes / (60 * 24))
+
+  await sendMail({
+    to,
+    subject: `Welcome to ${APP_NAME} — set your password`,
+    text: [
+      `Hi ${name || 'there'},`,
+      '',
+      `An account has been created for you on ${APP_NAME}.`,
+      `Set your password to get started: ${link}`,
+      '',
+      `This link expires in ${expiresDays} day${expiresDays === 1 ? '' : 's'}.`,
+    ].join('\n'),
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px">
+        <h2 style="color:#0F172A">Welcome to ${escapeHtml(APP_NAME)}</h2>
+        <p>Hi ${safeName},</p>
+        <p>An account has been created for you. Set your password to get started.</p>
+        <p style="margin:24px 0">
+          <a href="${link}" style="background:#5B4FE9;color:#fff;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:600">
+            Set Password
+          </a>
+        </p>
+        <p style="color:#475569;font-size:14px;line-height:1.6">
+          This link expires in ${expiresDays} day${expiresDays === 1 ? '' : 's'}. If the button does not work, copy and paste this link:<br />
+          <a href="${link}" style="color:#5B4FE9;word-break:break-all">${link}</a>
+        </p>
+      </div>
+    `,
+  })
+}
+
 async function sendMagicLink(to, {
   candidateName,
   interviewToken,
@@ -854,6 +893,7 @@ module.exports = {
   getConfigurationStatus,
   sendMail,
   sendPasswordReset,
+  sendWelcomeSetPassword,
   sendMagicLink,
   sendMonthlyAssessmentInvite,
   sendReportReady,

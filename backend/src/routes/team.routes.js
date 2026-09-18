@@ -18,6 +18,7 @@ function sendTeamError(res, err, fallback) {
     'CSV headers must include firstName and email',
     'First name and email are required',
     'A valid email is required',
+    'No user with this email exists yet — create the user first in the Users module',
   ].includes(err.message)) {
     return res.status(400).json({ success: false, error: err.message })
   }

@@ -9,7 +9,7 @@ import Button from '../../components/shared/Button'
 import * as api from '../../services/api'
 import { formatDate } from '../../utils/helpers'
 import ScheduleModal from '../../components/manager/ScheduleModal'
-import AddCandidateModal from '../../components/manager/AddCandidateModal'
+import AddTeamMemberModal from '../../components/manager/AddTeamMemberModal'
 import EditMemberModal from '../../components/manager/EditMemberModal'
 import CompareModal from '../../components/manager/CompareModal'
 
@@ -483,7 +483,7 @@ function TeamPage() {
         selectedMembers={rows.filter(row => selected.has(row.id))}
         onDone={loadInternal}
       />
-      <AddCandidateModal open={addOpen} onClose={() => setAddOpen(false)} onDone={loadInternal} />
+      <AddTeamMemberModal open={addOpen} onClose={() => setAddOpen(false)} onDone={loadInternal} />
       <AddExternalModal open={addExternalOpen} onClose={() => setAddExternalOpen(false)} onDone={loadExternal} />
       {editMember && <EditMemberModal open={!!editMember} member={editMember} onClose={() => setEditMember(null)} onDone={loadInternal} />}
     </div>

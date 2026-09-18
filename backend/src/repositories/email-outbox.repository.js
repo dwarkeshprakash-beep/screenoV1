@@ -42,4 +42,30 @@ async function hasRecentPasswordReset(userId) {
   return rows.length > 0
 }
 
-module.exports = { enqueuePasswordReset, hasRecentPasswordReset }
+/**
+ * Queue a "welcome, set your password" email for a newly created user.
+ * Same JIT-token pattern as enqueuePasswordReset — the worker mints the
+ * actual token right before sending so nothing usable sits in the queue.
+ * @param {Object} data
+ * @returns {Promise<Object>}
+ */
+async function enqueueWelcomeSetPassword(data) {
+  const rows = await db.query(
+    `INSERT INTO email_outbox_jobs
+      (event_key, recipient, payload, send_after, status)
+     VALUES
+      (@eventKey, @recipient, @payload, CURRENT_TIMESTAMP, 'pending')
+     RETURNING *`,
+    {
+      eventKey: data.eventKey,
+      recipient: data.recipient,
+      payload: JSON.stringify({
+        userId: data.userId,
+        name: data.name,
+      }),
+    }
+  )
+  return rows[0]
+}
+
+module.exports = { enqueuePasswordReset, hasRecentPasswordReset, enqueueWelcomeSetPassword }

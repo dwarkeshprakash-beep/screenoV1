@@ -22,6 +22,8 @@ const PAGE_META = {
   '/admin/interviews':         { title: 'Admin Interviews',    subtitle: 'Inspect and repair interview states' },
   '/admin/broken-states':      { title: 'Broken States',       subtitle: 'Detect and resolve inconsistent data' },
   '/admin/roles':              { title: 'Roles',               subtitle: 'Manage the role catalog for each company' },
+  '/admin/users':              { title: 'Users',               subtitle: 'Create users and manage their role assignments' },
+  '/admin/modules':            { title: 'Modules',             subtitle: 'The fixed catalog of gate-able feature areas' },
   '/bde/clients':              { title: 'Client Mandates',    subtitle: 'Create a mandate and assign it to a manager' },
   '/bde/resume-analyzer':      { title: 'Resume Analyzer',   subtitle: 'JD-match scoring and keyword gap analysis' },
   '/bde/schedule':             { title: 'Schedule',           subtitle: 'Interviews for mandates you’ve assigned' },

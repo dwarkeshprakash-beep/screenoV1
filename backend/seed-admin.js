@@ -1,6 +1,6 @@
 // One-off script to seed a single admin user.
 //
-// Reads the password from ADMIN_SEED_PASSWORD in .env — set it there before running.
+// Reads the password from ADMIN_SEED_PASSWORD in .env - set it there before running.
 //
 // Usage:
 //   npm run seed:admin
@@ -32,7 +32,7 @@ async function main() {
 
   const existing = await db.query('SELECT id, role FROM users WHERE email = @email', { email: ADMIN_EMAIL })
   if (existing[0]) {
-    console.error(`A user with email "${ADMIN_EMAIL}" already exists (id=${existing[0].id}, role=${existing[0].role}). Aborting — this script does not overwrite existing accounts.`)
+    console.error(`A user with email "${ADMIN_EMAIL}" already exists (id=${existing[0].id}, role=${existing[0].role}). Aborting - this script does not overwrite existing accounts.`)
     process.exitCode = 1
     return
   }

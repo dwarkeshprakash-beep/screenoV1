@@ -107,7 +107,7 @@ async function getByRole(companyId, role) {
 
 async function getByCompany(companyId) {
   return db.query(
-    `SELECT u.id, u.company_id, u.first_name, u.last_name, u.email, u.role,
+    `SELECT u.id, u.company_id, u.first_name, u.last_name, u.email, u.role, u.created,
             u.emp_number AS employee_id, u.job_title AS current_position,
             u.location, u.availability, u.tags, u.resume_url, u.resume_text, u.resume_updated,
             d.name AS department
@@ -117,6 +117,61 @@ async function getByCompany(companyId) {
      ORDER BY u.first_name, u.last_name`,
     { companyId }
   )
+}
+
+async function getByCompanyPage(companyId, { limit, offset, searchPattern }) {
+  const rows = await db.query(
+    `SELECT u.id, u.company_id, u.first_name, u.last_name, u.email, u.role, u.created,
+            u.emp_number AS employee_id, u.job_title AS current_position,
+            u.location, u.availability, u.tags, u.resume_url, u.resume_text, u.resume_updated,
+            d.name AS department,
+            COUNT(*) OVER() AS total_count
+     FROM users u
+     LEFT JOIN departments d ON d.id = u.department_id
+     WHERE u.company_id = @companyId
+       AND (
+         @searchPattern::text IS NULL
+         OR u.first_name ILIKE @searchPattern
+         OR u.last_name ILIKE @searchPattern
+         OR u.email ILIKE @searchPattern
+       )
+     ORDER BY u.first_name, u.last_name
+     LIMIT @limit OFFSET @offset`,
+    { companyId, limit, offset, searchPattern: searchPattern || null }
+  )
+  const total = rows[0] ? Number(rows[0].total_count) : 0
+  return { rows: rows.map(({ total_count, ...rest }) => rest), total }
+}
+
+async function updateBasicInfo(id, companyId, { firstName, lastName, email }) {
+  const rows = await db.query(
+    `UPDATE users
+     SET first_name = @first_name, last_name = @last_name, email = @email
+     WHERE id = @id AND company_id = @company_id
+     RETURNING id, company_id, first_name, last_name, email, role, created`,
+    { id, company_id: companyId, first_name: firstName, last_name: lastName, email }
+  )
+  return rows[0] || null
+}
+
+async function remove(id, companyId) {
+  const rows = await db.query(
+    `DELETE FROM users WHERE id = @id AND company_id = @companyId RETURNING id`,
+    { id, companyId }
+  )
+  return rows.length > 0
+}
+
+async function hasBlockingReferences(id) {
+  const rows = await db.query(
+    `SELECT
+       EXISTS(SELECT 1 FROM interviews WHERE manager_id = @id OR internal_user_id = @id) AS has_interview,
+       EXISTS(SELECT 1 FROM client_templates WHERE manager_id = @id OR created_by_user_id = @id OR assigned_bde_id = @id) AS has_mandate,
+       EXISTS(SELECT 1 FROM client_teams WHERE user_id = @id) AS has_mandate_candidate`,
+    { id }
+  )
+  const row = rows[0] || {}
+  return Boolean(row.has_interview || row.has_mandate || row.has_mandate_candidate)
 }
 
 async function getByIdForCompany(id, companyId) {
@@ -320,7 +375,7 @@ async function getOrganizationMemberProfile(userId, companyId) {
 
 module.exports = {
   getByEmail, getByEmailForCompany, getById, getByIdWithPassword, getNotInTeam,
-  getByRole, getByCompany, getByIdForCompany, getByIdsForCompany,
-  updateProfile, updatePassword, updateOrgProfile,
+  getByRole, getByCompany, getByCompanyPage, getByIdForCompany, getByIdsForCompany,
+  updateProfile, updatePassword, updateOrgProfile, updateBasicInfo, remove, hasBlockingReferences,
   bulkUpsert, createMinimal, getOrganizationMemberProfile
 }

@@ -10,6 +10,7 @@ const crypto = require('crypto')
 const BATCH_SIZE = 10
 const MAX_ATTEMPTS = 3
 const inviteWindowDays = Number(process.env.INVITE_WINDOW_DAYS || 14)
+const WELCOME_SET_PASSWORD_EXPIRES_MINUTES = 60 * 24 * 3 // 3 days — onboarding link, not a forgot-password recovery
 
 async function processOutboxJobs() {
   let processedCount = 0
@@ -83,6 +84,22 @@ async function processJob(job) {
       name: payload.name || '',
       token: rawToken,
       expiresMinutes,
+    })
+    return
+  }
+
+  if (job.event_key && job.event_key.startsWith('welcome_set_password_')) {
+    if (!payload.userId) throw new Error('welcome set-password job missing userId')
+    const rawToken = crypto.randomBytes(32).toString('hex')
+    await passwordResetRepository.create(
+      payload.userId,
+      crypto.createHash('sha256').update(rawToken).digest('hex'),
+      new Date(Date.now() + WELCOME_SET_PASSWORD_EXPIRES_MINUTES * 60 * 1000)
+    )
+    await emailService.sendWelcomeSetPassword(job.recipient, {
+      name: payload.name || '',
+      token: rawToken,
+      expiresMinutes: WELCOME_SET_PASSWORD_EXPIRES_MINUTES,
     })
     return
   }

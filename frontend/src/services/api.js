@@ -580,10 +580,33 @@ export { _delete as delete }
 
 // Admin — RBAC Roles module (roles are per-company; admin picks a company first)
 export const getAdminCompanies = () => request('/api/admin/companies')
-export const getRoles = companyId => request(`/api/roles?companyId=${companyId}`)
+export const getRoles = (companyId, { page, pageSize, search } = {}) => {
+  const params = new URLSearchParams({ companyId })
+  if (page) params.set('page', page)
+  if (pageSize) params.set('pageSize', pageSize)
+  if (search) params.set('search', search)
+  return request(`/api/roles?${params.toString()}`)
+}
 export const createRole = data => request('/api/roles', { method: 'POST', body: JSON.stringify(data) })
 export const updateRole = (id, data) =>
   request(`/api/roles/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
 export const deleteRole = (id, companyId) =>
   request(`/api/roles/${id}?companyId=${companyId}`, { method: 'DELETE' })
+
+// Admin — RBAC Modules catalog (global, read-only — feeds the ACL module's module picker)
+export const getModules = () => request('/api/modules')
+
+// Admin — RBAC Users module (users are per-company; admin picks a company first)
+export const getUsers = (companyId, { page, pageSize, search } = {}) => {
+  const params = new URLSearchParams({ companyId })
+  if (page) params.set('page', page)
+  if (pageSize) params.set('pageSize', pageSize)
+  if (search) params.set('search', search)
+  return request(`/api/users?${params.toString()}`)
+}
+export const createUser = data => request('/api/users', { method: 'POST', body: JSON.stringify(data) })
+export const updateUser = (id, data) =>
+  request(`/api/users/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
+export const deleteUser = (id, companyId) =>
+  request(`/api/users/${id}?companyId=${companyId}`, { method: 'DELETE' })
 
