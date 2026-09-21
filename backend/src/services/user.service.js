@@ -8,7 +8,10 @@ const userRepository = require('../repositories/user.repository')
 const userRoleRepository = require('../repositories/user-role.repository')
 const roleRepository = require('../repositories/role.repository')
 const roleAclPermissionRepository = require('../repositories/role-acl-permission.repository')
+const companyRepository = require('../repositories/company.repository')
+const interviewRepository = require('../repositories/interview.repository')
 const emailOutboxRepository = require('../repositories/email-outbox.repository')
+const storageService = require('./storage.service')
 const { resolvePagination, buildPaginationMeta } = require('../utils/pagination')
 const { toSearchPattern } = require('../utils/sql-search')
 
@@ -65,7 +68,7 @@ async function listUsers(companyId, { page, pageSize, search } = {}) {
 }
 
 async function getUser(companyId, id) {
-  const user = await userRepository.getByIdForCompany(id, companyId)
+  const user = await userRepository.getOrganizationMemberProfile(id, companyId)
   if (!user) throw new Error('User not found')
   const roles = await userRoleRepository.getRolesForUser(id)
   return { ...user, roles }
@@ -74,7 +77,11 @@ async function getUser(companyId, id) {
 // What this user can actually do, derived from their roles - grouped by ACL so
 // the detail page can show "Module / ACL -> [permissions]" instead of a flat list.
 async function getUserAccess(companyId, id) {
-  const user = await getUser(companyId, id)
+  const [user, organization] = await Promise.all([
+    getUser(companyId, id),
+    companyRepository.getById(companyId),
+  ])
+  user.organizationName = organization?.name || null
   const roleIds = user.roles.map(r => r.id)
   const grants = await roleAclPermissionRepository.getGrantsForRoles(roleIds)
 
@@ -94,6 +101,26 @@ async function getUserAccess(companyId, id) {
   }))
 
   return { user, access }
+}
+
+// Every interview this user has been the candidate for, with a usable link to
+// its report where one exists. report_pdf_url comes back as an internal storage
+// path (see storage.service.js) - sign it into a temporary download URL here so
+// the frontend can render it directly, same as report.routes.js does for the
+// manager-facing report views.
+async function getUserInterviews(companyId, id) {
+  const user = await userRepository.getByIdForCompany(id, companyId)
+  if (!user) throw new Error('User not found')
+
+  const interviews = await interviewRepository.getByInternalUserForCompany(id, companyId)
+  return Promise.all(interviews.map(async interview => {
+    if (!interview.report_pdf_url || /^https?:\/\//i.test(interview.report_pdf_url)) return interview
+    try {
+      return { ...interview, report_pdf_url: await storageService.getSignedUrl(interview.report_pdf_url) }
+    } catch {
+      return { ...interview, report_pdf_url: null }
+    }
+  }))
 }
 
 async function createUser(companyId, input) {
@@ -148,4 +175,7 @@ async function deleteUser(companyId, id) {
   if (!deleted) throw new Error('User not found')
 }
 
-module.exports = { listUsers, getUser, getUserAccess, createUser, updateUser, deleteUser }
+module.exports = {
+  listUsers, getUser, getUserAccess, getUserInterviews,
+  createUser, updateUser, deleteUser,
+}

@@ -77,6 +77,18 @@ router.get('/:id/access', async (req, res) => {
   }
 })
 
+router.get('/:id/interviews', async (req, res) => {
+  const companyId = parseCompanyId(req.query.companyId)
+  if (!companyId) return res.status(400).json({ success: false, error: 'companyId is required' })
+
+  try {
+    const data = await userService.getUserInterviews(companyId, Number(req.params.id))
+    res.json({ success: true, data })
+  } catch (err) {
+    sendUserError(res, err, 'Could not load interviews for this user')
+  }
+})
+
 router.post('/', async (req, res) => {
   const companyId = parseCompanyId(req.body.companyId)
   if (!companyId) return res.status(400).json({ success: false, error: 'companyId is required' })

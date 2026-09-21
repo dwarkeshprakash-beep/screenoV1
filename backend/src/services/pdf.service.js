@@ -9,7 +9,7 @@ const RULE = '#E2E8F0'
 const BG_BAR = '#F1F5F9'
 
 function scoreBar(doc, label, score, x, y) {
-  const barWidth = 220
+  const barWidth = 150
   const value = Number(score)
   const normalized = Number.isFinite(value) ? Math.max(0, Math.min(10, value)) : 0
 
@@ -72,8 +72,8 @@ async function generateReportPdf({ candidate, interview, report }) {
     const barsY = scoreY + 4
     scoreBar(doc, 'Confidence', report.confidence, barsX, barsY)
     scoreBar(doc, 'Tech Knowledge', report.tech_knowledge, barsX, barsY + 44)
-    scoreBar(doc, 'Communication', report.communication, barsX + 300, barsY)
-    scoreBar(doc, 'Problem Solving', report.problem_solving, barsX + 300, barsY + 44)
+    scoreBar(doc, 'Communication', report.communication, barsX + 200, barsY)
+    scoreBar(doc, 'Problem Solving', report.problem_solving, barsX + 200, barsY + 44)
 
     doc.y = barsY + 88
     doc.moveDown(0.5)

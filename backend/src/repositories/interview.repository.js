@@ -188,6 +188,30 @@ async function getByInternalUserForManager(userId, managerId) {
   )
 }
 
+// For the Admin Users module - every interview this internal user was the
+// candidate for, scoped by their OWN company (iu.company_id), not the manager
+// who created the interview. Includes the report row (at most one per interview,
+// enforced by reports.interview_id being unique - see report.repository.js
+// upsertGenerating's ON CONFLICT) so the UI can tell "no report yet" from "ready".
+async function getByInternalUserForCompany(userId, companyId) {
+  return db.query(
+    `SELECT i.id, i.type, i.status, i.result, i.question_count, i.scheduled_at,
+            i.started_at, i.ended_at, i.created,
+            sc.overall AS overall_score, sc.decision,
+            r.id AS report_id, r.status AS report_status, r.pdf_url AS report_pdf_url,
+            COALESCE(ct.client_name, ma.subject_name) AS context_title
+     FROM interviews i
+     JOIN users iu ON iu.id = i.internal_user_id
+     LEFT JOIN scorecards sc ON sc.interview_id = i.id
+     LEFT JOIN reports r ON r.interview_id = i.id
+     LEFT JOIN client_templates ct ON ct.id = i.client_template_id
+     LEFT JOIN monthly_assessments ma ON ma.id = i.monthly_assessment_id
+     WHERE i.internal_user_id = @userId AND iu.company_id = @companyId
+     ORDER BY i.created DESC`,
+    { userId, companyId }
+  )
+}
+
 async function getByCompany(companyId) {
   return db.query(
     `SELECT i.*, ${INTERVIEW_COLS}
@@ -350,6 +374,7 @@ module.exports = {
   getByInternalUser,
   getByInternalUserId,
   getByInternalUserForManager,
+  getByInternalUserForCompany,
   getByCompany,
   getByCandidateIdentity,
   getByIdForCandidateIdentity,

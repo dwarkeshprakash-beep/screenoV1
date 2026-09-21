@@ -1,16 +1,90 @@
-// UserDetailPage - view a single user: their profile, assigned roles, and the
-// effective permissions those roles grant. Reached by clicking a row in
-// AdminUsersPage. Mirrors RoleDetailPage from the other direction - there you see
-// a role's users, here you see a user's roles and what those roles unlock.
+// UserDetailPage - the full picture of one user for an admin: basic details,
+// organization, assigned roles, the ACLs/permissions those roles grant, and their
+// interview history (pending vs completed, with result + report access).
+// Reached by clicking a row in AdminUsersPage.
 
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, useSearchParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, ShieldCheck } from 'lucide-react'
+import { ArrowLeft, ShieldCheck, ClipboardList, ExternalLink } from 'lucide-react'
 import Spinner from '../../components/shared/Spinner'
 import ErrorMessage from '../../components/shared/ErrorMessage'
 import EmptyState from '../../components/shared/EmptyState'
 import Badge from '../../components/shared/Badge'
 import * as api from '../../services/api'
+import { formatDate, statusVariant } from '../../utils/helpers'
+
+const INTERVIEW_TYPE_LABELS = { ai_voice: 'AI Voice', exam: 'Exam', human: 'Human', offline: 'Offline' }
+
+function interviewTypeLabel(type) {
+  return INTERVIEW_TYPE_LABELS[type] || (type ? type.replace(/_/g, ' ') : 'Interview')
+}
+
+function decisionVariant(decision) {
+  if (decision === 'pass') return 'success'
+  if (decision === 'fail') return 'danger'
+  return 'neutral'
+}
+
+function DetailField({ label, value }) {
+  return (
+    <div>
+      <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--fg-subtle)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</div>
+      <div style={{ fontSize: 13, color: value ? 'var(--fg-body)' : 'var(--fg-subtle)', marginTop: 2 }}>{value || '-'}</div>
+    </div>
+  )
+}
+
+function InterviewsTable({ interviews }) {
+  const thStyle = {
+    textAlign: 'left', padding: '10px 20px', fontSize: 11, fontWeight: 600, letterSpacing: '0.08em',
+    textTransform: 'uppercase', color: 'var(--fg-subtle)', borderBottom: '1px solid var(--border-default)',
+  }
+  const tdStyle = { padding: '12px 20px', borderBottom: '1px solid var(--border-default)' }
+
+  return (
+    <div style={{ overflowX: 'auto' }}>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+        <thead>
+          <tr style={{ background: 'var(--bg-surface-alt)' }}>
+            {['TYPE', 'DATE', 'STATUS', 'RESULT', 'REPORT'].map(h => <th key={h} style={thStyle}>{h}</th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {interviews.map(interview => (
+            <tr key={interview.id}>
+              <td style={{ ...tdStyle, fontWeight: 600, color: 'var(--fg-primary)' }}>
+                {interviewTypeLabel(interview.type)}
+                {interview.context_title && <div style={{ fontSize: 12, fontWeight: 400, color: 'var(--fg-muted)' }}>{interview.context_title}</div>}
+              </td>
+              <td style={{ ...tdStyle, color: 'var(--fg-muted)' }}>{formatDate(interview.scheduled_at || interview.created)}</td>
+              <td style={tdStyle}><Badge variant={statusVariant(interview.status)}>{interview.status}</Badge></td>
+              <td style={tdStyle}>
+                {interview.decision ? (
+                  <Badge variant={decisionVariant(interview.decision)}>
+                    {interview.decision}{interview.overall_score != null ? ` · ${interview.overall_score}` : ''}
+                  </Badge>
+                ) : (
+                  <span style={{ color: 'var(--fg-subtle)' }}>-</span>
+                )}
+              </td>
+              <td style={tdStyle}>
+                {interview.report_status === 'ready' && interview.report_pdf_url ? (
+                  <a href={interview.report_pdf_url} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, color: 'var(--brand-600)', fontWeight: 600, textDecoration: 'none' }}>
+                    View report <ExternalLink size={12} />
+                  </a>
+                ) : interview.report_id ? (
+                  <span style={{ color: 'var(--fg-muted)' }}>Generating…</span>
+                ) : (
+                  <span style={{ color: 'var(--fg-subtle)' }}>-</span>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
 
 function UserDetailPage() {
   const { id } = useParams()
@@ -20,6 +94,7 @@ function UserDetailPage() {
 
   const [user, setUser] = useState(null)
   const [access, setAccess] = useState([])
+  const [interviews, setInterviews] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
@@ -27,9 +102,13 @@ function UserDetailPage() {
     setLoading(true)
     setError(null)
     try {
-      const res = await api.getUserAccess(id, companyId)
-      setUser(res.data?.user || null)
-      setAccess(res.data?.access || [])
+      const [accessRes, interviewsRes] = await Promise.all([
+        api.getUserAccess(id, companyId),
+        api.getUserInterviews(id, companyId),
+      ])
+      setUser(accessRes.data?.user || null)
+      setAccess(accessRes.data?.access || [])
+      setInterviews(interviewsRes.data || [])
     } catch {
       setError('Could not load this user. Please try again.')
     } finally {
@@ -47,6 +126,8 @@ function UserDetailPage() {
     display: 'inline-flex', alignItems: 'center', gap: 6, background: 'none', border: 'none',
     color: 'var(--fg-muted)', cursor: 'pointer', fontSize: 13, padding: 0, marginBottom: 16,
   }
+  const detailGridStyle = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 16, marginTop: 16 }
+  const sectionHeaderStyle = { display: 'flex', alignItems: 'center', gap: 8, padding: '16px 20px', borderBottom: '1px solid var(--border-default)' }
   const moduleRowStyle = { padding: '14px 20px', borderBottom: '1px solid var(--border-default)' }
 
   if (!companyId) return <ErrorMessage message="Missing company context. Go back to Users and try again." />
@@ -69,10 +150,19 @@ function UserDetailPage() {
                 user.roles.map(r => <Badge key={r.id} variant="brand">{r.name}</Badge>)
               )}
             </div>
+
+            <div style={detailGridStyle}>
+              <DetailField label="Organization" value={user.organizationName} />
+              <DetailField label="Employee ID" value={user.employee_id} />
+              <DetailField label="Job Title" value={user.current_position} />
+              <DetailField label="Department" value={user.department} />
+              <DetailField label="Location" value={user.location} />
+              <DetailField label="Member Since" value={formatDate(user.created)} />
+            </div>
           </div>
 
           <div style={cardStyle}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '16px 20px', borderBottom: '1px solid var(--border-default)' }}>
+            <div style={sectionHeaderStyle}>
               <ShieldCheck size={16} />
               <h3 style={{ margin: 0, fontSize: 14, color: 'var(--fg-primary)' }}>Effective permissions</h3>
               <Badge variant="brand">{access.length}</Badge>
@@ -94,6 +184,32 @@ function UserDetailPage() {
                   </div>
                 </div>
               ))
+            )}
+          </div>
+
+          <div style={cardStyle}>
+            <div style={sectionHeaderStyle}>
+              <ClipboardList size={16} />
+              <h3 style={{ margin: 0, fontSize: 14, color: 'var(--fg-primary)' }}>Completed interviews</h3>
+              <Badge variant="brand">{interviews.filter(i => i.status === 'completed').length}</Badge>
+            </div>
+            {interviews.filter(i => i.status === 'completed').length === 0 ? (
+              <EmptyState message="No completed interviews yet." />
+            ) : (
+              <InterviewsTable interviews={interviews.filter(i => i.status === 'completed')} />
+            )}
+          </div>
+
+          <div style={cardStyle}>
+            <div style={sectionHeaderStyle}>
+              <ClipboardList size={16} />
+              <h3 style={{ margin: 0, fontSize: 14, color: 'var(--fg-primary)' }}>Pending interviews</h3>
+              <Badge variant="brand">{interviews.filter(i => i.status !== 'completed').length}</Badge>
+            </div>
+            {interviews.filter(i => i.status !== 'completed').length === 0 ? (
+              <EmptyState message="No pending interviews." />
+            ) : (
+              <InterviewsTable interviews={interviews.filter(i => i.status !== 'completed')} />
             )}
           </div>
         </>

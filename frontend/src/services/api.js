@@ -613,6 +613,7 @@ export const getUsers = (companyId, { page, pageSize, search } = {}) => {
 }
 export const getUser = (id, companyId) => request(`/api/users/${id}?companyId=${companyId}`)
 export const getUserAccess = (id, companyId) => request(`/api/users/${id}/access?companyId=${companyId}`)
+export const getUserInterviews = (id, companyId) => request(`/api/users/${id}/interviews?companyId=${companyId}`)
 export const createUser = data => request('/api/users', { method: 'POST', body: JSON.stringify(data) })
 export const updateUser = (id, data) =>
   request(`/api/users/${id}`, { method: 'PATCH', body: JSON.stringify(data) })

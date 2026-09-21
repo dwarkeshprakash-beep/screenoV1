@@ -365,7 +365,7 @@ async function countByCompany(companyId) {
 
 async function getOrganizationMemberProfile(userId, companyId) {
   const rows = await db.query(
-    `SELECT u.id, u.company_id, u.first_name, u.last_name, u.email, u.role,
+    `SELECT u.id, u.company_id, u.first_name, u.last_name, u.email, u.role, u.created,
             u.emp_number AS employee_id, u.job_title AS current_position,
             u.location, u.availability, u.tags, u.resume_url, u.resume_text, u.resume_updated,
             u.current_resume_asset_id, d.name AS department
