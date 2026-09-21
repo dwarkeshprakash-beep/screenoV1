@@ -14,6 +14,7 @@ import * as api from '../../services/api'
 import { formatDate } from '../../utils/helpers'
 
 const DEFAULT_PAGE_SIZE = 10
+const PORTAL_LABELS = { manager: 'Manager', bde: 'BDE', candidate: 'Candidate' }
 
 function RoleDetailPage() {
   const { id } = useParams()
@@ -79,7 +80,10 @@ function RoleDetailPage() {
       {loading ? <Spinner center /> : error ? <ErrorMessage message={error} onRetry={load} /> : (
         <>
           <div style={{ ...cardStyle, padding: 20 }}>
-            <h2 style={{ margin: 0, fontSize: 18, color: 'var(--fg-primary)' }}>{role.name}</h2>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <h2 style={{ margin: 0, fontSize: 18, color: 'var(--fg-primary)' }}>{role.name}</h2>
+              {role.portal && <Badge variant="brand">{PORTAL_LABELS[role.portal] || role.portal}</Badge>}
+            </div>
             <p style={{ margin: '6px 0 0', fontSize: 13, color: role.description ? 'var(--fg-body)' : 'var(--fg-subtle)' }}>
               {role.description || 'No description'}
             </p>
@@ -101,7 +105,7 @@ function RoleDetailPage() {
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
                     <thead>
                       <tr style={{ background: 'var(--bg-surface-alt)' }}>
-                        {['NAME', 'EMAIL', 'SYSTEM ROLE'].map(h => <th key={h} style={thStyle}>{h}</th>)}
+                        {['NAME', 'EMAIL'].map(h => <th key={h} style={thStyle}>{h}</th>)}
                       </tr>
                     </thead>
                     <tbody>
@@ -109,7 +113,6 @@ function RoleDetailPage() {
                         <tr key={user.id}>
                           <td style={{ ...tdStyle, fontWeight: 600, color: 'var(--fg-primary)' }}>{user.first_name} {user.last_name}</td>
                           <td style={{ ...tdStyle, color: 'var(--fg-body)' }}>{user.email}</td>
-                          <td style={tdStyle}><Badge>{user.system_role}</Badge></td>
                         </tr>
                       ))}
                     </tbody>

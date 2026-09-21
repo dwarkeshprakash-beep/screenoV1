@@ -1,25 +1,25 @@
 const express = require('express')
 const bcrypt = require('bcryptjs')
 const authMiddleware = require('../middleware/auth')
+const { loadAccess } = require('../middleware/access')
 const { documentUpload } = require('../middleware/upload')
 const userRepository = require('../repositories/user.repository')
 const resumeRepository = require('../repositories/resume.repository')
 const storageService = require('../services/storage.service')
 const resumeService = require('../services/resume.service')
-const { applicationRole } = require('../services/auth.service')
 const { validatePassword } = require('../utils/password-policy')
 
 const router = express.Router()
-router.use(authMiddleware)
+router.use(authMiddleware, loadAccess)
 
 router.get('/', async (req, res) => {
   try {
     const user = await userRepository.getById(req.user.id)
     if (!user) return res.status(404).json({ success: false, error: 'User not found' })
 
-    // Frontend merges this response into the stored session user - always send the
-    // app-facing role (e.g. 'employee' -> 'candidate'), never the raw DB value.
-    user.role = applicationRole(user)
+    // Frontend merges this response into the stored session user - send the
+    // resolved portal (RBAC-derived, not a raw DB column - see access.service.js).
+    user.role = req.access.portal
 
     // Generate signed URL if the user has a resume stored as a path
     if (user.resume_url && !user.resume_url.startsWith('http')) {
@@ -104,7 +104,7 @@ router.patch('/', async (req, res) => {
 
     const updated = await userRepository.getById(req.user.id)
     if (!updated) return res.status(404).json({ success: false, error: 'User not found' })
-    updated.role = applicationRole(updated)
+    updated.role = req.access.portal
     res.json({ success: true, data: updated })
   } catch (err) {
     console.error('PATCH /profile failed:', err)

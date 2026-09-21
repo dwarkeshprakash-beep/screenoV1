@@ -4,6 +4,7 @@ const clientTeamRepository = require('../repositories/client-team.repository')
 const userRepository = require('../repositories/user.repository')
 const interviewRepository = require('../repositories/interview.repository')
 const emailDeliveryRepository = require('../repositories/email-delivery.repository')
+const accessService = require('./access.service')
 const scheduleService = require('./schedule.service')
 const emailService = require('./email.service')
 const storageService = require('./storage.service')
@@ -33,9 +34,10 @@ async function validateReportRecipients(value, companyId) {
 
 /** Send and record an interviewer assignment notification. */
 async function notifyInterviewer(interviewId, interviewer, data) {
+  const portal = await accessService.getPortalForUser(interviewer.id)
   const notificationData = {
     ...data,
-    portalPath: interviewer.role === 'manager' ? '/manager/interviewer' : '/candidate/interviews',
+    portalPath: portal === 'manager' ? '/manager/interviewer' : '/candidate/interviews',
   }
   try {
     await emailService.sendInterviewerAssignment(interviewer.email, notificationData)

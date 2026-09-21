@@ -262,6 +262,7 @@ export const resetPassword = (token, newPassword) =>
     omitAuth: true,
   })
 export const logout = () => request('/api/auth/logout', { method: 'POST' })
+export const getMyAccess = () => request('/api/auth/me/access')
 export const previewMagicLink = token =>
   request(`/api/auth/magic-link/${token}`, { method: 'GET', skipAuthRedirect: true, omitAuth: true })
 export const claimMagicLink = token =>

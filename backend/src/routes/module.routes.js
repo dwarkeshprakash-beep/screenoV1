@@ -5,11 +5,11 @@
 
 const express = require('express')
 const authMiddleware = require('../middleware/auth')
-const requireRole = require('../middleware/role')
+const { loadAccess, requirePlatformAdmin } = require('../middleware/access')
 const moduleService = require('../services/module.service')
 
 const router = express.Router()
-router.use(authMiddleware, requireRole('admin'))
+router.use(authMiddleware, loadAccess, requirePlatformAdmin)
 
 router.get('/', async (req, res) => {
   try {

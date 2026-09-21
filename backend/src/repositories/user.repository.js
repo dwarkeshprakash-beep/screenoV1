@@ -3,7 +3,7 @@ const db = require('../db/connection')
 
 async function getByEmail(email) {
   const rows = await db.query(
-    `SELECT id, company_id, first_name, last_name, email, password, role,
+    `SELECT id, company_id, first_name, last_name, email, password, is_platform_admin,
             resume_url, resume_text, tags, availability
      FROM users
      WHERE email = @email`,
@@ -14,12 +14,22 @@ async function getByEmail(email) {
 
 async function getById(id) {
   const rows = await db.query(
-    `SELECT u.id, u.company_id, u.first_name, u.last_name, u.email, u.role,
+    `SELECT u.id, u.company_id, u.first_name, u.last_name, u.email, u.is_platform_admin,
             u.resume_url, u.resume_text, u.tags, u.availability, u.current_resume_asset_id,
             ra.original_filename as resume_filename, ra.size as resume_size, ra.mime_type as resume_mime_type, ra.created_at as resume_uploaded_at
      FROM users u
      LEFT JOIN resume_assets ra ON ra.id = u.current_resume_asset_id AND ra.deleted_at IS NULL
      WHERE u.id = @id`,
+    { id }
+  )
+  return rows[0] || null
+}
+
+// Minimal fields the access resolver needs on every request - kept separate from
+// getById() so authorization lookups don't drag in resume/profile fields.
+async function getAuthProfile(id) {
+  const rows = await db.query(
+    `SELECT id, company_id, is_platform_admin FROM users WHERE id = @id`,
     { id }
   )
   return rows[0] || null
@@ -77,13 +87,17 @@ async function updatePassword(id, passwordHash) {
 
 async function getNotInTeam(companyId, managerId) {
   return db.query(
-    `SELECT u.id, u.first_name, u.last_name, u.email, u.role,
+    `SELECT u.id, u.first_name, u.last_name, u.email,
             u.emp_number AS employee_id, u.job_title AS current_position,
             u.location, d.name AS department
      FROM users u
      LEFT JOIN departments d ON d.id = u.department_id
      WHERE u.company_id = @companyId
-       AND u.role != 'manager'
+       AND NOT EXISTS (
+         SELECT 1 FROM user_roles ur
+         JOIN roles r ON r.id = ur.role_id
+         WHERE ur.user_id = u.id AND r.portal = 'manager'
+       )
        AND NOT EXISTS (
          SELECT 1 FROM team_members tm
          WHERE tm.manager_id = @managerId
@@ -94,20 +108,22 @@ async function getNotInTeam(companyId, managerId) {
   )
 }
 
-async function getByRole(companyId, role) {
+async function getByPortal(companyId, portal) {
   return db.query(
-    `SELECT id, first_name, last_name, email, role
-     FROM users
-     WHERE company_id = @companyId
-       AND role = @role
-     ORDER BY first_name`,
-    { companyId, role }
+    `SELECT DISTINCT u.id, u.first_name, u.last_name, u.email
+     FROM users u
+     JOIN user_roles ur ON ur.user_id = u.id
+     JOIN roles r ON r.id = ur.role_id
+     WHERE u.company_id = @companyId
+       AND r.portal = @portal
+     ORDER BY u.first_name`,
+    { companyId, portal }
   )
 }
 
 async function getByCompany(companyId) {
   return db.query(
-    `SELECT u.id, u.company_id, u.first_name, u.last_name, u.email, u.role, u.created,
+    `SELECT u.id, u.company_id, u.first_name, u.last_name, u.email, u.created,
             u.emp_number AS employee_id, u.job_title AS current_position,
             u.location, u.availability, u.tags, u.resume_url, u.resume_text, u.resume_updated,
             d.name AS department
@@ -121,7 +137,7 @@ async function getByCompany(companyId) {
 
 async function getByCompanyPage(companyId, { limit, offset, searchPattern }) {
   const rows = await db.query(
-    `SELECT u.id, u.company_id, u.first_name, u.last_name, u.email, u.role, u.created,
+    `SELECT u.id, u.company_id, u.first_name, u.last_name, u.email, u.created,
             u.emp_number AS employee_id, u.job_title AS current_position,
             u.location, u.availability, u.tags, u.resume_url, u.resume_text, u.resume_updated,
             d.name AS department,
@@ -148,7 +164,7 @@ async function updateBasicInfo(id, companyId, { firstName, lastName, email }) {
     `UPDATE users
      SET first_name = @first_name, last_name = @last_name, email = @email
      WHERE id = @id AND company_id = @company_id
-     RETURNING id, company_id, first_name, last_name, email, role, created`,
+     RETURNING id, company_id, first_name, last_name, email, created`,
     { id, company_id: companyId, first_name: firstName, last_name: lastName, email }
   )
   return rows[0] || null
@@ -176,7 +192,7 @@ async function hasBlockingReferences(id) {
 
 async function getByIdForCompany(id, companyId) {
   const rows = await db.query(
-    `SELECT id, company_id, first_name, last_name, email, role
+    `SELECT id, company_id, first_name, last_name, email
      FROM users
      WHERE id = @id AND company_id = @companyId
      LIMIT 1`,
@@ -188,7 +204,7 @@ async function getByIdForCompany(id, companyId) {
 async function getByIdsForCompany(ids, companyId) {
   if (!Array.isArray(ids) || ids.length === 0) return []
   return db.query(
-    `SELECT u.id, u.company_id, u.first_name, u.last_name, u.email, u.role,
+    `SELECT u.id, u.company_id, u.first_name, u.last_name, u.email,
             u.emp_number AS employee_id, u.job_title AS current_position,
             u.location, u.availability, u.tags, u.resume_url, u.resume_text, u.resume_updated,
             d.name AS department
@@ -248,9 +264,9 @@ async function bulkUpsert(rows, companyId, managerId, tempPasswordHash) {
         } else {
           const created = await tx.query(
             `INSERT INTO users
-               (company_id, first_name, last_name, email, emp_number, job_title, location, password, role)
+               (company_id, first_name, last_name, email, emp_number, job_title, location, password)
              VALUES
-               (@companyId, @firstName, @lastName, @email, @empNumber, @jobTitle, @location, @password, 'employee')
+               (@companyId, @firstName, @lastName, @email, @empNumber, @jobTitle, @location, @password)
              RETURNING id`,
             {
               companyId,
@@ -283,7 +299,7 @@ async function bulkUpsert(rows, companyId, managerId, tempPasswordHash) {
 
 async function getByEmailForCompany(email, companyId) {
   const rows = await db.query(
-    `SELECT id, company_id, first_name, last_name, email, role
+    `SELECT id, company_id, first_name, last_name, email
      FROM users
      WHERE email = @email AND company_id = @companyId
      LIMIT 1`,
@@ -340,10 +356,10 @@ async function updateOrgProfile(
   })
 }
 
-async function createMinimal(companyId, { firstName, lastName, email, passwordHash, role = 'employee' }) {
+async function createMinimal(companyId, { firstName, lastName, email, passwordHash }) {
   const rows = await db.query(
-    `INSERT INTO users (company_id, first_name, last_name, email, password, role)
-     VALUES (@company_id, @first_name, @last_name, @email, @password, @role)
+    `INSERT INTO users (company_id, first_name, last_name, email, password)
+     VALUES (@company_id, @first_name, @last_name, @email, @password)
      ON CONFLICT (email) DO NOTHING
      RETURNING id`,
     {
@@ -352,7 +368,6 @@ async function createMinimal(companyId, { firstName, lastName, email, passwordHa
       last_name:  lastName  || '',
       email,
       password:   passwordHash,
-      role,
     }
   )
   return rows[0] || null
@@ -365,7 +380,7 @@ async function countByCompany(companyId) {
 
 async function getOrganizationMemberProfile(userId, companyId) {
   const rows = await db.query(
-    `SELECT u.id, u.company_id, u.first_name, u.last_name, u.email, u.role, u.created,
+    `SELECT u.id, u.company_id, u.first_name, u.last_name, u.email, u.created,
             u.emp_number AS employee_id, u.job_title AS current_position,
             u.location, u.availability, u.tags, u.resume_url, u.resume_text, u.resume_updated,
             u.current_resume_asset_id, d.name AS department
@@ -379,8 +394,8 @@ async function getOrganizationMemberProfile(userId, companyId) {
 }
 
 module.exports = {
-  getByEmail, getByEmailForCompany, getById, getByIdWithPassword, getNotInTeam,
-  getByRole, getByCompany, getByCompanyPage, getByIdForCompany, getByIdsForCompany,
+  getByEmail, getByEmailForCompany, getById, getAuthProfile, getByIdWithPassword, getNotInTeam,
+  getByPortal, getByCompany, getByCompanyPage, getByIdForCompany, getByIdsForCompany,
   updateProfile, updatePassword, updateOrgProfile, updateBasicInfo, remove, hasBlockingReferences,
   bulkUpsert, createMinimal, getOrganizationMemberProfile, countByCompany
 }

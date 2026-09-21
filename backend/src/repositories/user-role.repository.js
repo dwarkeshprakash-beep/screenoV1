@@ -5,7 +5,7 @@ const db = require('../db/connection')
 
 async function getRolesForUser(userId) {
   return db.query(
-    `SELECT r.id, r.name
+    `SELECT r.id, r.name, r.portal
      FROM user_roles ur
      JOIN roles r ON r.id = ur.role_id
      WHERE ur.user_id = @userId
@@ -38,7 +38,7 @@ async function replaceForUser(userId, roleIds) {
 
 async function getUsersForRole(roleId, { limit, offset }) {
   const rows = await db.query(
-    `SELECT u.id, u.first_name, u.last_name, u.email, u.role AS system_role,
+    `SELECT u.id, u.first_name, u.last_name, u.email,
             COUNT(*) OVER() AS total_count
      FROM user_roles ur
      JOIN users u ON u.id = ur.user_id

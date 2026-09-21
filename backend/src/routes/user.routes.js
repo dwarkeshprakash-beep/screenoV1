@@ -6,11 +6,11 @@
 
 const express = require('express')
 const authMiddleware = require('../middleware/auth')
-const requireRole = require('../middleware/role')
+const { loadAccess, requirePlatformAdmin } = require('../middleware/access')
 const userService = require('../services/user.service')
 
 const router = express.Router()
-router.use(authMiddleware, requireRole('admin'))
+router.use(authMiddleware, loadAccess, requirePlatformAdmin)
 
 const BAD_REQUEST_MESSAGES = [
   'First name is required',

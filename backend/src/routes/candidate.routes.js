@@ -1,6 +1,6 @@
 const express = require('express')
 const authMiddleware = require('../middleware/auth')
-const requireRole = require('../middleware/role')
+const { loadAccess, requirePortal } = require('../middleware/access')
 const { documentUpload } = require('../middleware/upload')
 const interviewRepository = require('../repositories/interview.repository')
 const interviewFlowService = require('../services/interview-flow.service')
@@ -17,7 +17,7 @@ const { launchWindow, launchWindowMessage } = require('../services/interview-win
 const db = require('../db/connection')
 
 const router = express.Router()
-router.use(authMiddleware, requireRole('candidate'))
+router.use(authMiddleware, loadAccess, requirePortal('candidate'))
 
 function isHttpUrl(value) {
   return /^https?:\/\//i.test(String(value || ''))

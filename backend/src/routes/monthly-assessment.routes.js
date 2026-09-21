@@ -1,13 +1,13 @@
 const express = require('express')
 const authMiddleware = require('../middleware/auth')
-const requireRole = require('../middleware/role')
+const { loadAccess, requireModule } = require('../middleware/access')
 const monthlyAssessmentRepository = require('../repositories/monthly-assessment.repository')
 const monthlyAssessmentService = require('../services/monthly-assessment.service')
 const llmService = require('../services/llm.service')
 
 const router = express.Router()
 
-router.use(authMiddleware, requireRole('manager'))
+router.use(authMiddleware, loadAccess, requireModule('monthly_assessments'))
 
 const VALIDATION_ERRORS = new Set([
   'At least one team member is required',

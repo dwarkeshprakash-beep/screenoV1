@@ -1,33 +1,38 @@
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { LayoutDashboard, Users, ScanSearch, Calendar, BarChart3, Settings, CheckSquare, UserCheck, ShieldCheck, UserCog, LayoutGrid, LockKeyhole, KeyRound, Building2 } from 'lucide-react'
+import { useAccess } from '../../context/AccessContext'
 
+// Which admin-managed Module (see backend modules table) gates each nav item, so a
+// user without at least one permission on that module never sees the link - the
+// actual enforcement is the backend's requireModule()/requirePortal(), this just
+// keeps the sidebar from advertising pages the user can't use.
 const MANAGER_NAV = [
   {
     section: 'TEAM',
     items: [
-      { to: '/manager/dashboard',       icon: LayoutDashboard, label: 'Team Overview' },
-      { to: '/manager/team',            icon: Users,           label: 'My Team' },
+      { to: '/manager/dashboard',       icon: LayoutDashboard, label: 'Team Overview',      module: 'team' },
+      { to: '/manager/team',            icon: Users,           label: 'My Team',            module: 'team' },
     ],
   },
   {
     section: 'ASSESSMENTS',
     items: [
-      { to: '/manager/monthly',         icon: CheckSquare,     label: 'Monthly Assessment' },
-      { to: '/manager/clients',         icon: Users,           label: 'Client Mandates' },
+      { to: '/manager/monthly',         icon: CheckSquare,     label: 'Monthly Assessment', module: 'monthly_assessments' },
+      { to: '/manager/clients',         icon: Users,           label: 'Client Mandates',    module: 'client_mandates' },
     ],
   },
   {
     section: 'TOOLS',
     items: [
-      { to: '/manager/resume-analyzer', icon: ScanSearch,      label: 'Resume Analyzer' },
+      { to: '/manager/resume-analyzer', icon: ScanSearch,      label: 'Resume Analyzer',    module: 'resume_analyzer' },
     ],
   },
   {
     section: 'SHARED',
     items: [
-      { to: '/manager/schedule',        icon: Calendar,        label: 'Schedule' },
-      { to: '/manager/reports',         icon: BarChart3,       label: 'Reports' },
-      { to: '/manager/interviewer',     icon: UserCheck,       label: 'I’m Interviewing' },
+      { to: '/manager/schedule',        icon: Calendar,        label: 'Schedule',           module: 'schedule' },
+      { to: '/manager/reports',         icon: BarChart3,       label: 'Reports',            module: 'reports' },
+      { to: '/manager/interviewer',     icon: UserCheck,       label: 'I’m Interviewing',   module: 'interviewer_assignments' },
     ],
   },
 ]
@@ -36,10 +41,10 @@ const BDE_NAV = [
   {
     section: 'CLIENT MANDATES',
     items: [
-      { to: '/bde/clients',         icon: Users,      label: 'Client Mandates' },
-      { to: '/bde/resume-analyzer', icon: ScanSearch, label: 'Resume Analyzer' },
-      { to: '/bde/schedule',        icon: Calendar,   label: 'Schedule' },
-      { to: '/bde/reports',         icon: BarChart3,  label: 'Reports' },
+      { to: '/bde/clients',         icon: Users,      label: 'Client Mandates', module: 'client_mandates' },
+      { to: '/bde/resume-analyzer', icon: ScanSearch, label: 'Resume Analyzer', module: 'resume_analyzer' },
+      { to: '/bde/schedule',        icon: Calendar,   label: 'Schedule',        module: 'schedule' },
+      { to: '/bde/reports',         icon: BarChart3,  label: 'Reports',         module: 'reports' },
     ],
   },
 ]
@@ -70,7 +75,15 @@ function getInitials(name) {
 function Sidebar({ role = 'manager', open = false, onNavigate }) {
   const navigate  = useNavigate()
   const location  = useLocation()
-  const nav = { admin: ADMIN_NAV, bde: BDE_NAV }[role] || MANAGER_NAV
+  const { hasModule, loading: accessLoading } = useAccess()
+  const rawNav = { admin: ADMIN_NAV, bde: BDE_NAV }[role] || MANAGER_NAV
+  // Admin's nav isn't module-gated (platform-wide, see access.service.js), and while
+  // access is still loading we show everything rather than flash an empty sidebar.
+  const nav = role === 'admin' || accessLoading
+    ? rawNav
+    : rawNav
+        .map(sec => ({ ...sec, items: sec.items.filter(item => !item.module || hasModule(item.module)) }))
+        .filter(sec => sec.items.length > 0)
 
   let user = {}
   try {

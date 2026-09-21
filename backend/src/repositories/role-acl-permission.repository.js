@@ -68,7 +68,7 @@ async function existsForPermission(permissionId) {
 async function getGrantsForRoles(roleIds) {
   if (!Array.isArray(roleIds) || roleIds.length === 0) return []
   return db.query(
-    `SELECT rap.role_id, a.id AS acl_id, a.name AS acl_name, m.name AS module_name,
+    `SELECT rap.role_id, a.id AS acl_id, a.name AS acl_name, m.key AS module_key, m.name AS module_name,
             p.id AS permission_id, p.name AS permission_name
      FROM role_acl_permissions rap
      JOIN acls a ON a.id = rap.acl_id

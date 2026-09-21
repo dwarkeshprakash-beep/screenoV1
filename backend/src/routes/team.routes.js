@@ -1,11 +1,11 @@
 const express = require('express')
 const authMiddleware = require('../middleware/auth')
-const requireRole = require('../middleware/role')
+const { loadAccess, requireModule } = require('../middleware/access')
 const teamService = require('../services/team.service')
 
 const router = express.Router()
 
-router.use(authMiddleware, requireRole('manager'))
+router.use(authMiddleware, loadAccess, requireModule('team'))
 
 function sendTeamError(res, err, fallback) {
   if (err.message === 'Member not found') {

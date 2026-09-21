@@ -2,6 +2,9 @@
 
 import { Pencil, Trash2 } from 'lucide-react'
 import { formatDate } from '../../utils/helpers'
+import Badge from '../shared/Badge'
+
+const PORTAL_LABELS = { manager: 'Manager', bde: 'BDE', candidate: 'Candidate' }
 
 function RolesTable({ roles, onView, onEdit, onDelete }) {
   const thStyle = {
@@ -19,7 +22,7 @@ function RolesTable({ roles, onView, onEdit, onDelete }) {
       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
         <thead>
           <tr style={{ background: 'var(--bg-surface-alt)' }}>
-            {['NAME', 'DESCRIPTION', 'CREATED', 'ACTIONS'].map(h => <th key={h} style={thStyle}>{h}</th>)}
+            {['NAME', 'PORTAL', 'DESCRIPTION', 'CREATED', 'ACTIONS'].map(h => <th key={h} style={thStyle}>{h}</th>)}
           </tr>
         </thead>
         <tbody>
@@ -32,6 +35,7 @@ function RolesTable({ roles, onView, onEdit, onDelete }) {
               onClick={() => onView(role)}
             >
               <td style={{ ...tdStyle, fontWeight: 600, color: 'var(--fg-primary)' }}>{role.name}</td>
+              <td style={tdStyle}>{role.portal ? <Badge>{PORTAL_LABELS[role.portal] || role.portal}</Badge> : <span style={{ color: 'var(--fg-subtle)' }}>Not set</span>}</td>
               <td style={{ ...tdStyle, color: role.description ? 'var(--fg-body)' : 'var(--fg-subtle)' }}>{role.description || '-'}</td>
               <td style={{ ...tdStyle, color: 'var(--fg-muted)' }}>{formatDate(role.created)}</td>
               <td style={tdStyle}>

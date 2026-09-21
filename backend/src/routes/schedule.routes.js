@@ -3,7 +3,7 @@
 
 const express = require('express')
 const authMiddleware = require('../middleware/auth')
-const requireRole = require('../middleware/role')
+const { loadAccess, requireModule } = require('../middleware/access')
 const scheduleService = require('../services/schedule.service')
 
 const router = express.Router()
@@ -20,9 +20,9 @@ router.get('/slots/:token', async (req, res) => {
   }
 })
 
-router.use(authMiddleware)
+router.use(authMiddleware, loadAccess, requireModule('schedule'))
 
-router.get('/org-users', requireRole('manager'), async (req, res) => {
+router.get('/org-users', async (req, res) => {
   try {
     const users = await scheduleService.getOrgUsers(req.user.companyId)
     res.json({ success: true, data: users })
@@ -32,7 +32,7 @@ router.get('/org-users', requireRole('manager'), async (req, res) => {
   }
 })
 
-router.get('/email-deliveries/:interviewId', requireRole('manager'), async (req, res) => {
+router.get('/email-deliveries/:interviewId', async (req, res) => {
   try {
     const deliveries = await scheduleService.getEmailDeliveries(parseInt(req.params.interviewId, 10), req.user.id)
     res.json({ success: true, data: deliveries })
@@ -44,7 +44,7 @@ router.get('/email-deliveries/:interviewId', requireRole('manager'), async (req,
   }
 })
 
-router.post('/email-deliveries/:interviewId/resend', requireRole('manager'), async (req, res) => {
+router.post('/email-deliveries/:interviewId/resend', async (req, res) => {
   try {
     const result = await scheduleService.resendMagicLink(parseInt(req.params.interviewId, 10), req.user.id)
     if (result.status !== 'sent') {
@@ -61,7 +61,7 @@ router.post('/email-deliveries/:interviewId/resend', requireRole('manager'), asy
 })
 
 // POST /api/schedule
-router.post('/', requireRole('manager'), async (req, res) => {
+router.post('/', async (req, res) => {
   try {
     const { userId, teamMemberId, candidateId, type, interviewMode } = req.body
 
@@ -109,10 +109,10 @@ router.post('/', requireRole('manager'), async (req, res) => {
 // GET /api/schedule/interviews?dateFrom=YYYY-MM-DD&dateTo=YYYY-MM-DD&category=mandate|monthly|general
 // Powers both the calendar and list views. dateFrom/dateTo scope the calendar to a week;
 // category is the All/Client Mandate/Monthly Assessment/General Assessment filter.
-router.get('/interviews', requireRole('manager', 'bde'), async (req, res) => {
+router.get('/interviews', async (req, res) => {
   try {
     const category = ['mandate', 'monthly', 'general'].includes(req.query.category) ? req.query.category : null
-    const events = req.user.role === 'bde'
+    const events = req.access.portal === 'bde'
       ? await scheduleService.getScheduledInterviewsForCreator(req.user.id, {
           dateFrom: req.query.dateFrom,
           dateTo: req.query.dateTo,
@@ -130,7 +130,7 @@ router.get('/interviews', requireRole('manager', 'bde'), async (req, res) => {
   }
 })
 
-router.get('/:interviewId', requireRole('manager'), async (req, res) => {
+router.get('/:interviewId', async (req, res) => {
   try {
     const interview = await scheduleService.getInterviewDetails(parseInt(req.params.interviewId, 10), req.user.id)
     res.json({ success: true, data: interview })
@@ -142,7 +142,7 @@ router.get('/:interviewId', requireRole('manager'), async (req, res) => {
   }
 })
 
-router.post('/:interviewId/cancel', requireRole('manager'), async (req, res) => {
+router.post('/:interviewId/cancel', async (req, res) => {
   try {
     const result = await scheduleService.cancelInterview(parseInt(req.params.interviewId, 10), req.user.id)
     res.json({ success: true, data: result })
@@ -155,7 +155,7 @@ router.post('/:interviewId/cancel', requireRole('manager'), async (req, res) => 
   }
 })
 
-router.post('/:interviewId/reschedule', requireRole('manager'), async (req, res) => {
+router.post('/:interviewId/reschedule', async (req, res) => {
   try {
     const result = await scheduleService.rescheduleInterview(parseInt(req.params.interviewId, 10), req.user.id, req.body)
     res.json({ success: true, data: result })

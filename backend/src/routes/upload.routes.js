@@ -1,6 +1,6 @@
 const express = require('express')
 const authMiddleware = require('../middleware/auth')
-const requireRole = require('../middleware/role')
+const { loadAccess, requirePortal } = require('../middleware/access')
 const { documentUpload } = require('../middleware/upload')
 const storageService = require('../services/storage.service')
 const documentTextService = require('../services/document-text.service')
@@ -9,9 +9,9 @@ const userRepository = require('../repositories/user.repository')
 const llmService = require('../services/llm.service')
 
 const router = express.Router()
-router.use(authMiddleware)
+router.use(authMiddleware, loadAccess)
 
-router.post('/resume', requireRole('manager'), documentUpload.single('resume'), async (req, res) => {
+router.post('/resume', requirePortal('manager'), documentUpload.single('resume'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ success: false, error: 'No file provided' })
 
@@ -83,7 +83,7 @@ router.post('/resume', requireRole('manager'), documentUpload.single('resume'), 
   }
 })
 
-router.post('/extract-text', requireRole('manager', 'bde'), documentUpload.single('file'), async (req, res) => {
+router.post('/extract-text', requirePortal('manager', 'bde'), documentUpload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ success: false, error: 'No file provided' })
     const text = await documentTextService.extractTextFromBuffer(
@@ -98,7 +98,7 @@ router.post('/extract-text', requireRole('manager', 'bde'), documentUpload.singl
   }
 })
 
-router.post('/jd', requireRole('manager', 'bde'), documentUpload.single('file'), async (req, res) => {
+router.post('/jd', requirePortal('manager', 'bde'), documentUpload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ success: false, error: 'No file provided' })
 
@@ -131,7 +131,7 @@ router.post('/jd', requireRole('manager', 'bde'), documentUpload.single('file'),
   }
 })
 
-router.post('/analyze-resume', requireRole('manager', 'bde'), async (req, res) => {
+router.post('/analyze-resume', requirePortal('manager', 'bde'), async (req, res) => {
   const { jd, resume } = req.body || {}
   if (!jd || !resume) {
     return res.status(400).json({ success: false, error: 'jd and resume are required' })

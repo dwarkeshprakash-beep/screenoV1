@@ -4,11 +4,11 @@
 
 const express = require('express')
 const authMiddleware = require('../middleware/auth')
-const requireRole = require('../middleware/role')
+const { loadAccess, requirePlatformAdmin } = require('../middleware/access')
 const permissionService = require('../services/permission.service')
 
 const router = express.Router()
-router.use(authMiddleware, requireRole('admin'))
+router.use(authMiddleware, loadAccess, requirePlatformAdmin)
 
 const BAD_REQUEST_MESSAGES = [
   'Permission name is required',

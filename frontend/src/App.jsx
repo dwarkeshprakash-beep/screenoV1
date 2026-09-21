@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useNavigate, useLocation } from 'react-router-
 import AppLayout from './components/layout/AppLayout'
 import CandidateLayout from './components/layout/CandidateLayout'
 import CandidateDashboardLayout from './components/layout/CandidateDashboardLayout'
+import RequireModule from './components/layout/RequireModule'
 import Spinner from './components/shared/Spinner'
 
 const LoginPage = lazy(() => import('./pages/auth/LoginPage'))
@@ -145,18 +146,18 @@ function App() {
             element={<RequireAuth role="manager"><AppLayout role="manager" /></RequireAuth>}
           >
             <Route index element={<Navigate to="dashboard" replace />} />
-            <Route path="dashboard" element={<DashboardPage />} />
-            <Route path="team" element={<TeamPage />} />
-            <Route path="team/:id" element={<MemberProfilePage />} />
-            <Route path="organization/:userId" element={<MemberProfilePage />} />
-            <Route path="monthly" element={<MonthlyAssessmentPage />} />
+            <Route path="dashboard" element={<RequireModule moduleKey="team" redirectTo="/manager/profile"><DashboardPage /></RequireModule>} />
+            <Route path="team" element={<RequireModule moduleKey="team" redirectTo="/manager/profile"><TeamPage /></RequireModule>} />
+            <Route path="team/:id" element={<RequireModule moduleKey="team" redirectTo="/manager/profile"><MemberProfilePage /></RequireModule>} />
+            <Route path="organization/:userId" element={<RequireModule moduleKey="team" redirectTo="/manager/profile"><MemberProfilePage /></RequireModule>} />
+            <Route path="monthly" element={<RequireModule moduleKey="monthly_assessments" redirectTo="/manager/profile"><MonthlyAssessmentPage /></RequireModule>} />
             <Route path="monthly/plan" element={<Navigate to="/manager/monthly" replace />} />
-            <Route path="clients" element={<ClientInterviewsPage />} />
-            <Route path="clients/:mandateId" element={<ClientInterviewsPage />} />
-            <Route path="schedule" element={<SchedulePage />} />
-            <Route path="reports" element={<ReportsPage />} />
-            <Route path="interviewer" element={<ManagerInterviewerPage />} />
-            <Route path="resume-analyzer" element={<ResumeAnalyzerPage />} />
+            <Route path="clients" element={<RequireModule moduleKey="client_mandates" redirectTo="/manager/profile"><ClientInterviewsPage /></RequireModule>} />
+            <Route path="clients/:mandateId" element={<RequireModule moduleKey="client_mandates" redirectTo="/manager/profile"><ClientInterviewsPage /></RequireModule>} />
+            <Route path="schedule" element={<RequireModule moduleKey="schedule" redirectTo="/manager/profile"><SchedulePage /></RequireModule>} />
+            <Route path="reports" element={<RequireModule moduleKey="reports" redirectTo="/manager/profile"><ReportsPage /></RequireModule>} />
+            <Route path="interviewer" element={<RequireModule moduleKey="interviewer_assignments" redirectTo="/manager/profile"><ManagerInterviewerPage /></RequireModule>} />
+            <Route path="resume-analyzer" element={<RequireModule moduleKey="resume_analyzer" redirectTo="/manager/profile"><ResumeAnalyzerPage /></RequireModule>} />
             <Route path="profile" element={<ManagerProfilePage />} />
           </Route>
 
@@ -205,11 +206,11 @@ function App() {
             element={<RequireAuth role="bde"><AppLayout role="bde" /></RequireAuth>}
           >
             <Route index element={<Navigate to="clients" replace />} />
-            <Route path="clients" element={<ClientInterviewsPage />} />
-            <Route path="clients/:mandateId" element={<ClientInterviewsPage />} />
-            <Route path="resume-analyzer" element={<ResumeAnalyzerPage />} />
-            <Route path="schedule" element={<SchedulePage />} />
-            <Route path="reports" element={<ReportsPage />} />
+            <Route path="clients" element={<RequireModule moduleKey="client_mandates" redirectTo="/bde/profile"><ClientInterviewsPage /></RequireModule>} />
+            <Route path="clients/:mandateId" element={<RequireModule moduleKey="client_mandates" redirectTo="/bde/profile"><ClientInterviewsPage /></RequireModule>} />
+            <Route path="resume-analyzer" element={<RequireModule moduleKey="resume_analyzer" redirectTo="/bde/profile"><ResumeAnalyzerPage /></RequireModule>} />
+            <Route path="schedule" element={<RequireModule moduleKey="schedule" redirectTo="/bde/profile"><SchedulePage /></RequireModule>} />
+            <Route path="reports" element={<RequireModule moduleKey="reports" redirectTo="/bde/profile"><ReportsPage /></RequireModule>} />
             <Route path="profile" element={<ManagerProfilePage />} />
           </Route>
 

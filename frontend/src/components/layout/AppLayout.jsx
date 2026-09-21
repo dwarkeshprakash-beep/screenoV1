@@ -5,6 +5,7 @@ import TopBar from './TopBar'
 import * as api from '../../services/api'
 import { LogOut } from 'lucide-react'
 import { APP_NAME } from '../../config/app.config'
+import { AccessProvider } from '../../context/AccessContext'
 
 // ── Page meta ─────────────────────────────────────────────────
 const PAGE_META = {
@@ -136,34 +137,36 @@ function AppLayout({ role = 'manager' }) {
   }
 
   return (
-    <div className="app-shell">
-      <RoleBar role={role} onLogout={handleLogout} onLogoClick={handleLogoClick} />
+    <AccessProvider>
+      <div className="app-shell">
+        <RoleBar role={role} onLogout={handleLogout} onLogoClick={handleLogoClick} />
 
-      <div className="app-shell__body">
-        <Sidebar role={role} open={sidebarOpen} onNavigate={() => setSidebarOpen(false)} />
-        {sidebarOpen && (
-          <button
-            type="button"
-            className="mobile-sidebar-scrim"
-            aria-label="Close navigation"
-            onClick={() => setSidebarOpen(false)}
-          />
-        )}
+        <div className="app-shell__body">
+          <Sidebar role={role} open={sidebarOpen} onNavigate={() => setSidebarOpen(false)} />
+          {sidebarOpen && (
+            <button
+              type="button"
+              className="mobile-sidebar-scrim"
+              aria-label="Close navigation"
+              onClick={() => setSidebarOpen(false)}
+            />
+          )}
 
-        <div className="app-shell__content">
-          <TopBar
-            title={title}
-            subtitle={subtitle}
-            role={role}
-            onMenuClick={() => setSidebarOpen(current => !current)}
-          />
+          <div className="app-shell__content">
+            <TopBar
+              title={title}
+              subtitle={subtitle}
+              role={role}
+              onMenuClick={() => setSidebarOpen(current => !current)}
+            />
 
-          <main className="app-main">
-            <Outlet context={{ setPageMeta }} />
-          </main>
+            <main className="app-main">
+              <Outlet context={{ setPageMeta }} />
+            </main>
+          </div>
         </div>
       </div>
-    </div>
+    </AccessProvider>
   )
 }
 

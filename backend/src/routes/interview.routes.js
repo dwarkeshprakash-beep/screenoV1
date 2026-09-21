@@ -1,7 +1,7 @@
 // backend/src/routes/interview.routes.js
 const express = require('express')
 const authMiddleware = require('../middleware/auth')
-const requireRole = require('../middleware/role')
+const { loadAccess, requirePortal } = require('../middleware/access')
 const { audioUpload } = require('../middleware/upload')
 const interviewService = require('../services/interview.service')
 const transcriptRepository = require('../repositories/transcript.repository')
@@ -12,7 +12,20 @@ const router = express.Router()
 
 router.use(authMiddleware)
 
-router.post('/:id/start', requireRole('candidate'), async (req, res) => {
+// The start/answer/proctoring/complete routes below are only ever reached with the
+// short-lived magic-link session token (signCandidateSession in auth.service.js),
+// which carries its own hardcoded role: 'candidate' claim and no user id - it is not
+// derived from any DB column, so it doesn't go through loadAccess/access.service.
+// (interview.service.js's assertInterviewScope separately requires identity.interviewId,
+// which only that token type carries, so a regular dashboard JWT can't reach these anyway.)
+function requireCandidateToken(req, res, next) {
+  if (req.user?.role !== 'candidate') {
+    return res.status(403).json({ success: false, error: 'Not authorized' })
+  }
+  next()
+}
+
+router.post('/:id/start', requireCandidateToken, async (req, res) => {
   try {
     const interviewId = parseInt(req.params.id, 10)
     const identity = candidateIdentityService.fromUser(req.user)
@@ -27,7 +40,7 @@ router.post('/:id/start', requireRole('candidate'), async (req, res) => {
   }
 })
 
-router.post('/:id/answer', requireRole('candidate'), audioUpload.single('audio'), async (req, res) => {
+router.post('/:id/answer', requireCandidateToken, audioUpload.single('audio'), async (req, res) => {
   try {
     const interviewId = parseInt(req.params.id, 10)
     const {
@@ -79,7 +92,7 @@ router.post('/:id/answer', requireRole('candidate'), audioUpload.single('audio')
   }
 })
 
-router.post('/:id/proctoring', requireRole('candidate'), async (req, res) => {
+router.post('/:id/proctoring', requireCandidateToken, async (req, res) => {
   try {
     const interviewId = parseInt(req.params.id, 10)
     const { type, severity, occurred, details } = req.body
@@ -104,7 +117,7 @@ router.post('/:id/proctoring', requireRole('candidate'), async (req, res) => {
   }
 })
 
-router.get('/:id/transcript', requireRole('manager'), async (req, res) => {
+router.get('/:id/transcript', loadAccess, requirePortal('manager'), async (req, res) => {
   try {
     const interviewId = parseInt(req.params.id, 10)
     const interview = await interviewRepository.getById(interviewId)
@@ -119,7 +132,7 @@ router.get('/:id/transcript', requireRole('manager'), async (req, res) => {
   }
 })
 
-router.post('/:id/complete', requireRole('candidate'), async (req, res) => {
+router.post('/:id/complete', requireCandidateToken, async (req, res) => {
   try {
     const interviewId = parseInt(req.params.id, 10)
     const { status } = req.body

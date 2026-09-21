@@ -4,11 +4,11 @@
 
 const express = require('express')
 const authMiddleware = require('../middleware/auth')
-const requireRole = require('../middleware/role')
+const { loadAccess, requirePlatformAdmin } = require('../middleware/access')
 const roleService = require('../services/role.service')
 
 const router = express.Router()
-router.use(authMiddleware, requireRole('admin'))
+router.use(authMiddleware, loadAccess, requirePlatformAdmin)
 
 function parseCompanyId(rawValue) {
   const companyId = Number(rawValue)
@@ -20,6 +20,7 @@ function sendRoleError(res, err, fallback) {
     return res.status(404).json({ success: false, error: err.message })
   }
   if (['Role name is required', 'Role name is too long', 'Role description is too long',
+    'Portal must be one of manager, bde, candidate',
     'A role with this name already exists',
     'Cannot delete this role - it is assigned to one or more users',
     'Cannot delete this role - it has permissions granted on one or more ACLs'].includes(err.message)) {

@@ -5,11 +5,25 @@
 const express = require('express')
 const authMiddleware = require('../middleware/auth')
 const authService = require('../services/auth.service')
+const accessService = require('../services/access.service')
 const { getRefreshCookieOptions } = require('../config/auth')
 
 const router = express.Router()
 
 const COOKIE_NAME = 'refreshToken'
+
+// GET /api/auth/me/access - what modules/permissions the logged-in user actually
+// has, resolved fresh from the RBAC tables. The frontend uses this to filter the
+// sidebar and guard routes - see components/layout/Sidebar.jsx and RequireModule.
+router.get('/me/access', authMiddleware, async (req, res) => {
+  try {
+    const access = await accessService.getClientAccess(req.user.id)
+    res.json({ success: true, data: access })
+  } catch (err) {
+    console.error('GET /auth/me/access failed:', err.message)
+    res.status(500).json({ success: false, error: 'Could not load access' })
+  }
+})
 
 // POST /api/auth/login
 router.post('/login', async (req, res) => {
@@ -25,6 +39,9 @@ router.post('/login', async (req, res) => {
     res.json({ success: true, data: { accessToken, user } })
   } catch (err) {
     console.error('POST /auth/login failed:', err)
+    if (err.message === 'Your account has no portal access assigned yet. Contact your administrator.') {
+      return res.status(403).json({ success: false, error: err.message })
+    }
     const unavailableCodes = ['ENOTFOUND', 'EAI_AGAIN', 'ECONNRESET', 'ETIMEDOUT']
     if (unavailableCodes.includes(err.code)) {
       return res.status(503).json({
