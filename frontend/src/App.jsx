@@ -40,6 +40,7 @@ const AdminUsersPage = lazy(() => import('./pages/admin/AdminUsersPage'))
 const AdminModulesPage = lazy(() => import('./pages/admin/AdminModulesPage'))
 const AdminAclsPage = lazy(() => import('./pages/admin/AdminAclsPage'))
 const AdminPermissionsPage = lazy(() => import('./pages/admin/AdminPermissionsPage'))
+const AdminOrganizationsPage = lazy(() => import('./pages/admin/AdminOrganizationsPage'))
 
 function AuthProvider({ children }) {
   const navigate = useNavigate()
@@ -180,6 +181,7 @@ function App() {
             <Route path="mandates" element={<AdminMandatesPage />} />
             <Route path="interviews" element={<AdminInterviewsPage />} />
             <Route path="broken-states" element={<AdminBrokenStatesPage />} />
+            <Route path="organizations" element={<AdminOrganizationsPage />} />
             <Route path="roles" element={<AdminRolesPage />} />
             <Route path="users" element={<AdminUsersPage />} />
             <Route path="modules" element={<AdminModulesPage />} />

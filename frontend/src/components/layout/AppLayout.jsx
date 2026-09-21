@@ -21,6 +21,7 @@ const PAGE_META = {
   '/admin/mandates':           { title: 'Admin Mandates',      subtitle: 'Inspect and repair client mandates' },
   '/admin/interviews':         { title: 'Admin Interviews',    subtitle: 'Inspect and repair interview states' },
   '/admin/broken-states':      { title: 'Broken States',       subtitle: 'Detect and resolve inconsistent data' },
+  '/admin/organizations':      { title: 'Organizations',       subtitle: 'Manage tenant organizations' },
   '/admin/roles':              { title: 'Roles',               subtitle: 'Manage the role catalog for each company' },
   '/admin/users':              { title: 'Users',               subtitle: 'Create users and manage their role assignments' },
   '/admin/modules':            { title: 'Modules',             subtitle: 'The fixed catalog of gate-able feature areas' },

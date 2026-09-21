@@ -636,3 +636,17 @@ export const updatePermission = (id, data) =>
   request(`/api/permissions/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
 export const deletePermission = id => request(`/api/permissions/${id}`, { method: 'DELETE' })
 
+// Admin - Organizations module (the tenant/company entities themselves)
+export const getOrganizations = ({ page, pageSize, search } = {}) => {
+  const params = new URLSearchParams()
+  if (page) params.set('page', page)
+  if (pageSize) params.set('pageSize', pageSize)
+  if (search) params.set('search', search)
+  const query = params.toString()
+  return request(`/api/organizations${query ? `?${query}` : ''}`)
+}
+export const createOrganization = data => request('/api/organizations', { method: 'POST', body: JSON.stringify(data) })
+export const updateOrganization = (id, data) =>
+  request(`/api/organizations/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
+export const deleteOrganization = id => request(`/api/organizations/${id}`, { method: 'DELETE' })
+
