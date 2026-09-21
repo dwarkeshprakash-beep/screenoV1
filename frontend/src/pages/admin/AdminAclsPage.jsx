@@ -3,6 +3,7 @@
 // See docs/rbac-multi-tenant-plan.md.
 
 import { useState, useEffect } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { LockKeyhole } from 'lucide-react'
 import Spinner from '../../components/shared/Spinner'
 import ErrorMessage from '../../components/shared/ErrorMessage'
@@ -10,7 +11,6 @@ import EmptyState from '../../components/shared/EmptyState'
 import ConfirmDialog from '../../components/shared/ConfirmDialog'
 import Pagination from '../../components/shared/Pagination'
 import AclFormModal from '../../components/admin/AclFormModal'
-import AclPermissionsModal from '../../components/admin/AclPermissionsModal'
 import CompanyScopedToolbar from '../../components/admin/CompanyScopedToolbar'
 import AclsTable from '../../components/admin/AclsTable'
 import * as api from '../../services/api'
@@ -19,6 +19,8 @@ const DEFAULT_PAGE_SIZE = 10
 const SEARCH_DEBOUNCE_MS = 300
 
 function AdminAclsPage() {
+  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [companies, setCompanies] = useState([])
   const [companyId, setCompanyId] = useState(null)
   const [acls, setAcls] = useState([])
@@ -32,7 +34,6 @@ function AdminAclsPage() {
   const [formOpen, setFormOpen] = useState(false)
   const [editingAcl, setEditingAcl] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
-  const [permissionsTarget, setPermissionsTarget] = useState(null)
 
   useEffect(() => { loadCompanies() }, [])
   useEffect(() => { setPage(1); setSearchInput(''); setSearch('') }, [companyId])
@@ -52,7 +53,8 @@ function AdminAclsPage() {
       const res = await api.getAdminCompanies()
       const list = res.data || []
       setCompanies(list)
-      setCompanyId(list[0]?.id || null)
+      const requestedId = Number(searchParams.get('companyId'))
+      setCompanyId(list.some(c => c.id === requestedId) ? requestedId : (list[0]?.id || null))
     } catch {
       setError('Could not load companies. Please try again.')
       setLoading(false)
@@ -116,9 +118,9 @@ function AdminAclsPage() {
           <>
             <AclsTable
               acls={acls}
+              onView={acl => navigate(`/admin/acls/${acl.id}?companyId=${companyId}`)}
               onEdit={acl => { setEditingAcl(acl); setFormOpen(true) }}
               onDelete={acl => setDeleteTarget(acl)}
-              onManagePermissions={acl => setPermissionsTarget(acl)}
             />
             {pagination && (
               <Pagination
@@ -148,12 +150,6 @@ function AdminAclsPage() {
         message={`Delete the "${deleteTarget?.name}" ACL? This cannot be undone.`}
         confirmText="Delete"
         danger
-      />
-      <AclPermissionsModal
-        open={!!permissionsTarget}
-        companyId={companyId}
-        acl={permissionsTarget}
-        onClose={() => setPermissionsTarget(null)}
       />
     </div>
   )

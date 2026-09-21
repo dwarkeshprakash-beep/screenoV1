@@ -4,6 +4,9 @@
 // module - Roles, Users, ACLs - is scoped under). Validation only, no SQL here.
 
 const companyRepository = require('../repositories/company.repository')
+const userRepository = require('../repositories/user.repository')
+const roleRepository = require('../repositories/role.repository')
+const aclRepository = require('../repositories/acl.repository')
 const { resolvePagination, buildPaginationMeta } = require('../utils/pagination')
 const { toSearchPattern } = require('../utils/sql-search')
 
@@ -36,6 +39,18 @@ async function getOrganization(id) {
   return organization
 }
 
+// Per-tenant summary for the Organizations detail view - a dashboard-lite look at
+// how much of the RBAC surface (users/roles/ACLs) this company actually uses.
+async function getOrganizationSummary(id) {
+  const organization = await getOrganization(id)
+  const [userCount, roleCount, aclCount] = await Promise.all([
+    userRepository.countByCompany(id),
+    roleRepository.countByCompany(id),
+    aclRepository.countByCompany(id),
+  ])
+  return { organization, userCount, roleCount, aclCount }
+}
+
 async function createOrganization(input) {
   const { name, logoUrl } = validateOrganizationInput(input)
 
@@ -64,4 +79,7 @@ async function deleteOrganization(id) {
   if (!deleted) throw new Error('Organization not found')
 }
 
-module.exports = { listOrganizations, getOrganization, createOrganization, updateOrganization, deleteOrganization }
+module.exports = {
+  listOrganizations, getOrganization, getOrganizationSummary,
+  createOrganization, updateOrganization, deleteOrganization,
+}

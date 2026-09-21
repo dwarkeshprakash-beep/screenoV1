@@ -36,11 +36,16 @@ const AdminMandatesPage = lazy(() => import('./pages/admin/AdminMandatesPage'))
 const AdminInterviewsPage = lazy(() => import('./pages/admin/AdminInterviewsPage'))
 const AdminBrokenStatesPage = lazy(() => import('./pages/admin/AdminBrokenStatesPage'))
 const AdminRolesPage = lazy(() => import('./pages/admin/AdminRolesPage'))
+const RoleDetailPage = lazy(() => import('./pages/admin/RoleDetailPage'))
 const AdminUsersPage = lazy(() => import('./pages/admin/AdminUsersPage'))
+const UserDetailPage = lazy(() => import('./pages/admin/UserDetailPage'))
 const AdminModulesPage = lazy(() => import('./pages/admin/AdminModulesPage'))
 const AdminAclsPage = lazy(() => import('./pages/admin/AdminAclsPage'))
+const AclDetailPage = lazy(() => import('./pages/admin/AclDetailPage'))
 const AdminPermissionsPage = lazy(() => import('./pages/admin/AdminPermissionsPage'))
+const PermissionDetailPage = lazy(() => import('./pages/admin/PermissionDetailPage'))
 const AdminOrganizationsPage = lazy(() => import('./pages/admin/AdminOrganizationsPage'))
+const OrganizationDetailPage = lazy(() => import('./pages/admin/OrganizationDetailPage'))
 
 function AuthProvider({ children }) {
   const navigate = useNavigate()
@@ -182,11 +187,16 @@ function App() {
             <Route path="interviews" element={<AdminInterviewsPage />} />
             <Route path="broken-states" element={<AdminBrokenStatesPage />} />
             <Route path="organizations" element={<AdminOrganizationsPage />} />
+            <Route path="organizations/:id" element={<OrganizationDetailPage />} />
             <Route path="roles" element={<AdminRolesPage />} />
+            <Route path="roles/:id" element={<RoleDetailPage />} />
             <Route path="users" element={<AdminUsersPage />} />
+            <Route path="users/:id" element={<UserDetailPage />} />
             <Route path="modules" element={<AdminModulesPage />} />
             <Route path="acls" element={<AdminAclsPage />} />
+            <Route path="acls/:id" element={<AclDetailPage />} />
             <Route path="permissions" element={<AdminPermissionsPage />} />
+            <Route path="permissions/:id" element={<PermissionDetailPage />} />
             <Route path="profile" element={<ManagerProfilePage />} />
           </Route>
 

@@ -20,7 +20,23 @@ function validatePermissionInput({ name, description }) {
 }
 
 async function listPermissions() {
-  return permissionRepository.getAll()
+  const [permissions, counts] = await Promise.all([
+    permissionRepository.getAll(),
+    roleAclPermissionRepository.countRolesByPermission(),
+  ])
+  const roleCountByPermission = new Map(counts.map(c => [c.permission_id, Number(c.role_count)]))
+  return permissions.map(p => ({ ...p, roleCount: roleCountByPermission.get(p.id) || 0 }))
+}
+
+async function getPermission(id) {
+  const permission = await permissionRepository.getById(id)
+  if (!permission) throw new Error('Permission not found')
+  return permission
+}
+
+async function getPermissionGrants(id) {
+  await getPermission(id) // throws 'Permission not found' if it doesn't exist
+  return roleAclPermissionRepository.getRoleGrantsForPermission(id)
 }
 
 async function createPermission(input) {
@@ -51,4 +67,7 @@ async function deletePermission(id) {
   if (!deleted) throw new Error('Permission not found')
 }
 
-module.exports = { listPermissions, createPermission, updatePermission, deletePermission }
+module.exports = {
+  listPermissions, getPermission, getPermissionGrants,
+  createPermission, updatePermission, deletePermission,
+}

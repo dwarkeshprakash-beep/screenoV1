@@ -3,6 +3,8 @@
 // See docs/rbac-multi-tenant-plan.md for the full RBAC design this feeds into.
 
 const roleRepository = require('../repositories/role.repository')
+const userRoleRepository = require('../repositories/user-role.repository')
+const roleAclPermissionRepository = require('../repositories/role-acl-permission.repository')
 const { resolvePagination, buildPaginationMeta } = require('../utils/pagination')
 const { toSearchPattern } = require('../utils/sql-search')
 
@@ -36,6 +38,13 @@ async function getRole(companyId, id) {
   return role
 }
 
+async function getRoleUsers(companyId, id, { page, pageSize } = {}) {
+  await getRole(companyId, id) // confirms the role belongs to this company
+  const resolved = resolvePagination({ page, pageSize })
+  const { rows, total } = await userRoleRepository.getUsersForRole(id, { limit: resolved.pageSize, offset: resolved.offset })
+  return { data: rows, pagination: buildPaginationMeta({ ...resolved, total }) }
+}
+
 async function createRole(companyId, input) {
   const { name, description } = validateRoleInput(input)
 
@@ -57,11 +66,14 @@ async function updateRole(companyId, id, input) {
 }
 
 async function deleteRole(companyId, id) {
-  // NOTE: once roles can be assigned to users (user_roles) and ACLs (role_acl_permissions),
-  // this needs a guard against deleting a role that's still in use. Not needed yet - those
-  // tables don't exist until later steps of docs/rbac-multi-tenant-plan.md.
+  const assignedToUsers = await userRoleRepository.existsForRole(id)
+  if (assignedToUsers) throw new Error('Cannot delete this role - it is assigned to one or more users')
+
+  const grantedOnAcls = await roleAclPermissionRepository.existsForRole(id)
+  if (grantedOnAcls) throw new Error('Cannot delete this role - it has permissions granted on one or more ACLs')
+
   const deleted = await roleRepository.remove(id, companyId)
   if (!deleted) throw new Error('Role not found')
 }
 
-module.exports = { listRoles, getRole, createRole, updateRole, deleteRole }
+module.exports = { listRoles, getRole, getRoleUsers, createRole, updateRole, deleteRole }

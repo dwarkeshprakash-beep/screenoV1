@@ -40,6 +40,24 @@ router.get('/', async (req, res) => {
   }
 })
 
+router.get('/:id', async (req, res) => {
+  try {
+    const permission = await permissionService.getPermission(Number(req.params.id))
+    res.json({ success: true, data: permission })
+  } catch (err) {
+    sendPermissionError(res, err, 'Could not load permission')
+  }
+})
+
+router.get('/:id/roles', async (req, res) => {
+  try {
+    const data = await permissionService.getPermissionGrants(Number(req.params.id))
+    res.json({ success: true, data })
+  } catch (err) {
+    sendPermissionError(res, err, 'Could not load roles for this permission')
+  }
+})
+
 router.post('/', async (req, res) => {
   try {
     const permission = await permissionService.createPermission(req.body)

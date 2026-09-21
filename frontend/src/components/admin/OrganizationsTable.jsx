@@ -3,7 +3,7 @@
 import { Pencil, Trash2 } from 'lucide-react'
 import { formatDate } from '../../utils/helpers'
 
-function OrganizationsTable({ organizations, onEdit, onDelete }) {
+function OrganizationsTable({ organizations, onView, onEdit, onDelete }) {
   const thStyle = {
     textAlign: 'left', padding: '12px 20px', fontSize: 11, fontWeight: 600, letterSpacing: '0.08em',
     textTransform: 'uppercase', color: 'var(--fg-subtle)', borderBottom: '1px solid var(--border-default)',
@@ -24,7 +24,13 @@ function OrganizationsTable({ organizations, onEdit, onDelete }) {
         </thead>
         <tbody>
           {organizations.map(org => (
-            <tr key={org.id} style={{ transition: 'background 120ms' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface-alt)'} onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-surface)'}>
+            <tr
+              key={org.id}
+              style={{ transition: 'background 120ms', cursor: 'pointer' }}
+              onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface-alt)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-surface)'}
+              onClick={() => onView(org)}
+            >
               <td style={{ ...tdStyle, fontWeight: 600, color: 'var(--fg-primary)' }}>{org.name}</td>
               <td style={tdStyle}>
                 {org.logo_url ? (
@@ -36,10 +42,10 @@ function OrganizationsTable({ organizations, onEdit, onDelete }) {
               <td style={{ ...tdStyle, color: 'var(--fg-muted)' }}>{formatDate(org.created)}</td>
               <td style={tdStyle}>
                 <div style={{ display: 'flex', gap: 6 }}>
-                  <button type="button" style={iconBtnStyle} onClick={() => onEdit(org)} aria-label="Edit organization">
+                  <button type="button" style={iconBtnStyle} onClick={e => { e.stopPropagation(); onEdit(org) }} aria-label="Edit organization">
                     <Pencil size={13} />
                   </button>
-                  <button type="button" style={{ ...iconBtnStyle, color: 'var(--danger-500)' }} onClick={() => onDelete(org)} aria-label="Delete organization">
+                  <button type="button" style={{ ...iconBtnStyle, color: 'var(--danger-500)' }} onClick={e => { e.stopPropagation(); onDelete(org) }} aria-label="Delete organization">
                     <Trash2 size={13} />
                   </button>
                 </div>

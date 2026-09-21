@@ -358,6 +358,11 @@ async function createMinimal(companyId, { firstName, lastName, email, passwordHa
   return rows[0] || null
 }
 
+async function countByCompany(companyId) {
+  const rows = await db.query(`SELECT COUNT(*) AS count FROM users WHERE company_id = @companyId`, { companyId })
+  return Number(rows[0].count)
+}
+
 async function getOrganizationMemberProfile(userId, companyId) {
   const rows = await db.query(
     `SELECT u.id, u.company_id, u.first_name, u.last_name, u.email, u.role,
@@ -377,5 +382,5 @@ module.exports = {
   getByEmail, getByEmailForCompany, getById, getByIdWithPassword, getNotInTeam,
   getByRole, getByCompany, getByCompanyPage, getByIdForCompany, getByIdsForCompany,
   updateProfile, updatePassword, updateOrgProfile, updateBasicInfo, remove, hasBlockingReferences,
-  bulkUpsert, createMinimal, getOrganizationMemberProfile
+  bulkUpsert, createMinimal, getOrganizationMemberProfile, countByCompany
 }

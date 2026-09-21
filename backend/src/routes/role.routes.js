@@ -20,7 +20,9 @@ function sendRoleError(res, err, fallback) {
     return res.status(404).json({ success: false, error: err.message })
   }
   if (['Role name is required', 'Role name is too long', 'Role description is too long',
-    'A role with this name already exists'].includes(err.message)) {
+    'A role with this name already exists',
+    'Cannot delete this role - it is assigned to one or more users',
+    'Cannot delete this role - it has permissions granted on one or more ACLs'].includes(err.message)) {
     return res.status(400).json({ success: false, error: err.message })
   }
   return res.status(500).json({ success: false, error: fallback })
@@ -50,6 +52,20 @@ router.get('/:id', async (req, res) => {
     res.json({ success: true, data: role })
   } catch (err) {
     sendRoleError(res, err, 'Could not load role')
+  }
+})
+
+router.get('/:id/users', async (req, res) => {
+  const companyId = parseCompanyId(req.query.companyId)
+  if (!companyId) return res.status(400).json({ success: false, error: 'companyId is required' })
+
+  try {
+    const { data, pagination } = await roleService.getRoleUsers(companyId, Number(req.params.id), {
+      page: req.query.page, pageSize: req.query.pageSize,
+    })
+    res.json({ success: true, data, pagination })
+  } catch (err) {
+    sendRoleError(res, err, 'Could not load users for this role')
   }
 })
 

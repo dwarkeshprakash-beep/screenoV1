@@ -53,6 +53,30 @@ router.get('/', async (req, res) => {
   }
 })
 
+router.get('/:id', async (req, res) => {
+  const companyId = parseCompanyId(req.query.companyId)
+  if (!companyId) return res.status(400).json({ success: false, error: 'companyId is required' })
+
+  try {
+    const user = await userService.getUser(companyId, Number(req.params.id))
+    res.json({ success: true, data: user })
+  } catch (err) {
+    sendUserError(res, err, 'Could not load user')
+  }
+})
+
+router.get('/:id/access', async (req, res) => {
+  const companyId = parseCompanyId(req.query.companyId)
+  if (!companyId) return res.status(400).json({ success: false, error: 'companyId is required' })
+
+  try {
+    const data = await userService.getUserAccess(companyId, Number(req.params.id))
+    res.json({ success: true, data })
+  } catch (err) {
+    sendUserError(res, err, 'Could not load user access')
+  }
+})
+
 router.post('/', async (req, res) => {
   const companyId = parseCompanyId(req.body.companyId)
   if (!companyId) return res.status(400).json({ success: false, error: 'companyId is required' })

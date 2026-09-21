@@ -3,6 +3,7 @@
 // search, same pattern as Roles/Users.
 
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Building2, Search } from 'lucide-react'
 import Spinner from '../../components/shared/Spinner'
 import ErrorMessage from '../../components/shared/ErrorMessage'
@@ -17,6 +18,7 @@ const DEFAULT_PAGE_SIZE = 10
 const SEARCH_DEBOUNCE_MS = 300
 
 function AdminOrganizationsPage() {
+  const navigate = useNavigate()
   const [organizations, setOrganizations] = useState([])
   const [pagination, setPagination] = useState(null)
   const [page, setPage] = useState(1)
@@ -126,6 +128,7 @@ function AdminOrganizationsPage() {
           <>
             <OrganizationsTable
               organizations={organizations}
+              onView={org => navigate(`/admin/organizations/${org.id}`)}
               onEdit={org => { setEditingOrg(org); setFormOpen(true) }}
               onDelete={org => setDeleteTarget(org)}
             />

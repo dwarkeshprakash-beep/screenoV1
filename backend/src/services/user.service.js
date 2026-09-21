@@ -7,6 +7,7 @@ const bcrypt = require('bcryptjs')
 const userRepository = require('../repositories/user.repository')
 const userRoleRepository = require('../repositories/user-role.repository')
 const roleRepository = require('../repositories/role.repository')
+const roleAclPermissionRepository = require('../repositories/role-acl-permission.repository')
 const emailOutboxRepository = require('../repositories/email-outbox.repository')
 const { resolvePagination, buildPaginationMeta } = require('../utils/pagination')
 const { toSearchPattern } = require('../utils/sql-search')
@@ -70,6 +71,31 @@ async function getUser(companyId, id) {
   return { ...user, roles }
 }
 
+// What this user can actually do, derived from their roles - grouped by ACL so
+// the detail page can show "Module / ACL -> [permissions]" instead of a flat list.
+async function getUserAccess(companyId, id) {
+  const user = await getUser(companyId, id)
+  const roleIds = user.roles.map(r => r.id)
+  const grants = await roleAclPermissionRepository.getGrantsForRoles(roleIds)
+
+  const aclsById = new Map()
+  for (const grant of grants) {
+    if (!aclsById.has(grant.acl_id)) {
+      aclsById.set(grant.acl_id, {
+        aclId: grant.acl_id, aclName: grant.acl_name, moduleName: grant.module_name, permissionsById: new Map(),
+      })
+    }
+    aclsById.get(grant.acl_id).permissionsById.set(grant.permission_id, grant.permission_name)
+  }
+
+  const access = [...aclsById.values()].map(({ aclId, aclName, moduleName, permissionsById }) => ({
+    aclId, aclName, moduleName,
+    permissions: [...permissionsById.entries()].map(([id, name]) => ({ id, name })),
+  }))
+
+  return { user, access }
+}
+
 async function createUser(companyId, input) {
   const { firstName, lastName, email } = validateBasicInfo(input)
   const roleIds = await resolveRoleIds(companyId, input.roleIds)
@@ -122,4 +148,4 @@ async function deleteUser(companyId, id) {
   if (!deleted) throw new Error('User not found')
 }
 
-module.exports = { listUsers, getUser, createUser, updateUser, deleteUser }
+module.exports = { listUsers, getUser, getUserAccess, createUser, updateUser, deleteUser }

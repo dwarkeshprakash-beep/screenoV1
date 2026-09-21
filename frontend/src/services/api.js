@@ -587,6 +587,13 @@ export const getRoles = (companyId, { page, pageSize, search } = {}) => {
   if (search) params.set('search', search)
   return request(`/api/roles?${params.toString()}`)
 }
+export const getRole = (id, companyId) => request(`/api/roles/${id}?companyId=${companyId}`)
+export const getRoleUsers = (id, companyId, { page, pageSize } = {}) => {
+  const params = new URLSearchParams({ companyId })
+  if (page) params.set('page', page)
+  if (pageSize) params.set('pageSize', pageSize)
+  return request(`/api/roles/${id}/users?${params.toString()}`)
+}
 export const createRole = data => request('/api/roles', { method: 'POST', body: JSON.stringify(data) })
 export const updateRole = (id, data) =>
   request(`/api/roles/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
@@ -604,6 +611,8 @@ export const getUsers = (companyId, { page, pageSize, search } = {}) => {
   if (search) params.set('search', search)
   return request(`/api/users?${params.toString()}`)
 }
+export const getUser = (id, companyId) => request(`/api/users/${id}?companyId=${companyId}`)
+export const getUserAccess = (id, companyId) => request(`/api/users/${id}/access?companyId=${companyId}`)
 export const createUser = data => request('/api/users', { method: 'POST', body: JSON.stringify(data) })
 export const updateUser = (id, data) =>
   request(`/api/users/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
@@ -618,6 +627,7 @@ export const getAcls = (companyId, { page, pageSize, search } = {}) => {
   if (search) params.set('search', search)
   return request(`/api/acls?${params.toString()}`)
 }
+export const getAcl = (id, companyId) => request(`/api/acls/${id}?companyId=${companyId}`)
 export const getAclModuleOptions = companyId => request(`/api/acls/modules?companyId=${companyId}`)
 export const createAcl = data => request('/api/acls', { method: 'POST', body: JSON.stringify(data) })
 export const updateAcl = (id, data) =>
@@ -631,6 +641,8 @@ export const updateAclPermissions = (id, companyId, grants) =>
 
 // Admin - Permissions module (global catalog of grantable actions, not per-company)
 export const getPermissions = () => request('/api/permissions')
+export const getPermission = id => request(`/api/permissions/${id}`)
+export const getPermissionRoles = id => request(`/api/permissions/${id}/roles`)
 export const createPermission = data => request('/api/permissions', { method: 'POST', body: JSON.stringify(data) })
 export const updatePermission = (id, data) =>
   request(`/api/permissions/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
@@ -645,6 +657,7 @@ export const getOrganizations = ({ page, pageSize, search } = {}) => {
   const query = params.toString()
   return request(`/api/organizations${query ? `?${query}` : ''}`)
 }
+export const getOrganizationSummary = id => request(`/api/organizations/${id}/summary`)
 export const createOrganization = data => request('/api/organizations', { method: 'POST', body: JSON.stringify(data) })
 export const updateOrganization = (id, data) =>
   request(`/api/organizations/${id}`, { method: 'PATCH', body: JSON.stringify(data) })

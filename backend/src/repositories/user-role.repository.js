@@ -36,4 +36,27 @@ async function replaceForUser(userId, roleIds) {
   })
 }
 
-module.exports = { getRolesForUser, getRolesForCompanyUsers, replaceForUser }
+async function getUsersForRole(roleId, { limit, offset }) {
+  const rows = await db.query(
+    `SELECT u.id, u.first_name, u.last_name, u.email, u.role AS system_role,
+            COUNT(*) OVER() AS total_count
+     FROM user_roles ur
+     JOIN users u ON u.id = ur.user_id
+     WHERE ur.role_id = @roleId
+     ORDER BY u.first_name, u.last_name
+     LIMIT @limit OFFSET @offset`,
+    { roleId, limit, offset }
+  )
+  const total = rows[0] ? Number(rows[0].total_count) : 0
+  return { rows: rows.map(({ total_count, ...rest }) => rest), total }
+}
+
+async function existsForRole(roleId) {
+  const rows = await db.query(
+    `SELECT user_id FROM user_roles WHERE role_id = @roleId LIMIT 1`,
+    { roleId }
+  )
+  return rows.length > 0
+}
+
+module.exports = { getRolesForUser, getRolesForCompanyUsers, replaceForUser, getUsersForRole, existsForRole }

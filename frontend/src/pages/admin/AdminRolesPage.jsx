@@ -3,6 +3,7 @@
 // must be picked before the role list/actions are usable. See docs/rbac-multi-tenant-plan.md.
 
 import { useState, useEffect } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { ShieldPlus } from 'lucide-react'
 import Spinner from '../../components/shared/Spinner'
 import ErrorMessage from '../../components/shared/ErrorMessage'
@@ -18,6 +19,8 @@ const DEFAULT_PAGE_SIZE = 10
 const SEARCH_DEBOUNCE_MS = 300
 
 function AdminRolesPage() {
+  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [companies, setCompanies] = useState([])
   const [companyId, setCompanyId] = useState(null)
   const [roles, setRoles] = useState([])
@@ -50,7 +53,8 @@ function AdminRolesPage() {
       const res = await api.getAdminCompanies()
       const list = res.data || []
       setCompanies(list)
-      setCompanyId(list[0]?.id || null)
+      const requestedId = Number(searchParams.get('companyId'))
+      setCompanyId(list.some(c => c.id === requestedId) ? requestedId : (list[0]?.id || null))
     } catch {
       setError('Could not load companies. Please try again.')
       setLoading(false)
@@ -114,6 +118,7 @@ function AdminRolesPage() {
           <>
             <RolesTable
               roles={roles}
+              onView={role => navigate(`/admin/roles/${role.id}?companyId=${companyId}`)}
               onEdit={role => { setEditingRole(role); setFormOpen(true) }}
               onDelete={role => setDeleteTarget(role)}
             />

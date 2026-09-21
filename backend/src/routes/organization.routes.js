@@ -51,6 +51,15 @@ router.get('/:id', async (req, res) => {
   }
 })
 
+router.get('/:id/summary', async (req, res) => {
+  try {
+    const summary = await organizationService.getOrganizationSummary(Number(req.params.id))
+    res.json({ success: true, data: summary })
+  } catch (err) {
+    sendOrganizationError(res, err, 'Could not load organization summary')
+  }
+})
+
 router.post('/', async (req, res) => {
   try {
     const organization = await organizationService.createOrganization(req.body)

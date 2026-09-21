@@ -2,6 +2,7 @@
 // and manages their legacy role plus RBAC role assignments. See docs/rbac-multi-tenant-plan.md.
 
 import { useState, useEffect } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { UserPlus } from 'lucide-react'
 import Spinner from '../../components/shared/Spinner'
 import ErrorMessage from '../../components/shared/ErrorMessage'
@@ -17,6 +18,8 @@ const DEFAULT_PAGE_SIZE = 10
 const SEARCH_DEBOUNCE_MS = 300
 
 function AdminUsersPage() {
+  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [companies, setCompanies] = useState([])
   const [companyId, setCompanyId] = useState(null)
   const [users, setUsers] = useState([])
@@ -51,7 +54,8 @@ function AdminUsersPage() {
       const res = await api.getAdminCompanies()
       const list = res.data || []
       setCompanies(list)
-      setCompanyId(list[0]?.id || null)
+      const requestedId = Number(searchParams.get('companyId'))
+      setCompanyId(list.some(c => c.id === requestedId) ? requestedId : (list[0]?.id || null))
     } catch {
       setError('Could not load companies. Please try again.')
       setLoading(false)
@@ -128,6 +132,7 @@ function AdminUsersPage() {
           <>
             <UsersTable
               users={users}
+              onView={u => navigate(`/admin/users/${u.id}?companyId=${companyId}`)}
               onEdit={u => { setEditingUser(u); setFormOpen(true) }}
               onDelete={u => { setDeleteTarget(u); setActionError(null) }}
             />

@@ -3,7 +3,7 @@
 import { Pencil, Trash2 } from 'lucide-react'
 import Badge from '../shared/Badge'
 
-function UsersTable({ users, onEdit, onDelete }) {
+function UsersTable({ users, onView, onEdit, onDelete }) {
   const thStyle = {
     textAlign: 'left', padding: '12px 20px', fontSize: 11, fontWeight: 600, letterSpacing: '0.08em',
     textTransform: 'uppercase', color: 'var(--fg-subtle)', borderBottom: '1px solid var(--border-default)',
@@ -24,7 +24,13 @@ function UsersTable({ users, onEdit, onDelete }) {
         </thead>
         <tbody>
           {users.map(u => (
-            <tr key={u.id} style={{ transition: 'background 120ms' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface-alt)'} onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-surface)'}>
+            <tr
+              key={u.id}
+              style={{ transition: 'background 120ms', cursor: 'pointer' }}
+              onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface-alt)'}
+              onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-surface)'}
+              onClick={() => onView(u)}
+            >
               <td style={{ ...tdStyle, fontWeight: 600, color: 'var(--fg-primary)' }}>{u.first_name} {u.last_name}</td>
               <td style={{ ...tdStyle, color: 'var(--fg-muted)' }}>{u.email}</td>
               <td style={tdStyle}>
@@ -38,10 +44,10 @@ function UsersTable({ users, onEdit, onDelete }) {
               </td>
               <td style={tdStyle}>
                 <div style={{ display: 'flex', gap: 6 }}>
-                  <button type="button" style={iconBtnStyle} onClick={() => onEdit(u)} aria-label="Edit user">
+                  <button type="button" style={iconBtnStyle} onClick={e => { e.stopPropagation(); onEdit(u) }} aria-label="Edit user">
                     <Pencil size={13} />
                   </button>
-                  <button type="button" style={{ ...iconBtnStyle, color: 'var(--danger-500)' }} onClick={() => onDelete(u)} aria-label="Delete user">
+                  <button type="button" style={{ ...iconBtnStyle, color: 'var(--danger-500)' }} onClick={e => { e.stopPropagation(); onDelete(u) }} aria-label="Delete user">
                     <Trash2 size={13} />
                   </button>
                 </div>

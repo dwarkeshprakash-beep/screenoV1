@@ -3,6 +3,7 @@
 // you grant to a role. See docs/rbac-multi-tenant-plan.md.
 
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { KeyRound } from 'lucide-react'
 import Spinner from '../../components/shared/Spinner'
 import ErrorMessage from '../../components/shared/ErrorMessage'
@@ -13,6 +14,7 @@ import PermissionsTable from '../../components/admin/PermissionsTable'
 import * as api from '../../services/api'
 
 function AdminPermissionsPage() {
+  const navigate = useNavigate()
   const [permissions, setPermissions] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -77,6 +79,7 @@ function AdminPermissionsPage() {
         ) : (
           <PermissionsTable
             permissions={permissions}
+            onView={permission => navigate(`/admin/permissions/${permission.id}`)}
             onEdit={permission => { setEditingPermission(permission); setFormOpen(true) }}
             onDelete={permission => setDeleteTarget(permission)}
           />

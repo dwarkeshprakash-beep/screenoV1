@@ -84,4 +84,11 @@ async function remove(id, companyId) {
   return rows.length > 0
 }
 
-module.exports = { getByCompany, getByCompanyPage, getById, getByName, getByIds, create, update, remove }
+async function countByCompany(companyId) {
+  const rows = await db.query(`SELECT COUNT(*) AS count FROM roles WHERE company_id = @companyId`, { companyId })
+  return Number(rows[0].count)
+}
+
+module.exports = {
+  getByCompany, getByCompanyPage, getById, getByName, getByIds, create, update, remove, countByCompany,
+}
