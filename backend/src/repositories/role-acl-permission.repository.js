@@ -13,19 +13,28 @@ async function getGrantsForAcl(aclId) {
 
 // grants: [{ roleId, permissionIds: [1, 2, ...] }] - replaces the ACL's entire
 // grant set in one transaction (same delete-then-reinsert pattern as
-// user-role.repository.js's replaceForUser).
+// user-role.repository.js's replaceForUser). Flattened to a pair of parallel
+// arrays and inserted in one round trip via unnest() instead of one INSERT per
+// (role, permission) pair.
 async function replaceGrantsForAcl(companyId, aclId, grants) {
+  const roleIds = []
+  const permissionIds = []
+  for (const { roleId, permissionIds: grantedPermissionIds } of grants) {
+    for (const permissionId of grantedPermissionIds) {
+      roleIds.push(roleId)
+      permissionIds.push(permissionId)
+    }
+  }
+
   await db.transaction(async (tx) => {
     await tx.query(`DELETE FROM role_acl_permissions WHERE acl_id = @aclId`, { aclId })
-    for (const { roleId, permissionIds } of grants) {
-      for (const permissionId of permissionIds) {
-        await tx.query(
-          `INSERT INTO role_acl_permissions (company_id, role_id, acl_id, permission_id)
-           VALUES (@companyId, @roleId, @aclId, @permissionId)`,
-          { companyId, roleId, aclId, permissionId }
-        )
-      }
-    }
+    if (roleIds.length === 0) return
+    await tx.query(
+      `INSERT INTO role_acl_permissions (company_id, role_id, acl_id, permission_id)
+       SELECT @companyId, pair.role_id, @aclId, pair.permission_id
+       FROM unnest(@roleIds::int[], @permissionIds::int[]) AS pair(role_id, permission_id)`,
+      { companyId, aclId, roleIds, permissionIds }
+    )
   })
 }
 

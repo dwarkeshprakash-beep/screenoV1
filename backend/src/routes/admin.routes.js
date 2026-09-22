@@ -2,17 +2,12 @@
 // Admin-only system inspection and emergency controls.
 
 const express = require('express')
-const bcrypt = require('bcryptjs')
-const crypto = require('crypto')
 const authMiddleware = require('../middleware/auth')
 const { loadAccess, requirePlatformAdmin } = require('../middleware/access')
 const accessService = require('../services/access.service')
 const mandateLifecycleService = require('../services/mandate-lifecycle.service')
+const userService = require('../services/user.service')
 const companyRepository = require('../repositories/company.repository')
-const userRepository = require('../repositories/user.repository')
-const roleRepository = require('../repositories/role.repository')
-const userRoleRepository = require('../repositories/user-role.repository')
-const authService = require('../services/auth.service')
 const db = require('../db/connection')
 
 const router = express.Router()
@@ -88,54 +83,31 @@ router.patch('/mandates/:id/reassign', async (req, res) => {
   }
 })
 
-router.get('/companies', async (req, res) => {
-  try {
-    const companies = await companyRepository.getAll()
-    res.json({ success: true, data: companies })
-  } catch (err) {
-    console.error('[Admin] GET /companies failed:', err.message)
-    res.status(500).json({ success: false, error: 'Could not load companies' })
-  }
-})
+const BDE_USER_ERROR_STATUS = {
+  'email is required': 400,
+  'Company not found': 404,
+  'A user with this email already exists in that company': 409,
+  'This company has no BDE-portal role yet - create one in the Roles module first': 400,
+  'Could not create user - email may already be in use': 409,
+}
 
 router.post('/users/bde', async (req, res) => {
   try {
     const companyId = parseInt(req.body.companyId, 10)
-    const email = String(req.body.email || '').trim().toLowerCase()
     if (!Number.isInteger(companyId)) {
       return res.status(400).json({ success: false, error: 'companyId is required' })
     }
-    if (!email) {
-      return res.status(400).json({ success: false, error: 'email is required' })
-    }
 
-    const company = await companyRepository.getById(companyId)
-    if (!company) return res.status(404).json({ success: false, error: 'Company not found' })
-
-    const existing = await userRepository.getByEmailForCompany(email, companyId)
-    if (existing) return res.status(409).json({ success: false, error: 'A user with this email already exists in that company' })
-
-    // Portal is now assigned via a role (see roles.portal), not a users.role column -
-    // this company needs at least one BDE-portal role already set up in the Roles module.
-    const bdeRoles = await roleRepository.getByPortal(companyId, 'bde')
-    if (bdeRoles.length === 0) {
-      return res.status(400).json({ success: false, error: 'This company has no BDE-portal role yet - create one in the Roles module first' })
-    }
-
-    const tempPasswordHash = await bcrypt.hash('TEMP_' + crypto.randomBytes(8).toString('hex'), 10)
-    const created = await userRepository.createMinimal(companyId, {
-      firstName:    req.body.firstName,
-      lastName:     req.body.lastName,
-      email,
-      passwordHash: tempPasswordHash,
+    const created = await userService.createBdeUser(companyId, {
+      email: req.body.email,
+      firstName: req.body.firstName,
+      lastName: req.body.lastName,
     })
-    if (!created) return res.status(409).json({ success: false, error: 'Could not create user - email may already be in use' })
-
-    await userRoleRepository.replaceForUser(created.id, [bdeRoles[0].id])
-    await authService.requestPasswordReset(email)
-    res.status(201).json({ success: true, data: { id: created.id, email } })
+    res.status(201).json({ success: true, data: created })
   } catch (err) {
     console.error('[Admin] POST /users/bde failed:', err.message)
+    const status = BDE_USER_ERROR_STATUS[err.message]
+    if (status) return res.status(status).json({ success: false, error: err.message })
     res.status(500).json({ success: false, error: 'Could not create BDE user' })
   }
 })

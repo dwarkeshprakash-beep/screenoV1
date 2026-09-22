@@ -40,7 +40,9 @@ router.post('/login', async (req, res) => {
   } catch (err) {
     console.error('POST /auth/login failed:', err)
     if (err.message === 'Your account has no portal access assigned yet. Contact your administrator.') {
-      return res.status(403).json({ success: false, error: err.message })
+      // Same NO_PORTAL_ACCESS code /refresh uses for the same condition, so the
+      // frontend can branch on a stable code instead of matching message text.
+      return res.status(403).json({ success: false, error: err.message, code: 'NO_PORTAL_ACCESS' })
     }
     const unavailableCodes = ['ENOTFOUND', 'EAI_AGAIN', 'ECONNRESET', 'ETIMEDOUT']
     if (unavailableCodes.includes(err.code)) {
@@ -79,12 +81,20 @@ router.post('/refresh', async (req, res) => {
       'Refresh token expired',
       'Token reuse detected',
       'User not found',
+      // An admin can revoke a user's last role while they're mid-session - the next
+      // silent refresh must log them out cleanly, not surface a retry-able 503.
+      'Your account has no portal access assigned yet',
     ]
     const isSessionError = sessionErrors.some(message => err.message.includes(message))
     if (isSessionError) {
       res.clearCookie(COOKIE_NAME, getRefreshCookieOptions(req, { clear: true }))
-      const errCode = err.message.includes('reuse') ? 'TOKEN_REUSE' : 'SESSION_EXPIRED'
-      return res.status(401).json({ success: false, error: errCode, message: 'Session expired. Please log in again.' })
+      const errCode = err.message.includes('reuse')
+        ? 'TOKEN_REUSE'
+        : err.message.includes('portal access')
+          ? 'NO_PORTAL_ACCESS'
+          : 'SESSION_EXPIRED'
+      const message = errCode === 'NO_PORTAL_ACCESS' ? err.message : 'Session expired. Please log in again.'
+      return res.status(401).json({ success: false, error: errCode, message })
     }
     res.status(503).json({
       success: false,

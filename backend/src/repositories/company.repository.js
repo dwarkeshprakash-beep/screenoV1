@@ -1,4 +1,5 @@
 const db = require('../db/connection')
+const { extractPage } = require('../utils/pagination')
 
 async function getById(id) {
   const rows = await db.query(`SELECT * FROM companies WHERE id = @id`, { id })
@@ -18,8 +19,7 @@ async function getByPage({ limit, offset, searchPattern }) {
      LIMIT @limit OFFSET @offset`,
     { limit, offset, searchPattern: searchPattern || null }
   )
-  const total = rows[0] ? Number(rows[0].total_count) : 0
-  return { rows: rows.map(({ total_count, ...rest }) => rest), total }
+  return extractPage(rows)
 }
 
 async function getByName(name) {

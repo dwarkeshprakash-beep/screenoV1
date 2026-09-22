@@ -2,6 +2,7 @@
 // SQL only - roles table, scoped by company_id. See docs/rbac-multi-tenant-plan.md.
 
 const db = require('../db/connection')
+const { extractPage } = require('../utils/pagination')
 
 async function getByCompany(companyId) {
   return db.query(
@@ -64,8 +65,7 @@ async function getByCompanyPage(companyId, { limit, offset, searchPattern }) {
      LIMIT @limit OFFSET @offset`,
     { companyId, limit, offset, searchPattern: searchPattern || null }
   )
-  const total = rows[0] ? Number(rows[0].total_count) : 0
-  return { rows: rows.map(({ total_count, ...rest }) => rest), total }
+  return extractPage(rows)
 }
 
 async function getByPortal(companyId, portal) {
@@ -81,7 +81,7 @@ async function getByPortal(companyId, portal) {
 async function getByIds(ids, companyId) {
   if (!Array.isArray(ids) || ids.length === 0) return []
   return db.query(
-    `SELECT id FROM roles WHERE company_id = @companyId AND id = ANY(@ids)`,
+    `SELECT id, portal FROM roles WHERE company_id = @companyId AND id = ANY(@ids)`,
     { companyId, ids }
   )
 }

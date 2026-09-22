@@ -1,5 +1,6 @@
 // backend/src/repositories/user.repository.js
 const db = require('../db/connection')
+const { extractPage } = require('../utils/pagination')
 
 async function getByEmail(email) {
   const rows = await db.query(
@@ -155,8 +156,7 @@ async function getByCompanyPage(companyId, { limit, offset, searchPattern }) {
      LIMIT @limit OFFSET @offset`,
     { companyId, limit, offset, searchPattern: searchPattern || null }
   )
-  const total = rows[0] ? Number(rows[0].total_count) : 0
-  return { rows: rows.map(({ total_count, ...rest }) => rest), total }
+  return extractPage(rows)
 }
 
 async function updateBasicInfo(id, companyId, { firstName, lastName, email }) {
@@ -217,7 +217,7 @@ async function getByIdsForCompany(ids, companyId) {
   )
 }
 
-async function bulkUpsert(rows, companyId, managerId, tempPasswordHash) {
+async function bulkUpsert(rows, companyId, managerId, tempPasswordHash, candidateRoleId) {
   let inserted = 0
   let updated = 0
   const errors = []
@@ -281,6 +281,13 @@ async function bulkUpsert(rows, companyId, managerId, tempPasswordHash) {
           )
           userId = created[0].id
           inserted += 1
+
+          // New user has no role yet - without one, access.service.js resolves no
+          // portal and they can never log in (see team.service.js#importFromCSV).
+          await tx.query(
+            `INSERT INTO user_roles (user_id, role_id) VALUES (@userId, @roleId)`,
+            { userId, roleId: candidateRoleId }
+          )
         }
 
         await tx.query(

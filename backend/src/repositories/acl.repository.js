@@ -3,6 +3,7 @@
 // See docs/rbac-multi-tenant-plan.md.
 
 const db = require('../db/connection')
+const { extractPage } = require('../utils/pagination')
 
 async function getByCompany(companyId) {
   return db.query(
@@ -28,8 +29,7 @@ async function getByCompanyPage(companyId, { limit, offset, searchPattern }) {
      LIMIT @limit OFFSET @offset`,
     { companyId, limit, offset, searchPattern: searchPattern || null }
   )
-  const total = rows[0] ? Number(rows[0].total_count) : 0
-  return { rows: rows.map(({ total_count, ...rest }) => rest), total }
+  return extractPage(rows)
 }
 
 async function getById(id, companyId) {

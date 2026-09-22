@@ -2,10 +2,11 @@
 // Same modal handles both: pass `role` to edit, omit it to create.
 
 import { useState, useEffect } from 'react'
-import { ChevronDown } from 'lucide-react'
 import Modal from '../shared/Modal'
-import Button from '../shared/Button'
 import Input from '../shared/Input'
+import Select from '../shared/Select'
+import FormActions from '../shared/FormActions'
+import FormError from '../shared/FormError'
 import * as api from '../../services/api'
 
 const PORTAL_OPTIONS = [
@@ -48,13 +49,6 @@ function RoleFormModal({ open, onClose, companyId, role, onDone }) {
     }
   }
 
-  const selectStyle = {
-    appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'none',
-    padding: '10px 32px 10px 12px', fontSize: 14, border: '1px solid var(--border-default)',
-    borderRadius: 'var(--radius-md)', background: 'var(--bg-surface)', color: 'var(--fg-primary)',
-    width: '100%', fontFamily: 'inherit', cursor: 'pointer',
-  }
-
   return (
     <Modal open={open} onClose={onClose} title={isEdit ? 'Edit Role' : 'Add Role'} size="sm">
       <form onSubmit={handleSubmit}>
@@ -66,34 +60,23 @@ function RoleFormModal({ open, onClose, companyId, role, onDone }) {
             onChange={e => setName(e.target.value)}
             placeholder="e.g. Manager"
           />
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <label style={{ fontSize: 13, fontWeight: 500, color: 'var(--fg-primary)' }}>
-              Portal<span style={{ color: 'var(--danger-500)', marginLeft: 2 }}>*</span>
-            </label>
-            <div style={{ position: 'relative' }}>
-              <select required value={portal} onChange={e => setPortal(e.target.value)} style={selectStyle}>
-                <option value="" disabled>Select which portal this role is for…</option>
-                {PORTAL_OPTIONS.map(p => (
-                  <option key={p.value} value={p.value}>{p.label}</option>
-                ))}
-              </select>
-              <ChevronDown size={14} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--fg-subtle)', pointerEvents: 'none' }} />
-            </div>
-            <p style={{ fontSize: 12, color: 'var(--fg-subtle)', margin: '2px 0 0' }}>
-              Which app a user holding this role logs into.
-            </p>
-          </div>
+          <Select
+            label="Portal"
+            required
+            value={portal}
+            onChange={e => setPortal(e.target.value)}
+            placeholder="Select which portal this role is for…"
+            options={PORTAL_OPTIONS}
+            helperText="Which app a user holding this role logs into."
+          />
           <Input
             label="Description"
             value={description}
             onChange={e => setDescription(e.target.value)}
             placeholder="Optional - what this role is for"
           />
-          {error && <p style={{ fontSize: 12, color: 'var(--danger-500)', margin: 0 }}>{error}</p>}
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 4 }}>
-            <Button variant="secondary" type="button" onClick={onClose}>Cancel</Button>
-            <Button type="submit" loading={saving}>{isEdit ? 'Save Changes' : 'Add Role'}</Button>
-          </div>
+          <FormError message={error} />
+          <FormActions onCancel={onClose} saving={saving} submitLabel={isEdit ? 'Save Changes' : 'Add Role'} />
         </div>
       </form>
     </Modal>

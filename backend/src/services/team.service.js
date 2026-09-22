@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs')
 const crypto = require('crypto')
 const teamMemberRepository = require('../repositories/team-member.repository')
 const userRepository = require('../repositories/user.repository')
+const roleRepository = require('../repositories/role.repository')
 const interviewRepository = require('../repositories/interview.repository')
 const interviewHistoryRepository = require('../repositories/interview-history.repository')
 const externalCandidateRepository = require('../repositories/external-candidate.repository')
@@ -208,8 +209,16 @@ async function importFromCSV(csvText, companyId, managerId) {
     }]
   })
 
+  // A brand-new user needs a role to resolve a portal (see access.service.js) - without
+  // one they'd be created but permanently locked out at login. Team-imported people are
+  // always candidates, so this company needs a candidate-portal role set up first.
+  const candidateRoles = await roleRepository.getByPortal(companyId, 'candidate')
+  if (candidateRoles.length === 0) {
+    throw new Error('This organization has no candidate-portal role yet - create one in the Roles module first')
+  }
+
   const tempPasswordHash = await bcrypt.hash(`TEMP_${crypto.randomBytes(16).toString('hex')}`, 10)
-  const result = await userRepository.bulkUpsert(rows, companyId, managerId, tempPasswordHash)
+  const result = await userRepository.bulkUpsert(rows, companyId, managerId, tempPasswordHash, candidateRoles[0].id)
   return { ...result, errors: [...errors, ...result.errors] }
 }
 

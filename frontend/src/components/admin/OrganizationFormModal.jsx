@@ -3,8 +3,9 @@
 
 import { useState, useEffect } from 'react'
 import Modal from '../shared/Modal'
-import Button from '../shared/Button'
 import Input from '../shared/Input'
+import FormActions from '../shared/FormActions'
+import FormError from '../shared/FormError'
 import * as api from '../../services/api'
 
 function OrganizationFormModal({ open, onClose, organization, onDone }) {
@@ -56,11 +57,8 @@ function OrganizationFormModal({ open, onClose, organization, onDone }) {
             onChange={e => setLogoUrl(e.target.value)}
             placeholder="Optional - https://…"
           />
-          {error && <p style={{ fontSize: 12, color: 'var(--danger-500)', margin: 0 }}>{error}</p>}
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 4 }}>
-            <Button variant="secondary" type="button" onClick={onClose}>Cancel</Button>
-            <Button type="submit" loading={saving}>{isEdit ? 'Save Changes' : 'Add Organization'}</Button>
-          </div>
+          <FormError message={error} />
+          <FormActions onCancel={onClose} saving={saving} submitLabel={isEdit ? 'Save Changes' : 'Add Organization'} />
         </div>
       </form>
     </Modal>

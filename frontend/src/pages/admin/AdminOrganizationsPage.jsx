@@ -27,6 +27,7 @@ function AdminOrganizationsPage() {
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [actionError, setActionError] = useState(null)
   const [formOpen, setFormOpen] = useState(false)
   const [editingOrg, setEditingOrg] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
@@ -62,11 +63,14 @@ function AdminOrganizationsPage() {
   }
 
   async function handleDelete() {
+    const target = deleteTarget
+    setDeleteTarget(null)
+    setActionError(null)
     try {
-      await api.deleteOrganization(deleteTarget.id)
+      await api.deleteOrganization(target.id)
       await loadOrganizations()
     } catch (err) {
-      setError(err.message || 'Could not delete organization')
+      setActionError(err.message || 'Could not delete organization')
     }
   }
 
@@ -121,6 +125,12 @@ function AdminOrganizationsPage() {
             </button>
           </div>
         </div>
+
+        {actionError && (
+          <div role="alert" style={{ padding: '10px 20px', background: 'var(--danger-50)', color: 'var(--danger-700)', fontSize: 13, borderBottom: '1px solid var(--border-default)' }}>
+            {actionError}
+          </div>
+        )}
 
         {loading ? <Spinner center /> : error ? <ErrorMessage message={error} onRetry={loadOrganizations} /> : organizations.length === 0 ? (
           <EmptyState message={search ? 'No organizations match your search.' : 'No organizations yet. Add the first one.'} />

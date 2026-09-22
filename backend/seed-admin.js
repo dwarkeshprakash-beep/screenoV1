@@ -30,9 +30,9 @@ async function main() {
     return
   }
 
-  const existing = await db.query('SELECT id, role FROM users WHERE email = @email', { email: ADMIN_EMAIL })
+  const existing = await db.query('SELECT id, is_platform_admin FROM users WHERE email = @email', { email: ADMIN_EMAIL })
   if (existing[0]) {
-    console.error(`A user with email "${ADMIN_EMAIL}" already exists (id=${existing[0].id}, role=${existing[0].role}). Aborting - this script does not overwrite existing accounts.`)
+    console.error(`A user with email "${ADMIN_EMAIL}" already exists (id=${existing[0].id}, is_platform_admin=${existing[0].is_platform_admin}). Aborting - this script does not overwrite existing accounts.`)
     process.exitCode = 1
     return
   }
@@ -40,9 +40,9 @@ async function main() {
   const passwordHash = await bcrypt.hash(password, 10)
 
   const rows = await db.query(
-    `INSERT INTO users (first_name, last_name, email, password, role, company_id)
-     VALUES (@first_name, @last_name, @email, @password, 'admin', NULL)
-     RETURNING id, email, role`,
+    `INSERT INTO users (first_name, last_name, email, password, is_platform_admin, company_id)
+     VALUES (@first_name, @last_name, @email, @password, TRUE, NULL)
+     RETURNING id, email, is_platform_admin`,
     {
       first_name: ADMIN_FIRST_NAME,
       last_name: ADMIN_LAST_NAME,

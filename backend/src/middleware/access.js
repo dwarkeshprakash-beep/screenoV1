@@ -13,7 +13,13 @@ async function loadAccess(req, res, next) {
     next()
   } catch (err) {
     console.error('loadAccess failed:', err.message)
-    res.status(401).json({ success: false, error: 'Not authenticated' })
+    // Only a genuinely deleted user is an auth failure - a transient DB/pool error
+    // must surface as retryable, not force the frontend to clear the session and
+    // log the user out over what might just be a brief connectivity blip.
+    if (err.message === 'User not found') {
+      return res.status(401).json({ success: false, error: 'Not authenticated' })
+    }
+    res.status(500).json({ success: false, error: 'Could not resolve access' })
   }
 }
 

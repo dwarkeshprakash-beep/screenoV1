@@ -2,6 +2,7 @@
 // SQL only - user_roles join table (user <-> role, many-to-many). See docs/rbac-multi-tenant-plan.md.
 
 const db = require('../db/connection')
+const { extractPage } = require('../utils/pagination')
 
 async function getRolesForUser(userId) {
   return db.query(
@@ -27,12 +28,12 @@ async function getRolesForCompanyUsers(companyId) {
 async function replaceForUser(userId, roleIds) {
   await db.transaction(async (tx) => {
     await tx.query(`DELETE FROM user_roles WHERE user_id = @userId`, { userId })
-    for (const roleId of roleIds) {
-      await tx.query(
-        `INSERT INTO user_roles (user_id, role_id) VALUES (@userId, @roleId)`,
-        { userId, roleId }
-      )
-    }
+    if (!roleIds || roleIds.length === 0) return
+    await tx.query(
+      `INSERT INTO user_roles (user_id, role_id)
+       SELECT @userId, role_id FROM unnest(@roleIds::int[]) AS role_id`,
+      { userId, roleIds }
+    )
   })
 }
 
@@ -47,8 +48,7 @@ async function getUsersForRole(roleId, { limit, offset }) {
      LIMIT @limit OFFSET @offset`,
     { roleId, limit, offset }
   )
-  const total = rows[0] ? Number(rows[0].total_count) : 0
-  return { rows: rows.map(({ total_count, ...rest }) => rest), total }
+  return extractPage(rows)
 }
 
 async function existsForRole(roleId) {

@@ -30,7 +30,7 @@ function hashToken(token) {
 // API call re-resolves it server-side via middleware/access.js, so a role change
 // takes effect immediately rather than waiting for this token to expire.
 async function resolvePortalRole(user) {
-  const access = await accessService.getUserAccessContext(user.id)
+  const access = await accessService.getUserAccessContext(user.id, user)
   if (!access.portal) throw new Error('Your account has no portal access assigned yet. Contact your administrator.')
   return { access, role: access.portal }
 }

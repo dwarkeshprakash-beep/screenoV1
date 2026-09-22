@@ -37,6 +37,14 @@ function AdminUsersPage() {
   const [actionError, setActionError] = useState(null)
 
   useEffect(() => { loadCompanies() }, [])
+  // Re-derive the selected company whenever the ?companyId= query param changes, not
+  // just on mount - OrganizationDetailPage links here with a different companyId each
+  // time, and React Router doesn't remount this page for a same-route navigation.
+  useEffect(() => {
+    if (companies.length === 0) return
+    const requestedId = Number(searchParams.get('companyId'))
+    setCompanyId(companies.some(c => c.id === requestedId) ? requestedId : (companies[0]?.id || null))
+  }, [searchParams, companies])
   useEffect(() => { setPage(1); setSearchInput(''); setSearch('') }, [companyId])
   useEffect(() => {
     const timeout = setTimeout(() => { setSearch(searchInput.trim()); setPage(1) }, SEARCH_DEBOUNCE_MS)
@@ -52,10 +60,7 @@ function AdminUsersPage() {
   async function loadCompanies() {
     try {
       const res = await api.getAdminCompanies()
-      const list = res.data || []
-      setCompanies(list)
-      const requestedId = Number(searchParams.get('companyId'))
-      setCompanyId(list.some(c => c.id === requestedId) ? requestedId : (list[0]?.id || null))
+      setCompanies(res.data || [])
     } catch {
       setError('Could not load companies. Please try again.')
       setLoading(false)

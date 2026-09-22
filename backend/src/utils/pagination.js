@@ -15,4 +15,12 @@ function buildPaginationMeta({ page, pageSize, total }) {
   return { page, pageSize, total, totalPages: Math.max(Math.ceil(total / pageSize), 1) }
 }
 
-module.exports = { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, resolvePagination, buildPaginationMeta }
+// Every paginated repository query selects COUNT(*) OVER() AS total_count on each
+// row so the total survives the LIMIT/OFFSET - this strips it back off and reads
+// the total once, instead of each repository re-implementing the same two lines.
+function extractPage(rows) {
+  const total = rows[0] ? Number(rows[0].total_count) : 0
+  return { rows: rows.map(({ total_count, ...rest }) => rest), total }
+}
+
+module.exports = { DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, resolvePagination, buildPaginationMeta, extractPage }

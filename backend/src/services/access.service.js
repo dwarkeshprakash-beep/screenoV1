@@ -27,8 +27,14 @@ function buildModuleAccess(grants) {
 }
 
 // { isPlatformAdmin, companyId, portal, roleIds, moduleAccess: { [moduleKey]: Set<permissionName> } }
-async function getUserAccessContext(userId) {
-  const user = await userRepository.getAuthProfile(userId)
+// preloadedUser: pass an already-fetched user row (must include id, company_id,
+// is_platform_admin) to skip the redundant lookup - auth.service.js's login/refresh
+// already has the user loaded for password verification, so resolving access for
+// that same user shouldn't re-query it a second time.
+async function getUserAccessContext(userId, preloadedUser) {
+  const user = preloadedUser && preloadedUser.id === userId
+    ? preloadedUser
+    : await userRepository.getAuthProfile(userId)
   if (!user) throw new Error('User not found')
 
   const roles = await userRoleRepository.getRolesForUser(userId)
