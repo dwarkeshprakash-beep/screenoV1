@@ -109,7 +109,11 @@ function AclDetailPage() {
       {loading ? <Spinner center /> : error ? <ErrorMessage message={error} onRetry={load} /> : (
         <>
           <div style={{ ...cardStyle, padding: 20 }}>
-            <span style={moduleBadgeStyle}>{acl.module_name}</span>
+            {acl.module_name ? (
+              <span style={moduleBadgeStyle}>{acl.module_name}</span>
+            ) : (
+              <span style={{ fontSize: 12, color: 'var(--fg-subtle)' }}>Not assigned to a module yet</span>
+            )}
             <h2 style={{ margin: '10px 0 0', fontSize: 18, color: 'var(--fg-primary)' }}>{acl.name}</h2>
             <p style={{ margin: '6px 0 0', fontSize: 13, color: acl.description ? 'var(--fg-body)' : 'var(--fg-subtle)' }}>
               {acl.description || 'No description'}

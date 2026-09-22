@@ -601,11 +601,14 @@ export const updateRole = (id, data) =>
 export const deleteRole = (id, companyId) =>
   request(`/api/roles/${id}?companyId=${companyId}`, { method: 'DELETE' })
 
-// Admin - RBAC Modules catalog (global - feeds the ACL module's module picker; only
-// the display name is editable, the key is fixed)
-export const getModules = () => request('/api/modules')
+// Admin - RBAC Modules catalog (global - only the display name is editable, the key
+// is fixed). Also where an ACL gets linked to the module it gates, per company.
+export const getModules = companyId => request(companyId ? `/api/modules?companyId=${companyId}` : '/api/modules')
 export const updateModule = (id, data) =>
   request(`/api/modules/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
+export const getUnassignedAcls = companyId => request(`/api/modules/unassigned-acls?companyId=${companyId}`)
+export const assignModuleAcl = (moduleId, companyId, aclId) =>
+  request(`/api/modules/${moduleId}/assign-acl`, { method: 'POST', body: JSON.stringify({ companyId, aclId }) })
 
 // Admin - RBAC Users module (users are per-company; admin picks a company first)
 export const getUsers = (companyId, { page, pageSize, search } = {}) => {
@@ -633,7 +636,6 @@ export const getAcls = (companyId, { page, pageSize, search } = {}) => {
   return request(`/api/acls?${params.toString()}`)
 }
 export const getAcl = (id, companyId) => request(`/api/acls/${id}?companyId=${companyId}`)
-export const getAclModuleOptions = companyId => request(`/api/acls/modules?companyId=${companyId}`)
 export const createAcl = data => request('/api/acls', { method: 'POST', body: JSON.stringify(data) })
 export const updateAcl = (id, data) =>
   request(`/api/acls/${id}`, { method: 'PATCH', body: JSON.stringify(data) })

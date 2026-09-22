@@ -1,6 +1,7 @@
-// CompanyScopedToolbar - company picker + search + item count + "Add" action, shown above a
-// per-company admin table (Roles, Users, ...). Admin is platform-wide, so every
-// per-company screen needs this same "pick a company first" header.
+// CompanyScopedToolbar - company picker + optional search/item count/"Add" action, shown
+// above a per-company admin table (Roles, Users, ...). Admin is platform-wide, so every
+// per-company screen needs this same "pick a company first" header. Pass no onAdd for a
+// screen with nothing to add (e.g. Modules, which only lets you assign an existing ACL).
 
 import { ChevronDown, Search } from 'lucide-react'
 
@@ -65,18 +66,20 @@ function CompanyScopedToolbar({
             {count} {itemLabel}{count === 1 ? '' : 's'}{selectedCompanyName ? ` at ${selectedCompanyName}` : ''}
           </span>
         )}
-        <button
-          type="button"
-          disabled={!companyId}
-          onClick={onAdd}
-          style={{
-            background: 'var(--brand-500)', color: 'var(--bg-surface)', border: 0, borderRadius: 8,
-            fontWeight: 600, fontSize: 13, padding: '9px 16px', cursor: companyId ? 'pointer' : 'not-allowed',
-            display: 'inline-flex', alignItems: 'center', gap: 6, opacity: companyId ? 1 : 0.6,
-          }}
-        >
-          {AddIcon && <AddIcon size={14} />} {addLabel}
-        </button>
+        {onAdd && (
+          <button
+            type="button"
+            disabled={!companyId}
+            onClick={onAdd}
+            style={{
+              background: 'var(--brand-500)', color: 'var(--bg-surface)', border: 0, borderRadius: 8,
+              fontWeight: 600, fontSize: 13, padding: '9px 16px', cursor: companyId ? 'pointer' : 'not-allowed',
+              display: 'inline-flex', alignItems: 'center', gap: 6, opacity: companyId ? 1 : 0.6,
+            }}
+          >
+            {AddIcon && <AddIcon size={14} />} {addLabel}
+          </button>
+        )}
       </div>
     </div>
   )

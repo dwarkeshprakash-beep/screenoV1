@@ -14,9 +14,6 @@ const BAD_REQUEST_MESSAGES = [
   'ACL name is required',
   'ACL name is too long',
   'ACL description is too long',
-  'A module is required',
-  'Selected module does not exist',
-  'This module already has an ACL for this company',
   'An ACL with this name already exists',
   'One or more roles are invalid for this company',
   'One or more permissions are invalid',
@@ -49,20 +46,6 @@ router.get('/', async (req, res) => {
   } catch (err) {
     console.error('GET /acls failed:', err)
     res.status(500).json({ success: false, error: 'Could not load ACLs' })
-  }
-})
-
-// Static path - must come before GET /:id so "modules" isn't parsed as an ACL id.
-router.get('/modules', async (req, res) => {
-  const companyId = parseCompanyId(req.query.companyId)
-  if (!companyId) return res.status(400).json({ success: false, error: 'companyId is required' })
-
-  try {
-    const modules = await aclService.listModuleOptions(companyId)
-    res.json({ success: true, data: modules })
-  } catch (err) {
-    console.error('GET /acls/modules failed:', err)
-    res.status(500).json({ success: false, error: 'Could not load modules' })
   }
 })
 

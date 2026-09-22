@@ -108,7 +108,7 @@ function AdminAclsPage() {
           onCompanyChange={setCompanyId}
           searchValue={searchInput}
           onSearchChange={setSearchInput}
-          searchPlaceholder="Search by ACL or module name…"
+          searchPlaceholder="Search by ACL name…"
           itemLabel="ACL"
           count={pagination?.total ?? acls.length}
           showCount={!loading && !error}

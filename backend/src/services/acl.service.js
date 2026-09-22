@@ -1,10 +1,10 @@
 // backend/src/services/acl.service.js
-// Business logic for the ACL module - validation and the module-uniqueness rule
-// (an ACL's module_id is fixed at creation and never changed - see updateAcl).
-// No SQL here. See docs/rbac-multi-tenant-plan.md.
+// Business logic for the ACL module - validation only. An ACL is created without a
+// module and linked to one afterward from the Modules screen (see
+// module.service.js#assignAcl) - not picked here. No SQL here.
+// See docs/rbac-multi-tenant-plan.md.
 
 const aclRepository = require('../repositories/acl.repository')
-const moduleRepository = require('../repositories/module.repository')
 const roleRepository = require('../repositories/role.repository')
 const permissionRepository = require('../repositories/permission.repository')
 const roleAclPermissionRepository = require('../repositories/role-acl-permission.repository')
@@ -41,32 +41,13 @@ async function getAcl(companyId, id) {
   return acl
 }
 
-// Feeds the module picker in the create form: every module, flagged with whether
-// this company already has an ACL gating it (module_id is strict 1:1 per company).
-async function listModuleOptions(companyId) {
-  const [modules, existing] = await Promise.all([
-    moduleRepository.getAll(),
-    aclRepository.getByCompany(companyId),
-  ])
-  const usedModuleIds = new Set(existing.map(a => a.module_id))
-  return modules.map(m => ({ id: m.id, key: m.key, name: m.name, hasAcl: usedModuleIds.has(m.id) }))
-}
-
 async function createAcl(companyId, input) {
   const { name, description } = validateNameAndDescription(input)
-  const moduleId = Number(input.moduleId)
-  if (!Number.isInteger(moduleId) || moduleId <= 0) throw new Error('A module is required')
-
-  const module = await moduleRepository.getById(moduleId)
-  if (!module) throw new Error('Selected module does not exist')
-
-  const existingForModule = await aclRepository.getByModule(companyId, moduleId)
-  if (existingForModule) throw new Error('This module already has an ACL for this company')
 
   const existingForName = await aclRepository.getByName(companyId, name)
   if (existingForName) throw new Error('An ACL with this name already exists')
 
-  return aclRepository.create(companyId, { moduleId, name, description })
+  return aclRepository.create(companyId, { name, description })
 }
 
 async function updateAcl(companyId, id, input) {
@@ -147,6 +128,6 @@ async function updateAclPermissions(companyId, aclId, grants) {
 }
 
 module.exports = {
-  listAcls, getAcl, listModuleOptions, createAcl, updateAcl, deleteAcl,
+  listAcls, getAcl, createAcl, updateAcl, deleteAcl,
   getAclPermissions, updateAclPermissions,
 }
