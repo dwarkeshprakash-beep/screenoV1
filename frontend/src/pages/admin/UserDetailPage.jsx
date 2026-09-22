@@ -4,7 +4,7 @@
 // Reached by clicking a row in AdminUsersPage.
 
 import { useState, useEffect, useCallback } from 'react'
-import { useParams, useSearchParams, useNavigate } from 'react-router-dom'
+import { useParams, useSearchParams, useNavigate, useOutletContext } from 'react-router-dom'
 import { ArrowLeft, ShieldCheck, ClipboardList, ExternalLink } from 'lucide-react'
 import Spinner from '../../components/shared/Spinner'
 import ErrorMessage from '../../components/shared/ErrorMessage'
@@ -91,6 +91,7 @@ function UserDetailPage() {
   const [searchParams] = useSearchParams()
   const companyId = searchParams.get('companyId')
   const navigate = useNavigate()
+  const { setPageMeta } = useOutletContext()
 
   const [user, setUser] = useState(null)
   const [access, setAccess] = useState([])
@@ -117,6 +118,11 @@ function UserDetailPage() {
   }, [id, companyId])
 
   useEffect(() => { if (companyId) load() }, [companyId, load])
+
+  useEffect(() => {
+    setPageMeta({ title: 'User Details', subtitle: 'Profile, permissions, and interview history' })
+    return () => setPageMeta(null)
+  }, [setPageMeta])
 
   const cardStyle = {
     background: 'var(--bg-surface)', border: '1px solid var(--border-default)',

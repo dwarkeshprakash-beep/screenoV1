@@ -4,7 +4,7 @@
 // companies - each row names which organization the granted role belongs to.
 
 import { useState, useEffect, useCallback } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useOutletContext } from 'react-router-dom'
 import { ArrowLeft, ShieldCheck } from 'lucide-react'
 import Spinner from '../../components/shared/Spinner'
 import ErrorMessage from '../../components/shared/ErrorMessage'
@@ -16,6 +16,7 @@ import { formatDate } from '../../utils/helpers'
 function PermissionDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const { setPageMeta } = useOutletContext()
 
   const [permission, setPermission] = useState(null)
   const [grants, setGrants] = useState([])
@@ -40,6 +41,11 @@ function PermissionDetailPage() {
   }, [id])
 
   useEffect(() => { load() }, [load])
+
+  useEffect(() => {
+    setPageMeta({ title: 'Permission Details', subtitle: 'Permission details and the roles it is granted to' })
+    return () => setPageMeta(null)
+  }, [setPageMeta])
 
   const cardStyle = {
     background: 'var(--bg-surface)', border: '1px solid var(--border-default)',

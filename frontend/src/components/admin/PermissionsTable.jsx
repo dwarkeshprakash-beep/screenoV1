@@ -1,14 +1,14 @@
-// PermissionsTable - renders the global permissions catalog list.
+// PermissionsTable - renders the global permissions catalog list. Add-only -
+// no edit/delete actions, so this table only ever displays.
 
 import DataTable, { tdStyle } from '../shared/DataTable'
-import RowActions from '../shared/RowActions'
 import Badge from '../shared/Badge'
 import { formatDate } from '../../utils/helpers'
 
-function PermissionsTable({ permissions, onView, onEdit, onDelete }) {
+function PermissionsTable({ permissions, onView }) {
   return (
     <DataTable
-      columns={['NAME', 'DESCRIPTION', 'GRANTED TO', 'CREATED', 'ACTIONS']}
+      columns={['NAME', 'DESCRIPTION', 'GRANTED TO', 'CREATED']}
       items={permissions}
       getRowKey={permission => permission.id}
       onRowClick={onView}
@@ -24,9 +24,6 @@ function PermissionsTable({ permissions, onView, onEdit, onDelete }) {
             )}
           </td>
           <td style={{ ...tdStyle, color: 'var(--fg-muted)' }}>{formatDate(permission.created)}</td>
-          <td style={tdStyle}>
-            <RowActions entityLabel="permission" onEdit={() => onEdit(permission)} onDelete={() => onDelete(permission)} />
-          </td>
         </>
       )}
     />

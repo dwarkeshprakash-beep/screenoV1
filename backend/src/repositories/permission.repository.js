@@ -1,5 +1,6 @@
 // backend/src/repositories/permission.repository.js
 // SQL only - permissions table. Global, admin-managed catalog of grantable actions.
+// Add-only - permissions can't be renamed or deleted once created.
 // See docs/rbac-multi-tenant-plan.md.
 
 const db = require('../db/connection')
@@ -31,17 +32,4 @@ async function create({ name, description }) {
   return rows[0]
 }
 
-async function update(id, { name, description }) {
-  const rows = await db.query(
-    `UPDATE permissions SET name = @name, description = @description WHERE id = @id RETURNING id, name, description, created`,
-    { id, name, description: description || null }
-  )
-  return rows[0] || null
-}
-
-async function remove(id) {
-  const rows = await db.query(`DELETE FROM permissions WHERE id = @id RETURNING id`, { id })
-  return rows.length > 0
-}
-
-module.exports = { getAll, getById, getByIds, getByName, create, update, remove }
+module.exports = { getAll, getById, getByIds, getByName, create }

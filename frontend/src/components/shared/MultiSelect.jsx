@@ -1,20 +1,59 @@
 // MultiSelect - dropdown of checkable options; selections shown as removable chips on the trigger.
+// The option list is portaled to <body> and positioned with fixed coordinates so it can
+// never get clipped by a scrollable ancestor (e.g. a modal body) - it flips above the
+// trigger when there isn't enough room below.
 
 import { useState, useRef, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { ChevronDown, X } from 'lucide-react'
+
+const DROPDOWN_MAX_HEIGHT = 180
 
 function MultiSelect({ options, selectedIds, onChange, placeholder = 'Select…', emptyMessage = 'No options available' }) {
   const [open, setOpen] = useState(false)
+  const [menuStyle, setMenuStyle] = useState(null)
   const containerRef = useRef(null)
+  const menuRef = useRef(null)
 
   useEffect(() => {
     if (!open) return undefined
     function handleOutside(event) {
-      if (containerRef.current && !containerRef.current.contains(event.target)) setOpen(false)
+      if (
+        containerRef.current && !containerRef.current.contains(event.target) &&
+        menuRef.current && !menuRef.current.contains(event.target)
+      ) {
+        setOpen(false)
+      }
     }
+    function handleScrollOrResize() { setOpen(false) }
     document.addEventListener('mousedown', handleOutside)
-    return () => document.removeEventListener('mousedown', handleOutside)
+    window.addEventListener('scroll', handleScrollOrResize, true)
+    window.addEventListener('resize', handleScrollOrResize)
+    return () => {
+      document.removeEventListener('mousedown', handleOutside)
+      window.removeEventListener('scroll', handleScrollOrResize, true)
+      window.removeEventListener('resize', handleScrollOrResize)
+    }
   }, [open])
+
+  function handleTriggerClick() {
+    if (open) {
+      setOpen(false)
+      return
+    }
+    const rect = containerRef.current.getBoundingClientRect()
+    const spaceBelow = window.innerHeight - rect.bottom
+    const openUpward = spaceBelow < DROPDOWN_MAX_HEIGHT + 12 && rect.top > spaceBelow
+    setMenuStyle({
+      position: 'fixed',
+      left: rect.left,
+      width: rect.width,
+      ...(openUpward
+        ? { bottom: window.innerHeight - rect.top + 4 }
+        : { top: rect.bottom + 4 }),
+    })
+    setOpen(true)
+  }
 
   function toggleOption(id) {
     const next = new Set(selectedIds)
@@ -32,7 +71,7 @@ function MultiSelect({ options, selectedIds, onChange, placeholder = 'Select…'
   return (
     <div ref={containerRef} style={{ position: 'relative' }}>
       <div
-        onClick={() => setOpen(o => !o)}
+        onClick={handleTriggerClick}
         style={{
           display: 'flex', flexWrap: 'wrap', gap: 6, alignItems: 'center', minHeight: 40,
           padding: '6px 32px 6px 10px', border: '1px solid var(--border-default)', borderRadius: 8,
@@ -65,12 +104,15 @@ function MultiSelect({ options, selectedIds, onChange, placeholder = 'Select…'
         <ChevronDown size={14} style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--fg-subtle)' }} />
       </div>
 
-      {open && (
-        <div style={{
-          position: 'absolute', top: 'calc(100% + 4px)', left: 0, right: 0, zIndex: 50,
-          background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderRadius: 8,
-          boxShadow: 'var(--shadow-md)', maxHeight: 180, overflowY: 'auto',
-        }}>
+      {open && menuStyle && createPortal(
+        <div
+          ref={menuRef}
+          style={{
+            ...menuStyle, zIndex: 1100,
+            background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderRadius: 8,
+            boxShadow: 'var(--shadow-md)', maxHeight: DROPDOWN_MAX_HEIGHT, overflowY: 'auto',
+          }}
+        >
           {options.length === 0 ? (
             <div style={{ padding: '10px 12px', fontSize: 12, color: 'var(--fg-subtle)' }}>{emptyMessage}</div>
           ) : (
@@ -91,7 +133,8 @@ function MultiSelect({ options, selectedIds, onChange, placeholder = 'Select…'
               </label>
             ))
           )}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )

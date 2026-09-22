@@ -1,5 +1,5 @@
-// PermissionFormModal - create or edit a Permission. Permissions are global
-// (not per-company) - see docs/rbac-multi-tenant-plan.md.
+// PermissionFormModal - create a Permission. Permissions are global (not per-company)
+// and add-only - once created they can't be renamed or deleted. See docs/rbac-multi-tenant-plan.md.
 
 import { useState, useEffect } from 'react'
 import Modal from '../shared/Modal'
@@ -8,29 +8,25 @@ import FormActions from '../shared/FormActions'
 import FormError from '../shared/FormError'
 import * as api from '../../services/api'
 
-function PermissionFormModal({ open, onClose, permission, onDone }) {
+function PermissionFormModal({ open, onClose, onDone }) {
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
 
-  const isEdit = !!permission
-
   useEffect(() => {
     if (!open) return
-    setName(permission?.name || '')
-    setDescription(permission?.description || '')
+    setName('')
+    setDescription('')
     setError(null)
-  }, [open, permission])
+  }, [open])
 
   async function handleSubmit(event) {
     event.preventDefault()
     setSaving(true)
     setError(null)
     try {
-      const payload = { name, description }
-      if (isEdit) await api.updatePermission(permission.id, payload)
-      else await api.createPermission(payload)
+      await api.createPermission({ name, description })
       await onDone?.()
       onClose()
     } catch (err) {
@@ -41,7 +37,7 @@ function PermissionFormModal({ open, onClose, permission, onDone }) {
   }
 
   return (
-    <Modal open={open} onClose={onClose} title={isEdit ? 'Edit Permission' : 'Add Permission'} size="sm">
+    <Modal open={open} onClose={onClose} title="Add Permission" size="sm">
       <form onSubmit={handleSubmit}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           <Input
@@ -58,7 +54,7 @@ function PermissionFormModal({ open, onClose, permission, onDone }) {
             placeholder="Optional - what this permission allows"
           />
           <FormError message={error} />
-          <FormActions onCancel={onClose} saving={saving} submitLabel={isEdit ? 'Save Changes' : 'Add Permission'} />
+          <FormActions onCancel={onClose} saving={saving} submitLabel="Add Permission" />
         </div>
       </form>
     </Modal>

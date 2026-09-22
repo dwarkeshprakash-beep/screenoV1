@@ -63,14 +63,6 @@ async function getRoleGrantsForPermission(permissionId) {
   )
 }
 
-async function existsForPermission(permissionId) {
-  const rows = await db.query(
-    `SELECT id FROM role_acl_permissions WHERE permission_id = @permissionId LIMIT 1`,
-    { permissionId }
-  )
-  return rows.length > 0
-}
-
 // Effective grants for a set of roles, joined out to the ACL/module/permission
 // names a user detail page needs to display "what can this user do." Grouping
 // by ACL is left to the caller.
@@ -98,6 +90,6 @@ async function existsForRole(roleId) {
 }
 
 module.exports = {
-  getGrantsForAcl, replaceGrantsForAcl, existsForPermission, existsForRole,
+  getGrantsForAcl, replaceGrantsForAcl, existsForRole,
   getGrantsForRoles, countRolesByPermission, getRoleGrantsForPermission,
 }

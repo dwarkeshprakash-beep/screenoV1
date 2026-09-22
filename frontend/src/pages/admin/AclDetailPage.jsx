@@ -4,7 +4,7 @@
 // Reached by clicking a row in AdminAclsPage.
 
 import { useState, useEffect, useCallback } from 'react'
-import { Link, useParams, useSearchParams, useNavigate } from 'react-router-dom'
+import { Link, useParams, useSearchParams, useNavigate, useOutletContext } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
 import Spinner from '../../components/shared/Spinner'
 import ErrorMessage from '../../components/shared/ErrorMessage'
@@ -18,6 +18,7 @@ function AclDetailPage() {
   const [searchParams] = useSearchParams()
   const companyId = searchParams.get('companyId')
   const navigate = useNavigate()
+  const { setPageMeta } = useOutletContext()
 
   const [acl, setAcl] = useState(null)
   const [permissions, setPermissions] = useState([])
@@ -46,6 +47,11 @@ function AclDetailPage() {
   }, [id, companyId])
 
   useEffect(() => { if (companyId) load() }, [companyId, load])
+
+  useEffect(() => {
+    setPageMeta({ title: 'ACL Details', subtitle: 'Manage which roles get which permissions' })
+    return () => setPageMeta(null)
+  }, [setPageMeta])
 
   function togglePermission(roleId, permissionId) {
     setRows(current => current.map(row => {

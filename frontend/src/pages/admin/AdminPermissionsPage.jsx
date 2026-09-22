@@ -1,6 +1,6 @@
-// AdminPermissionsPage - manage the global Permissions catalog (Read/Save/Delete by
-// default). Not per-company - these are the actions the ACL permissions grid lets
-// you grant to a role. See docs/rbac-multi-tenant-plan.md.
+// AdminPermissionsPage - manage the global Permissions catalog (add-only - no
+// edit/delete). Not per-company - these are the actions the ACL permissions grid
+// lets you grant to a role. See docs/rbac-multi-tenant-plan.md.
 
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -8,7 +8,6 @@ import { KeyRound } from 'lucide-react'
 import Spinner from '../../components/shared/Spinner'
 import ErrorMessage from '../../components/shared/ErrorMessage'
 import EmptyState from '../../components/shared/EmptyState'
-import ConfirmDialog from '../../components/shared/ConfirmDialog'
 import PermissionFormModal from '../../components/admin/PermissionFormModal'
 import PermissionsTable from '../../components/admin/PermissionsTable'
 import * as api from '../../services/api'
@@ -19,8 +18,6 @@ function AdminPermissionsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [formOpen, setFormOpen] = useState(false)
-  const [editingPermission, setEditingPermission] = useState(null)
-  const [deleteTarget, setDeleteTarget] = useState(null)
 
   useEffect(() => { loadPermissions() }, [])
 
@@ -34,15 +31,6 @@ function AdminPermissionsPage() {
       setError('Could not load permissions. Please try again.')
     } finally {
       setLoading(false)
-    }
-  }
-
-  async function handleDelete() {
-    try {
-      await api.deletePermission(deleteTarget.id)
-      await loadPermissions()
-    } catch (err) {
-      setError(err.message || 'Could not delete permission')
     }
   }
 
@@ -63,7 +51,7 @@ function AdminPermissionsPage() {
           </span>
           <button
             type="button"
-            onClick={() => { setEditingPermission(null); setFormOpen(true) }}
+            onClick={() => setFormOpen(true)}
             style={{
               background: 'var(--brand-500)', color: 'var(--bg-surface)', border: 0, borderRadius: 8,
               fontWeight: 600, fontSize: 13, padding: '9px 16px', cursor: 'pointer',
@@ -80,26 +68,14 @@ function AdminPermissionsPage() {
           <PermissionsTable
             permissions={permissions}
             onView={permission => navigate(`/admin/permissions/${permission.id}`)}
-            onEdit={permission => { setEditingPermission(permission); setFormOpen(true) }}
-            onDelete={permission => setDeleteTarget(permission)}
           />
         )}
       </div>
 
       <PermissionFormModal
         open={formOpen}
-        permission={editingPermission}
         onClose={() => setFormOpen(false)}
         onDone={loadPermissions}
-      />
-      <ConfirmDialog
-        open={!!deleteTarget}
-        onClose={() => setDeleteTarget(null)}
-        onConfirm={handleDelete}
-        title="Delete Permission"
-        message={`Delete the "${deleteTarget?.name}" permission? This cannot be undone.`}
-        confirmText="Delete"
-        danger
       />
     </div>
   )

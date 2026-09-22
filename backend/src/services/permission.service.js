@@ -1,6 +1,7 @@
 // backend/src/services/permission.service.js
 // Business logic for the Permissions module - validation only, no SQL here.
-// Permissions are global (not per-company) - see docs/rbac-multi-tenant-plan.md.
+// Permissions are global (not per-company) and add-only - no update/delete.
+// See docs/rbac-multi-tenant-plan.md.
 
 const permissionRepository = require('../repositories/permission.repository')
 const roleAclPermissionRepository = require('../repositories/role-acl-permission.repository')
@@ -48,26 +49,6 @@ async function createPermission(input) {
   return permissionRepository.create({ name, description })
 }
 
-async function updatePermission(id, input) {
-  const { name, description } = validatePermissionInput(input)
-
-  const existing = await permissionRepository.getByName(name)
-  if (existing && existing.id !== id) throw new Error('A permission with this name already exists')
-
-  const updated = await permissionRepository.update(id, { name, description })
-  if (!updated) throw new Error('Permission not found')
-  return updated
-}
-
-async function deletePermission(id) {
-  const inUse = await roleAclPermissionRepository.existsForPermission(id)
-  if (inUse) throw new Error('Cannot delete this permission - it is granted to one or more roles')
-
-  const deleted = await permissionRepository.remove(id)
-  if (!deleted) throw new Error('Permission not found')
-}
-
 module.exports = {
-  listPermissions, getPermission, getPermissionGrants,
-  createPermission, updatePermission, deletePermission,
+  listPermissions, getPermission, getPermissionGrants, createPermission,
 }

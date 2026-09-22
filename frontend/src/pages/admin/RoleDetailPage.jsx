@@ -3,7 +3,7 @@
 // without cross-referencing the Users list one person at a time.
 
 import { useState, useEffect, useCallback } from 'react'
-import { useParams, useSearchParams, useNavigate } from 'react-router-dom'
+import { useParams, useSearchParams, useNavigate, useOutletContext } from 'react-router-dom'
 import { ArrowLeft, Users as UsersIcon } from 'lucide-react'
 import Spinner from '../../components/shared/Spinner'
 import ErrorMessage from '../../components/shared/ErrorMessage'
@@ -21,6 +21,7 @@ function RoleDetailPage() {
   const [searchParams] = useSearchParams()
   const companyId = searchParams.get('companyId')
   const navigate = useNavigate()
+  const { setPageMeta } = useOutletContext()
 
   const [role, setRole] = useState(null)
   const [users, setUsers] = useState([])
@@ -54,6 +55,11 @@ function RoleDetailPage() {
   }, [id, companyId, page, pageSize])
 
   useEffect(() => { if (companyId) load() }, [companyId, load])
+
+  useEffect(() => {
+    setPageMeta({ title: 'Role Details', subtitle: 'Role details and assigned users' })
+    return () => setPageMeta(null)
+  }, [setPageMeta])
 
   const cardStyle = {
     background: 'var(--bg-surface)', border: '1px solid var(--border-default)',

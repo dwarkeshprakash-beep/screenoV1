@@ -601,8 +601,11 @@ export const updateRole = (id, data) =>
 export const deleteRole = (id, companyId) =>
   request(`/api/roles/${id}?companyId=${companyId}`, { method: 'DELETE' })
 
-// Admin - RBAC Modules catalog (global, read-only - feeds the ACL module's module picker)
+// Admin - RBAC Modules catalog (global - feeds the ACL module's module picker; only
+// the display name is editable, the key is fixed)
 export const getModules = () => request('/api/modules')
+export const updateModule = (id, data) =>
+  request(`/api/modules/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
 
 // Admin - RBAC Users module (users are per-company; admin picks a company first)
 export const getUsers = (companyId, { page, pageSize, search } = {}) => {
@@ -641,14 +644,12 @@ export const getAclPermissions = (id, companyId) =>
 export const updateAclPermissions = (id, companyId, grants) =>
   request(`/api/acls/${id}/permissions`, { method: 'PUT', body: JSON.stringify({ companyId, grants }) })
 
-// Admin - Permissions module (global catalog of grantable actions, not per-company)
+// Admin - Permissions module (global catalog of grantable actions, not per-company;
+// add-only - permissions can't be renamed or deleted once created)
 export const getPermissions = () => request('/api/permissions')
 export const getPermission = id => request(`/api/permissions/${id}`)
 export const getPermissionRoles = id => request(`/api/permissions/${id}/roles`)
 export const createPermission = data => request('/api/permissions', { method: 'POST', body: JSON.stringify(data) })
-export const updatePermission = (id, data) =>
-  request(`/api/permissions/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
-export const deletePermission = id => request(`/api/permissions/${id}`, { method: 'DELETE' })
 
 // Admin - Organizations module (the tenant/company entities themselves)
 export const getOrganizations = ({ page, pageSize, search } = {}) => {

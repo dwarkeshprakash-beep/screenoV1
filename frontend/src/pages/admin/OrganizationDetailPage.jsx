@@ -5,7 +5,7 @@
 // company-scoped lists that otherwise default to whichever company loads first.
 
 import { useState, useEffect, useCallback } from 'react'
-import { useParams, useNavigate, Link } from 'react-router-dom'
+import { useParams, useNavigate, Link, useOutletContext } from 'react-router-dom'
 import { ArrowLeft, Users, ShieldCheck, LockKeyhole } from 'lucide-react'
 import Spinner from '../../components/shared/Spinner'
 import ErrorMessage from '../../components/shared/ErrorMessage'
@@ -15,6 +15,7 @@ import * as api from '../../services/api'
 function OrganizationDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
+  const { setPageMeta } = useOutletContext()
 
   const [summary, setSummary] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -34,6 +35,11 @@ function OrganizationDetailPage() {
   }, [id])
 
   useEffect(() => { load() }, [load])
+
+  useEffect(() => {
+    setPageMeta({ title: 'Organization Details', subtitle: 'Organization usage summary' })
+    return () => setPageMeta(null)
+  }, [setPageMeta])
 
   const cardStyle = {
     background: 'var(--bg-surface)', border: '1px solid var(--border-default)',
