@@ -6,6 +6,7 @@ const { audioUpload } = require('../middleware/upload')
 const interviewService = require('../services/interview.service')
 const transcriptRepository = require('../repositories/transcript.repository')
 const interviewRepository = require('../repositories/interview.repository')
+const reportRepository = require('../repositories/report.repository')
 const candidateIdentityService = require('../services/candidate-identity.service')
 
 const router = express.Router()
@@ -129,6 +130,39 @@ router.get('/:id/transcript', loadAccess, requireModule('team'), async (req, res
   } catch (err) {
     console.error('GET /interviews/:id/transcript failed:', err)
     res.status(500).json({ success: false, error: 'Could not load transcript' })
+  }
+})
+
+// GET /api/interviews/:id/report - the candidate's own feedback for the interview
+// they just finished, read with the same interview-scoped session token as
+// start/answer/complete. /api/candidate/report can't serve this: it runs loadAccess,
+// which needs a user id that this token type doesn't carry (always 401s).
+router.get('/:id/report', requireCandidateToken, async (req, res) => {
+  try {
+    const interviewId = parseInt(req.params.id, 10)
+    const identity = candidateIdentityService.fromUser(req.user)
+    candidateIdentityService.assertInterviewScope(identity, interviewId)
+    const report = await reportRepository.getLatestByCandidateIdentity(identity, interviewId)
+    // Not generated / still 'generating' is a normal state while the report job runs,
+    // not an error - the client keeps polling until it's 'ready'
+    if (!report || report.status !== 'ready') return res.json({ success: true, data: null })
+    res.json({
+      success: true,
+      data: {
+        id: report.id,
+        interview_id: report.interview_id,
+        status: report.status,
+        summary: report.summary,
+        strengths: report.strengths,
+        created: report.created,
+      },
+    })
+  } catch (err) {
+    if (err.message.includes('Unauthorized')) {
+      return res.status(403).json({ success: false, error: err.message })
+    }
+    console.error('GET /interviews/:id/report failed:', err)
+    res.status(500).json({ success: false, error: 'Could not load report' })
   }
 })
 

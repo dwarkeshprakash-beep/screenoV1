@@ -216,7 +216,7 @@ router.get('/client-mandates', requireModule('client_mandates', { permission: 'V
 // 3. JSON { useExisting: true } - link the candidate's current default resume (back-compat)
 router.post(
   '/client-mandates/:ctId/resume',
-  requireModule('client_mandates', { permission: 'View' }),
+  requireModule(['client_mandates', 'outcomes'], { permission: 'View' }),
   documentUpload.single('resume'),
   async (req, res) => {
     try {
@@ -274,7 +274,7 @@ router.post(
 )
 
 // Get resume metadata for a specific client mandate
-router.get('/client-mandates/:ctId/resume', requireModule('client_mandates', { permission: 'View' }), async (req, res) => {
+router.get('/client-mandates/:ctId/resume', requireModule(['client_mandates', 'outcomes'], { permission: 'View' }), async (req, res) => {
   try {
     const ctId = parseInt(req.params.ctId, 10)
     const entry = await clientTeamRepo.getById(ctId)
@@ -429,44 +429,35 @@ router.get('/monthly-assessments', requireModule('monthly_assessments', { permis
 
 router.get('/client-outcomes', requireModule('outcomes'), async (req, res) => {
   try {
-    const userId = req.user.id
-
-    // Fetch all client_teams this candidate belongs to
-    const clientTeams = await db.query(
-      `SELECT
-         ct.id AS client_team_id,
-         ct.mandate_id,
-         ct.requirement_id,
-         ct.status AS team_status,
-         t.client_name,
-         t.requirements AS mandate_title,
-         cmr.profile_name AS role_assigned,
-         t.archived_at
-       FROM client_teams ct
-       JOIN client_templates t ON t.id = ct.mandate_id
-       LEFT JOIN client_mandate_requirements cmr ON cmr.id = ct.requirement_id
-       WHERE ct.user_id = @userId
-       ORDER BY ct.created DESC`,
-      { userId }
-    )
+    // Every client_teams row this user is on - the candidate always sees their mandate
+    // list, even before any round is published. The JD is only exposed once the
+    // manager has actually sent it (jd_sent), same rule as /client-mandates.
+    const clientTeams = await clientTeamRepo.getByUser(req.user.id)
 
     const mandates = await Promise.all(
       clientTeams.map(async (ct) => {
-        const rounds = await clientOutcomeRoundsRepo.listVisibleByClientTeamId(ct.client_team_id)
+        const [rounds, resumeUrl] = await Promise.all([
+          clientOutcomeRoundsRepo.listVisibleByClientTeamId(ct.id),
+          safeSignedResumeUrl(ct.client_resume_url),
+        ])
         return {
-          client_team_id: ct.client_team_id,
+          client_team_id: ct.id,
           mandate_id: ct.mandate_id,
           client_name: ct.client_name,
-          mandate_title: ct.mandate_title,
-          role_assigned: ct.role_assigned,
-          is_archived: !!ct.archived_at,
+          mandate_title: ct.mandate_role,
+          role_assigned: ct.requirement_name,
+          is_archived: !!ct.mandate_archived_at,
+          jd_sent: !!ct.jd_sent,
+          jd_sent_at: ct.jd_sent ? ct.jd_sent_at : null,
+          jd_text: ct.jd_sent ? (ct.requirement_jd_text || ct.jd_text || null) : null,
+          jd_tags: ct.jd_sent ? (ct.requirement_tags || ct.mandate_tags || null) : null,
+          resume_deadline: ct.requirement_resume_deadline || ct.mandate_resume_deadline || null,
+          client_resume_url: resumeUrl,
           published_rounds: rounds,
         }
       })
     )
 
-    // Only return mandates that have at least one published round
-    // (or all mandates - candidate always sees their mandate list)
     res.json({ success: true, data: mandates })
   } catch (err) {
     console.error('GET /candidate/client-outcomes failed:', err)

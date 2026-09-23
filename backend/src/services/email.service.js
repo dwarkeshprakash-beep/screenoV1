@@ -77,6 +77,15 @@ function getDeliveredRecipients(originalTo) {
   return getRecipients(originalTo)
 }
 
+// Every link into the frontend goes through here. Paths must match a real route in
+// frontend/src/App.jsx - there is no /candidate, /manager or /bde portal any more;
+// every non-admin user lives under /workspace. An unknown path silently falls
+// through to the dashboard, so a wrong one here is easy to miss.
+function appLink(path, baseUrl) {
+  const base = String(baseUrl || process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/+$/, '')
+  return `${base}${path}`
+}
+
 function senderLabel(companyName) {
   return companyName || FROM_NAME || APP_NAME
 }
@@ -222,8 +231,7 @@ function escapeHtml(value) {
 }
 
 async function sendPasswordReset(to, { name, token, expiresMinutes = 60 }, options = {}) {
-  const frontendUrl = options.frontendUrl || process.env.FRONTEND_URL || 'http://localhost:5173'
-  const link = `${frontendUrl}/login?reset=${encodeURIComponent(token)}`
+  const link = appLink(`/login?reset=${encodeURIComponent(token)}`, options.frontendUrl)
   const safeName = escapeHtml(name || 'there')
 
   if (appsScriptPasswordResetConfigured(options)) {
@@ -267,8 +275,7 @@ async function sendPasswordReset(to, { name, token, expiresMinutes = 60 }, optio
 // password_reset_tokens mechanism as sendPasswordReset (link lands on the
 // same /login?reset= flow) - only the copy and expiry window differ.
 async function sendWelcomeSetPassword(to, { name, token, expiresMinutes = 60 * 24 * 3 }) {
-  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173'
-  const link = `${frontendUrl}/login?reset=${encodeURIComponent(token)}`
+  const link = appLink(`/login?reset=${encodeURIComponent(token)}`)
   const safeName = escapeHtml(name || 'there')
   const expiresDays = Math.round(expiresMinutes / (60 * 24))
 
@@ -313,8 +320,7 @@ async function sendMagicLink(to, {
   details,
   meetingUrl,
 }) {
-  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173'
-  const portalLink = `${frontendUrl}/candidate/interviews`
+  const portalLink = appLink('/workspace/interviews')
   const sender = senderLabel(companyName)
   const dateText = assessmentDate
     ? (() => {
@@ -500,7 +506,7 @@ async function sendMonthlyAssessmentInvite(to, {
 }
 
 async function sendReportReady(to, { candidate, interviewId, companyName }) {
-  const link = `${process.env.FRONTEND_URL}/manager/reports?interview=${interviewId}`
+  const link = appLink(`/workspace/reports?interview=${encodeURIComponent(interviewId)}`)
   const sender = senderLabel(companyName)
 
   await sendMail({
@@ -532,8 +538,7 @@ async function sendRescheduleRequest(to, {
   expiredAt,
   companyName,
 }) {
-  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173'
-  const link = `${frontendUrl}/manager/schedule`
+  const link = appLink('/workspace/schedule')
   const title = contextTitle || interviewType || 'assessment'
 
   await sendMail({
@@ -605,8 +610,9 @@ async function sendJDForResumeUpdate(to, { candidateName, clientName, role, jdTe
 }
 
 // JD email with a custom manager message included above the JD text
-async function sendClientJDWithMessage(to, { candidateName, clientName, role, jdText, customMessage, deadline, frontendUrl }) {
-  const portalLink = `${frontendUrl || process.env.FRONTEND_URL || 'http://localhost:5173'}/candidate/mandates`
+async function sendClientJDWithMessage(to, { candidateName, clientName, role, jdText, customMessage, deadline, frontendUrl, clientTeamId }) {
+  // Deep-links to this mandate's card on Outcomes, which shows the JD and the resume upload
+  const portalLink = appLink(`/workspace/outcomes${clientTeamId ? `?mandate=${encodeURIComponent(clientTeamId)}` : ''}`, frontendUrl)
   const deadlineText = deadline ? new Date(deadline).toLocaleDateString('en-IN') : null
   await sendMail({
     to,
@@ -713,8 +719,7 @@ async function sendOfflineInterviewInvite(to, { candidateName, clientName, role,
 
 /** Notify an internal candidate that they are conducting an interview. */
 async function sendInterviewerAssignment(to, data) {
-  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173'
-  const assignmentUrl = `${frontendUrl}${data.portalPath || '/candidate/interviews'}`
+  const assignmentUrl = appLink(data.portalPath || '/workspace/interviews')
   const dateText = new Date(data.scheduledAt).toLocaleString('en-IN', {
     dateStyle: 'long', timeStyle: 'short', timeZone: data.scheduleTimezone || undefined,
   })
@@ -743,8 +748,7 @@ async function sendInterviewerAssignment(to, data) {
 }
 
 async function sendInterviewScheduleUpdate(to, data) {
-  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173'
-  const portalUrl = `${frontendUrl}/candidate/interviews`
+  const portalUrl = appLink('/workspace/interviews')
   const dateText = new Date(data.scheduledAt).toLocaleString('en-IN', {
     dateStyle: 'long', timeStyle: 'short', timeZone: data.scheduleTimezone || undefined,
   })
@@ -792,8 +796,7 @@ async function sendInterviewerAssignmentCancelled(to, data) {
 
 /** Notify a manager that a BDE created a client mandate and assigned it to them. */
 async function sendMandateAssigned(to, { managerName, bdeName, clientName, requirements, headcount, mandateId }) {
-  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173'
-  const link = `${frontendUrl}/manager/clients/${mandateId}`
+  const link = appLink(`/workspace/clients/${encodeURIComponent(mandateId)}`)
 
   await sendMail({
     to,
@@ -829,8 +832,7 @@ async function sendMandateAssigned(to, { managerName, bdeName, clientName, requi
 
 /** Notify a BDE that a manager assigned them to a client mandate. */
 async function sendMandateAssignedToBde(to, { bdeName, managerName, clientName, requirements, headcount, mandateId }) {
-  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173'
-  const link = `${frontendUrl}/bde/clients/${mandateId}`
+  const link = appLink(`/workspace/clients/${encodeURIComponent(mandateId)}`)
 
   await sendMail({
     to,

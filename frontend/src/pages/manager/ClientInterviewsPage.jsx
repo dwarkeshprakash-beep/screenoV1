@@ -2359,12 +2359,9 @@ function MandateDetail({ initialTemplate, isBde = false, basePath = '/manager' }
         )}
 
         {/* ── Client Team tab ── */}
-        {/* GAP: a mandate participant's own "submit my resume for this client mandate"
-            flow (submitExistingResumeForClient/submitClientResume, plus the
-            published_rounds/latest_published_round outcome view) currently only lives in
-            the now-unrouted frontend/src/pages/candidate/CandidateMandatesPage.jsx and has
-            no equivalent here. It needs a home once this detail page's UI is redesigned -
-            not folded into this pass. */}
+        {/* A mandate participant's own side of this flow (seeing the sent JD, submitting
+            a resume for the client, published round outcomes) lives on
+            pages/workspace/ClientOutcomesPage.jsx - the JD email deep-links there. */}
         {tab === 'team' && (
           loadingTeam ? <Spinner center /> : (
             <div className="workspace-stack">

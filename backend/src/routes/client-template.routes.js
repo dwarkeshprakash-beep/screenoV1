@@ -964,8 +964,9 @@ router.post('/:id/team/:ctId/send-jd', async (req, res) => {
       customMessage: String(req.body.customMessage || '').trim(),
       deadline,
       frontendUrl: process.env.FRONTEND_URL,
+      clientTeamId: ctId,
     })
-    
+
     const updated = await clientTeamRepo.update(ctId, mandateId, {
       jd_sent: true,
       jd_sent_at: new Date().toISOString()

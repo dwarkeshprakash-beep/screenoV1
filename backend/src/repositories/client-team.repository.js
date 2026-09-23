@@ -58,11 +58,13 @@ async function getByUser(userId) {
     `SELECT ct.*,
             ctm.client_name, ctm.requirements AS mandate_role, ctm.jd_text, ctm.tags AS mandate_tags,
             ctm.resume_deadline AS mandate_resume_deadline,
+            ctm.archived_at AS mandate_archived_at,
             cmr.profile_name AS requirement_name,
             cmr.years_min AS requirement_years_min,
             cmr.years_max AS requirement_years_max,
             cmr.headcount AS requirement_headcount,
             cmr.jd_text AS requirement_jd_text,
+            cmr.tags AS requirement_tags,
             cmr.resume_deadline AS requirement_resume_deadline
      FROM client_teams ct
      JOIN client_templates ctm ON ctm.id = ct.mandate_id

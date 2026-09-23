@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { Eye, EyeOff } from 'lucide-react'
 import * as api from '../../services/api'
 import { PASSWORD_RULES, validatePassword } from '../../utils/password-policy'
@@ -100,8 +100,19 @@ function roleRedirect(role) {
   return '/login'
 }
 
+// Where to go after login: the page the user was sent here from (RequireAuth puts it
+// in location.state.from), but only if it's an internal path inside their own area -
+// otherwise their home. Never follows an absolute or protocol-relative URL.
+function postLoginPath(role, from) {
+  const home = roleRedirect(role)
+  const area = role === 'admin' ? '/admin/' : '/workspace/'
+  if (typeof from === 'string' && from.startsWith(area) && !from.startsWith('//')) return from
+  return home
+}
+
 function LoginPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const initialResetToken = (() => {
     try { return new URLSearchParams(window.location.search).get('reset') || '' } catch { return '' }
   })()
@@ -140,7 +151,7 @@ function LoginPage() {
       localStorage.setItem('accessToken', result.data.accessToken)
       localStorage.setItem('user', JSON.stringify(result.data.user))
       window.dispatchEvent(new Event('user_login'))
-      navigate(roleRedirect(result.data.user.role))
+      navigate(postLoginPath(result.data.user.role, location.state?.from), { replace: true })
     } catch (err) {
       setError(err.message || 'Could not sign in. Please try again.')
     } finally {

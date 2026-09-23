@@ -39,12 +39,15 @@ const METHOD_PERMISSION = { GET: 'View', POST: 'Save', PATCH: 'Save', PUT: 'Save
 // 'View' is special: View and View All both satisfy it (View All is the elevated,
 // company-wide tier of the same "can see this" check, not a separate capability),
 // so every module gates viewing the same way instead of some using a flat Read.
+// moduleKey may be an array: the permission on ANY one of those modules passes (for a
+// self-scoped action reachable from more than one module's page).
 function requireModule(moduleKey, { permission } = {}) {
+  const moduleKeys = Array.isArray(moduleKey) ? moduleKey : [moduleKey]
   return (req, res, next) => {
     const needed = permission || METHOD_PERMISSION[req.method] || 'View'
-    const allowed = needed === 'View'
-      ? accessService.hasAnyViewPermission(req.access, moduleKey)
-      : accessService.hasModulePermission(req.access, moduleKey, needed)
+    const allowed = moduleKeys.some(key => (needed === 'View'
+      ? accessService.hasAnyViewPermission(req.access, key)
+      : accessService.hasModulePermission(req.access, key, needed)))
     if (!allowed) {
       return res.status(403).json({ success: false, error: 'Not authorized' })
     }

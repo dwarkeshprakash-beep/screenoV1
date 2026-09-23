@@ -50,42 +50,6 @@ async function runFetch(endpoint, options, token) {
   })
 }
 
-function generateTabId() {
-  const id = Math.random().toString(36).substring(2, 9)
-  sessionStorage.setItem('tabId', id)
-  return id
-}
-const TAB_ID = sessionStorage.getItem('tabId') || generateTabId()
-
-async function acquireFallbackLock(lockName, ttlMs = 10000) {
-  const now = Date.now()
-  const lockDataStr = localStorage.getItem(lockName)
-  let lockData = null
-  try { lockData = JSON.parse(lockDataStr) } catch { /* ignore */ }
-
-  if (lockData && lockData.owner !== TAB_ID && now < lockData.expires) {
-    return false // Locked by another tab, still valid
-  }
-
-  // Acquire or renew lock
-  localStorage.setItem(lockName, JSON.stringify({ owner: TAB_ID, expires: now + ttlMs }))
-  
-  // Double-check (prevent race conditions in localStorage)
-  await new Promise(r => setTimeout(r, 20)) 
-  const check = JSON.parse(localStorage.getItem(lockName) || '{}')
-  return check.owner === TAB_ID
-}
-
-function releaseFallbackLock(lockName) {
-  const lockDataStr = localStorage.getItem(lockName)
-  try {
-    const lockData = JSON.parse(lockDataStr)
-    if (lockData && lockData.owner === TAB_ID) {
-      localStorage.removeItem(lockName)
-    }
-  } catch { /* ignore */ }
-}
-
 async function doRefreshFetch() {
   const response = await fetch(`${BASE_URL}/api/auth/refresh`, {
     method: 'POST',
@@ -109,81 +73,37 @@ async function doRefreshFetch() {
   if (!body?.data?.accessToken) throw new Error('Session refresh failed')
   localStorage.setItem('accessToken', body.data.accessToken)
   if (body.data.user) localStorage.setItem('user', JSON.stringify(body.data.user))
-  
-  const channel = new BroadcastChannel('auth_channel')
-  channel.postMessage({ type: 'token_refreshed', accessToken: body.data.accessToken })
-  channel.close()
-  
   return body.data.accessToken
 }
 
-async function refreshAccessToken() {
+// Returns a fresh access token after `failedToken` was rejected with a 401.
+// - Within a tab, concurrent 401s share one in-flight refresh (refreshPromise).
+// - Across tabs, an exclusive Web Lock serialises refreshes. A tab that waited on the
+//   lock re-reads localStorage (shared by all tabs) first: if another tab already
+//   swapped the token, it reuses that one instead of refreshing again, so it never
+//   replays the refresh cookie the other tab just rotated.
+// - A request that got its 401 back after another request in this tab already
+//   refreshed sees a newer token in localStorage and just retries with it.
+async function refreshAccessToken(failedToken) {
+  const current = localStorage.getItem('accessToken')
+  if (current && current !== failedToken) return current
   if (refreshPromise) return refreshPromise
 
-  refreshPromise = new Promise((resolve, reject) => {
-    let resolved = false
+  const runRefresh = async () => {
+    const latest = localStorage.getItem('accessToken')
+    if (latest && latest !== failedToken) return latest
+    return doRefreshFetch()
+  }
 
-    // Listen for cross-tab refresh completion
-    const channel = new BroadcastChannel('auth_channel')
-    const resolveRefresh = token => {
-      if (resolved) return
-      resolved = true
-      channel.close()
+  refreshPromise = (async () => {
+    try {
+      return navigator.locks
+        ? await navigator.locks.request('auth_refresh_lock', runRefresh)
+        : await runRefresh()
+    } finally {
       refreshPromise = null
-      resolve(token)
     }
-    const rejectRefresh = error => {
-      if (resolved) return
-      resolved = true
-      channel.close()
-      refreshPromise = null
-      reject(error)
-    }
-    channel.onmessage = (event) => {
-      if (event.data?.type === 'token_refreshed') {
-        resolveRefresh(event.data.accessToken)
-      } else if (event.data === 'auth_expired') {
-        rejectRefresh(new RefreshError('Session expired', 'SESSION_EXPIRED', 401))
-      }
-    }
-
-    const runRefresh = async () => {
-      try {
-        resolveRefresh(await doRefreshFetch())
-      } catch (err) {
-        rejectRefresh(err)
-      }
-    }
-
-    if (navigator.locks) {
-      navigator.locks.request('auth_refresh_lock', { ifAvailable: true }, async (lock) => {
-        if (lock) {
-          await runRefresh()
-        } else {
-          // Wait for BroadcastChannel to resolve this promise, or timeout after 10s
-          setTimeout(() => {
-            rejectRefresh(new RefreshError('Refresh timeout waiting for other tab', 'SESSION_REFRESH_TIMEOUT', 503))
-          }, 10000)
-        }
-      }).catch(rejectRefresh)
-    } else {
-      acquireFallbackLock('auth_refresh_lock_fallback')
-        .then(async gotLock => {
-          if (gotLock) {
-            try {
-              await runRefresh()
-            } finally {
-              releaseFallbackLock('auth_refresh_lock_fallback')
-            }
-          } else {
-            setTimeout(() => {
-              rejectRefresh(new RefreshError('Refresh timeout waiting for other tab', 'SESSION_REFRESH_TIMEOUT', 503))
-            }, 10000)
-          }
-        })
-        .catch(rejectRefresh)
-    }
-  })
+  })()
 
   return refreshPromise
 }
@@ -209,11 +129,15 @@ async function request(endpoint, options = {}) {
     requestToken
   )
 
-  const isAuthEndpoint = endpoint.startsWith('/api/auth/')
+  // Login/refresh/logout/reset/magic-link must never trigger a refresh (loops, or a 401
+  // there means bad credentials, not an expired token). /api/auth/me/* are ordinary
+  // bearer-token endpoints though, and must refresh like everything else - otherwise
+  // an expired access token leaves /me/access 401-ing forever and the sidebar empty.
+  const isAuthEndpoint = endpoint.startsWith('/api/auth/') && !endpoint.startsWith('/api/auth/me/')
   const canRefresh = !skipAuthRedirect && !isAuthEndpoint && !omitAuth && !useInterviewAuth && authToken === undefined
   if (response.status === 401 && canRefresh) {
     try {
-      response = await runFetch(endpoint, fetchOptions, await refreshAccessToken())
+      response = await runFetch(endpoint, fetchOptions, await refreshAccessToken(requestToken))
     } catch (err) {
       if (err instanceof RefreshError && err.statusCode === 401) {
         clearSession()
@@ -350,15 +274,15 @@ export const saveTextAnswer = (id, data) =>
   })
 export const getInterviewTranscript = id =>
   request(`/api/interviews/${id}/transcript`)
+// Candidate's own report for one interview, via the interview session token.
+// data is null until the report job has produced it.
+export const getInterviewReport = id =>
+  request(`/api/interviews/${id}/report`, { useInterviewAuth: true, skipAuthRedirect: true })
 
 export const getCandidateInterviews = () => request('/api/candidate/interviews')
 export const launchCandidateInterview = id =>
   request(`/api/candidate/interviews/${id}/launch`, { method: 'POST' })
-export const getCandidateOwnReport = (interviewScoped = false) =>
-  request('/api/candidate/report', {
-    skipAuthRedirect: interviewScoped,
-    useInterviewAuth: interviewScoped,
-  })
+export const getCandidateOwnReport = () => request('/api/candidate/report')
 export const getCandidateFeedbackHistory = () => request('/api/candidate/reports')
 
 export const getExam = token =>

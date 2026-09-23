@@ -117,12 +117,23 @@ function HomeRedirect() {
 }
 
 function RequireAuth({ children, adminOnly }) {
+  const location = useLocation()
   const { token, role: storedRole } = storedSession()
-  if (!token) return <Navigate to="/login" replace />
+  // Remember the deep link (e.g. from an email) so login can return the user to it
+  if (!token) return <Navigate to="/login" replace state={{ from: `${location.pathname}${location.search}` }} />
 
   if (adminOnly && storedRole !== 'admin') return <Navigate to={roleHome(storedRole)} replace />
   if (!adminOnly && storedRole === 'admin') return <Navigate to={roleHome(storedRole)} replace />
   return children
+}
+
+// End of an interview/exam. A signed-in workspace user gets the confirmation inside
+// the normal shell (sidebar to move on); a magic-link-only candidate has no account
+// to navigate, so they keep the standalone page.
+function InterviewDoneRoute() {
+  const { token, role } = storedSession()
+  if (token && role === 'user') return <Navigate to="/workspace/interview-complete" replace />
+  return <DonePage />
 }
 
 function RedirectIfAuthed({ children }) {
@@ -157,6 +168,7 @@ function App() {
             <Route path="feedback" element={<RequireModule moduleKey="feedback" redirectTo="/workspace/profile"><FeedbackPage /></RequireModule>} />
             <Route path="outcomes" element={<RequireModule moduleKey="outcomes" redirectTo="/workspace/profile"><ClientOutcomesPage /></RequireModule>} />
             <Route path="resume-analyzer" element={<RequireModule moduleKey="resume_analyzer" redirectTo="/workspace/profile"><ResumeAnalyzerPage /></RequireModule>} />
+            <Route path="interview-complete" element={<DonePage inWorkspace />} />
             <Route path="profile" element={<ProfilePage />} />
           </Route>
 
@@ -189,7 +201,7 @@ function App() {
             <Route path="consent" element={<ConsentPage />} />
             <Route path="ai" element={<AIInterviewPage />} />
             <Route path="exam" element={<ExamPage />} />
-            <Route path="done" element={<DonePage />} />
+            <Route path="done" element={<InterviewDoneRoute />} />
           </Route>
 
           <Route path="/" element={<HomeRedirect />} />

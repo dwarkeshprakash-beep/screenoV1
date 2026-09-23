@@ -20,6 +20,7 @@ const PAGE_META = {
   '/workspace/feedback':         { title: 'Feedback',           subtitle: 'Improvement tips from your completed assessments' },
   '/workspace/outcomes':         { title: 'Client Outcomes',    subtitle: 'Interview round results for your client mandates' },
   '/workspace/profile':          { title: 'My Profile',         subtitle: 'Account and notification settings' },
+  '/workspace/interview-complete': { title: 'Assessment submitted', subtitle: 'Your responses were saved' },
   '/admin/dashboard':          { title: 'Admin Dashboard',     subtitle: 'System-wide overview and controls' },
   '/admin/mandates':           { title: 'Admin Mandates',      subtitle: 'Inspect and repair client mandates' },
   '/admin/interviews':         { title: 'Admin Interviews',    subtitle: 'Inspect and repair interview states' },

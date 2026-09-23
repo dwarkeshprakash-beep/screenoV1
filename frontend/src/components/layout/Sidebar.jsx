@@ -66,7 +66,7 @@ function getInitials(name) {
 function Sidebar({ role = 'workspace', open = false, onNavigate }) {
   const navigate  = useNavigate()
   const location  = useLocation()
-  const { access, hasModule, loading: accessLoading } = useAccess()
+  const { access, hasModule, loading: accessLoading, error: accessError, reload: reloadAccess } = useAccess()
   const rawNav = { admin: ADMIN_NAV }[role] || WORKSPACE_NAV
   // Admin's nav isn't module-gated (platform-wide, see access.service.js), and while
   // access is still loading we show everything rather than flash an empty sidebar.
@@ -151,6 +151,20 @@ function Sidebar({ role = 'workspace', open = false, onNavigate }) {
             })}
           </div>
         ))}
+
+        {/* Access failed to load - say so instead of silently showing a near-empty menu */}
+        {role !== 'admin' && accessError && (
+          <div style={{ padding: '10px', fontSize: 'var(--fs-xs)', color: 'var(--fg-on-dark-muted)' }}>
+            Couldn't load your menu.{' '}
+            <button
+              type="button"
+              onClick={reloadAccess}
+              style={{ background: 'none', border: 'none', padding: 0, color: 'var(--brand-500)', cursor: 'pointer', fontSize: 'inherit' }}
+            >
+              Retry
+            </button>
+          </div>
+        )}
       </div>
 
       {/* User footer */}

@@ -10,21 +10,36 @@ const NEXT_STEPS = [
   { icon: Mail, title: 'Follow-up', body: 'The hiring or assessment team will contact you with the next step.' },
 ]
 
-function DonePage() {
+// inWorkspace: rendered inside AppLayout (signed-in user) - the sidebar is the way
+// onward, so point them at it. Standalone (magic-link only, no account): nothing to
+// navigate to, so just tell them they're done.
+function DonePage({ inWorkspace = false }) {
   const [report, setReport] = useState(null)
 
+  // Poll for the report the background job generates. Stops once it arrives, or
+  // when the interview session is missing/expired (401/403) - retrying can't fix that.
   useEffect(() => {
     let active = true
+    let interval = null
+    const interviewId = (() => {
+      try { return JSON.parse(localStorage.getItem('interviewSession') || '{}').interviewId || null } catch { return null }
+    })()
+    if (!interviewId) return undefined
+
     async function loadReport() {
       try {
-        const res = await api.getCandidateOwnReport(true)
-        if (active) setReport(res.data || null)
-      } catch {
-        if (active) setReport(null)
+        const res = await api.getInterviewReport(interviewId)
+        if (!active) return
+        if (res.data) {
+          setReport(res.data)
+          clearInterval(interval)
+        }
+      } catch (err) {
+        if (active && (err.statusCode === 401 || err.statusCode === 403)) clearInterval(interval)
       }
     }
+    interval = setInterval(loadReport, 15000)
     void loadReport()
-    const interval = setInterval(loadReport, 15000)
     return () => {
       active = false
       clearInterval(interval)
@@ -42,7 +57,8 @@ function DonePage() {
       </div>
       <h1 style={{ fontSize: 32, fontWeight: 700, color: 'var(--slate-900)', margin: '0 0 10px' }}>Assessment submitted</h1>
       <p style={{ fontSize: 15, color: 'var(--slate-700)', margin: '0 auto 32px', lineHeight: 1.6, maxWidth: 440 }}>
-        Your responses were saved. You can close this window safely.
+        Your responses were saved.{' '}
+        {inWorkspace ? 'Use the menu on the left to continue.' : 'You can close this window safely.'}
       </p>
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, textAlign: 'left', marginBottom: 28 }}>
         {NEXT_STEPS.map(({ icon: Icon, title, body }) => (
@@ -66,10 +82,6 @@ function DonePage() {
           )}
         </div>
       )}
-      <button type="button" onClick={() => { try { window.close() } catch { /* Browser may block closing tabs not opened by script. */ } }} style={{ padding: '11px 20px', border: '1px solid var(--slate-300)', borderRadius: 10, background: 'var(--bg-surface)', fontSize: 14, fontWeight: 600, color: 'var(--slate-700)', cursor: 'pointer' }}>
-        Close this tab
-      </button>
-      <p style={{ marginTop: 10, fontSize: 12, color: 'var(--slate-400)' }}>If the tab doesn't close, you can safely close it manually.</p>
     </div>
   )
 }

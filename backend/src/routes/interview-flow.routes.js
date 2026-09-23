@@ -165,8 +165,14 @@ router.get('/my-assignments', requireModule('interviews'), async (req, res) => {
   }
 })
 
+// Completing / commenting on an interview YOU were assigned to conduct is self-scoped
+// (the service looks the assignment up by assignmentId AND req.user.id), same as
+// launching/joining your own interview in candidate.routes.js - so View-level access
+// is enough, not the POST/PATCH default of Save. With the Save default, an interviewer
+// whose role only grants View on Interviews could see the assignment but got 403 on submit.
+
 /** A completed interviewer may edit only the written comment. */
-router.patch('/assignments/:assignmentId/feedback', requireModule('interviews'), async (req, res) => {
+router.patch('/assignments/:assignmentId/feedback', requireModule('interviews', { permission: 'View' }), async (req, res) => {
   try {
     const updated = await flowService.updateAssignmentFeedback(
       req.params.assignmentId,
@@ -181,7 +187,7 @@ router.patch('/assignments/:assignmentId/feedback', requireModule('interviews'),
 })
 
 /** Complete human/offline work with optional feedback document. */
-router.post('/assignments/:assignmentId/complete', requireModule('interviews'), documentUpload.single('file'), async (req, res) => {
+router.post('/assignments/:assignmentId/complete', requireModule('interviews', { permission: 'View' }), documentUpload.single('file'), async (req, res) => {
   try {
     const completed = await flowService.completeAssignment(req.params.assignmentId, req.user.id, req.body, req.file)
     res.json({ success: true, data: completed })

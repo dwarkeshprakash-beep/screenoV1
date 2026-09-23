@@ -2,10 +2,15 @@
 // Client Outcomes module - always self-scoped, every caller only ever sees published
 // outcome rounds for mandates they're a client_teams participant on (no View-All tier
 // exists for this module). Moved as-is from the old candidate-only
-// CandidateClientOutcomesPage - no behavior change.
-import { useCallback, useEffect, useState } from 'react'
-import { BriefcaseBusiness, Clock } from 'lucide-react'
+// CandidateClientOutcomesPage. Each card also carries the JD once the manager has sent
+// it, plus the resume-submission action - the JD email links here with ?mandate=<ctId>
+// so that card is scrolled to, highlighted and has its JD expanded.
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
+import { BriefcaseBusiness, CheckCircle2, Clock } from 'lucide-react'
 import Spinner from '../../components/shared/Spinner'
+import MandateJdDetails from '../../components/candidate/MandateJdDetails'
+import MandateResumeAction from '../../components/candidate/MandateResumeAction'
 import * as api from '../../services/api'
 import { formatDate } from '../../utils/helpers'
 
@@ -58,17 +63,19 @@ function RoundRow({ round }) {
   )
 }
 
-function MandateCard({ mandate }) {
+function MandateCard({ mandate, resumes, highlighted, cardRef, onResumeSubmitted }) {
   const [expanded, setExpanded] = useState(false)
   const rounds = mandate.published_rounds || []
   const latestRound = rounds[rounds.length - 1]
+  const needsResume = mandate.jd_sent && !mandate.client_resume_url && !mandate.is_archived
 
   return (
-    <div style={{
+    <div ref={cardRef} style={{
       background: 'var(--bg-surface)',
-      border: `1px solid ${mandate.is_archived ? 'var(--border-default)' : 'var(--border-default)'}`,
-      borderLeft: `3px solid ${rounds.length > 0 ? 'var(--brand-500)' : 'var(--border-default)'}`,
-      borderRadius: 10, boxShadow: 'var(--shadow-xs)',
+      border: `1px solid ${highlighted ? 'var(--brand-500)' : 'var(--border-default)'}`,
+      borderLeft: `3px solid ${rounds.length > 0 || highlighted ? 'var(--brand-500)' : 'var(--border-default)'}`,
+      borderRadius: 10, boxShadow: highlighted ? 'var(--shadow-sm)' : 'var(--shadow-xs)',
+      scrollMarginTop: 80,
     }}>
       <div style={{ padding: '16px 18px' }}>
         {/* Header */}
@@ -88,6 +95,26 @@ function MandateCard({ mandate }) {
             <span style={{ fontSize: 11, color: 'var(--fg-subtle)' }}>No updates yet</span>
           )}
         </div>
+
+        {/* JD - only present once the manager has sent it */}
+        {mandate.jd_sent && (
+          <MandateJdDetails jdText={mandate.jd_text} tags={mandate.jd_tags} defaultOpen={highlighted} />
+        )}
+
+        {/* Resume for this client: submitted link, or the submit action */}
+        {mandate.client_resume_url ? (
+          <p style={{ fontSize: 12, color: 'var(--success-700)', margin: '0 0 10px', display: 'flex', alignItems: 'center', gap: 4 }}>
+            <CheckCircle2 size={12} />Resume submitted
+            <a href={mandate.client_resume_url} target="_blank" rel="noreferrer" style={{ color: 'inherit', textDecoration: 'underline' }}>View</a>
+          </p>
+        ) : needsResume && (
+          <MandateResumeAction
+            clientTeamId={mandate.client_team_id}
+            resumes={resumes}
+            deadline={mandate.resume_deadline}
+            onSubmitted={onResumeSubmitted}
+          />
+        )}
 
         {rounds.length === 0 ? (
           <p style={{ fontSize: 12, color: 'var(--fg-muted)', margin: 0 }}>
@@ -120,16 +147,30 @@ function MandateCard({ mandate }) {
 }
 
 function ClientOutcomesPage() {
+  const [searchParams] = useSearchParams()
   const [mandates, setMandates] = useState([])
+  const [resumes, setResumes] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [notice, setNotice] = useState(null)
+  const highlightRef = useRef(null)
 
-  const load = useCallback(async () => {
-    setLoading(true)
+  // ?mandate=<client_team_id> comes from the JD email link
+  const highlightId = Number(searchParams.get('mandate')) || null
+
+  // silent=true refreshes after a resume submit without swapping the page for a spinner
+  const load = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true)
     setError(null)
     try {
-      const res = await api.getCandidateClientOutcomes()
-      setMandates(res.data || [])
+      // The resume pool only feeds the "pick a saved resume" dropdown - if it fails
+      // the upload option still works, so it must not fail the whole page.
+      const [outcomesRes, resumesRes] = await Promise.all([
+        api.getCandidateClientOutcomes(),
+        api.getResumes().catch(() => ({ data: [] })),
+      ])
+      setMandates(outcomesRes.data || [])
+      setResumes(resumesRes.data || [])
     } catch {
       setError('Could not load client outcomes.')
     } finally {
@@ -138,6 +179,18 @@ function ClientOutcomesPage() {
   }, [])
 
   useEffect(() => { void load() }, [load])
+
+  // Once the linked card is on screen, bring it into view
+  useEffect(() => {
+    if (!loading && highlightRef.current) {
+      highlightRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }, [loading, highlightId])
+
+  async function handleResumeSubmitted() {
+    setNotice('Resume submitted for this client mandate.')
+    await load(true)
+  }
 
   if (loading) return <div style={{ padding: 40, display: 'flex', justifyContent: 'center' }}><Spinner /></div>
 
@@ -148,9 +201,15 @@ function ClientOutcomesPage() {
           Client Outcomes
         </h1>
         <p style={{ fontSize: 13, color: 'var(--fg-muted)', marginTop: 4, marginBottom: 0 }}>
-          Interview round results published by your manager for client mandates
+          Job descriptions, resume requests and interview round results for client mandates you&apos;re on
         </p>
       </div>
+
+      {notice && (
+        <div onClick={() => setNotice(null)} style={{ padding: '10px 14px', borderRadius: 8, background: 'var(--success-50)', color: 'var(--success-700)', fontSize: 13, marginBottom: 20, border: '1px solid var(--success-100)', cursor: 'pointer' }}>
+          {notice}
+        </div>
+      )}
 
       {error && (
         <div style={{ padding: '10px 14px', borderRadius: 8, background: 'var(--danger-50)', color: 'var(--danger-700)', fontSize: 13, marginBottom: 20, border: '1px solid var(--danger-100)' }}>
@@ -169,7 +228,14 @@ function ClientOutcomesPage() {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {mandates.map(mandate => (
-            <MandateCard key={mandate.client_team_id} mandate={mandate} />
+            <MandateCard
+              key={mandate.client_team_id}
+              mandate={mandate}
+              resumes={resumes}
+              highlighted={mandate.client_team_id === highlightId}
+              cardRef={mandate.client_team_id === highlightId ? highlightRef : undefined}
+              onResumeSubmitted={handleResumeSubmitted}
+            />
           ))}
         </div>
       )}

@@ -8,19 +8,39 @@ import * as api from '../services/api'
 
 const AccessContext = createContext(null)
 
+// A transient failure (network blip, 5xx, refresh hiccup) must not look like "this
+// user has no modules" - that collapses the sidebar to just Overview. Retry a couple
+// of times before giving up; auth failures (401/403) are final and not retried.
+const MAX_ATTEMPTS = 3
+const RETRY_DELAY_MS = 800
+
+function isRetryable(err) {
+  return err?.statusCode !== 401 && err?.statusCode !== 403
+}
+
 function AccessProvider({ children }) {
   const [access, setAccess] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
   const load = useCallback(async () => {
     setLoading(true)
-    try {
-      const res = await api.getMyAccess()
-      setAccess(res.data || null)
-    } catch {
-      setAccess(null)
-    } finally {
-      setLoading(false)
+    setError(null)
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
+      try {
+        const res = await api.getMyAccess()
+        setAccess(res.data || null)
+        setLoading(false)
+        return
+      } catch (err) {
+        if (attempt === MAX_ATTEMPTS || !isRetryable(err)) {
+          setAccess(null)
+          setError(err?.message || 'Could not load your access')
+          setLoading(false)
+          return
+        }
+        await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS * attempt))
+      }
     }
   }, [])
 
@@ -35,7 +55,7 @@ function AccessProvider({ children }) {
   }
 
   return (
-    <AccessContext.Provider value={{ access, loading, hasModule, reload: load }}>
+    <AccessContext.Provider value={{ access, loading, error, hasModule, reload: load }}>
       {children}
     </AccessContext.Provider>
   )
