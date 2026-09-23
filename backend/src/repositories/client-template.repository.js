@@ -230,8 +230,28 @@ async function restore(id, managerId) {
   return rows[0] || null
 }
 
+async function getAllForAdmin() {
+  return db.query(
+    `SELECT
+       ct.id, ct.client_name, ct.requirements, ct.headcount, ct.created, ct.archived_at,
+       u.id AS manager_id,
+       u.first_name AS manager_first_name,
+       u.last_name AS manager_last_name,
+       u.email AS manager_email,
+       c.name AS company_name,
+       (SELECT COUNT(*) FROM client_teams team WHERE team.mandate_id = ct.id) AS candidate_count,
+       (SELECT COUNT(*) FROM interviews i WHERE i.client_template_id = ct.id) AS interview_count,
+       (SELECT COUNT(*) FROM interviews i WHERE i.client_template_id = ct.id AND i.status = 'in_progress') AS active_interview_count
+     FROM client_templates ct
+     JOIN users u ON u.id = ct.manager_id
+     LEFT JOIN companies c ON c.id = u.company_id
+     ORDER BY ct.created DESC`,
+    {}
+  )
+}
+
 module.exports = {
   create, getByManager, getById,
   getVisibleToUser, getByIdVisibleToUser, getByCompany, getByIdForCompany,
-  update, archive, restore,
+  update, archive, restore, getAllForAdmin,
 }

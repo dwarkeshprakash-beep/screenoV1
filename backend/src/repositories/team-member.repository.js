@@ -100,4 +100,11 @@ async function removeMember(id, managerId) {
   )
 }
 
-module.exports = { getByManager, getByCompany, getByIdForManager, getByIdsForManager, create, removeMember }
+async function getIdsAndUserIdsByManager(managerId) {
+  return db.query(
+    `SELECT id, user_id FROM team_members WHERE manager_id = @managerId`,
+    { managerId }
+  )
+}
+
+module.exports = { getByManager, getByCompany, getByIdForManager, getByIdsForManager, create, removeMember, getIdsAndUserIdsByManager }

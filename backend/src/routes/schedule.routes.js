@@ -113,7 +113,7 @@ router.post('/', async (req, res) => {
 router.get('/interviews', async (req, res) => {
   try {
     const category = ['mandate', 'monthly', 'general'].includes(req.query.category) ? req.query.category : null
-    const events = accessService.hasModulePermission(req.access, 'client_mandates', 'View All')
+    const events = accessService.hasModulePermission(req.access, 'schedule', 'View All')
       ? await scheduleService.getScheduledInterviewsForCompany(req.access.companyId, {
           dateFrom: req.query.dateFrom,
           dateTo: req.query.dateTo,

@@ -5,6 +5,7 @@ const { loadAccess, requireModule } = require('../middleware/access')
 const clientTemplateRepo = require('../repositories/client-template.repository')
 const clientTeamRepo = require('../repositories/client-team.repository')
 const clientRequirementsRepo = require('../repositories/client-mandate-requirements.repository')
+const teamMemberRepository = require('../repositories/team-member.repository')
 const clientOutcomeRoundsRepo = require('../repositories/client-outcome-rounds.repository')
 const userRepository = require('../repositories/user.repository')
 const interviewRepository = require('../repositories/interview.repository')
@@ -675,10 +676,7 @@ router.get('/:id/matches', async (req, res) => {
     const [allMembers, mandateOwnerUsers, teamRows, clientTeamRows, requirements] = await Promise.all([
       userRepository.getByCompany(req.user.companyId),
       userRepository.getByModulePermission(req.user.companyId, 'client_mandates', 'Save'),
-      require('../db/connection').query(
-        `SELECT id, user_id FROM team_members WHERE manager_id = @managerId`,
-        { managerId: template.manager_id }
-      ),
+      teamMemberRepository.getIdsAndUserIdsByManager(template.manager_id),
       clientTeamRepo.getByMandate(parseInt(req.params.id, 10)),
       clientRequirementsRepo.getByMandate(template.id),
     ])

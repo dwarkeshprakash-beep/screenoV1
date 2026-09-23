@@ -8,7 +8,8 @@ const accessService = require('../services/access.service')
 const mandateLifecycleService = require('../services/mandate-lifecycle.service')
 const userService = require('../services/user.service')
 const companyRepository = require('../repositories/company.repository')
-const db = require('../db/connection')
+const clientTemplateRepository = require('../repositories/client-template.repository')
+const userRepository = require('../repositories/user.repository')
 
 const router = express.Router()
 router.use(authMiddleware, loadAccess, requirePlatformAdmin)
@@ -26,23 +27,7 @@ router.get('/companies', async (req, res) => {
 
 router.get('/mandates', async (req, res) => {
   try {
-    const mandates = await db.query(
-      `SELECT
-         ct.id, ct.client_name, ct.requirements, ct.headcount, ct.created, ct.archived_at,
-         u.id AS manager_id,
-         u.first_name AS manager_first_name,
-         u.last_name AS manager_last_name,
-         u.email AS manager_email,
-         c.name AS company_name,
-         (SELECT COUNT(*) FROM client_teams team WHERE team.mandate_id = ct.id) AS candidate_count,
-         (SELECT COUNT(*) FROM interviews i WHERE i.client_template_id = ct.id) AS interview_count,
-         (SELECT COUNT(*) FROM interviews i WHERE i.client_template_id = ct.id AND i.status = 'in_progress') AS active_interview_count
-       FROM client_templates ct
-       JOIN users u ON u.id = ct.manager_id
-       LEFT JOIN companies c ON c.id = u.company_id
-       ORDER BY ct.created DESC`,
-      {}
-    )
+    const mandates = await clientTemplateRepository.getAllForAdmin()
     res.json({ success: true, data: mandates })
   } catch (err) {
     console.error('[Admin] GET /mandates failed:', err.message)
@@ -58,26 +43,23 @@ router.patch('/mandates/:id/reassign', async (req, res) => {
       return res.status(400).json({ success: false, error: 'newManagerId is required' })
     }
 
-    const managers = await db.query(
-      `SELECT id FROM users WHERE id = @id`,
-      { id: newManagerId }
-    )
-    const targetAccess = managers.length > 0 ? await accessService.getUserAccessContext(newManagerId) : null
-    if (!targetAccess || !accessService.hasModulePermission(targetAccess, 'client_mandates', 'Save')) {
+    const newManager = await userRepository.getById(newManagerId)
+    if (!newManager) {
+      return res.status(404).json({ success: false, error: 'Manager not found' })
+    }
+
+    const targetAccess = await accessService.getUserAccessContext(newManagerId)
+    if (!accessService.hasModulePermission(targetAccess, 'client_mandates', 'Save')) {
       return res.status(400).json({ success: false, error: 'Target user cannot own client mandates' })
     }
 
-    const updated = await db.query(
-      `UPDATE client_templates
-       SET manager_id = @newManagerId
-       WHERE id = @mandateId
-       RETURNING *`,
-      { mandateId, newManagerId }
-    )
-    if (updated.length === 0) {
-      return res.status(404).json({ success: false, error: 'Mandate not found' })
+    const mandate = await clientTemplateRepository.getById(mandateId, newManager.company_id)
+    if (!mandate) {
+      return res.status(404).json({ success: false, error: 'Mandate not found or not in same company' })
     }
-    res.json({ success: true, data: updated[0] })
+
+    const updated = await clientTemplateRepository.update(mandateId, newManagerId, { manager_id: newManagerId })
+    res.json({ success: true, data: updated })
   } catch (err) {
     console.error('[Admin] PATCH /mandates/:id/reassign failed:', err.message)
     res.status(500).json({ success: false, error: 'Could not reassign mandate' })
