@@ -62,8 +62,9 @@ router.patch('/mandates/:id/reassign', async (req, res) => {
       `SELECT id FROM users WHERE id = @id`,
       { id: newManagerId }
     )
-    if (managers.length === 0 || (await accessService.getPortalForUser(newManagerId)) !== 'manager') {
-      return res.status(400).json({ success: false, error: 'Target user is not a manager' })
+    const targetAccess = managers.length > 0 ? await accessService.getUserAccessContext(newManagerId) : null
+    if (!targetAccess || !accessService.hasModulePermission(targetAccess, 'client_mandates', 'Save')) {
+      return res.status(400).json({ success: false, error: 'Target user cannot own client mandates' })
     }
 
     const updated = await db.query(
@@ -83,32 +84,39 @@ router.patch('/mandates/:id/reassign', async (req, res) => {
   }
 })
 
-const BDE_USER_ERROR_STATUS = {
+const CREATE_USER_ERROR_STATUS = {
   'email is required': 400,
   'Company not found': 404,
+  'Select a valid role for this user': 400,
   'A user with this email already exists in that company': 409,
-  'This company has no BDE-portal role yet - create one in the Roles module first': 400,
   'Could not create user - email may already be in use': 409,
 }
 
-router.post('/users/bde', async (req, res) => {
+// Admin-only bootstrap for a user in another company - the admin explicitly picks
+// the role, rather than the system inferring one from a portal.
+router.post('/users', async (req, res) => {
   try {
     const companyId = parseInt(req.body.companyId, 10)
     if (!Number.isInteger(companyId)) {
       return res.status(400).json({ success: false, error: 'companyId is required' })
     }
+    const roleId = parseInt(req.body.roleId, 10)
+    if (!Number.isInteger(roleId)) {
+      return res.status(400).json({ success: false, error: 'roleId is required' })
+    }
 
-    const created = await userService.createBdeUser(companyId, {
+    const created = await userService.createUserWithRole(companyId, {
       email: req.body.email,
       firstName: req.body.firstName,
       lastName: req.body.lastName,
+      roleId,
     })
     res.status(201).json({ success: true, data: created })
   } catch (err) {
-    console.error('[Admin] POST /users/bde failed:', err.message)
-    const status = BDE_USER_ERROR_STATUS[err.message]
+    console.error('[Admin] POST /users failed:', err.message)
+    const status = CREATE_USER_ERROR_STATUS[err.message]
     if (status) return res.status(status).json({ success: false, error: err.message })
-    res.status(500).json({ success: false, error: 'Could not create BDE user' })
+    res.status(500).json({ success: false, error: 'Could not create user' })
   }
 })
 

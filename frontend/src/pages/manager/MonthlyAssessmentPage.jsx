@@ -28,6 +28,7 @@ import ConfirmDialog from '../../components/shared/ConfirmDialog'
 import Spinner from '../../components/shared/Spinner'
 import * as api from '../../services/api'
 import { parseStoredArray } from '../../utils/helpers'
+import { useAccess } from '../../context/AccessContext'
 
 function currentMonth() {
   const date = new Date()
@@ -337,7 +338,7 @@ function WizardModal({ open, onClose, onDone, initialData }) {
   )
 }
 
-function SubjectDetailModal({ assessment, open, onClose, onAssign, onEdit, onDelete }) {
+function SubjectDetailModal({ assessment, open, onClose, onAssign, onEdit, onDelete, canDelete }) {
   const [showHistory, setShowHistory] = useState(false)
   if (!assessment) return null
 
@@ -453,10 +454,12 @@ function SubjectDetailModal({ assessment, open, onClose, onAssign, onEdit, onDel
               <Pencil size={15} />
               Edit subject
             </Button>
-            <Button variant="danger" onClick={() => { onClose(); onDelete(); }}>
-              <Trash2 size={15} />
-              Delete subject
-            </Button>
+            {canDelete && (
+              <Button variant="danger" onClick={() => { onClose(); onDelete(); }}>
+                <Trash2 size={15} />
+                Delete subject
+              </Button>
+            )}
           </div>
           <Button onClick={() => onAssign(assessment)}>
             <UserPlus size={15} />
@@ -469,6 +472,9 @@ function SubjectDetailModal({ assessment, open, onClose, onAssign, onEdit, onDel
 }
 
 function MonthlyAssessmentPage() {
+  const { hasModule } = useAccess()
+  const canSave = hasModule('monthly_assessments', 'Save')
+  const canDelete = hasModule('monthly_assessments', 'Delete')
   const [tab, setTab] = useState('library')
   const [month, setMonth] = useState(currentMonth)
   const [calendarYear, setCalendarYear] = useState(() => new Date().getFullYear())
@@ -678,7 +684,7 @@ function MonthlyAssessmentPage() {
             </button>
           ))}
         </div>
-        {tab === 'library' && (
+        {tab === 'library' && canSave && (
           <Button onClick={() => setWizardOpen(true)}>
             <Plus size={15} />
             Create subject
@@ -839,16 +845,18 @@ function MonthlyAssessmentPage() {
                                     {candidate.status === 'cancelled' && (
                                       <span className="status-pill status-pill--danger">Cancelled</span>
                                     )}
-                                    <button
-                                      type="button"
-                                      className="danger-icon-button"
-                                      disabled={cancellingEnrollmentId === candidate.id}
-                                      onClick={() => removeEnrollment({ ...candidate, subject_name: subject.subject_name, duration_months: subject.duration_months })}
-                                      aria-label={`Delete ${name}'s full monthly plan`}
-                                      title="Delete full plan"
-                                    >
-                                      <Trash2 size={14} />
-                                    </button>
+                                    {canDelete && (
+                                      <button
+                                        type="button"
+                                        className="danger-icon-button"
+                                        disabled={cancellingEnrollmentId === candidate.id}
+                                        onClick={() => removeEnrollment({ ...candidate, subject_name: subject.subject_name, duration_months: subject.duration_months })}
+                                        aria-label={`Delete ${name}'s full monthly plan`}
+                                        title="Delete full plan"
+                                      >
+                                        <Trash2 size={14} />
+                                      </button>
+                                    )}
                                   </div>
                                 </div>
                               )
@@ -996,6 +1004,7 @@ function MonthlyAssessmentPage() {
       <SubjectDetailModal
         assessment={selectedAssessment}
         open={Boolean(selectedAssessment)}
+        canDelete={canDelete}
         onClose={() => setSelectedAssessment(null)}
         onAssign={subject => {
           setSelectedAssessment(null)

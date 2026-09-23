@@ -434,11 +434,22 @@ async function assignCandidates(assessmentId, body, managerId, companyId) {
   }
 }
 
-async function getAssessments(managerId) {
-  const [assessments, enrollments] = await Promise.all([
-    monthlyAssessmentRepository.getByManager(managerId),
-    monthlyAssessmentRepository.getEnrollmentsByManager(managerId),
-  ])
+// scope: { viewAll, companyId } - viewAll=true (caller has the "View All" permission)
+// returns every subject/enrollment in the caller's company; otherwise (the "View"
+// permission) returns subjects the caller manages UNION subjects they are personally
+// enrolled in as a team member, each scoped to only their own enrollment row for the
+// subjects they don't manage (see getEnrollmentsVisibleToUser for how that's enforced).
+async function getAssessments(userId, scope = {}) {
+  const { viewAll, companyId } = scope
+  const [assessments, enrollments] = viewAll
+    ? await Promise.all([
+      monthlyAssessmentRepository.getByCompany(companyId),
+      monthlyAssessmentRepository.getEnrollmentsByCompany(companyId),
+    ])
+    : await Promise.all([
+      monthlyAssessmentRepository.getVisibleToUser(userId),
+      monthlyAssessmentRepository.getEnrollmentsVisibleToUser(userId),
+    ])
   const byAssessment = new Map()
   for (const enrollment of enrollments) {
     const list = byAssessment.get(enrollment.assessment_id) || []
@@ -457,7 +468,7 @@ function monthIndexForDate(startDate, year, month) {
   return (year - start.getUTCFullYear()) * 12 + (month - start.getUTCMonth())
 }
 
-async function getMonthPlan(managerId, monthValue) {
+async function getMonthPlan(userId, monthValue, scope = {}) {
   if (!/^\d{4}-\d{2}$/.test(String(monthValue || ''))) {
     throw new Error('Month must use YYYY-MM format')
   }
@@ -465,11 +476,23 @@ async function getMonthPlan(managerId, monthValue) {
   if (monthNumber < 1 || monthNumber > 12) throw new Error('Month must use YYYY-MM format')
   const monthIndex = monthNumber - 1
 
-  const [assessments, enrollments, teamMembers] = await Promise.all([
-    monthlyAssessmentRepository.getByManager(managerId),
-    monthlyAssessmentRepository.getEnrollmentsByManager(managerId),
-    teamMemberRepository.getByManager(managerId),
-  ])
+  const { viewAll, companyId } = scope
+  const [assessments, enrollments, teamMembers] = viewAll
+    ? await Promise.all([
+      monthlyAssessmentRepository.getByCompany(companyId),
+      monthlyAssessmentRepository.getEnrollmentsByCompany(companyId),
+      teamMemberRepository.getByCompany(companyId),
+    ])
+    : await Promise.all([
+      monthlyAssessmentRepository.getVisibleToUser(userId),
+      monthlyAssessmentRepository.getEnrollmentsVisibleToUser(userId),
+      // A self-scoped viewer who is only an assigned team member (not a manager
+      // themselves) owns no team_members rows, so this returns [] for them - the
+      // "members without an assessment" panel simply has nothing to show, which is
+      // correct since that panel is a manager's assignment-gap tool, not something
+      // relevant to what a team member sees about themselves.
+      teamMemberRepository.getByManager(userId),
+    ])
   const activeEnrollments = enrollments.filter(enrollment => {
     const index = monthIndexForDate(enrollment.start_date, year, monthIndex)
     const assessment = assessments.find(item => item.id === enrollment.assessment_id)

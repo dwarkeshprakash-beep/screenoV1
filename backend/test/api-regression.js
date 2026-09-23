@@ -71,17 +71,17 @@ async function seedCompany(name, managerEmail, candidateEmail) {
     ))[0]
     const manager = (await tx.query(
       `INSERT INTO users
-         (company_id, first_name, last_name, email, password, role)
+         (company_id, first_name, last_name, email, password)
        VALUES
-         (@companyId, 'API', 'Manager', @email, @password, 'manager')
+         (@companyId, 'API', 'Manager', @email, @password)
        RETURNING id`,
       { companyId: company.id, email: managerEmail, password: passwordHash }
     ))[0]
     const candidate = (await tx.query(
       `INSERT INTO users
-         (company_id, first_name, last_name, email, password, role, availability)
+         (company_id, first_name, last_name, email, password, availability)
        VALUES
-         (@companyId, 'API', 'Candidate', @email, @password, 'candidate', 'bench')
+         (@companyId, 'API', 'Candidate', @email, @password, 'bench')
        RETURNING id`,
       { companyId: company.id, email: candidateEmail, password: passwordHash }
     ))[0]
@@ -92,12 +92,66 @@ async function seedCompany(name, managerEmail, candidateEmail) {
       { managerId: manager.id, candidateId: candidate.id }
     ))[0]
 
+    const fullAccessRoleId = await grantFullAccess(tx, company.id, [manager.id, candidate.id])
+
     state.companyIds.push(company.id)
     state.userIds.push(manager.id, candidate.id)
     state.managerIds.push(manager.id)
     state.teamMemberIds.push(teamMember.id)
-    return { password, company, manager, candidate, teamMember }
+    return { password, company, manager, candidate, teamMember, fullAccessRoleId }
   })
+}
+
+// Roles/ACLs are per-company with no auto-provisioning (see migrations 029-036) - a
+// fresh company starts with zero grants, so every route behind requireModule() would
+// 403 for these seeded users otherwise. Mirrors what an admin does by hand via the
+// Roles/ACLs/Permissions screens: one role, granted every permission on every
+// module's ACL, assigned to every seeded user in the company.
+async function grantFullAccess(tx, companyId, userIds) {
+  const modules = await tx.query(`SELECT id FROM modules`)
+  const permissions = await tx.query(`SELECT id FROM permissions`)
+
+  const role = (await tx.query(
+    `INSERT INTO roles (company_id, name) VALUES (@companyId, @name) RETURNING id`,
+    { companyId, name: `QA Full Access ${companyId}-${stamp}` }
+  ))[0]
+
+  const aclIds = []
+  for (const mod of modules) {
+    const acl = (await tx.query(
+      `INSERT INTO acls (company_id, module_id, name) VALUES (@companyId, @moduleId, @name) RETURNING id`,
+      { companyId, moduleId: mod.id, name: `QA ACL ${companyId}-${mod.id}-${stamp}` }
+    ))[0]
+    aclIds.push(acl.id)
+  }
+
+  const roleIds = []
+  const grantAclIds = []
+  const permissionIds = []
+  for (const aclId of aclIds) {
+    for (const permission of permissions) {
+      roleIds.push(role.id)
+      grantAclIds.push(aclId)
+      permissionIds.push(permission.id)
+    }
+  }
+  if (roleIds.length > 0) {
+    await tx.query(
+      `INSERT INTO role_acl_permissions (company_id, role_id, acl_id, permission_id)
+       SELECT @companyId, pair.role_id, pair.acl_id, pair.permission_id
+       FROM unnest(@roleIds::int[], @aclIds::int[], @permissionIds::int[]) AS pair(role_id, acl_id, permission_id)`,
+      { companyId, roleIds, aclIds: grantAclIds, permissionIds }
+    )
+  }
+
+  for (const userId of userIds) {
+    await tx.query(
+      `INSERT INTO user_roles (user_id, role_id) VALUES (@userId, @roleId)`,
+      { userId, roleId: role.id }
+    )
+  }
+
+  return role.id
 }
 
 async function cleanup() {
@@ -185,6 +239,16 @@ async function cleanup() {
       await tx.query(`DELETE FROM users WHERE id = ANY(@ids)`, { ids: state.userIds })
     }
     if (state.companyIds.length > 0) {
+      await tx.query(
+        `DELETE FROM role_acl_permissions WHERE company_id = ANY(@ids)`,
+        { ids: state.companyIds }
+      )
+      await tx.query(
+        `DELETE FROM user_roles WHERE role_id IN (SELECT id FROM roles WHERE company_id = ANY(@ids))`,
+        { ids: state.companyIds }
+      )
+      await tx.query(`DELETE FROM acls WHERE company_id = ANY(@ids)`, { ids: state.companyIds })
+      await tx.query(`DELETE FROM roles WHERE company_id = ANY(@ids)`, { ids: state.companyIds })
       await tx.query(`DELETE FROM companies WHERE id = ANY(@ids)`, { ids: state.companyIds })
     }
     await tx.query(`DELETE FROM departments WHERE name = @name`, { name: state.departmentName })
@@ -228,7 +292,7 @@ async function run() {
     body: { email: `manager-${stamp}@example.test`, password: primary.password },
   })
   assert.equal(managerLogin.status, 200)
-  assert.equal(managerLogin.payload.data.user.role, 'manager')
+  assert.equal(managerLogin.payload.data.user.role, 'user')
   assert.ok(managerLogin.cookie)
   const managerToken = managerLogin.payload.data.accessToken
 
@@ -245,9 +309,9 @@ async function run() {
 
   const organizationOnlyUser = (await db.query(
     `INSERT INTO users
-       (company_id, first_name, last_name, email, password, role, availability)
+       (company_id, first_name, last_name, email, password, availability)
      VALUES
-       (@companyId, 'Organization', 'Only', @email, @password, 'employee', 'bench')
+       (@companyId, 'Organization', 'Only', @email, @password, 'bench')
      RETURNING id`,
     {
       companyId: primary.company.id,
@@ -256,6 +320,10 @@ async function run() {
     }
   ))[0]
   state.userIds.push(organizationOnlyUser.id)
+  await db.query(
+    `INSERT INTO user_roles (user_id, role_id) VALUES (@userId, @roleId)`,
+    { userId: organizationOnlyUser.id, roleId: primary.fullAccessRoleId }
+  )
 
   const employeeLogin = await api('/api/auth/login', {
     method: 'POST',
@@ -265,7 +333,7 @@ async function run() {
     },
   })
   assert.equal(employeeLogin.status, 200)
-  assert.equal(employeeLogin.payload.data.user.role, 'candidate')
+  assert.equal(employeeLogin.payload.data.user.role, 'user')
 
   const orgUsers = await api('/api/schedule/org-users', { token: managerToken })
   assert.equal(orgUsers.status, 200)
@@ -1268,7 +1336,7 @@ async function run() {
 
   const profile = await api('/api/profile', { token: managerToken })
   assert.equal(profile.status, 200)
-  assert.equal(profile.payload.data.role, 'manager')
+  assert.equal(profile.payload.data.is_platform_admin, false)
 
   const candidateLogin = await api('/api/auth/login', {
     method: 'POST',

@@ -14,7 +14,6 @@ import * as api from '../../services/api'
 import { formatDate } from '../../utils/helpers'
 
 const DEFAULT_PAGE_SIZE = 10
-const PORTAL_LABELS = { manager: 'Manager', bde: 'BDE', candidate: 'Candidate' }
 
 function RoleDetailPage() {
   const { id } = useParams()
@@ -88,7 +87,6 @@ function RoleDetailPage() {
           <div style={{ ...cardStyle, padding: 20 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <h2 style={{ margin: 0, fontSize: 18, color: 'var(--fg-primary)' }}>{role.name}</h2>
-              {role.portal && <Badge variant="brand">{PORTAL_LABELS[role.portal] || role.portal}</Badge>}
             </div>
             <p style={{ margin: '6px 0 0', fontSize: 13, color: role.description ? 'var(--fg-body)' : 'var(--fg-subtle)' }}>
               {role.description || 'No description'}

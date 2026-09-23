@@ -6,7 +6,7 @@ const { extractPage } = require('../utils/pagination')
 
 async function getByCompany(companyId) {
   return db.query(
-    `SELECT id, company_id, name, description, portal, created
+    `SELECT id, company_id, name, description, created
      FROM roles
      WHERE company_id = @companyId
      ORDER BY name`,
@@ -16,7 +16,7 @@ async function getByCompany(companyId) {
 
 async function getById(id, companyId) {
   const rows = await db.query(
-    `SELECT id, company_id, name, description, portal, created
+    `SELECT id, company_id, name, description, created
      FROM roles
      WHERE id = @id AND company_id = @companyId`,
     { id, companyId }
@@ -26,7 +26,7 @@ async function getById(id, companyId) {
 
 async function getByName(companyId, name) {
   const rows = await db.query(
-    `SELECT id, company_id, name, description, portal, created
+    `SELECT id, company_id, name, description, created
      FROM roles
      WHERE company_id = @companyId AND LOWER(name) = LOWER(@name)`,
     { companyId, name }
@@ -34,30 +34,30 @@ async function getByName(companyId, name) {
   return rows[0] || null
 }
 
-async function create(companyId, { name, description, portal }) {
+async function create(companyId, { name, description }) {
   const rows = await db.query(
-    `INSERT INTO roles (company_id, name, description, portal)
-     VALUES (@companyId, @name, @description, @portal)
-     RETURNING id, company_id, name, description, portal, created`,
-    { companyId, name, description: description || null, portal }
+    `INSERT INTO roles (company_id, name, description)
+     VALUES (@companyId, @name, @description)
+     RETURNING id, company_id, name, description, created`,
+    { companyId, name, description: description || null }
   )
   return rows[0]
 }
 
-async function update(id, companyId, { name, description, portal }) {
+async function update(id, companyId, { name, description }) {
   const rows = await db.query(
     `UPDATE roles
-     SET name = @name, description = @description, portal = @portal
+     SET name = @name, description = @description
      WHERE id = @id AND company_id = @companyId
-     RETURNING id, company_id, name, description, portal, created`,
-    { id, companyId, name, description: description || null, portal }
+     RETURNING id, company_id, name, description, created`,
+    { id, companyId, name, description: description || null }
   )
   return rows[0] || null
 }
 
 async function getByCompanyPage(companyId, { limit, offset, searchPattern }) {
   const rows = await db.query(
-    `SELECT id, company_id, name, description, portal, created, COUNT(*) OVER() AS total_count
+    `SELECT id, company_id, name, description, created, COUNT(*) OVER() AS total_count
      FROM roles
      WHERE company_id = @companyId
        AND (@searchPattern::text IS NULL OR name ILIKE @searchPattern OR description ILIKE @searchPattern)
@@ -68,20 +68,10 @@ async function getByCompanyPage(companyId, { limit, offset, searchPattern }) {
   return extractPage(rows)
 }
 
-async function getByPortal(companyId, portal) {
-  return db.query(
-    `SELECT id, company_id, name, description, portal, created
-     FROM roles
-     WHERE company_id = @companyId AND portal = @portal
-     ORDER BY name`,
-    { companyId, portal }
-  )
-}
-
 async function getByIds(ids, companyId) {
   if (!Array.isArray(ids) || ids.length === 0) return []
   return db.query(
-    `SELECT id, portal FROM roles WHERE company_id = @companyId AND id = ANY(@ids)`,
+    `SELECT id FROM roles WHERE company_id = @companyId AND id = ANY(@ids)`,
     { companyId, ids }
   )
 }
@@ -100,5 +90,5 @@ async function countByCompany(companyId) {
 }
 
 module.exports = {
-  getByCompany, getByCompanyPage, getById, getByName, getByPortal, getByIds, create, update, remove, countByCompany,
+  getByCompany, getByCompanyPage, getById, getByName, getByIds, create, update, remove, countByCompany,
 }

@@ -1,3 +1,10 @@
+// frontend/src/pages/workspace/InterviewsPage.jsx
+// Merged Interviews module - "Interviews" tab (own interviews, any account) and
+// "I'm Interviewing" tab (interviewer assignments, any account). Promoted from the old
+// candidate-only CandidateInterviewsPage now that visibility is driven purely by the
+// `interviews` module permission, not a manager/candidate portal split. Replaces the
+// old separate manager-only ManagerInterviewerPage entirely - its content is now just
+// the "I'm Interviewing" tab here.
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Calendar, Clock, MapPin, Search } from 'lucide-react'
@@ -52,7 +59,7 @@ function InterviewCard({ interview, onLaunch, onJoinHuman, launchingId }) {
   )
 }
 
-function CandidateInterviewsPage() {
+function InterviewsPage() {
   const navigate = useNavigate()
   const [interviews, setInterviews] = useState([])
   const [assignments, setAssignments] = useState([])
@@ -181,4 +188,4 @@ function CandidateInterviewsPage() {
   )
 }
 
-export default CandidateInterviewsPage
+export default InterviewsPage

@@ -4,21 +4,13 @@
 import { useState, useEffect } from 'react'
 import Modal from '../shared/Modal'
 import Input from '../shared/Input'
-import Select from '../shared/Select'
 import FormActions from '../shared/FormActions'
 import FormError from '../shared/FormError'
 import * as api from '../../services/api'
 
-const PORTAL_OPTIONS = [
-  { value: 'manager', label: 'Manager' },
-  { value: 'bde', label: 'BDE' },
-  { value: 'candidate', label: 'Candidate' },
-]
-
 function RoleFormModal({ open, onClose, companyId, role, onDone }) {
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
-  const [portal, setPortal] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
 
@@ -28,7 +20,6 @@ function RoleFormModal({ open, onClose, companyId, role, onDone }) {
     if (!open) return
     setName(role?.name || '')
     setDescription(role?.description || '')
-    setPortal(role?.portal || '')
     setError(null)
   }, [open, role])
 
@@ -37,7 +28,7 @@ function RoleFormModal({ open, onClose, companyId, role, onDone }) {
     setSaving(true)
     setError(null)
     try {
-      const payload = { companyId, name, description, portal }
+      const payload = { companyId, name, description }
       if (isEdit) await api.updateRole(role.id, payload)
       else await api.createRole(payload)
       await onDone?.()
@@ -59,15 +50,6 @@ function RoleFormModal({ open, onClose, companyId, role, onDone }) {
             value={name}
             onChange={e => setName(e.target.value)}
             placeholder="e.g. Manager"
-          />
-          <Select
-            label="Portal"
-            required
-            value={portal}
-            onChange={e => setPortal(e.target.value)}
-            placeholder="Select which portal this role is for…"
-            options={PORTAL_OPTIONS}
-            helperText="Which app a user holding this role logs into."
           />
           <Input
             label="Description"

@@ -1,7 +1,7 @@
 // backend/src/routes/interview.routes.js
 const express = require('express')
 const authMiddleware = require('../middleware/auth')
-const { loadAccess, requirePortal } = require('../middleware/access')
+const { loadAccess, requireModule } = require('../middleware/access')
 const { audioUpload } = require('../middleware/upload')
 const interviewService = require('../services/interview.service')
 const transcriptRepository = require('../repositories/transcript.repository')
@@ -117,7 +117,7 @@ router.post('/:id/proctoring', requireCandidateToken, async (req, res) => {
   }
 })
 
-router.get('/:id/transcript', loadAccess, requirePortal('manager'), async (req, res) => {
+router.get('/:id/transcript', loadAccess, requireModule('team'), async (req, res) => {
   try {
     const interviewId = parseInt(req.params.id, 10)
     const interview = await interviewRepository.getById(interviewId)

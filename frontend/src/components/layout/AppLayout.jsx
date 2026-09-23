@@ -9,15 +9,17 @@ import { AccessProvider } from '../../context/AccessContext'
 
 // ── Page meta ─────────────────────────────────────────────────
 const PAGE_META = {
-  '/manager/dashboard':        { title: 'Team Overview',      subtitle: 'Your team at a glance' },
-  '/manager/team':             { title: 'My Team',            subtitle: 'Manage team members and assessments' },
-  '/manager/monthly':          { title: 'Monthly Assessment', subtitle: 'Subjects, assignments, and yearly view' },
-  '/manager/clients':          { title: 'Client Mandates',    subtitle: 'Create hiring requirements and schedule interviews' },
-  '/manager/schedule':         { title: 'Schedule',           subtitle: 'Upcoming interviews and sessions' },
-  '/manager/reports':          { title: 'Reports',            subtitle: 'Analytics and candidate insights' },
-  '/manager/templates':        { title: 'Templates',          subtitle: 'Interview and exam templates' },
-  '/manager/resume-analyzer':  { title: 'Resume Analyzer',   subtitle: 'JD-match scoring and keyword gap analysis' },
-  '/manager/profile':          { title: 'My Profile',         subtitle: 'Account and notification settings' },
+  '/workspace/dashboard':        { title: 'Team Overview',      subtitle: 'Your team at a glance' },
+  '/workspace/team':             { title: 'My Team',            subtitle: 'Manage team members and assessments' },
+  '/workspace/monthly':          { title: 'Monthly Assessment', subtitle: 'Subjects, assignments, and yearly view' },
+  '/workspace/clients':          { title: 'Client Mandates',    subtitle: 'Create and manage client mandates' },
+  '/workspace/schedule':         { title: 'Schedule',           subtitle: 'Upcoming interviews and sessions' },
+  '/workspace/reports':          { title: 'Reports',            subtitle: 'Analytics and candidate insights' },
+  '/workspace/resume-analyzer':  { title: 'Resume Analyzer',   subtitle: 'JD-match scoring and keyword gap analysis' },
+  '/workspace/interviews':       { title: 'Interviews',         subtitle: 'Your interviews and interviews assigned for you to conduct' },
+  '/workspace/feedback':         { title: 'Feedback',           subtitle: 'Improvement tips from your completed assessments' },
+  '/workspace/outcomes':         { title: 'Client Outcomes',    subtitle: 'Interview round results for your client mandates' },
+  '/workspace/profile':          { title: 'My Profile',         subtitle: 'Account and notification settings' },
   '/admin/dashboard':          { title: 'Admin Dashboard',     subtitle: 'System-wide overview and controls' },
   '/admin/mandates':           { title: 'Admin Mandates',      subtitle: 'Inspect and repair client mandates' },
   '/admin/interviews':         { title: 'Admin Interviews',    subtitle: 'Inspect and repair interview states' },
@@ -28,17 +30,12 @@ const PAGE_META = {
   '/admin/modules':            { title: 'Modules',             subtitle: 'The fixed catalog of gate-able feature areas' },
   '/admin/acls':               { title: 'ACLs',                subtitle: 'Each ACL gates one module for the selected company' },
   '/admin/permissions':        { title: 'Permissions',         subtitle: 'The global catalog of actions an ACL can grant to a role' },
-  '/bde/clients':              { title: 'Client Mandates',    subtitle: 'Create a mandate and assign it to a manager' },
-  '/bde/resume-analyzer':      { title: 'Resume Analyzer',   subtitle: 'JD-match scoring and keyword gap analysis' },
-  '/bde/schedule':             { title: 'Schedule',           subtitle: 'Interviews for mandates you’ve assigned' },
-  '/bde/reports':              { title: 'Reports',            subtitle: 'Reports for mandates you’ve assigned' },
-  '/bde/profile':              { title: 'My Profile',         subtitle: 'Account and notification settings' },
 }
 
 function getPageMeta(pathname) {
   if (PAGE_META[pathname]) return PAGE_META[pathname]
-  if (pathname.startsWith('/manager/team/')) return { title: 'Member Profile', subtitle: 'Team member details and history' }
-  if (pathname.startsWith('/manager/organization/')) return { title: 'Organization Profile', subtitle: 'Company user details and history' }
+  if (pathname.startsWith('/workspace/team/')) return { title: 'Member Profile', subtitle: 'Team member details and history' }
+  if (pathname.startsWith('/workspace/organization/')) return { title: 'Organization Profile', subtitle: 'Company user details and history' }
   return { title: '', subtitle: '' }
 }
 
@@ -53,11 +50,11 @@ function LogoMark({ size = 22 }) {
 }
 
 // ── Role bar (dark strip at very top) ─────────────────────────
+// No portal split anymore - this badge just names the shell (workspace vs admin),
+// not the signed-in user's role. The Sidebar footer shows the user's actual role name(s).
 const ROLE_LABELS = {
-  manager:     'MANAGER',
-  candidate:   'CANDIDATE',
-  admin:       'ADMIN',
-  bde:         'BDE',
+  workspace: 'WORKSPACE',
+  admin:     'ADMIN',
 }
 
 function RoleBar({ role, onLogout, onLogoClick }) {
@@ -132,7 +129,7 @@ function AppLayout({ role = 'manager' }) {
 
   function handleLogoClick() {
     if (role === 'admin') return navigate('/admin/dashboard')
-    if (role === 'bde') return navigate('/bde/clients')
+    if (role === 'workspace') return navigate('/workspace/dashboard')
     navigate(`/${role}/dashboard`)
   }
 

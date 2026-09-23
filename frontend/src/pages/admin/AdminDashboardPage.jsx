@@ -8,7 +8,8 @@ export default function AdminDashboardPage() {
   const [brokenStates, setBrokenStates] = useState(null)
   const [loading, setLoading] = useState(true)
   const [companies, setCompanies] = useState([])
-  const [bdeForm, setBdeForm] = useState({ companyId: '', firstName: '', lastName: '', email: '' })
+  const [bdeForm, setBdeForm] = useState({ companyId: '', roleId: '', firstName: '', lastName: '', email: '' })
+  const [bdeRoles, setBdeRoles] = useState([])
   const [bdeSaving, setBdeSaving] = useState(false)
   const [bdeMessage, setBdeMessage] = useState(null)
 
@@ -48,22 +49,34 @@ export default function AdminDashboardPage() {
     api.get('/api/admin/companies').then(res => setCompanies(res.data || [])).catch(() => setCompanies([]))
   }, [loadDashboardData])
 
+  async function onCompanyChange(companyId) {
+    setBdeForm(f => ({ ...f, companyId, roleId: '' }))
+    if (!companyId) { setBdeRoles([]); return }
+    try {
+      const res = await api.getRoles(Number(companyId))
+      setBdeRoles(res.data || [])
+    } catch { setBdeRoles([]) }
+  }
+
   async function createBde() {
     setBdeSaving(true)
     setBdeMessage(null)
     try {
       if (!bdeForm.companyId) throw new Error('Select a company')
+      if (!bdeForm.roleId) throw new Error('Select a role')
       if (!bdeForm.email.trim()) throw new Error('Email is required')
-      await api.post('/api/admin/users/bde', {
+      await api.post('/api/admin/users', {
         companyId: Number(bdeForm.companyId),
+        roleId: Number(bdeForm.roleId),
         firstName: bdeForm.firstName.trim(),
         lastName: bdeForm.lastName.trim(),
         email: bdeForm.email.trim(),
       })
-      setBdeMessage({ text: 'BDE user created. A password-reset email has been sent.', type: 'success' })
-      setBdeForm({ companyId: '', firstName: '', lastName: '', email: '' })
+      setBdeMessage({ text: 'User created. A password-reset email has been sent.', type: 'success' })
+      setBdeForm({ companyId: '', roleId: '', firstName: '', lastName: '', email: '' })
+      setBdeRoles([])
     } catch (err) {
-      setBdeMessage({ text: err.message || 'Could not create BDE user.', type: 'error' })
+      setBdeMessage({ text: err.message || 'Could not create user.', type: 'error' })
     } finally {
       setBdeSaving(false)
     }
@@ -187,20 +200,32 @@ export default function AdminDashboardPage() {
         border: '1px solid #e5e7eb',
         marginBottom: '2rem'
       }}>
-        <h2 style={{ fontSize: '1.25rem', fontWeight: 600, marginBottom: '0.25rem' }}>Create BDE user</h2>
+        <h2 style={{ fontSize: '1.25rem', fontWeight: 600, marginBottom: '0.25rem' }}>Create user in another company</h2>
         <p style={{ color: '#666', marginBottom: '1rem', fontSize: '0.875rem' }}>
-          BDE users can create client mandates and assign them to a manager in the same company.
+          Bootstrap a user directly, with whichever role you assign controlling what they can access.
         </p>
         <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'flex-end' }}>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: '0.8rem', color: '#374151' }}>
             Company
             <select
               value={bdeForm.companyId}
-              onChange={e => setBdeForm(f => ({ ...f, companyId: e.target.value }))}
+              onChange={e => onCompanyChange(e.target.value)}
               style={{ padding: '0.5rem', borderRadius: 6, border: '1px solid #d1d5db', minWidth: 180 }}
             >
               <option value="">Select company...</option>
               {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: '0.8rem', color: '#374151' }}>
+            Role
+            <select
+              value={bdeForm.roleId}
+              onChange={e => setBdeForm(f => ({ ...f, roleId: e.target.value }))}
+              disabled={!bdeForm.companyId}
+              style={{ padding: '0.5rem', borderRadius: 6, border: '1px solid #d1d5db', minWidth: 180 }}
+            >
+              <option value="">Select role...</option>
+              {bdeRoles.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
             </select>
           </label>
           <label style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: '0.8rem', color: '#374151' }}>
@@ -232,7 +257,7 @@ export default function AdminDashboardPage() {
               opacity: bdeSaving ? 0.7 : 1,
             }}
           >
-            {bdeSaving ? 'Creating...' : 'Create BDE user'}
+            {bdeSaving ? 'Creating...' : 'Create user'}
           </button>
         </div>
         {bdeMessage && (

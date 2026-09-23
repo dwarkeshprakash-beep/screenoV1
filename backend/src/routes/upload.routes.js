@@ -1,6 +1,6 @@
 const express = require('express')
 const authMiddleware = require('../middleware/auth')
-const { loadAccess, requirePortal } = require('../middleware/access')
+const { loadAccess, requireModule } = require('../middleware/access')
 const { documentUpload } = require('../middleware/upload')
 const storageService = require('../services/storage.service')
 const documentTextService = require('../services/document-text.service')
@@ -11,7 +11,7 @@ const llmService = require('../services/llm.service')
 const router = express.Router()
 router.use(authMiddleware, loadAccess)
 
-router.post('/resume', requirePortal('manager'), documentUpload.single('resume'), async (req, res) => {
+router.post('/resume', requireModule('team'), documentUpload.single('resume'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ success: false, error: 'No file provided' })
 
@@ -83,7 +83,7 @@ router.post('/resume', requirePortal('manager'), documentUpload.single('resume')
   }
 })
 
-router.post('/extract-text', requirePortal('manager', 'bde'), documentUpload.single('file'), async (req, res) => {
+router.post('/extract-text', requireModule('resume_analyzer'), documentUpload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ success: false, error: 'No file provided' })
     const text = await documentTextService.extractTextFromBuffer(
@@ -98,7 +98,7 @@ router.post('/extract-text', requirePortal('manager', 'bde'), documentUpload.sin
   }
 })
 
-router.post('/jd', requirePortal('manager', 'bde'), documentUpload.single('file'), async (req, res) => {
+router.post('/jd', requireModule('client_mandates'), documentUpload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ success: false, error: 'No file provided' })
 
@@ -131,7 +131,7 @@ router.post('/jd', requirePortal('manager', 'bde'), documentUpload.single('file'
   }
 })
 
-router.post('/analyze-resume', requirePortal('manager', 'bde'), async (req, res) => {
+router.post('/analyze-resume', requireModule('resume_analyzer'), async (req, res) => {
   const { jd, resume } = req.body || {}
   if (!jd || !resume) {
     return res.status(400).json({ success: false, error: 'jd and resume are required' })

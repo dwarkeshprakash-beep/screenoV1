@@ -284,8 +284,8 @@ export const updateMember = (id, data) =>
   request(`/api/team/member/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
 export const removeMember = id =>
   request(`/api/team/member/${id}`, { method: 'DELETE' })
-export const importTeamCSV = csv =>
-  request('/api/team/import', { method: 'POST', body: JSON.stringify({ csv }) })
+export const importTeamCSV = (csv, roleId) =>
+  request('/api/team/import', { method: 'POST', body: JSON.stringify({ csv, roleId }) })
 export const getExternalCandidates = () => request('/api/team/external')
 export const addExternalCandidate = data =>
   request('/api/team/external', { method: 'POST', body: JSON.stringify(data) })

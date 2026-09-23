@@ -31,7 +31,10 @@ async function withSignedResumeUrl(profile) {
   }
 }
 
-async function getTeam(managerId, filter = 'all') {
+// scope.viewAll - company-wide roster instead of just the caller's own team (View All
+// tier); scope.companyId is required when viewAll is true.
+async function getTeam(managerId, filter = 'all', scope = {}) {
+  if (scope.viewAll) return teamMemberRepository.getByCompany(scope.companyId, filter)
   return teamMemberRepository.getByManager(managerId, filter)
 }
 
@@ -106,10 +109,10 @@ async function removeMember(id, managerId) {
   await teamMemberRepository.removeMember(id, managerId)
 }
 
-async function getStats(managerId) {
+async function getStats(managerId, scope = {}) {
   const [members, interviews] = await Promise.all([
-    teamMemberRepository.getByManager(managerId, 'all'),
-    interviewRepository.getByManager(managerId),
+    scope.viewAll ? teamMemberRepository.getByCompany(scope.companyId) : teamMemberRepository.getByManager(managerId, 'all'),
+    scope.viewAll ? interviewRepository.getByCompany(scope.companyId) : interviewRepository.getByManager(managerId),
   ])
 
   const openInterviews = interviews.filter(i => i.status === 'scheduled' || i.status === 'pending').length
@@ -123,8 +126,10 @@ async function getStats(managerId) {
   }
 }
 
-async function getActivity(managerId) {
-  const interviews = await interviewRepository.getByManager(managerId)
+async function getActivity(managerId, scope = {}) {
+  const interviews = scope.viewAll
+    ? await interviewRepository.getByCompany(scope.companyId)
+    : await interviewRepository.getByManager(managerId)
   return interviews.slice(0, 10).map(i => ({
     what: `${i.type === 'ai_voice' ? 'AI Interview' : 'Exam'} ${i.status}`,
     sub:  `${i.candidate_first} ${i.candidate_last}`,
@@ -170,10 +175,12 @@ function normalizeHeader(header) {
   return String(header || '').toLowerCase().replace(/[^a-z0-9]/g, '')
 }
 
-async function importFromCSV(csvText, companyId, managerId) {
+async function importFromCSV(csvText, companyId, managerId, roleId) {
   if (typeof csvText !== 'string' || !csvText.trim()) {
     throw new Error('CSV content is required')
   }
+  const role = await roleRepository.getById(roleId, companyId)
+  if (!role) throw new Error('Select a valid role to assign to imported members')
 
   const parsed = parseCSV(csvText)
   if (parsed.length < 2) throw new Error('CSV must include a header and at least one row')
@@ -209,16 +216,8 @@ async function importFromCSV(csvText, companyId, managerId) {
     }]
   })
 
-  // A brand-new user needs a role to resolve a portal (see access.service.js) - without
-  // one they'd be created but permanently locked out at login. Team-imported people are
-  // always candidates, so this company needs a candidate-portal role set up first.
-  const candidateRoles = await roleRepository.getByPortal(companyId, 'candidate')
-  if (candidateRoles.length === 0) {
-    throw new Error('This organization has no candidate-portal role yet - create one in the Roles module first')
-  }
-
   const tempPasswordHash = await bcrypt.hash(`TEMP_${crypto.randomBytes(16).toString('hex')}`, 10)
-  const result = await userRepository.bulkUpsert(rows, companyId, managerId, tempPasswordHash, candidateRoles[0].id)
+  const result = await userRepository.bulkUpsert(rows, companyId, managerId, tempPasswordHash, roleId)
   return { ...result, errors: [...errors, ...result.errors] }
 }
 
@@ -227,7 +226,8 @@ async function getMemberInterviews(id, managerId) {
   return interviewHistoryRepository.getByManager(managerId, member.user_id)
 }
 
-async function getInterviewHistory(managerId) {
+async function getInterviewHistory(managerId, scope = {}) {
+  if (scope.viewAll) return interviewHistoryRepository.getByCompany(scope.companyId)
   return interviewHistoryRepository.getByManager(managerId)
 }
 

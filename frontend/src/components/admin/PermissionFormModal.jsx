@@ -45,7 +45,7 @@ function PermissionFormModal({ open, onClose, onDone }) {
             required
             value={name}
             onChange={e => setName(e.target.value)}
-            placeholder="e.g. Read"
+            placeholder="e.g. View"
           />
           <Input
             label="Description"

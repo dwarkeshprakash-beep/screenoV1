@@ -200,7 +200,7 @@ function MemberProfilePage() {
       {/* Left */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         {/* Back */}
-        <button onClick={() => navigate('/manager/team')} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'transparent', border: 0, color: 'var(--brand-500)', fontWeight: 500, fontSize: 13, cursor: 'pointer', alignSelf: 'flex-start' }}>
+        <button onClick={() => navigate('/workspace/team')} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'transparent', border: 0, color: 'var(--brand-500)', fontWeight: 500, fontSize: 13, cursor: 'pointer', alignSelf: 'flex-start' }}>
           <ArrowLeft size={16} /> Back to team
         </button>
 

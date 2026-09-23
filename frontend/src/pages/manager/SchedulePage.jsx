@@ -10,6 +10,7 @@ import ScheduleModal from '../../components/manager/ScheduleModal'
 import RescheduleModal from '../../components/manager/RescheduleModal'
 import * as api from '../../services/api'
 import { formatDateTime } from '../../utils/helpers'
+import { useAccess } from '../../context/AccessContext'
 
 const HOURS = Array.from({ length: 9 }, (_, i) => i + 9)
 const H = 60
@@ -59,9 +60,11 @@ function getTypeStyle(type) {
 
 function SchedulePage() {
   const navigate = useNavigate()
-  let currentRole = 'manager'
-  try { currentRole = JSON.parse(localStorage.getItem('user') || '{}').role || 'manager' } catch { /* ignore */ }
-  const isBde = currentRole === 'bde'
+  const { hasModule } = useAccess()
+  // Mirrors the backend's own View-vs-View-All split for this data (see
+  // schedule.routes.js) - a self-scoped viewer (today's replacement for "bde")
+  // doesn't get the owner-only management actions below.
+  const isBde = !hasModule('client_mandates', 'View All')
   const [view, setView] = useState('list')
   const [listCategory, setListCategory] = useState('all')
   const [weekStart, setWeekStart] = useState(() => getWeekStart(new Date()))
@@ -216,7 +219,7 @@ function SchedulePage() {
         </div>
         {!isBde && (
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <Button variant="secondary" onClick={() => navigate('/manager/team')}>My Team</Button>
+            <Button variant="secondary" onClick={() => navigate('/workspace/team')}>My Team</Button>
             <Button onClick={() => setScheduleOpen(true)}>
               <CalendarPlus size={13} /> Schedule interview
             </Button>
@@ -402,7 +405,7 @@ function SchedulePage() {
             {!isBde && (
               <div className="form-actions" style={{ justifyContent: 'flex-end' }}>
                 {(selectedEvent.teamMemberId || selectedEvent.team_member_id) && (
-                  <Button variant="secondary" onClick={() => navigate(`/manager/team/${selectedEvent.teamMemberId || selectedEvent.team_member_id}`)}>Open profile</Button>
+                  <Button variant="secondary" onClick={() => navigate(`/workspace/team/${selectedEvent.teamMemberId || selectedEvent.team_member_id}`)}>Open profile</Button>
                 )}
                 {selectedEvent.status !== 'completed' && selectedEvent.status !== 'cancelled' && (
                   <Button variant="secondary" onClick={() => { setRescheduleTarget(selectedEvent); setSelectedEvent(null) }}>

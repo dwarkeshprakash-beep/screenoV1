@@ -29,13 +29,11 @@ class ErrorBoundary extends Component {
     try {
       role = JSON.parse(localStorage.getItem('user') || '{}').role || null
     } catch { /* use login fallback */ }
-    const target = role === 'manager'
-      ? '/manager/dashboard'
-      : role === 'candidate'
-        ? '/candidate/overview'
-        : role === 'admin'
-          ? '/admin/dashboard'
-          : '/login'
+    const target = role === 'admin'
+      ? '/admin/dashboard'
+      : role === 'user'
+        ? '/workspace/dashboard'
+        : '/login'
     window.location.assign(target)
   }
 

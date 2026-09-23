@@ -95,10 +95,8 @@ const DEMO_ACCOUNTS = mergeDemoAccounts([
 ])
 
 function roleRedirect(role) {
-  if (role === 'manager') return '/manager/dashboard'
-  if (role === 'candidate') return '/candidate/dashboard'
   if (role === 'admin') return '/admin/dashboard'
-  if (role === 'bde') return '/bde/clients'
+  if (role === 'user') return '/workspace/dashboard'
   return '/login'
 }
 
@@ -136,7 +134,7 @@ function LoginPage() {
     setLoading(true)
     try {
       const result = await api.login(loginEmail, loginPassword)
-      if (!['manager', 'candidate', 'admin', 'bde'].includes(result.data.user.role)) {
+      if (!['admin', 'user'].includes(result.data.user.role)) {
         throw new Error(`This account type is paused in ${APP_NAME} V2.`)
       }
       localStorage.setItem('accessToken', result.data.accessToken)

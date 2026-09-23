@@ -44,6 +44,23 @@ async function getByIdForManager(id, managerId) {
   return rows[0] || null
 }
 
+// Company-wide roster - used by the "View All" tier of Team and the monthly assessment
+// plan (unassigned/teamCount stats), where the caller isn't scoped to their own team only.
+async function getByCompany(companyId, filter = 'all') {
+  let filterSql = ''
+  if (filter === 'never')   filterSql = 'AND (SELECT MAX(ended_at) FROM interviews i WHERE i.internal_user_id = u.id) IS NULL'
+  if (filter === 'overdue') filterSql = "AND (SELECT MAX(ended_at) FROM interviews i WHERE i.internal_user_id = u.id) < NOW() - INTERVAL '30 days'"
+
+  return db.query(
+    `SELECT ${SELECT_COLS}
+     FROM team_members tm ${JOIN_PROFILE}
+     WHERE u.company_id = @companyId
+       ${filterSql}
+     ORDER BY u.first_name, u.last_name`,
+    { companyId }
+  )
+}
+
 async function getByIdsForManager(ids, managerId) {
   if (!Array.isArray(ids) || ids.length === 0) return []
   return db.query(
@@ -83,4 +100,4 @@ async function removeMember(id, managerId) {
   )
 }
 
-module.exports = { getByManager, getByIdForManager, getByIdsForManager, create, removeMember }
+module.exports = { getByManager, getByCompany, getByIdForManager, getByIdsForManager, create, removeMember }

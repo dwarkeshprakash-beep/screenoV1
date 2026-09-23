@@ -20,7 +20,6 @@ function sendRoleError(res, err, fallback) {
     return res.status(404).json({ success: false, error: err.message })
   }
   if (['Role name is required', 'Role name is too long', 'Role description is too long',
-    'Portal must be one of manager, bde, candidate',
     'A role with this name already exists',
     'Cannot delete this role - it is assigned to one or more users',
     'Cannot delete this role - it has permissions granted on one or more ACLs'].includes(err.message)) {

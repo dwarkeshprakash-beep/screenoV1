@@ -125,6 +125,9 @@ function TeamPage() {
   const [compareOpen, setCompareOpen]   = useState(false)
   const [importing, setImporting]       = useState(false)
   const [importStatus, setImportStatus] = useState('')
+  const [importRoleOpen, setImportRoleOpen] = useState(false)
+  const [importRoles, setImportRoles]   = useState([])
+  const [importRoleId, setImportRoleId] = useState('')
   const importInputRef = useRef(null)
 
   // ── External state ────────────────────────────────────────────
@@ -186,12 +189,30 @@ function TeamPage() {
   }
   function openSchedule(member) { setScheduleMember(member); setScheduleOpen(true) }
 
+  async function openImportRolePicker() {
+    setImportStatus('')
+    try {
+      let stored = {}
+      try { stored = JSON.parse(localStorage.getItem('user') || '{}') } catch { stored = {} }
+      const res = await api.getRoles(stored.companyId)
+      setImportRoles(res.data || [])
+      setImportRoleId(res.data?.[0]?.id ? String(res.data[0].id) : '')
+    } catch { setImportRoles([]) }
+    setImportRoleOpen(true)
+  }
+
+  function confirmImportRole() {
+    if (!importRoleId) return
+    setImportRoleOpen(false)
+    importInputRef.current?.click()
+  }
+
   async function handleImportFile(e) {
     const file = e.target.files?.[0]; if (!file) return
     setImporting(true); setImportStatus('')
     try {
       const csv = await file.text()
-      const res = await api.importTeamCSV(csv)
+      const res = await api.importTeamCSV(csv, importRoleId)
       const data = res.data || {}
       setImportStatus(`Imported ${data.inserted || 0} new; updated ${data.updated || 0} existing${data.errors?.length ? `; ${data.errors.length} row issue(s)` : ''}.`)
       await loadInternal()
@@ -267,7 +288,7 @@ function TeamPage() {
             )}
             <button type="button" style={btnSecondary} onClick={() => setAddOpen(true)}><UserPlus size={13} /> Add member</button>
             <input ref={importInputRef} type="file" accept=".csv,text/csv" onChange={handleImportFile} style={{ display: 'none' }} />
-            <button type="button" disabled={importing} onClick={() => importInputRef.current?.click()} style={{ ...btnPrimary, opacity: importing ? 0.65 : 1, cursor: importing ? 'not-allowed' : 'pointer' }}>
+            <button type="button" disabled={importing} onClick={openImportRolePicker} style={{ ...btnPrimary, opacity: importing ? 0.65 : 1, cursor: importing ? 'not-allowed' : 'pointer' }}>
               <Upload size={13} /> {importing ? 'Importing…' : 'Import CSV'}
             </button>
           </div>
@@ -355,7 +376,7 @@ function TeamPage() {
                     const name = `${m.first_name} ${m.last_name}`
                     const sel = selected.has(m.id)
                     return (
-                      <tr key={m.id} onClick={() => navigate(`/manager/team/${m.id}`)} style={{ cursor: 'pointer', background: sel ? 'var(--brand-50)' : 'var(--bg-surface)', transition: 'background 120ms' }} onMouseEnter={e => { if (!sel) e.currentTarget.style.background = 'var(--bg-surface-alt)' }} onMouseLeave={e => { if (!sel) e.currentTarget.style.background = 'var(--bg-surface)' }}>
+                      <tr key={m.id} onClick={() => navigate(`/workspace/team/${m.id}`)} style={{ cursor: 'pointer', background: sel ? 'var(--brand-50)' : 'var(--bg-surface)', transition: 'background 120ms' }} onMouseEnter={e => { if (!sel) e.currentTarget.style.background = 'var(--bg-surface-alt)' }} onMouseLeave={e => { if (!sel) e.currentTarget.style.background = 'var(--bg-surface)' }}>
                         <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--border-default)' }} onClick={e => e.stopPropagation()}>
                           <input type="checkbox" checked={sel} onChange={() => toggleSelect(m.id)} style={{ accentColor: 'var(--brand-500)', cursor: 'pointer' }} />
                         </td>
@@ -387,7 +408,7 @@ function TeamPage() {
                           {m.last_assessed && <div style={{ fontSize: 11, color: 'var(--fg-subtle)', marginTop: 3 }}>{formatDate(m.last_assessed)}</div>}
                         </td>
                         <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--border-default)' }} onClick={e => e.stopPropagation()}>
-                          <button onClick={() => navigate(`/manager/team/${m.id}`)} style={{ background: 'var(--bg-surface)', color: 'var(--fg-primary)', border: '1px solid var(--border-default)', borderRadius: 8, fontWeight: 600, padding: '5px 10px', fontSize: 12, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                          <button onClick={() => navigate(`/workspace/team/${m.id}`)} style={{ background: 'var(--bg-surface)', color: 'var(--fg-primary)', border: '1px solid var(--border-default)', borderRadius: 8, fontWeight: 600, padding: '5px 10px', fontSize: 12, cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                             <Eye size={12} /> View
                           </button>
                         </td>
@@ -486,6 +507,27 @@ function TeamPage() {
       <AddTeamMemberModal open={addOpen} onClose={() => setAddOpen(false)} onDone={loadInternal} />
       <AddExternalModal open={addExternalOpen} onClose={() => setAddExternalOpen(false)} onDone={loadExternal} />
       {editMember && <EditMemberModal open={!!editMember} member={editMember} onClose={() => setEditMember(null)} onDone={loadInternal} />}
+
+      <Modal open={importRoleOpen} onClose={() => setImportRoleOpen(false)} title="Import CSV" size="sm">
+        <div className="workspace-stack">
+          <p style={{ fontSize: 13, color: 'var(--fg-muted)', margin: 0 }}>
+            Choose the role imported members should be assigned.
+          </p>
+          {importRoles.length === 0 ? (
+            <p style={{ fontSize: 13, color: 'var(--danger-700)', margin: 0 }}>
+              This organization has no roles yet - create one in the Roles module first.
+            </p>
+          ) : (
+            <select className="form-input" value={importRoleId} onChange={e => setImportRoleId(e.target.value)}>
+              {importRoles.map(role => <option key={role.id} value={role.id}>{role.name}</option>)}
+            </select>
+          )}
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            <button type="button" style={btnSecondary} onClick={() => setImportRoleOpen(false)}>Cancel</button>
+            <button type="button" style={btnPrimary} disabled={!importRoleId} onClick={confirmImportRole}>Continue</button>
+          </div>
+        </div>
+      </Modal>
     </div>
   )
 }

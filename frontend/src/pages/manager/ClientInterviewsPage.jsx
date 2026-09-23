@@ -19,6 +19,7 @@ import Spinner from '../../components/shared/Spinner'
 import * as api from '../../services/api'
 import { formatDate, formatDateTime, parseStoredArray, serializeDatetimeLocal } from '../../utils/helpers'
 import { APP_NAME } from '../../config/app.config'
+import { useAccess } from '../../context/AccessContext'
 
 const parseTags = parseStoredArray
 const MANDATE_FILTERS = [
@@ -1261,7 +1262,7 @@ function SendJDModal({ open, onClose, onSent, member, template }) {
                 {jdPreview}{jdSource.length > 600 ? '...' : ''}
               </div>
             )}
-            <p style={{ margin: '12px 0 0', fontSize: 12, color: 'var(--fg-subtle)' }}>Log in to {APP_NAME} portal to submit your resume for this opportunity.</p>
+            <p style={{ margin: '12px 0 0', fontSize: 12, color: 'var(--fg-subtle)' }}>Log in to {APP_NAME} to submit your resume for this opportunity.</p>
           </div>
         </div>
 
@@ -1936,9 +1937,9 @@ function MandateDetail({ initialTemplate, isBde = false, basePath = '/manager' }
   function viewCandidateProfile(candidate) {
     if (!candidate || isBde) return
     if (candidate.team_member_id) {
-      navigate(`/manager/team/${candidate.team_member_id}`)
+      navigate(`/workspace/team/${candidate.team_member_id}`)
     } else if (candidate.role || candidate.employee_id !== undefined) {
-      navigate(`/manager/organization/${candidate.id}`)
+      navigate(`/workspace/organization/${candidate.id}`)
     }
   }
 
@@ -2358,6 +2359,12 @@ function MandateDetail({ initialTemplate, isBde = false, basePath = '/manager' }
         )}
 
         {/* ── Client Team tab ── */}
+        {/* GAP: a mandate participant's own "submit my resume for this client mandate"
+            flow (submitExistingResumeForClient/submitClientResume, plus the
+            published_rounds/latest_published_round outcome view) currently only lives in
+            the now-unrouted frontend/src/pages/candidate/CandidateMandatesPage.jsx and has
+            no equivalent here. It needs a home once this detail page's UI is redesigned -
+            not folded into this pass. */}
         {tab === 'team' && (
           loadingTeam ? <Spinner center /> : (
             <div className="workspace-stack">
@@ -2788,10 +2795,16 @@ function MandateListView({ templates, basePath = '/manager' }) {
 
 function ClientInterviewsPage() {
   const { mandateId } = useParams()
-  let currentRole = 'manager'
-  try { currentRole = JSON.parse(localStorage.getItem('user') || '{}').role || 'manager' } catch { /* ignore */ }
-  const isBde = currentRole === 'bde'
-  const basePath = isBde ? '/bde' : '/manager'
+  const { hasModule } = useAccess()
+  // The old manager/bde portal split is gone - `user.role` is only ever 'admin'/'user'
+  // now, so this always evaluates to false. Kept (rather than deleted outright) because
+  // MandateDetail/CreateMandateModal/EditMandateModal/OutcomeRoundsModal still branch on
+  // it internally; per the Client Mandates scoping decision, this pass only gates the
+  // list view (New mandate / Delete), not per-button teardown inside the detail page -
+  // that's a follow-up. basePath is fixed to the real route prefix.
+  const isBde = false
+  const basePath = '/workspace'
+  const canCreateMandate = hasModule('client_mandates', 'Save')
   const [wizardOpen, setWizardOpen] = useState(false)
   const [selectedTemplate, setSelectedTemplate] = useState(null)
   const [detailLoading, setDetailLoading] = useState(!!mandateId)
@@ -2901,7 +2914,7 @@ function ClientInterviewsPage() {
               {hasActiveFilters && <Button variant="ghost" size="sm" onClick={clearFilters}><X size={13} />Clear filters</Button>}
           </>
         </div>
-        <Button onClick={() => setWizardOpen(true)}><Plus size={15} />New mandate</Button>
+        {canCreateMandate && <Button onClick={() => setWizardOpen(true)}><Plus size={15} />New mandate</Button>}
       </div>
 
       <>
@@ -2959,7 +2972,7 @@ function ClientInterviewsPage() {
           )}
       </>
 
-      <CreateMandateModal open={wizardOpen} onClose={() => setWizardOpen(false)} onCreated={load} isBde={isBde} />
+      <CreateMandateModal open={wizardOpen && canCreateMandate} onClose={() => setWizardOpen(false)} onCreated={load} isBde={isBde} />
     </div>
   )
 }

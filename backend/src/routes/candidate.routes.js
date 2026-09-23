@@ -1,6 +1,6 @@
 const express = require('express')
 const authMiddleware = require('../middleware/auth')
-const { loadAccess, requirePortal } = require('../middleware/access')
+const { loadAccess, requireModule } = require('../middleware/access')
 const { documentUpload } = require('../middleware/upload')
 const interviewRepository = require('../repositories/interview.repository')
 const interviewFlowService = require('../services/interview-flow.service')
@@ -17,7 +17,11 @@ const { launchWindow, launchWindowMessage } = require('../services/interview-win
 const db = require('../db/connection')
 
 const router = express.Router()
-router.use(authMiddleware, loadAccess, requirePortal('candidate'))
+
+// No single blanket gate any more - this file mixes routes for several different
+// modules (interviews, feedback, outcomes, client_mandates, monthly_assessments), each
+// gated per-route below. Only auth/access-context loading is common to all of them.
+router.use(authMiddleware, loadAccess)
 
 function isHttpUrl(value) {
   return /^https?:\/\//i.test(String(value || ''))
@@ -34,7 +38,7 @@ async function safeSignedResumeUrl(value) {
   }
 }
 
-router.get('/interviews', async (req, res) => {
+router.get('/interviews', requireModule('interviews'), async (req, res) => {
   try {
     const identity = candidateIdentityService.fromUser(req.user)
     await interviewFlowService.processExpiredFlows({ userId: req.user.id })
@@ -62,7 +66,10 @@ router.get('/interviews', async (req, res) => {
   }
 })
 
-router.post('/interviews/:id/launch', async (req, res) => {
+// Launching/joining is about YOUR OWN interview (already scoped by candidate identity
+// below), not managing anyone else's - View-level access is enough, not the POST
+// default of Save.
+router.post('/interviews/:id/launch', requireModule('interviews', { permission: 'View' }), async (req, res) => {
   try {
     const identity = candidateIdentityService.fromUser(req.user)
     const interview = await interviewRepository.getByIdForCandidateIdentity(req.params.id, identity)
@@ -84,7 +91,7 @@ router.post('/interviews/:id/launch', async (req, res) => {
   }
 })
 
-router.post('/interviews/:id/join', async (req, res) => {
+router.post('/interviews/:id/join', requireModule('interviews', { permission: 'View' }), async (req, res) => {
   try {
     const identity = candidateIdentityService.fromUser(req.user)
     const interview = await interviewRepository.getByIdForCandidateIdentity(req.params.id, identity)
@@ -116,7 +123,7 @@ router.post('/interviews/:id/join', async (req, res) => {
   }
 })
 
-router.get('/report', async (req, res) => {
+router.get('/report', requireModule('feedback'), async (req, res) => {
   try {
     const identity = candidateIdentityService.fromUser(req.user)
     const report = await reportRepository.getLatestByCandidateIdentity(identity, identity.interviewId)
@@ -138,7 +145,7 @@ router.get('/report', async (req, res) => {
   }
 })
 
-router.get('/reports', async (req, res) => {
+router.get('/reports', requireModule('feedback'), async (req, res) => {
   try {
     const identity = candidateIdentityService.fromUser(req.user)
     const reports = await reportRepository.getHistoryByCandidateIdentity(identity)
@@ -151,7 +158,7 @@ router.get('/reports', async (req, res) => {
 
 // ── Client mandates the candidate has been added to ───────────────────────────
 
-router.get('/client-mandates', async (req, res) => {
+router.get('/client-mandates', requireModule('client_mandates', { permission: 'View' }), async (req, res) => {
   try {
     const rows = await clientTeamRepo.getByUser(req.user.id)
 
@@ -209,6 +216,7 @@ router.get('/client-mandates', async (req, res) => {
 // 3. JSON { useExisting: true } - link the candidate's current default resume (back-compat)
 router.post(
   '/client-mandates/:ctId/resume',
+  requireModule('client_mandates', { permission: 'View' }),
   documentUpload.single('resume'),
   async (req, res) => {
     try {
@@ -266,7 +274,7 @@ router.post(
 )
 
 // Get resume metadata for a specific client mandate
-router.get('/client-mandates/:ctId/resume', async (req, res) => {
+router.get('/client-mandates/:ctId/resume', requireModule('client_mandates', { permission: 'View' }), async (req, res) => {
   try {
     const ctId = parseInt(req.params.ctId, 10)
     const entry = await clientTeamRepo.getById(ctId)
@@ -310,7 +318,7 @@ router.get('/client-mandates/:ctId/resume', async (req, res) => {
 
 // ── Candidate: monthly assessment plans ───────────────────────────────────────
 
-router.get('/monthly-assessments', async (req, res) => {
+router.get('/monthly-assessments', requireModule('monthly_assessments', { permission: 'View' }), async (req, res) => {
   try {
     const userId = req.user.id
 
@@ -419,7 +427,7 @@ router.get('/monthly-assessments', async (req, res) => {
 // Returns all published outcome rounds for mandates the candidate belongs to.
 // manager_notes is NEVER included (enforced in repository DTO).
 
-router.get('/client-outcomes', async (req, res) => {
+router.get('/client-outcomes', requireModule('outcomes'), async (req, res) => {
   try {
     const userId = req.user.id
 

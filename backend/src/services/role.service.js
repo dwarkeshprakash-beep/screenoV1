@@ -10,9 +10,8 @@ const { toSearchPattern } = require('../utils/sql-search')
 
 const ROLE_NAME_MAX_LENGTH = 100
 const ROLE_DESCRIPTION_MAX_LENGTH = 255
-const VALID_PORTALS = ['manager', 'bde', 'candidate']
 
-function validateRoleInput({ name, description, portal }) {
+function validateRoleInput({ name, description }) {
   const trimmedName = typeof name === 'string' ? name.trim() : ''
   if (!trimmedName) throw new Error('Role name is required')
   if (trimmedName.length > ROLE_NAME_MAX_LENGTH) throw new Error('Role name is too long')
@@ -20,9 +19,7 @@ function validateRoleInput({ name, description, portal }) {
   const trimmedDescription = typeof description === 'string' ? description.trim() : ''
   if (trimmedDescription.length > ROLE_DESCRIPTION_MAX_LENGTH) throw new Error('Role description is too long')
 
-  if (!VALID_PORTALS.includes(portal)) throw new Error('Portal must be one of manager, bde, candidate')
-
-  return { name: trimmedName, description: trimmedDescription || null, portal }
+  return { name: trimmedName, description: trimmedDescription || null }
 }
 
 async function listRoles(companyId, { page, pageSize, search } = {}) {
@@ -49,21 +46,21 @@ async function getRoleUsers(companyId, id, { page, pageSize } = {}) {
 }
 
 async function createRole(companyId, input) {
-  const { name, description, portal } = validateRoleInput(input)
+  const { name, description } = validateRoleInput(input)
 
   const existing = await roleRepository.getByName(companyId, name)
   if (existing) throw new Error('A role with this name already exists')
 
-  return roleRepository.create(companyId, { name, description, portal })
+  return roleRepository.create(companyId, { name, description })
 }
 
 async function updateRole(companyId, id, input) {
-  const { name, description, portal } = validateRoleInput(input)
+  const { name, description } = validateRoleInput(input)
 
   const existing = await roleRepository.getByName(companyId, name)
   if (existing && existing.id !== id) throw new Error('A role with this name already exists')
 
-  const updated = await roleRepository.update(id, companyId, { name, description, portal })
+  const updated = await roleRepository.update(id, companyId, { name, description })
   if (!updated) throw new Error('Role not found')
   return updated
 }

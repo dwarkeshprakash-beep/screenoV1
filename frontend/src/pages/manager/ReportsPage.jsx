@@ -8,6 +8,7 @@ import Avatar from '../../components/shared/Avatar'
 import Modal from '../../components/shared/Modal'
 import * as api from '../../services/api'
 import { formatDate, parseStoredArray } from '../../utils/helpers'
+import { useAccess } from '../../context/AccessContext'
 
 function DecisionBadge({ decision }) {
   const map = {
@@ -198,9 +199,11 @@ export function ReportDetailModal({ report, loading, error, onClose }) {
 
 function ReportsPage() {
   const location = useLocation()
-  let currentRole = 'manager'
-  try { currentRole = JSON.parse(localStorage.getItem('user') || '{}').role || 'manager' } catch { /* ignore */ }
-  const isBde = currentRole === 'bde'
+  const { hasModule } = useAccess()
+  // Mirrors the backend's own View-vs-View-All split for this data (see
+  // report.routes.js) - a self-scoped viewer (today's replacement for "bde")
+  // doesn't get the owner-only management actions below.
+  const isBde = !hasModule('client_mandates', 'View All')
   const [mainTab, setMainTab]         = useState('all')
   const [reports, setReports]         = useState([])
   const [reportJobs, setReportJobs]   = useState([])

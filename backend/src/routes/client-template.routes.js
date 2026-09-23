@@ -20,6 +20,7 @@ const interviewFlowService = require('../services/interview-flow.service')
 const { parseStoredArray } = require('../utils/parse')
 
 const router = express.Router()
+
 router.use(authMiddleware, loadAccess, requireModule('client_mandates'))
 
 const parseTags = parseStoredArray
@@ -149,15 +150,28 @@ function cleanupReplacedJdFile(oldPath, newPath) {
   storageService.deleteFile(oldPath).catch(err => console.error('Failed to clean up replaced JD file:', err.message))
 }
 
-// A BDE only has read access to a mandate they created or were assigned to (via
-// created_by_user_id / assigned_bde_id); a manager has full access to mandates they own
-// (manager_id). Use this for any handler a BDE should be able to view. Downstream repo
-// calls that filter by manager_id must keep using the returned template's manager_id
-// (the real owner), never req.user.id, since a BDE viewer isn't the owning manager.
+// View All sees any mandate in the company; plain View is self-scoped (owner, creator,
+// assigned collaborator, or a client_teams participant). Use this for any handler a
+// non-owner should still be able to view. Downstream repo calls that filter by
+// manager_id must keep using the returned template's manager_id (the real owner),
+// never req.user.id, since the caller here isn't necessarily the owning manager.
 async function loadMandateForUser(mandateId, req) {
-  return req.access.portal === 'bde'
-    ? clientTemplateRepo.getByIdForCreator(mandateId, req.user.id)
-    : clientTemplateRepo.getById(mandateId, req.user.id)
+  return accessService.hasModulePermission(req.access, 'client_mandates', 'View All')
+    ? clientTemplateRepo.getByIdForCompany(mandateId, req.access.companyId)
+    : clientTemplateRepo.getByIdVisibleToUser(mandateId, req.user.id)
+}
+
+// Used to validate a manager/collaborator pick on mandate create/reassign - looks up
+// the target user's own access fresh (never trusts the caller's req.access) since the
+// target is a different user than the caller.
+async function targetHasMandatePermission(userId, permissionName) {
+  const access = await accessService.getUserAccessContext(userId)
+  return accessService.hasModulePermission(access, 'client_mandates', permissionName)
+}
+
+async function targetCanViewMandates(userId) {
+  const access = await accessService.getUserAccessContext(userId)
+  return accessService.hasAnyViewPermission(access, 'client_mandates')
 }
 
 function checkNotArchived(template, res) {
@@ -227,15 +241,19 @@ router.post('/', async (req, res) => {
     delete data.assigned_bde_id
     delete data.assignedBdeId
 
+    // Ownership is symmetric now: whoever is named as the mandate's manager (defaults
+    // to the caller) needs Save on client_mandates to own it; a second, independent
+    // collaborator can optionally be attached via assigned_bde_id and only needs View.
     let assignedManager = null
     let assignedBde = null
-    if (req.access.portal === 'bde') {
-      const assignedManagerId = parseInt(req.body.assigned_manager_id ?? req.body.assignedManagerId, 10)
+    const rawManagerId = req.body.assigned_manager_id ?? req.body.assignedManagerId
+    if (rawManagerId !== undefined && rawManagerId !== null && rawManagerId !== '') {
+      const assignedManagerId = parseInt(rawManagerId, 10)
       if (!Number.isInteger(assignedManagerId)) {
-        return res.status(400).json({ success: false, error: 'Select a manager to assign this mandate to' })
+        return res.status(400).json({ success: false, error: 'Select a valid manager to assign this mandate to' })
       }
       const targetManager = await userRepository.getByIdForCompany(assignedManagerId, req.user.companyId)
-      if (!targetManager || (await accessService.getPortalForUser(assignedManagerId)) !== 'manager') {
+      if (!targetManager || !(await targetHasMandatePermission(assignedManagerId, 'Save'))) {
         return res.status(400).json({ success: false, error: 'Select a valid manager in your organization' })
       }
       data.manager_id = assignedManagerId
@@ -244,19 +262,20 @@ router.post('/', async (req, res) => {
     } else {
       data.manager_id = req.user.id
       data.created_by_user_id = req.user.id
-      const rawBdeId = req.body.assigned_bde_id ?? req.body.assignedBdeId
-      if (rawBdeId !== undefined && rawBdeId !== null && rawBdeId !== '') {
-        const assignedBdeId = parseInt(rawBdeId, 10)
-        if (!Number.isInteger(assignedBdeId)) {
-          return res.status(400).json({ success: false, error: 'Select a valid BDE to assign' })
-        }
-        const targetBde = await userRepository.getByIdForCompany(assignedBdeId, req.user.companyId)
-        if (!targetBde || (await accessService.getPortalForUser(assignedBdeId)) !== 'bde') {
-          return res.status(400).json({ success: false, error: 'Select a valid BDE in your organization' })
-        }
-        data.assigned_bde_id = assignedBdeId
-        assignedBde = targetBde
+    }
+
+    const rawBdeId = req.body.assigned_bde_id ?? req.body.assignedBdeId
+    if (rawBdeId !== undefined && rawBdeId !== null && rawBdeId !== '') {
+      const assignedBdeId = parseInt(rawBdeId, 10)
+      if (!Number.isInteger(assignedBdeId)) {
+        return res.status(400).json({ success: false, error: 'Select a valid BDE to assign' })
       }
+      const targetBde = await userRepository.getByIdForCompany(assignedBdeId, req.user.companyId)
+      if (!targetBde || !(await targetCanViewMandates(assignedBdeId))) {
+        return res.status(400).json({ success: false, error: 'Select a valid BDE in your organization' })
+      }
+      data.assigned_bde_id = assignedBdeId
+      assignedBde = targetBde
     }
     if (requirementProfiles.length > 0) {
       data.headcount = requirementHeadcount(requirementProfiles)
@@ -318,9 +337,9 @@ router.get('/', async (req, res) => {
   try {
     const requestedState = String(req.query.state || 'active')
     const state = ['active', 'archived', 'all'].includes(requestedState) ? requestedState : 'active'
-    const templates = req.access.portal === 'bde'
-      ? await clientTemplateRepo.getByCreator(req.user.id, state)
-      : await clientTemplateRepo.getByManager(req.user.id, state)
+    const templates = accessService.hasModulePermission(req.access, 'client_mandates', 'View All')
+      ? await clientTemplateRepo.getByCompany(req.access.companyId, state)
+      : await clientTemplateRepo.getVisibleToUser(req.user.id, state)
     res.json({ success: true, data: templates })
   } catch (err) {
     console.error('GET /client-templates failed:', err.message)
@@ -331,7 +350,7 @@ router.get('/', async (req, res) => {
 // Registered before /:id so Express doesn't treat "managers" as a mandate id.
 router.get('/managers', async (req, res) => {
   try {
-    const managers = await userRepository.getByPortal(req.user.companyId, 'manager')
+    const managers = await userRepository.getByModulePermission(req.user.companyId, 'client_mandates', 'Save')
     res.json({ success: true, data: managers })
   } catch (err) {
     console.error('GET /client-templates/managers failed:', err.message)
@@ -342,7 +361,7 @@ router.get('/managers', async (req, res) => {
 // Registered before /:id so Express doesn't treat "bdes" as a mandate id.
 router.get('/bdes', async (req, res) => {
   try {
-    const bdes = await userRepository.getByPortal(req.user.companyId, 'bde')
+    const bdes = await userRepository.getByModulePermission(req.user.companyId, 'client_mandates', ['View', 'View All'])
     res.json({ success: true, data: bdes })
   } catch (err) {
     console.error('GET /client-templates/bdes failed:', err.message)
@@ -400,9 +419,7 @@ router.delete('/:id', async (req, res) => {
 
 router.get('/:id', async (req, res) => {
   try {
-    const template = req.access.portal === 'bde'
-      ? await clientTemplateRepo.getByIdForCreator(parseInt(req.params.id, 10), req.user.id)
-      : await clientTemplateRepo.getById(parseInt(req.params.id, 10), req.user.id)
+    const template = await loadMandateForUser(parseInt(req.params.id, 10), req)
     if (!template) return res.status(404).json({ success: false, error: 'Template not found' })
     if (template.jd_file_path) {
       template.jd_file_url = await storageService.getSignedUrl(template.jd_file_path).catch(() => null)
@@ -447,24 +464,24 @@ router.post('/:id/status/complete', async (req, res) => {
 router.patch('/:id', async (req, res) => {
   try {
     const templateId = parseInt(req.params.id, 10)
-    const isBdeCaller = req.access.portal === 'bde'
     const existing = await loadMandateForUser(templateId, req)
     if (!existing) return res.status(404).json({ success: false, error: 'Template not found' })
     if (!checkNotArchived(existing, res)) return
     // The real owning manager - every downstream call scoped by manager_id must use this,
-    // never req.user.id, since a BDE caller here isn't the mandate's manager.
+    // never req.user.id, since a non-owner caller here isn't the mandate's manager.
     const ownerManagerId = existing.manager_id
-    // Bulk requirement-profile replace/delete stays manager-only; a BDE adds/edits/deletes
-    // profiles one at a time through the dedicated /:id/requirements routes instead.
-    const requirementProfiles = isBdeCaller
-      ? null
-      : normalizeRequirementProfiles(req.body.requirement_profiles ?? req.body.requirementProfiles)
+    const isOwner = existing.manager_id === req.user.id
+    // Bulk requirement-profile replace/delete stays owner-only; a non-owner collaborator
+    // adds/edits/deletes profiles one at a time through the dedicated /:id/requirements routes instead.
+    const requirementProfiles = isOwner
+      ? normalizeRequirementProfiles(req.body.requirement_profiles ?? req.body.requirementProfiles)
+      : null
     const data = { ...req.body }
     delete data.requirement_profiles
     delete data.requirementProfiles
-    if (isBdeCaller) {
-      // A BDE may only touch JD fields through this endpoint - everything else
-      // (client info, internal notes, headcount/requirements text, BDE assignment) stays manager-only.
+    if (!isOwner) {
+      // A non-owner collaborator may only touch JD fields through this endpoint - everything
+      // else (client info, internal notes, headcount/requirements text, collaborator assignment) stays owner-only.
       const allowedForBde = new Set(['jd_text', 'jd_file_path', 'jd_original_filename', 'tags'])
       for (const key of Object.keys(data)) {
         if (!allowedForBde.has(key)) delete data[key]
@@ -489,7 +506,7 @@ router.patch('/:id', async (req, res) => {
     }
 
     let assignedBde = null
-    if (!isBdeCaller) {
+    if (isOwner) {
       const rawBdeId = req.body.assigned_bde_id ?? req.body.assignedBdeId
       if (rawBdeId !== undefined && rawBdeId !== null && rawBdeId !== '') {
         const assignedBdeId = parseInt(rawBdeId, 10)
@@ -497,7 +514,7 @@ router.patch('/:id', async (req, res) => {
           return res.status(400).json({ success: false, error: 'Select a valid BDE to assign' })
         }
         const targetBde = await userRepository.getByIdForCompany(assignedBdeId, req.user.companyId)
-        if (!targetBde || (await accessService.getPortalForUser(assignedBdeId)) !== 'bde') {
+        if (!targetBde || !(await targetCanViewMandates(assignedBdeId))) {
           return res.status(400).json({ success: false, error: 'Select a valid BDE in your organization' })
         }
         data.assigned_bde_id = assignedBdeId
@@ -655,9 +672,9 @@ router.get('/:id/matches', async (req, res) => {
     let templateTags = []
     try { templateTags = JSON.parse(template.tags || '[]').map(t => t.toLowerCase()) } catch { templateTags = [] }
 
-    const [allMembers, managerPortalUsers, teamRows, clientTeamRows, requirements] = await Promise.all([
+    const [allMembers, mandateOwnerUsers, teamRows, clientTeamRows, requirements] = await Promise.all([
       userRepository.getByCompany(req.user.companyId),
-      userRepository.getByPortal(req.user.companyId, 'manager'),
+      userRepository.getByModulePermission(req.user.companyId, 'client_mandates', 'Save'),
       require('../db/connection').query(
         `SELECT id, user_id FROM team_members WHERE manager_id = @managerId`,
         { managerId: template.manager_id }
@@ -665,7 +682,7 @@ router.get('/:id/matches', async (req, res) => {
       clientTeamRepo.getByMandate(parseInt(req.params.id, 10)),
       clientRequirementsRepo.getByMandate(template.id),
     ])
-    const managerPortalUserIds = new Set(managerPortalUsers.map(u => u.id))
+    const managerPortalUserIds = new Set(mandateOwnerUsers.map(u => u.id))
 
     const teamUserIds = new Set(teamRows.map(r => r.user_id))
     const teamMemberIdsByUser = new Map(teamRows.map(row => [Number(row.user_id), row.id]))
@@ -737,9 +754,7 @@ router.get('/:id/matches', async (req, res) => {
 router.get('/:id/team', async (req, res) => {
   try {
     const mandateId = parseInt(req.params.id, 10)
-    const template = req.access.portal === 'bde'
-      ? await clientTemplateRepo.getByIdForCreator(mandateId, req.user.id)
-      : await clientTemplateRepo.getById(mandateId, req.user.id)
+    const template = await loadMandateForUser(mandateId, req)
     if (!template) return res.status(404).json({ success: false, error: 'Mandate not found' })
     const team = await clientTeamRepo.getByMandate(mandateId)
 

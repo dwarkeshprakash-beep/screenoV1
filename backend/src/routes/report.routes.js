@@ -2,6 +2,7 @@
 const express = require('express')
 const authMiddleware = require('../middleware/auth')
 const { loadAccess, requireModule } = require('../middleware/access')
+const accessService = require('../services/access.service')
 const reportRepository = require('../repositories/report.repository')
 const reportJobRepository = require('../repositories/report-job.repository')
 const transcriptRepository = require('../repositories/transcript.repository')
@@ -10,6 +11,13 @@ const storageService = require('../services/storage.service')
 const router = express.Router()
 
 router.use(authMiddleware, loadAccess, requireModule('reports'))
+
+// Reports are about mandates/interviews owned via the client_mandates ownership chain -
+// View All sees every report in the company, plain View is limited to reports for
+// interviews the caller owns, created, collaborates on, or participates in.
+function canViewAllMandates(req) {
+  return accessService.hasModulePermission(req.access, 'client_mandates', 'View All')
+}
 
 async function attachSignedReportUrl(report) {
   if (!report || !report.pdf_url) return report
@@ -36,15 +44,16 @@ async function attachSignedReportUrls(reports) {
 // GET /api/reports/team - all reports for the manager's team
 router.get('/team', async (req, res) => {
   try {
-    if (req.access.portal === 'bde') {
-      const reports = await reportRepository.getReportsByCreator(req.user.id)
-      return res.json({ success: true, data: { reports: await attachSignedReportUrls(reports), stats: { total_reports: reports.length } } })
-    }
     const source = ['client', 'monthly', 'general'].includes(req.query.source) ? req.query.source : null
-    const [reports, stats] = await Promise.all([
-      reportRepository.getReportsByManager(req.user.id, source),
-      reportRepository.getStatsByManager(req.user.id),
-    ])
+    const [reports, stats] = canViewAllMandates(req)
+      ? await Promise.all([
+        reportRepository.getReportsForCompany(req.access.companyId, source),
+        reportRepository.getStatsForCompany(req.access.companyId),
+      ])
+      : await Promise.all([
+        reportRepository.getReportsForSelf(req.user.id, source),
+        reportRepository.getStatsForSelf(req.user.id),
+      ])
     res.json({ success: true, data: { reports: await attachSignedReportUrls(reports), stats } })
   } catch (err) {
     console.error('GET /reports/team failed:', err)
@@ -77,9 +86,9 @@ router.post('/jobs/:id/retry', async (req, res) => {
 router.get('/interview/:id', async (req, res) => {
   try {
     const interviewId = parseInt(req.params.id, 10)
-    const report = req.access.portal === 'bde'
-      ? await reportRepository.getDetailByInterviewForCreator(interviewId, req.user.id)
-      : await reportRepository.getDetailByInterviewForManager(interviewId, req.user.id)
+    const report = canViewAllMandates(req)
+      ? await reportRepository.getDetailByInterviewForCompany(interviewId, req.access.companyId)
+      : await reportRepository.getDetailByInterviewForSelf(interviewId, req.user.id)
     if (!report) return res.status(404).json({ success: false, error: 'Report not found' })
     report.transcripts = await transcriptRepository.getByInterview(interviewId)
     res.json({ success: true, data: await attachSignedReportUrl(report) })
@@ -93,9 +102,9 @@ router.get('/interview/:id', async (req, res) => {
 router.get('/detail/:id', async (req, res) => {
   try {
     const reportId = parseInt(req.params.id, 10)
-    const report = req.access.portal === 'bde'
-      ? await reportRepository.getDetailByIdForCreator(reportId, req.user.id)
-      : await reportRepository.getDetailByIdForManager(reportId, req.user.id)
+    const report = canViewAllMandates(req)
+      ? await reportRepository.getDetailByIdForCompany(reportId, req.access.companyId)
+      : await reportRepository.getDetailByIdForSelf(reportId, req.user.id)
     if (!report) return res.status(404).json({ success: false, error: 'Report not found' })
     report.transcripts = await transcriptRepository.getByInterview(report.interview_id)
     res.json({ success: true, data: await attachSignedReportUrl(report) })
@@ -109,40 +118,12 @@ router.get('/detail/:id', async (req, res) => {
 router.get('/candidate/:userId', async (req, res) => {
   try {
     const userId = parseInt(req.params.userId, 10)
-    const report = req.access.portal === 'bde'
-      ? await reportRepository.getLatestByInternalUserForCreator(userId, req.user.id)
-      : await reportRepository.getLatestByInternalUserForManager(userId, req.user.id)
+    const report = canViewAllMandates(req)
+      ? await reportRepository.getLatestByInternalUserForCompany(userId, req.access.companyId)
+      : await reportRepository.getLatestByInternalUserForSelf(userId, req.user.id)
     res.json({ success: true, data: await attachSignedReportUrl(report) || null })
   } catch (err) {
     console.error('GET /reports/candidate/:userId failed:', err)
-    res.status(500).json({ success: false, error: 'Could not load report' })
-  }
-})
-
-// GET /api/reports/interview/:id - report by interview ID
-router.get('/interview/:id', async (req, res) => {
-  try {
-    const interviewId = parseInt(req.params.id, 10)
-    const report = await reportRepository.getDetailByInterviewForManager(interviewId, req.user.id)
-    if (!report) return res.status(404).json({ success: false, error: 'Report not found' })
-    report.transcripts = await transcriptRepository.getByInterview(interviewId)
-    res.json({ success: true, data: await attachSignedReportUrl(report) })
-  } catch (err) {
-    console.error('GET /reports/interview/:id failed:', err)
-    res.status(500).json({ success: false, error: 'Could not load report' })
-  }
-})
-
-// GET /api/reports/detail/:id - full report detail by report ID
-router.get('/detail/:id', async (req, res) => {
-  try {
-    const reportId = parseInt(req.params.id, 10)
-    const report = await reportRepository.getDetailByIdForManager(reportId, req.user.id)
-    if (!report) return res.status(404).json({ success: false, error: 'Report not found' })
-    report.transcripts = await transcriptRepository.getByInterview(report.interview_id)
-    res.json({ success: true, data: await attachSignedReportUrl(report) })
-  } catch (err) {
-    console.error('GET /reports/detail/:id failed:', err)
     res.status(500).json({ success: false, error: 'Could not load report' })
   }
 })
@@ -151,9 +132,9 @@ router.get('/detail/:id', async (req, res) => {
 router.get('/candidate/:userId/history', async (req, res) => {
   try {
     const userId = parseInt(req.params.userId, 10)
-    const reports = req.access.portal === 'bde'
-      ? await reportRepository.getHistoryByUserForCreator(userId, req.user.id)
-      : await reportRepository.getHistoryByUserForManager(userId, req.user.id)
+    const reports = canViewAllMandates(req)
+      ? await reportRepository.getHistoryByUserForCompany(userId, req.access.companyId)
+      : await reportRepository.getHistoryByUserForSelf(userId, req.user.id)
     res.json({ success: true, data: await attachSignedReportUrls(reports) })
   } catch (err) {
     console.error('GET /reports/candidate/:userId/history failed:', err)

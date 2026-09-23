@@ -39,10 +39,10 @@ router.post('/login', async (req, res) => {
     res.json({ success: true, data: { accessToken, user } })
   } catch (err) {
     console.error('POST /auth/login failed:', err)
-    if (err.message === 'Your account has no portal access assigned yet. Contact your administrator.') {
-      // Same NO_PORTAL_ACCESS code /refresh uses for the same condition, so the
+    if (err.message === 'Your account has no role assigned yet. Contact your administrator.') {
+      // Same NO_ROLE_ASSIGNED code /refresh uses for the same condition, so the
       // frontend can branch on a stable code instead of matching message text.
-      return res.status(403).json({ success: false, error: err.message, code: 'NO_PORTAL_ACCESS' })
+      return res.status(403).json({ success: false, error: err.message, code: 'NO_ROLE_ASSIGNED' })
     }
     const unavailableCodes = ['ENOTFOUND', 'EAI_AGAIN', 'ECONNRESET', 'ETIMEDOUT']
     if (unavailableCodes.includes(err.code)) {
@@ -83,17 +83,17 @@ router.post('/refresh', async (req, res) => {
       'User not found',
       // An admin can revoke a user's last role while they're mid-session - the next
       // silent refresh must log them out cleanly, not surface a retry-able 503.
-      'Your account has no portal access assigned yet',
+      'Your account has no role assigned yet',
     ]
     const isSessionError = sessionErrors.some(message => err.message.includes(message))
     if (isSessionError) {
       res.clearCookie(COOKIE_NAME, getRefreshCookieOptions(req, { clear: true }))
       const errCode = err.message.includes('reuse')
         ? 'TOKEN_REUSE'
-        : err.message.includes('portal access')
-          ? 'NO_PORTAL_ACCESS'
+        : err.message.includes('no role assigned')
+          ? 'NO_ROLE_ASSIGNED'
           : 'SESSION_EXPIRED'
-      const message = errCode === 'NO_PORTAL_ACCESS' ? err.message : 'Session expired. Please log in again.'
+      const message = errCode === 'NO_ROLE_ASSIGNED' ? err.message : 'Session expired. Please log in again.'
       return res.status(401).json({ success: false, error: errCode, message })
     }
     res.status(503).json({

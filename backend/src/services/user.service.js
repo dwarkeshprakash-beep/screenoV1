@@ -36,12 +36,6 @@ async function resolveRoleIds(companyId, roleIds) {
   const valid = await roleRepository.getByIds(ids, companyId)
   if (valid.length !== ids.length) throw new Error('One or more roles are invalid for this company')
 
-  // A user's roles must all belong to the same portal - access.service.js resolves
-  // portal from the first role that has one, so mixing portals would silently pick
-  // one and lock the user out of the other rather than erroring loudly here.
-  const portals = new Set(valid.map(role => role.portal).filter(Boolean))
-  if (portals.size > 1) throw new Error('Selected roles belong to different portals - a user can only hold roles from one portal')
-
   return ids
 }
 
@@ -182,26 +176,21 @@ async function deleteUser(companyId, id) {
   if (!deleted) throw new Error('User not found')
 }
 
-// Admin-only bootstrap for a BDE-portal user: temp password (never surfaced - the
-// invite email is the only way in), a role from the company's existing BDE-portal
-// role(s), and a password-reset email. Moved here from admin.routes.js so the
-// route stays HTTP-only. See docs/rbac-multi-tenant-plan.md.
-async function createBdeUser(companyId, { email, firstName, lastName }) {
+// Admin-only bootstrap for a user in another company: temp password (never surfaced -
+// the invite email is the only way in), an admin-chosen role, and a password-reset
+// email. Moved here from admin.routes.js so the route stays HTTP-only.
+async function createUserWithRole(companyId, { email, firstName, lastName, roleId }) {
   const cleanEmail = String(email || '').trim().toLowerCase()
   if (!cleanEmail) throw new Error('email is required')
 
   const company = await companyRepository.getById(companyId)
   if (!company) throw new Error('Company not found')
 
+  const role = await roleRepository.getById(roleId, companyId)
+  if (!role) throw new Error('Select a valid role for this user')
+
   const existing = await userRepository.getByEmailForCompany(cleanEmail, companyId)
   if (existing) throw new Error('A user with this email already exists in that company')
-
-  // Portal is assigned via a role (see roles.portal), not a users.role column -
-  // this company needs at least one BDE-portal role already set up in the Roles module.
-  const bdeRoles = await roleRepository.getByPortal(companyId, 'bde')
-  if (bdeRoles.length === 0) {
-    throw new Error('This company has no BDE-portal role yet - create one in the Roles module first')
-  }
 
   const tempPasswordHash = await bcrypt.hash('TEMP_' + crypto.randomBytes(8).toString('hex'), BCRYPT_SALT_ROUNDS)
   const created = await userRepository.createMinimal(companyId, {
@@ -209,7 +198,7 @@ async function createBdeUser(companyId, { email, firstName, lastName }) {
   })
   if (!created) throw new Error('Could not create user - email may already be in use')
 
-  await userRoleRepository.replaceForUser(created.id, [bdeRoles[0].id])
+  await userRoleRepository.replaceForUser(created.id, [role.id])
   await authService.requestPasswordReset(cleanEmail)
 
   return { id: created.id, email: cleanEmail }
@@ -217,5 +206,5 @@ async function createBdeUser(companyId, { email, firstName, lastName }) {
 
 module.exports = {
   listUsers, getUser, getUserAccess, getUserInterviews,
-  createUser, updateUser, deleteUser, createBdeUser,
+  createUser, updateUser, deleteUser, createUserWithRole,
 }

@@ -1,11 +1,21 @@
 const express = require('express')
 const authMiddleware = require('../middleware/auth')
 const { loadAccess, requireModule } = require('../middleware/access')
+const accessService = require('../services/access.service')
 const teamService = require('../services/team.service')
 
 const router = express.Router()
 
 router.use(authMiddleware, loadAccess, requireModule('team'))
+
+// { viewAll, companyId } - View All sees the whole company's roster, plain View is
+// limited to the caller's own team (the manager_id = me scope this always had).
+function teamViewScope(req) {
+  return {
+    viewAll: accessService.hasModulePermission(req.access, 'team', 'View All'),
+    companyId: req.user.companyId,
+  }
+}
 
 function sendTeamError(res, err, fallback) {
   if (err.message === 'Member not found') {
@@ -19,6 +29,7 @@ function sendTeamError(res, err, fallback) {
     'First name and email are required',
     'A valid email is required',
     'No user with this email exists yet - create the user first in the Users module',
+    'Select a valid role to assign to imported members',
   ].includes(err.message)) {
     return res.status(400).json({ success: false, error: err.message })
   }
@@ -27,7 +38,7 @@ function sendTeamError(res, err, fallback) {
 
 router.get('/', async (req, res) => {
   try {
-    const members = await teamService.getTeam(req.user.id, req.query.filter || 'all')
+    const members = await teamService.getTeam(req.user.id, req.query.filter || 'all', teamViewScope(req))
     res.json({ success: true, data: members })
   } catch (err) {
     console.error('GET /team failed:', err.message)
@@ -47,7 +58,7 @@ router.get('/not-in-team', async (req, res) => {
 
 router.get('/stats', async (req, res) => {
   try {
-    const stats = await teamService.getStats(req.user.id)
+    const stats = await teamService.getStats(req.user.id, teamViewScope(req))
     res.json({ success: true, data: stats })
   } catch (err) {
     console.error('GET /team/stats failed:', err.message)
@@ -57,7 +68,7 @@ router.get('/stats', async (req, res) => {
 
 router.get('/activity', async (req, res) => {
   try {
-    const activity = await teamService.getActivity(req.user.id)
+    const activity = await teamService.getActivity(req.user.id, teamViewScope(req))
     res.json({ success: true, data: activity })
   } catch (err) {
     console.error('GET /team/activity failed:', err.message)
@@ -67,7 +78,7 @@ router.get('/activity', async (req, res) => {
 
 router.get('/interview-history', async (req, res) => {
   try {
-    const history = await teamService.getInterviewHistory(req.user.id)
+    const history = await teamService.getInterviewHistory(req.user.id, teamViewScope(req))
     res.json({ success: true, data: history })
   } catch (err) {
     console.error('GET /team/interview-history failed:', err.message)
@@ -137,11 +148,16 @@ router.get('/member/:id/interviews', async (req, res) => {
 })
 
 router.post('/import', async (req, res) => {
+  const roleId = parseInt(req.body.roleId, 10)
+  if (!Number.isInteger(roleId)) {
+    return res.status(400).json({ success: false, error: 'Select a role to assign to imported members' })
+  }
   try {
     const result = await teamService.importFromCSV(
       req.body.csv,
       req.user.companyId,
-      req.user.id
+      req.user.id,
+      roleId
     )
     res.json({ success: true, data: result })
   } catch (err) {

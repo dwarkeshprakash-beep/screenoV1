@@ -251,13 +251,16 @@ function dateRangeBounds(dateFrom, dateTo) {
   return { start, end }
 }
 
-async function getScheduledInterviews(managerId, { dateFrom, dateTo, category } = {}) {
-  const interviews = await interviewRepository.getByManager(managerId)
+// Self-scoped "View" tier - own interviews plus any mandate the caller created,
+// collaborates on, or participates in (see interviewRepository.getVisibleToUser).
+async function getScheduledInterviews(userId, { dateFrom, dateTo, category } = {}) {
+  const interviews = await interviewRepository.getVisibleToUser(userId)
   return filterAndMapScheduledInterviews(interviews, { dateFrom, dateTo, category })
 }
 
-async function getScheduledInterviewsForCreator(creatorUserId, { dateFrom, dateTo, category } = {}) {
-  const interviews = await interviewRepository.getByMandateCreator(creatorUserId)
+// Company-wide "View All" tier.
+async function getScheduledInterviewsForCompany(companyId, { dateFrom, dateTo, category } = {}) {
+  const interviews = await interviewRepository.getByCompany(companyId)
   return filterAndMapScheduledInterviews(interviews, { dateFrom, dateTo, category })
 }
 
@@ -473,7 +476,7 @@ async function rescheduleInterview(interviewId, managerId, data) {
 module.exports = {
   createSchedule,
   getScheduledInterviews,
-  getScheduledInterviewsForCreator,
+  getScheduledInterviewsForCompany,
   getOrgUsers,
   getEmailDeliveries,
   resendMagicLink,

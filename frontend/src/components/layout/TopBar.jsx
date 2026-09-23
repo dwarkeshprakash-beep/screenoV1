@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Bell, CalendarPlus, CheckCircle2, FileText, Clock, Menu, X } from 'lucide-react'
 import * as api from '../../services/api'
 import { formatDate } from '../../utils/helpers'
+import { useAccess } from '../../context/AccessContext'
 
 // ── Notification helpers ──────────────────────────────────────
 function notifMeta(what = '') {
@@ -84,8 +85,12 @@ function TopBar({ title = '', subtitle = '', action = null, role = 'manager', on
   const [notifLoading, setNotifLoading] = useState(false)
   const [notifFetched, setNotifFetched] = useState(false)
   const notifRef = useRef(null)
-  const isManager = role === 'manager'
-  const hasSidebar = role === 'manager' || role === 'admin'
+  const { hasModule } = useAccess()
+  // Team activity is a "team" module feature, not a manager-only one - manager and
+  // bde now share one route tree (role="workspace"), so gate by permission instead
+  // of the old hardcoded role check.
+  const canSeeTeamActivity = hasModule('team')
+  const hasSidebar = role === 'workspace' || role === 'admin'
 
   async function toggleNotif() {
     if (notifOpen) { setNotifOpen(false); return }
@@ -140,7 +145,7 @@ function TopBar({ title = '', subtitle = '', action = null, role = 'manager', on
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
-        {isManager && <div ref={notifRef} style={{ position: 'relative' }}>
+        {canSeeTeamActivity && <div ref={notifRef} style={{ position: 'relative' }}>
           <button
             type="button"
             aria-label="Open notifications"
@@ -164,7 +169,7 @@ function TopBar({ title = '', subtitle = '', action = null, role = 'manager', on
               items={notifItems}
               loading={notifLoading}
               onClose={() => setNotifOpen(false)}
-              onViewAll={() => { setNotifOpen(false); navigate('/manager/reports') }}
+              onViewAll={() => { setNotifOpen(false); navigate('/workspace/reports') }}
             />
           )}
         </div>}

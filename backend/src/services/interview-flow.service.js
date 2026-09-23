@@ -34,10 +34,11 @@ async function validateReportRecipients(value, companyId) {
 
 /** Send and record an interviewer assignment notification. */
 async function notifyInterviewer(interviewId, interviewer, data) {
-  const portal = await accessService.getPortalForUser(interviewer.id)
+  // The Interviews module is the same merged page for everyone now (own interviews +
+  // "I'm Interviewing" tab) - no more per-portal deep link to resolve.
   const notificationData = {
     ...data,
-    portalPath: portal === 'manager' ? '/manager/interviewer' : '/candidate/interviews',
+    portalPath: '/workspace/interviews',
   }
   try {
     await emailService.sendInterviewerAssignment(interviewer.email, notificationData)
@@ -162,12 +163,20 @@ async function createFlow(data, managerId, companyId) {
   return flow
 }
 
-/** List flow definitions for a mandate. `role` lets a BDE view a mandate they created
- * or were assigned to, without being the owning manager. */
-async function listFlows(mandateId, userId, role) {
-  const template = role === 'bde'
-    ? await clientTemplateRepository.getByIdForCreator(Number(mandateId), userId)
-    : await clientTemplateRepository.getById(Number(mandateId), userId)
+/** Load a mandate for viewing under the View/View All permission tiers - View All sees
+ * any mandate in the company, plain View is self-scoped (owner, creator, assigned
+ * collaborator, or a client_teams participant). */
+async function loadMandateForAccess(mandateId, userId, access) {
+  return accessService.hasModulePermission(access, 'client_mandates', 'View All')
+    ? clientTemplateRepository.getByIdForCompany(Number(mandateId), access.companyId)
+    : clientTemplateRepository.getByIdVisibleToUser(Number(mandateId), userId)
+}
+
+/** List flow definitions for a mandate. `access` is the caller's full access context -
+ * View All sees any mandate in the company, plain View is limited to mandates the
+ * caller owns, created, or collaborates on. */
+async function listFlows(mandateId, userId, access) {
+  const template = await loadMandateForAccess(mandateId, userId, access)
   if (!template) throw new Error('Mandate not found')
   return groupFlows(await flowRepository.listByMandate(template.id, template.manager_id))
 }
@@ -468,12 +477,10 @@ async function deleteRun(runId, managerId) {
   return { id: deleted.id, deleted: true }
 }
 
-/** List manager-visible run progress and sign feedback documents. `role` lets a BDE
- * view a mandate they created or were assigned to, without being the owning manager. */
-async function listRuns(mandateId, userId, role) {
-  const template = role === 'bde'
-    ? await clientTemplateRepository.getByIdForCreator(Number(mandateId), userId)
-    : await clientTemplateRepository.getById(Number(mandateId), userId)
+/** List manager-visible run progress and sign feedback documents. `access` is the
+ * caller's full access context - see loadMandateForAccess. */
+async function listRuns(mandateId, userId, access) {
+  const template = await loadMandateForAccess(mandateId, userId, access)
   if (!template) throw new Error('Mandate not found')
   await processExpiredFlows({ managerId: template.manager_id, mandateId: template.id })
     .catch(err => console.error('Expired flow processing failed while listing runs:', err.message))
@@ -485,12 +492,9 @@ async function listRuns(mandateId, userId, role) {
 }
 
 /** List one-off and flow-generated interview records for the manager schedule view.
- * `role` lets a BDE view a mandate they created or were assigned to, without being
- * the owning manager. */
-async function listSchedules(mandateId, userId, role) {
-  const template = role === 'bde'
-    ? await clientTemplateRepository.getByIdForCreator(Number(mandateId), userId)
-    : await clientTemplateRepository.getById(Number(mandateId), userId)
+ * `access` is the caller's full access context - see loadMandateForAccess. */
+async function listSchedules(mandateId, userId, access) {
+  const template = await loadMandateForAccess(mandateId, userId, access)
   if (!template) throw new Error('Mandate not found')
   await processExpiredFlows({ managerId: template.manager_id, mandateId: template.id })
     .catch(err => console.error('Expired flow processing failed while listing schedules:', err.message))

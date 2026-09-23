@@ -1,10 +1,14 @@
+// frontend/src/pages/workspace/FeedbackPage.jsx
+// Feedback module - always self-scoped, every caller only ever sees their own
+// completed-assessment feedback (no View-All tier exists for this module). Moved
+// as-is from the old candidate-only CandidateFeedbackPage - no behavior change.
 import { useCallback, useEffect, useState } from 'react'
 import { Lightbulb, FileText } from 'lucide-react'
 import Spinner from '../../components/shared/Spinner'
 import * as api from '../../services/api'
 import { formatDate, parseStoredArray } from '../../utils/helpers'
 
-function CandidateFeedbackPage() {
+function FeedbackPage() {
   const [reports, setReports] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -85,4 +89,4 @@ function CandidateFeedbackPage() {
   )
 }
 
-export default CandidateFeedbackPage
+export default FeedbackPage

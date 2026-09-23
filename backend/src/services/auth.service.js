@@ -24,15 +24,17 @@ function hashToken(token) {
   return crypto.createHash('sha256').update(token).digest('hex')
 }
 
-// Portal (manager/bde/candidate/admin) is resolved fresh from the RBAC tables, not
-// stored on the token - see access.service.js. It's included here only so the
-// frontend knows where to route the user right after login/refresh; every actual
-// API call re-resolves it server-side via middleware/access.js, so a role change
-// takes effect immediately rather than waiting for this token to expire.
-async function resolvePortalRole(user) {
+// Access is resolved fresh from the RBAC tables, not stored on the token - see
+// access.service.js. The JWT/user-object `role` here is only ever 'admin' or 'user' -
+// just enough for the frontend to pick a shell (admin vs everyone else) right after
+// login/refresh. Actual module/permission visibility always comes from
+// AccessContext (GET /api/auth/me/access), never from this field.
+async function resolveUserRole(user) {
   const access = await accessService.getUserAccessContext(user.id, user)
-  if (!access.portal) throw new Error('Your account has no portal access assigned yet. Contact your administrator.')
-  return { access, role: access.portal }
+  if (!access.isPlatformAdmin && access.roleIds.length === 0) {
+    throw new Error('Your account has no role assigned yet. Contact your administrator.')
+  }
+  return { access, role: access.isPlatformAdmin ? 'admin' : 'user' }
 }
 
 function signAccessToken(user, role) {
@@ -171,7 +173,7 @@ async function login(email, password) {
   const match = await bcrypt.compare(password, user.password)
   if (!match) throw new Error('Invalid credentials')
 
-  const { role } = await resolvePortalRole(user)
+  const { role } = await resolveUserRole(user)
   const accessToken = signAccessToken(user, role)
 
   const rawRefresh = crypto.randomBytes(64).toString('hex')
@@ -213,7 +215,7 @@ async function refresh(rawRefreshToken) {
       // The client route should maintain the existing refresh cookie.
       const user = await userRepository.getById(stored.user_id)
       if (!user) throw new Error('User not found')
-      const { role } = await resolvePortalRole(user)
+      const { role } = await resolveUserRole(user)
       return {
         accessToken: signAccessToken(user, role),
         refreshToken: null, // Signals route to not set a new cookie
@@ -243,7 +245,7 @@ async function refresh(rawRefreshToken) {
   // 2. Mark old token as replaced, starting the 30-second grace period
   await refreshTokenRepository.markReplaced(stored.id, nextTokenHash, 30000)
 
-  const { role } = await resolvePortalRole(user)
+  const { role } = await resolveUserRole(user)
   return {
     accessToken: signAccessToken(user, role),
     refreshToken: nextRefreshToken,

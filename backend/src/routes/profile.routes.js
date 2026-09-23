@@ -17,10 +17,6 @@ router.get('/', async (req, res) => {
     const user = await userRepository.getById(req.user.id)
     if (!user) return res.status(404).json({ success: false, error: 'User not found' })
 
-    // Frontend merges this response into the stored session user - send the
-    // resolved portal (RBAC-derived, not a raw DB column - see access.service.js).
-    user.role = req.access.portal
-
     // Generate signed URL if the user has a resume stored as a path
     if (user.resume_url && !user.resume_url.startsWith('http')) {
       try {
@@ -104,7 +100,6 @@ router.patch('/', async (req, res) => {
 
     const updated = await userRepository.getById(req.user.id)
     if (!updated) return res.status(404).json({ success: false, error: 'User not found' })
-    updated.role = req.access.portal
     res.json({ success: true, data: updated })
   } catch (err) {
     console.error('PATCH /profile failed:', err)

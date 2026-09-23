@@ -6,7 +6,7 @@ const { extractPage } = require('../utils/pagination')
 
 async function getRolesForUser(userId) {
   return db.query(
-    `SELECT r.id, r.name, r.portal
+    `SELECT r.id, r.name
      FROM user_roles ur
      JOIN roles r ON r.id = ur.role_id
      WHERE ur.user_id = @userId

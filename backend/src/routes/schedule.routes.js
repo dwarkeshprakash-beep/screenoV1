@@ -4,6 +4,7 @@
 const express = require('express')
 const authMiddleware = require('../middleware/auth')
 const { loadAccess, requireModule } = require('../middleware/access')
+const accessService = require('../services/access.service')
 const scheduleService = require('../services/schedule.service')
 
 const router = express.Router()
@@ -112,8 +113,8 @@ router.post('/', async (req, res) => {
 router.get('/interviews', async (req, res) => {
   try {
     const category = ['mandate', 'monthly', 'general'].includes(req.query.category) ? req.query.category : null
-    const events = req.access.portal === 'bde'
-      ? await scheduleService.getScheduledInterviewsForCreator(req.user.id, {
+    const events = accessService.hasModulePermission(req.access, 'client_mandates', 'View All')
+      ? await scheduleService.getScheduledInterviewsForCompany(req.access.companyId, {
           dateFrom: req.query.dateFrom,
           dateTo: req.query.dateTo,
           category,

@@ -1,8 +1,8 @@
 // AccessContext - fetches the logged-in user's module/permission grants once per
 // session and exposes them to the Sidebar (hide nav items) and RequireModule route
 // guards (block direct navigation). This is a UX layer only - the real enforcement
-// is requireModule()/requirePortal() on the backend routes (see middleware/access.js);
-// hiding a link here never substitutes for that.
+// is requireModule() on the backend routes (see middleware/access.js); hiding a
+// link here never substitutes for that.
 import { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import * as api from '../services/api'
 

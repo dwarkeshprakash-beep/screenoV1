@@ -95,9 +95,14 @@ async function getNotInTeam(companyId, managerId) {
      LEFT JOIN departments d ON d.id = u.department_id
      WHERE u.company_id = @companyId
        AND NOT EXISTS (
+         -- "Manager-like" now means the user's role can manage the team module,
+         -- not a fixed portal - see docs/rbac-multi-tenant-plan.md.
          SELECT 1 FROM user_roles ur
-         JOIN roles r ON r.id = ur.role_id
-         WHERE ur.user_id = u.id AND r.portal = 'manager'
+         JOIN role_acl_permissions rap ON rap.role_id = ur.role_id
+         JOIN acls a ON a.id = rap.acl_id
+         JOIN modules m ON m.id = a.module_id AND m.key = 'team'
+         JOIN permissions p ON p.id = rap.permission_id AND p.name = 'Save'
+         WHERE ur.user_id = u.id
        )
        AND NOT EXISTS (
          SELECT 1 FROM team_members tm
@@ -109,16 +114,28 @@ async function getNotInTeam(companyId, managerId) {
   )
 }
 
-async function getByPortal(companyId, portal) {
+// Company members holding at least one of the given permissions on a module -
+// replaces the old getByPortal(companyId, 'manager'|'bde') now that "manager"/"bde"
+// aren't fixed portals, just whatever permission a role's ACL grants on a module. Same
+// user_roles -> role_acl_permissions -> acls -> modules/permissions join pattern as
+// getNotInTeam() above, generalized to any module/permission set. Pass a single name
+// or an array (e.g. ['View', 'View All'] so a View-All-only holder isn't missed).
+async function getByModulePermission(companyId, moduleKey, permissionNames) {
+  const names = Array.isArray(permissionNames) ? permissionNames : [permissionNames]
   return db.query(
     `SELECT DISTINCT u.id, u.first_name, u.last_name, u.email
      FROM users u
-     JOIN user_roles ur ON ur.user_id = u.id
-     JOIN roles r ON r.id = ur.role_id
      WHERE u.company_id = @companyId
-       AND r.portal = @portal
-     ORDER BY u.first_name`,
-    { companyId, portal }
+       AND EXISTS (
+         SELECT 1 FROM user_roles ur
+         JOIN role_acl_permissions rap ON rap.role_id = ur.role_id
+         JOIN acls a ON a.id = rap.acl_id
+         JOIN modules m ON m.id = a.module_id AND m.key = @moduleKey
+         JOIN permissions p ON p.id = rap.permission_id AND p.name = ANY(@names)
+         WHERE ur.user_id = u.id
+       )
+     ORDER BY u.first_name, u.last_name`,
+    { companyId, moduleKey, names }
   )
 }
 
@@ -402,7 +419,7 @@ async function getOrganizationMemberProfile(userId, companyId) {
 
 module.exports = {
   getByEmail, getByEmailForCompany, getById, getAuthProfile, getByIdWithPassword, getNotInTeam,
-  getByPortal, getByCompany, getByCompanyPage, getByIdForCompany, getByIdsForCompany,
+  getByCompany, getByCompanyPage, getByIdForCompany, getByIdsForCompany, getByModulePermission,
   updateProfile, updatePassword, updateOrgProfile, updateBasicInfo, remove, hasBlockingReferences,
   bulkUpsert, createMinimal, getOrganizationMemberProfile, countByCompany
 }

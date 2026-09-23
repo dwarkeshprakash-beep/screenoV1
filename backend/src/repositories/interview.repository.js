@@ -106,7 +106,12 @@ async function getByManager(managerId) {
   )
 }
 
-async function getByMandateCreator(creatorUserId) {
+// Self-scoped "View" tier for the client_mandates ownership chain - owner (own
+// scheduled interviews via manager_id), creator/assigned collaborator on the mandate,
+// or a client_teams participant on it. Replaces getByMandateCreator, which only
+// checked created_by_user_id (missing assigned_bde_id was a bug) and didn't cover a
+// caller's own non-mandate interviews the way the old "manager" portal branch did.
+async function getVisibleToUser(userId) {
   return db.query(
     `SELECT i.*, ${INTERVIEW_COLS}, tm.id AS team_member_id,
             sc.overall AS overall_score
@@ -115,9 +120,12 @@ async function getByMandateCreator(creatorUserId) {
      LEFT JOIN team_members tm
        ON tm.user_id = i.internal_user_id AND tm.manager_id = i.manager_id
      LEFT JOIN scorecards sc ON sc.interview_id = i.id
-     WHERE ct.created_by_user_id = @creatorUserId
+     WHERE i.manager_id = @userId
+        OR ct.created_by_user_id = @userId
+        OR ct.assigned_bde_id = @userId
+        OR EXISTS (SELECT 1 FROM client_teams ctm WHERE ctm.mandate_id = ct.id AND ctm.user_id = @userId)
      ORDER BY i.created DESC`,
-    { creatorUserId }
+    { userId }
   )
 }
 
@@ -212,11 +220,18 @@ async function getByInternalUserForCompany(userId, companyId) {
   )
 }
 
+// Company-wide "View All" tier (also used as the schedule module's company-wide view -
+// see schedule.service.js#getScheduledInterviewsForCompany). Includes the same
+// team_member_id/overall_score joins as getByManager/getVisibleToUser for shape parity.
 async function getByCompany(companyId) {
   return db.query(
-    `SELECT i.*, ${INTERVIEW_COLS}
+    `SELECT i.*, ${INTERVIEW_COLS}, tm.id AS team_member_id,
+            sc.overall AS overall_score
      FROM interviews i
      ${INTERVIEW_JOINS}
+     LEFT JOIN team_members tm
+       ON tm.user_id = i.internal_user_id AND tm.manager_id = i.manager_id
+     LEFT JOIN scorecards sc ON sc.interview_id = i.id
      WHERE mu.company_id = @companyId
      ORDER BY i.created DESC`,
     { companyId }
@@ -367,7 +382,7 @@ module.exports = {
   getById,
   getByToken,
   getByManager,
-  getByMandateCreator,
+  getVisibleToUser,
   getByClientTemplateForManager,
   getByClientTeamId,
   cancelScheduledClientInterview,

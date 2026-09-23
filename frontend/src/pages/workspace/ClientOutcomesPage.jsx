@@ -1,3 +1,8 @@
+// frontend/src/pages/workspace/ClientOutcomesPage.jsx
+// Client Outcomes module - always self-scoped, every caller only ever sees published
+// outcome rounds for mandates they're a client_teams participant on (no View-All tier
+// exists for this module). Moved as-is from the old candidate-only
+// CandidateClientOutcomesPage - no behavior change.
 import { useCallback, useEffect, useState } from 'react'
 import { BriefcaseBusiness, Clock } from 'lucide-react'
 import Spinner from '../../components/shared/Spinner'
@@ -114,7 +119,7 @@ function MandateCard({ mandate }) {
   )
 }
 
-function CandidateClientOutcomesPage() {
+function ClientOutcomesPage() {
   const [mandates, setMandates] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -172,4 +177,4 @@ function CandidateClientOutcomesPage() {
   )
 }
 
-export default CandidateClientOutcomesPage
+export default ClientOutcomesPage
