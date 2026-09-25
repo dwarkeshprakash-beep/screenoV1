@@ -3,10 +3,7 @@ const express = require('express')
 const authMiddleware = require('../middleware/auth')
 const { loadAccess, requireModule } = require('../middleware/access')
 const accessService = require('../services/access.service')
-const reportRepository = require('../repositories/report.repository')
-const reportJobRepository = require('../repositories/report-job.repository')
-const transcriptRepository = require('../repositories/transcript.repository')
-const storageService = require('../services/storage.service')
+const reportService = require('../services/report.service')
 
 const router = express.Router()
 
@@ -15,46 +12,19 @@ router.use(authMiddleware, loadAccess, requireModule('reports'))
 // Reports are about mandates/interviews owned via the client_mandates ownership chain -
 // View All sees every report in the company, plain View is limited to reports for
 // interviews the caller owns, created, collaborates on, or participates in.
-function canViewAllMandates(req) {
-  return accessService.hasModulePermission(req.access, 'client_mandates', 'View All')
-}
-
-async function attachSignedReportUrl(report) {
-  if (!report || !report.pdf_url) return report
-  if (/^https?:\/\//i.test(report.pdf_url)) return report
-  try {
-    return {
-      ...report,
-      pdf_storage_path: report.pdf_url,
-      pdf_url: await storageService.getSignedUrl(report.pdf_url),
-    }
-  } catch {
-    return {
-      ...report,
-      pdf_storage_path: report.pdf_url,
-      pdf_url: null,
-    }
+function reportScope(req) {
+  return {
+    viewAll: accessService.hasModulePermission(req.access, 'client_mandates', 'View All'),
+    companyId: req.access.companyId,
   }
-}
-
-async function attachSignedReportUrls(reports) {
-  return Promise.all((reports || []).map(attachSignedReportUrl))
 }
 
 // GET /api/reports/team - all reports for the manager's team
 router.get('/team', async (req, res) => {
   try {
     const source = ['client', 'monthly', 'general'].includes(req.query.source) ? req.query.source : null
-    const [reports, stats] = canViewAllMandates(req)
-      ? await Promise.all([
-        reportRepository.getReportsForCompany(req.access.companyId, source),
-        reportRepository.getStatsForCompany(req.access.companyId),
-      ])
-      : await Promise.all([
-        reportRepository.getReportsForSelf(req.user.id, source),
-        reportRepository.getStatsForSelf(req.user.id),
-      ])
-    res.json({ success: true, data: { reports: await attachSignedReportUrls(reports), stats } })
+    const data = await reportService.getTeamReports(req.user.id, reportScope(req), source)
+    res.json({ success: true, data })
   } catch (err) {
     console.error('GET /reports/team failed:', err)
     res.status(500).json({ success: false, error: 'Could not load team reports' })
@@ -63,7 +33,7 @@ router.get('/team', async (req, res) => {
 
 router.get('/jobs', async (req, res) => {
   try {
-    const jobs = await reportJobRepository.getByManager(req.user.id)
+    const jobs = await reportService.getReportJobs(req.user.id)
     res.json({ success: true, data: jobs })
   } catch (err) {
     console.error('GET /reports/jobs failed:', err)
@@ -73,7 +43,7 @@ router.get('/jobs', async (req, res) => {
 
 router.post('/jobs/:id/retry', async (req, res) => {
   try {
-    const job = await reportJobRepository.retryForManager(parseInt(req.params.id, 10), req.user.id)
+    const job = await reportService.retryReportJob(parseInt(req.params.id, 10), req.user.id)
     if (!job) return res.status(404).json({ success: false, error: 'Failed report job not found' })
     res.json({ success: true, data: job })
   } catch (err) {
@@ -85,13 +55,9 @@ router.post('/jobs/:id/retry', async (req, res) => {
 // GET /api/reports/interview/:id - report by interview ID
 router.get('/interview/:id', async (req, res) => {
   try {
-    const interviewId = parseInt(req.params.id, 10)
-    const report = canViewAllMandates(req)
-      ? await reportRepository.getDetailByInterviewForCompany(interviewId, req.access.companyId)
-      : await reportRepository.getDetailByInterviewForSelf(interviewId, req.user.id)
+    const report = await reportService.getReportByInterview(parseInt(req.params.id, 10), req.user.id, reportScope(req))
     if (!report) return res.status(404).json({ success: false, error: 'Report not found' })
-    report.transcripts = await transcriptRepository.getByInterview(interviewId)
-    res.json({ success: true, data: await attachSignedReportUrl(report) })
+    res.json({ success: true, data: report })
   } catch (err) {
     console.error('GET /reports/interview/:id failed:', err)
     res.status(500).json({ success: false, error: 'Could not load report' })
@@ -101,13 +67,9 @@ router.get('/interview/:id', async (req, res) => {
 // GET /api/reports/detail/:id - full report detail by report ID
 router.get('/detail/:id', async (req, res) => {
   try {
-    const reportId = parseInt(req.params.id, 10)
-    const report = canViewAllMandates(req)
-      ? await reportRepository.getDetailByIdForCompany(reportId, req.access.companyId)
-      : await reportRepository.getDetailByIdForSelf(reportId, req.user.id)
+    const report = await reportService.getReportById(parseInt(req.params.id, 10), req.user.id, reportScope(req))
     if (!report) return res.status(404).json({ success: false, error: 'Report not found' })
-    report.transcripts = await transcriptRepository.getByInterview(report.interview_id)
-    res.json({ success: true, data: await attachSignedReportUrl(report) })
+    res.json({ success: true, data: report })
   } catch (err) {
     console.error('GET /reports/detail/:id failed:', err)
     res.status(500).json({ success: false, error: 'Could not load report' })
@@ -117,11 +79,8 @@ router.get('/detail/:id', async (req, res) => {
 // GET /api/reports/candidate/:userId - latest report for a user (by internal_user_id)
 router.get('/candidate/:userId', async (req, res) => {
   try {
-    const userId = parseInt(req.params.userId, 10)
-    const report = canViewAllMandates(req)
-      ? await reportRepository.getLatestByInternalUserForCompany(userId, req.access.companyId)
-      : await reportRepository.getLatestByInternalUserForSelf(userId, req.user.id)
-    res.json({ success: true, data: await attachSignedReportUrl(report) || null })
+    const report = await reportService.getLatestReportForUser(parseInt(req.params.userId, 10), req.user.id, reportScope(req))
+    res.json({ success: true, data: report })
   } catch (err) {
     console.error('GET /reports/candidate/:userId failed:', err)
     res.status(500).json({ success: false, error: 'Could not load report' })
@@ -131,11 +90,8 @@ router.get('/candidate/:userId', async (req, res) => {
 // GET /api/reports/candidate/:userId/history - all reports for a user
 router.get('/candidate/:userId/history', async (req, res) => {
   try {
-    const userId = parseInt(req.params.userId, 10)
-    const reports = canViewAllMandates(req)
-      ? await reportRepository.getHistoryByUserForCompany(userId, req.access.companyId)
-      : await reportRepository.getHistoryByUserForSelf(userId, req.user.id)
-    res.json({ success: true, data: await attachSignedReportUrls(reports) })
+    const reports = await reportService.getReportHistoryForUser(parseInt(req.params.userId, 10), req.user.id, reportScope(req))
+    res.json({ success: true, data: reports })
   } catch (err) {
     console.error('GET /reports/candidate/:userId/history failed:', err)
     res.status(500).json({ success: false, error: 'Could not load report history' })
@@ -143,4 +99,3 @@ router.get('/candidate/:userId/history', async (req, res) => {
 })
 
 module.exports = router
-

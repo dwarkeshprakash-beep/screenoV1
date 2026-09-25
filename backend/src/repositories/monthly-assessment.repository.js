@@ -294,7 +294,169 @@ async function deleteTemplate(id, managerId) {
   })
 }
 
+// ── Assignment (runs inside one transaction - every function takes `tx`) ────
+
+// Run `work(tx)` in a single transaction (BEGIN/COMMIT, ROLLBACK on throw).
+async function runInTransaction(work) {
+  return db.transaction(work)
+}
+
+// Row-lock a team member so concurrent assignments for the same person serialise.
+async function lockTeamMember(tx, teamMemberId) {
+  await tx.query(
+    `SELECT id
+     FROM team_members
+     WHERE id = @teamMemberId
+     FOR UPDATE`,
+    { teamMemberId }
+  )
+}
+
+// Idempotency guard: returns the new request row, or null if this key was already used.
+async function insertAssignmentRequest(tx, { requestKey, assessmentId, teamMemberId }) {
+  const rows = await tx.query(
+    `INSERT INTO assignment_requests
+       (request_key, assessment_id, team_member_id)
+     VALUES
+       (@requestKey, @assessmentId, @teamMemberId)
+     ON CONFLICT (request_key) DO NOTHING
+     RETURNING *`,
+    { requestKey, assessmentId, teamMemberId }
+  )
+  return rows[0] || null
+}
+
+// The enrollment an earlier request with the same key produced (enrollment_id null if unfinished).
+async function getAssignmentRequestEnrollment(tx, { requestKey, assessmentId, teamMemberId }) {
+  const rows = await tx.query(
+    `SELECT ar.enrollment_id, e.*
+     FROM assignment_requests ar
+     LEFT JOIN monthly_assessment_enrollments e ON e.id = ar.enrollment_id
+     WHERE ar.request_key = @requestKey
+       AND ar.assessment_id = @assessmentId
+       AND ar.team_member_id = @teamMemberId
+     LIMIT 1`,
+    { requestKey, assessmentId, teamMemberId }
+  )
+  return rows[0] || null
+}
+
+async function linkAssignmentRequestEnrollment(tx, { enrollmentId, requestKey }) {
+  await tx.query(
+    `UPDATE assignment_requests
+     SET enrollment_id = @enrollmentId
+     WHERE request_key = @requestKey`,
+    { enrollmentId, requestKey }
+  )
+}
+
+async function getOccurrenceIdsByEnrollment(tx, enrollmentId) {
+  return tx.query(
+    `SELECT id, interview_id
+     FROM monthly_assessment_occurrences
+     WHERE enrollment_id = @enrollmentId
+     ORDER BY period_month ASC`,
+    { enrollmentId }
+  )
+}
+
+// Another live plan from the same manager that overlaps [startDate, endDate) for this member.
+async function findOverlappingEnrollment(tx, { assessmentId, teamMemberId, startDate, endDate }) {
+  const rows = await tx.query(
+    `SELECT e.id, e.assessment_id, e.start_date, e.end_date,
+            a.subject_name, a.duration_months
+     FROM monthly_assessment_enrollments e
+     JOIN monthly_assessments a ON a.id = e.assessment_id
+     JOIN monthly_assessments selected ON selected.id = @assessmentId
+     WHERE e.team_member_id = @teamMemberId
+       AND a.manager_id = selected.manager_id
+       AND COALESCE(e.status, 'pending') != 'cancelled'
+       AND e.start_date < @endDate
+       AND e.end_date > @startDate
+     LIMIT 1`,
+    { assessmentId, teamMemberId, startDate, endDate }
+  )
+  return rows[0] || null
+}
+
+async function insertEnrollment(tx, { assessmentId, teamMemberId, startDate, endDate }) {
+  const rows = await tx.query(
+    `INSERT INTO monthly_assessment_enrollments
+      (assessment_id, team_member_id, start_date, end_date, status)
+     VALUES
+      (@assessmentId, @teamMemberId, @startDate, @endDate, 'scheduled')
+     RETURNING *`,
+    { assessmentId, teamMemberId, startDate, endDate }
+  )
+  return rows[0]
+}
+
+async function insertOccurrence(tx, { enrollmentId, periodMonth, availableFrom, dueAt, durationMinutes, interviewId }) {
+  const rows = await tx.query(
+    `INSERT INTO monthly_assessment_occurrences
+      (enrollment_id, period_month, available_from, due_at, duration_minutes, interview_id, status)
+     VALUES
+      (@enrollmentId, @periodMonth, @availableFrom, @dueAt, @durationMinutes, @interviewId, 'scheduled')
+     RETURNING *`,
+    { enrollmentId, periodMonth, availableFrom, dueAt, durationMinutes, interviewId }
+  )
+  return rows[0]
+}
+
+// ── Candidate view ──────────────────────────────────────────────────────────
+
+// Every non-cancelled enrollment where this user is the enrolled team member,
+// with the plan details and the managing user's name/company.
+async function getCandidateEnrollments(userId) {
+  return db.query(
+    `SELECT
+       e.*,
+       ma.subject_name,
+       ma.difficulty,
+       ma.duration_months,
+       ma.ai_generated_jd,
+       ma.sub_topics,
+       tm.manager_id,
+       u.first_name AS manager_first_name,
+       u.last_name AS manager_last_name,
+       c.name AS company_name
+     FROM monthly_assessment_enrollments e
+     JOIN monthly_assessments ma ON ma.id = e.assessment_id
+     JOIN team_members tm ON tm.id = e.team_member_id
+     JOIN users u ON u.id = tm.manager_id
+     LEFT JOIN companies c ON c.id = u.company_id
+     WHERE tm.user_id = @userId
+       AND COALESCE(e.status, 'pending') != 'cancelled'
+     ORDER BY e.created DESC`,
+    { userId }
+  )
+}
+
+// Occurrences (with their interview's live status/window) for many enrollments in one
+// query, ordered by month within each enrollment. Callers group by enrollment_id.
+async function getOccurrencesWithInterviewByEnrollmentIds(enrollmentIds) {
+  if (enrollmentIds.length === 0) return []
+  return db.query(
+    `SELECT
+       o.*,
+       i.status AS interview_status,
+       i.available_from AS i_available_from,
+       i.due_at AS i_due_at,
+       i.schedule_timezone,
+       i.duration_minutes AS i_duration_minutes
+     FROM monthly_assessment_occurrences o
+     LEFT JOIN interviews i ON i.id = o.interview_id
+     WHERE o.enrollment_id = ANY(@enrollmentIds)
+     ORDER BY o.enrollment_id, o.period_month ASC`,
+    { enrollmentIds }
+  )
+}
+
 module.exports = {
+  runInTransaction, lockTeamMember, insertAssignmentRequest, getAssignmentRequestEnrollment,
+  linkAssignmentRequestEnrollment, getOccurrenceIdsByEnrollment, findOverlappingEnrollment,
+  insertEnrollment, insertOccurrence,
+  getCandidateEnrollments, getOccurrencesWithInterviewByEnrollmentIds,
   createTemplate, getByIdForManager, getVisibleToUser, getByCompany,
   getEnrollmentsVisibleToUser, getEnrollmentsByCompany,
   getCalendarVisibleToUser, getCalendarByCompany,

@@ -350,10 +350,43 @@ async function generateReport(interviewId) {
   }
 }
 
+// Q&A transcript of an AI voice interview, for the manager who owns it. Null when the
+// interview is missing, not theirs, or not an AI voice interview.
+async function getManagerTranscript(interviewId, managerId) {
+  const interview = await interviewRepository.getById(interviewId)
+  if (!interview || interview.manager_id !== managerId || interview.type !== 'ai_voice') return null
+  return transcriptRepository.getByInterview(interviewId)
+}
+
+// The fields of a report a candidate may see about themselves.
+function toCandidateReportSummary(report) {
+  return {
+    id: report.id,
+    interview_id: report.interview_id,
+    status: report.status,
+    summary: report.summary,
+    strengths: report.strengths,
+    created: report.created,
+  }
+}
+
+// The candidate's own feedback for an interview they just finished. Null until the
+// report job has finished ('ready') - callers keep polling. Throws Unauthorized when the
+// session token is scoped to a different interview.
+async function getCandidateReportSummary(interviewId, identity) {
+  candidateIdentityService.assertInterviewScope(identity, interviewId)
+  const report = await reportRepository.getLatestByCandidateIdentity(identity, interviewId)
+  if (!report || report.status !== 'ready') return null
+  return toCandidateReportSummary(report)
+}
+
 module.exports = {
   startInterview,
   saveAnswer,
   completeInterview,
   logProctoringEvent,
   generateReport,
+  getManagerTranscript,
+  getCandidateReportSummary,
+  toCandidateReportSummary,
 }

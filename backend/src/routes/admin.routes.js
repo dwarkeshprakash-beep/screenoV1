@@ -4,66 +4,48 @@
 const express = require('express')
 const authMiddleware = require('../middleware/auth')
 const { loadAccess, requirePlatformAdmin } = require('../middleware/access')
-const accessService = require('../services/access.service')
-const mandateLifecycleService = require('../services/mandate-lifecycle.service')
+const adminService = require('../services/admin.service')
 const userService = require('../services/user.service')
-const companyRepository = require('../repositories/company.repository')
-const clientTemplateRepository = require('../repositories/client-template.repository')
-const userRepository = require('../repositories/user.repository')
-const adminRepository = require('../repositories/admin.repository')
 
 const router = express.Router()
 router.use(authMiddleware, loadAccess, requirePlatformAdmin)
 
+// Expected service failures carry httpStatus; anything else is logged and returned as a 500.
+function sendAdminError(res, err, logLabel, fallbackMessage) {
+  if (err.httpStatus) return res.status(err.httpStatus).json({ success: false, error: err.message })
+  console.error(`[Admin] ${logLabel} failed:`, err.message)
+  res.status(500).json({ success: false, error: fallbackMessage })
+}
+
 // Company picker for admin screens that manage per-company data (e.g. Roles).
 router.get('/companies', async (req, res) => {
   try {
-    const companies = await companyRepository.getAll()
+    const companies = await adminService.listCompanies()
     res.json({ success: true, data: companies })
   } catch (err) {
-    console.error('[Admin] GET /companies failed:', err.message)
-    res.status(500).json({ success: false, error: 'Could not load organizations' })
+    sendAdminError(res, err, 'GET /companies', 'Could not load organizations')
   }
 })
 
 router.get('/mandates', async (req, res) => {
   try {
-    const mandates = await clientTemplateRepository.getAllForAdmin()
+    const mandates = await adminService.listMandates()
     res.json({ success: true, data: mandates })
   } catch (err) {
-    console.error('[Admin] GET /mandates failed:', err.message)
-    res.status(500).json({ success: false, error: 'Could not load mandates' })
+    sendAdminError(res, err, 'GET /mandates', 'Could not load mandates')
   }
 })
 
 router.patch('/mandates/:id/reassign', async (req, res) => {
   try {
-    const mandateId = parseInt(req.params.id, 10)
     const newManagerId = Number(req.body.newManagerId)
     if (!Number.isInteger(newManagerId)) {
       return res.status(400).json({ success: false, error: 'newManagerId is required' })
     }
-
-    const newManager = await userRepository.getById(newManagerId)
-    if (!newManager) {
-      return res.status(404).json({ success: false, error: 'Manager not found' })
-    }
-
-    const targetAccess = await accessService.getUserAccessContext(newManagerId)
-    if (!accessService.hasModulePermission(targetAccess, 'client_mandates', 'Save')) {
-      return res.status(400).json({ success: false, error: 'Target user cannot own client mandates' })
-    }
-
-    const mandate = await clientTemplateRepository.getById(mandateId, newManager.company_id)
-    if (!mandate) {
-      return res.status(404).json({ success: false, error: 'Mandate not found or not in same organization' })
-    }
-
-    const updated = await clientTemplateRepository.update(mandateId, newManagerId, { manager_id: newManagerId })
+    const updated = await adminService.reassignMandate(parseInt(req.params.id, 10), newManagerId)
     res.json({ success: true, data: updated })
   } catch (err) {
-    console.error('[Admin] PATCH /mandates/:id/reassign failed:', err.message)
-    res.status(500).json({ success: false, error: 'Could not reassign mandate' })
+    sendAdminError(res, err, 'PATCH /mandates/:id/reassign', 'Could not reassign mandate')
   }
 })
 
@@ -105,163 +87,74 @@ router.post('/users', async (req, res) => {
 
 router.patch('/mandates/:id/force-status', async (req, res) => {
   try {
-    const mandateId = parseInt(req.params.id, 10)
     const { archived } = req.body
     if (typeof archived !== 'boolean') {
       return res.status(400).json({ success: false, error: 'archived must be boolean' })
     }
-
-    const updated = await adminRepository.setMandateArchived(mandateId, archived)
-    if (!updated) {
-      return res.status(404).json({ success: false, error: 'Mandate not found' })
-    }
+    const updated = await adminService.setMandateArchived(parseInt(req.params.id, 10), archived)
     res.json({ success: true, data: updated })
   } catch (err) {
-    console.error('[Admin] PATCH /mandates/:id/force-status failed:', err.message)
-    res.status(500).json({ success: false, error: 'Could not update mandate status' })
+    sendAdminError(res, err, 'PATCH /mandates/:id/force-status', 'Could not update mandate status')
   }
 })
 
 router.delete('/mandates/:id/force-delete', async (req, res) => {
   try {
-    const mandateId = parseInt(req.params.id, 10)
-    const mandate = await adminRepository.getMandateSummary(mandateId)
-    if (!mandate) {
-      return res.status(404).json({ success: false, error: 'Mandate not found' })
-    }
-    if (req.body.confirmText !== mandate.client_name) {
-      return res.status(400).json({
-        success: false,
-        error: 'Confirmation text does not match mandate client name',
-      })
-    }
-
-    const impact = await mandateLifecycleService.getDeletionImpact(mandateId, mandate.manager_id)
-    await mandateLifecycleService.permanentlyDeleteMandate(mandateId, mandate.manager_id)
-    res.json({ success: true, data: { deleted: true, impact } })
+    const result = await adminService.forceDeleteMandate(parseInt(req.params.id, 10), req.body.confirmText)
+    res.json({ success: true, data: result })
   } catch (err) {
-    console.error('[Admin] DELETE /mandates/:id/force-delete failed:', err.message)
-    res.status(500).json({ success: false, error: 'Could not force-delete mandate' })
+    sendAdminError(res, err, 'DELETE /mandates/:id/force-delete', 'Could not force-delete mandate')
   }
 })
 
 router.get('/interviews', async (req, res) => {
   try {
     const status = req.query.status ? String(req.query.status) : null
-    const interviews = await adminRepository.getRecentInterviews(status)
+    const interviews = await adminService.listRecentInterviews(status)
     res.json({ success: true, data: interviews })
   } catch (err) {
-    console.error('[Admin] GET /interviews failed:', err.message)
-    res.status(500).json({ success: false, error: 'Could not load interviews' })
+    sendAdminError(res, err, 'GET /interviews', 'Could not load interviews')
   }
 })
 
 router.patch('/interviews/:id/force-status', async (req, res) => {
   try {
-    const interviewId = parseInt(req.params.id, 10)
-    const validStatuses = ['scheduled', 'in_progress', 'completed', 'cancelled', 'expired']
-    if (!validStatuses.includes(req.body.status)) {
-      return res.status(400).json({
-        success: false,
-        error: `Invalid status. Must be one of: ${validStatuses.join(', ')}`,
-      })
-    }
-
-    const updated = await adminRepository.setInterviewStatus(interviewId, req.body.status)
-    if (!updated) {
-      return res.status(404).json({ success: false, error: 'Interview not found' })
-    }
+    const updated = await adminService.setInterviewStatus(parseInt(req.params.id, 10), req.body.status)
     res.json({ success: true, data: updated })
   } catch (err) {
-    console.error('[Admin] PATCH /interviews/:id/force-status failed:', err.message)
-    res.status(500).json({ success: false, error: 'Could not update interview status' })
+    sendAdminError(res, err, 'PATCH /interviews/:id/force-status', 'Could not update interview status')
   }
 })
 
 router.patch('/client-teams/:id/force-status', async (req, res) => {
   try {
-    const clientTeamId = parseInt(req.params.id, 10)
-    const validStatuses = ['prospect', 'shortlisted', 'interviewing', 'hired', 'rejected', 'withdrawn']
-    if (!validStatuses.includes(req.body.status)) {
-      return res.status(400).json({
-        success: false,
-        error: `Invalid status. Must be one of: ${validStatuses.join(', ')}`,
-      })
-    }
-
-    const updated = await adminRepository.setClientTeamStatus(clientTeamId, req.body.status, req.body.notes || null)
-    if (!updated) {
-      return res.status(404).json({ success: false, error: 'Client team member not found' })
-    }
+    const updated = await adminService.setClientTeamStatus(
+      parseInt(req.params.id, 10),
+      req.body.status,
+      req.body.notes || null
+    )
     res.json({ success: true, data: updated })
   } catch (err) {
-    console.error('[Admin] PATCH /client-teams/:id/force-status failed:', err.message)
-    res.status(500).json({ success: false, error: 'Could not update client team status' })
+    sendAdminError(res, err, 'PATCH /client-teams/:id/force-status', 'Could not update client team status')
   }
 })
 
 router.post('/client-teams/:id/reassign-requirement', async (req, res) => {
   try {
-    const clientTeamId = parseInt(req.params.id, 10)
     const requirementId = req.body.requirementId ? Number(req.body.requirementId) : null
-    const current = await adminRepository.getClientTeamMandate(clientTeamId)
-    if (!current) {
-      return res.status(404).json({ success: false, error: 'Client team member not found' })
-    }
-
-    if (requirementId) {
-      const belongs = await adminRepository.requirementBelongsToMandate(requirementId, current.mandate_id)
-      if (!belongs) {
-        return res.status(400).json({ success: false, error: 'Requirement does not belong to this mandate' })
-      }
-    }
-
-    const updated = await adminRepository.setClientTeamRequirement(clientTeamId, requirementId)
+    const updated = await adminService.reassignClientTeamRequirement(parseInt(req.params.id, 10), requirementId)
     res.json({ success: true, data: updated })
   } catch (err) {
-    console.error('[Admin] POST /client-teams/:id/reassign-requirement failed:', err.message)
-    res.status(500).json({ success: false, error: 'Could not reassign requirement' })
+    sendAdminError(res, err, 'POST /client-teams/:id/reassign-requirement', 'Could not reassign requirement')
   }
 })
 
 router.get('/broken-states', async (req, res) => {
   try {
-    const issues = []
-
-    const orphanedMandates = await adminRepository.getOrphanedMandates()
-    if (orphanedMandates.length > 0) {
-      issues.push({
-        type: 'orphaned_mandates',
-        count: orphanedMandates.length,
-        items: orphanedMandates,
-        description: 'Mandates with deleted or missing managers',
-      })
-    }
-
-    const invalidRequirements = await adminRepository.getInvalidRequirementLinks()
-    if (invalidRequirements.length > 0) {
-      issues.push({
-        type: 'invalid_requirements',
-        count: invalidRequirements.length,
-        items: invalidRequirements,
-        description: 'Client team members with invalid requirement references',
-      })
-    }
-
-    const stuckInterviews = await adminRepository.getStuckInterviews()
-    if (stuckInterviews.length > 0) {
-      issues.push({
-        type: 'stuck_interviews',
-        count: stuckInterviews.length,
-        items: stuckInterviews,
-        description: 'Interviews stuck in progress for over 7 days',
-      })
-    }
-
-    res.json({ success: true, data: { issueCount: issues.length, issues } })
+    const result = await adminService.findBrokenStates()
+    res.json({ success: true, data: result })
   } catch (err) {
-    console.error('[Admin] GET /broken-states failed:', err.message)
-    res.status(500).json({ success: false, error: 'Could not check for broken states' })
+    sendAdminError(res, err, 'GET /broken-states', 'Could not check for broken states')
   }
 })
 

@@ -2,6 +2,8 @@ const monthlyAssessmentRepository = require('../repositories/monthly-assessment.
 const teamMemberRepository = require('../repositories/team-member.repository')
 const companyRepository = require('../repositories/company.repository')
 const userRepository = require('../repositories/user.repository')
+const interviewRepository = require('../repositories/interview.repository')
+const emailOutboxRepository = require('../repositories/email-outbox.repository')
 const emailService = require('./email.service')
 const { parseStoredArray } = require('../utils/parse')
 
@@ -195,8 +197,7 @@ async function assignCandidates(assessmentId, body, managerId, companyId) {
   const company = await companyRepository.getById(companyId)
   const newlyAssignedTeamMemberIds = new Set()
   
-  const db = require('../db/connection')
-  const scheduledEnrollments = await db.transaction(async (tx) => {
+  const scheduledEnrollments = await monthlyAssessmentRepository.runInTransaction(async (tx) => {
     const enrollments = []
     const memberByTeamMemberId = new Map(ownedMembers.map(member => [Number(member.id), member]))
     const interviewType = assessment.interview_type === 'ai_voice' ? 'ai_voice' : 'exam'
@@ -208,53 +209,17 @@ async function assignCandidates(assessmentId, body, managerId, companyId) {
       const memberRequestKey = requestKey ? `${requestKey}:${teamMemberId}` : null
       const member = memberByTeamMemberId.get(Number(teamMemberId))
 
-      await tx.query(
-        `SELECT id
-         FROM team_members
-         WHERE id = @teamMemberId
-         FOR UPDATE`,
-        { teamMemberId }
-      )
+      await monthlyAssessmentRepository.lockTeamMember(tx, teamMemberId)
 
       if (memberRequestKey) {
-        const requestRows = await tx.query(
-          `INSERT INTO assignment_requests
-             (request_key, assessment_id, team_member_id)
-           VALUES
-             (@requestKey, @assessmentId, @teamMemberId)
-           ON CONFLICT (request_key) DO NOTHING
-           RETURNING *`,
-          {
-            requestKey: memberRequestKey,
-            assessmentId: assessment.id,
-            teamMemberId,
-          }
-        )
+        const requestIdentity = { requestKey: memberRequestKey, assessmentId: assessment.id, teamMemberId }
+        const newRequest = await monthlyAssessmentRepository.insertAssignmentRequest(tx, requestIdentity)
 
-        if (requestRows.length === 0) {
-          const existingRows = await tx.query(
-            `SELECT ar.enrollment_id, e.*
-             FROM assignment_requests ar
-             LEFT JOIN monthly_assessment_enrollments e ON e.id = ar.enrollment_id
-             WHERE ar.request_key = @requestKey
-               AND ar.assessment_id = @assessmentId
-               AND ar.team_member_id = @teamMemberId
-             LIMIT 1`,
-            {
-              requestKey: memberRequestKey,
-              assessmentId: assessment.id,
-              teamMemberId,
-            }
-          )
-          const existing = existingRows[0]
+        // Same request key seen before: return the earlier result instead of assigning twice.
+        if (!newRequest) {
+          const existing = await monthlyAssessmentRepository.getAssignmentRequestEnrollment(tx, requestIdentity)
           if (existing?.enrollment_id) {
-            const occurrenceRows = await tx.query(
-              `SELECT id, interview_id
-               FROM monthly_assessment_occurrences
-               WHERE enrollment_id = @enrollmentId
-               ORDER BY period_month ASC`,
-              { enrollmentId: existing.enrollment_id }
-            )
+            const occurrenceRows = await monthlyAssessmentRepository.getOccurrenceIdsByEnrollment(tx, existing.enrollment_id)
             enrollments.push({
               ...existing,
               first_interview_id: occurrenceRows.find(row => row.interview_id)?.interview_id || null,
@@ -269,27 +234,13 @@ async function assignCandidates(assessmentId, body, managerId, companyId) {
         }
       }
 
-      const overlapping = await tx.query(
-        `SELECT e.id, e.assessment_id, e.start_date, e.end_date,
-                a.subject_name, a.duration_months
-         FROM monthly_assessment_enrollments e
-         JOIN monthly_assessments a ON a.id = e.assessment_id
-         JOIN monthly_assessments selected ON selected.id = @assessmentId
-         WHERE e.team_member_id = @teamMemberId
-           AND a.manager_id = selected.manager_id
-           AND COALESCE(e.status, 'pending') != 'cancelled'
-           AND e.start_date < @endDate
-           AND e.end_date > @startDate
-         LIMIT 1`,
-        {
-          assessmentId: assessment.id,
-          teamMemberId,
-          startDate,
-          endDate,
-        }
-      )
-      if (overlapping[0]) {
-        const conflict = overlapping[0]
+      const conflict = await monthlyAssessmentRepository.findOverlappingEnrollment(tx, {
+        assessmentId: assessment.id,
+        teamMemberId,
+        startDate,
+        endDate,
+      })
+      if (conflict) {
         const error = new Error(
           `Candidate already has "${conflict.subject_name}" scheduled from `
           + `${new Date(conflict.start_date).toISOString().slice(0, 10)} to `
@@ -300,20 +251,12 @@ async function assignCandidates(assessmentId, body, managerId, companyId) {
         throw error
       }
 
-      const eRows = await tx.query(
-        `INSERT INTO monthly_assessment_enrollments
-          (assessment_id, team_member_id, start_date, end_date, status)
-         VALUES
-          (@assessmentId, @teamMemberId, @startDate, @endDate, 'scheduled')
-         RETURNING *`,
-        {
-          assessmentId: assessment.id,
-          teamMemberId,
-          startDate,
-          endDate,
-        }
-      )
-      const enrollment = eRows[0]
+      const enrollment = await monthlyAssessmentRepository.insertEnrollment(tx, {
+        assessmentId: assessment.id,
+        teamMemberId,
+        startDate,
+        endDate,
+      })
       const occurrenceIds = []
       let firstInterviewId = null
       const durationMonths = Number(assessment.duration_months) || 1
@@ -327,51 +270,32 @@ async function assignCandidates(assessmentId, body, managerId, companyId) {
           1
         ))
 
-        const iRows = await tx.query(
-          `INSERT INTO interviews
-            (manager_id, internal_user_id, type, interview_mode, difficulty, question_count,
-             duration_minutes, scheduled_at, available_from, due_at, schedule_timezone,
-             monthly_assessment_id, report_emails)
-           VALUES
-            (@managerId, @internalUserId, @interviewType, @interviewMode, @difficulty, @questionCount,
-             @durationMinutes, @scheduledAt, @availableFrom, @dueAt, @scheduleTimezone,
-             @monthlyAssessmentId, @reportEmails)
-           RETURNING *`,
-          {
-            managerId,
-            internalUserId: member.user_id,
-            interviewType,
-            interviewMode,
-            difficulty: assessment.difficulty || 'medium',
-            questionCount,
-            durationMinutes,
-            scheduledAt: occurrenceAvailableFrom.toISOString(),
-            availableFrom: occurrenceAvailableFrom.toISOString(),
-            dueAt: occurrenceDue.toISOString(),
-            scheduleTimezone,
-            monthlyAssessmentId: assessment.id,
-            reportEmails,
-          }
-        )
-        const interview = iRows[0]
+        const interview = await interviewRepository.createMonthlyOccurrenceInterview(tx, {
+          managerId,
+          internalUserId: member.user_id,
+          interviewType,
+          interviewMode,
+          difficulty: assessment.difficulty || 'medium',
+          questionCount,
+          durationMinutes,
+          scheduledAt: occurrenceAvailableFrom.toISOString(),
+          availableFrom: occurrenceAvailableFrom.toISOString(),
+          dueAt: occurrenceDue.toISOString(),
+          scheduleTimezone,
+          monthlyAssessmentId: assessment.id,
+          reportEmails,
+        })
         if (!firstInterviewId) firstInterviewId = interview.id
 
-        const occurrenceRows = await tx.query(
-          `INSERT INTO monthly_assessment_occurrences
-            (enrollment_id, period_month, available_from, due_at, duration_minutes, interview_id, status)
-           VALUES
-            (@enrollmentId, @periodMonth, @availableFrom, @dueAt, @durationMinutes, @interviewId, 'scheduled')
-           RETURNING *`,
-          {
-            enrollmentId: enrollment.id,
-            periodMonth: periodMonth.toISOString().slice(0, 10),
-            availableFrom: occurrenceAvailableFrom.toISOString(),
-            dueAt: occurrenceDue.toISOString(),
-            durationMinutes,
-            interviewId: interview.id,
-          }
-        )
-        occurrenceIds.push(occurrenceRows[0].id)
+        const occurrence = await monthlyAssessmentRepository.insertOccurrence(tx, {
+          enrollmentId: enrollment.id,
+          periodMonth: periodMonth.toISOString().slice(0, 10),
+          availableFrom: occurrenceAvailableFrom.toISOString(),
+          dueAt: occurrenceDue.toISOString(),
+          durationMinutes,
+          interviewId: interview.id,
+        })
+        occurrenceIds.push(occurrence.id)
 
         if (member && member.email) {
           const payload = {
@@ -380,18 +304,13 @@ async function assignCandidates(assessmentId, body, managerId, companyId) {
             jobTitle: assessment.subject_name,
             details: assessment.ai_generated_jd || null,
           }
-          await tx.query(
-            `INSERT INTO email_outbox_jobs (event_key, interview_id, recipient, payload, send_after, status)
-             VALUES (@eventKey, @interviewId, @recipient, @payload, @sendAfter, 'pending')
-             ON CONFLICT (event_key) DO NOTHING`,
-            {
-              eventKey: `monthly_occurrence_${enrollment.id}_${periodMonth.toISOString().slice(0, 7)}`,
-              interviewId: interview.id,
-              recipient: member.email,
-              payload: JSON.stringify(payload),
-              sendAfter: occurrenceAvailableFrom.toISOString(),
-            }
-          )
+          await emailOutboxRepository.enqueueMonthlyOccurrence(tx, {
+            eventKey: `monthly_occurrence_${enrollment.id}_${periodMonth.toISOString().slice(0, 7)}`,
+            interviewId: interview.id,
+            recipient: member.email,
+            payload: JSON.stringify(payload),
+            sendAfter: occurrenceAvailableFrom.toISOString(),
+          })
         }
       }
 
@@ -405,15 +324,10 @@ async function assignCandidates(assessmentId, body, managerId, companyId) {
       newlyAssignedTeamMemberIds.add(Number(teamMemberId))
 
       if (memberRequestKey) {
-        await tx.query(
-          `UPDATE assignment_requests
-           SET enrollment_id = @enrollmentId
-           WHERE request_key = @requestKey`,
-          {
-            enrollmentId: enrollment.id,
-            requestKey: memberRequestKey,
-          }
-        )
+        await monthlyAssessmentRepository.linkAssignmentRequestEnrollment(tx, {
+          enrollmentId: enrollment.id,
+          requestKey: memberRequestKey,
+        })
       }
     }
     return enrollments
@@ -459,6 +373,14 @@ async function getAssessments(userId, scope = {}) {
     ...assessment,
     enrollments: byAssessment.get(assessment.id) || [],
   }))
+}
+
+// Calendar rows, scoped the same way as getAssessments.
+async function getCalendar(userId, scope = {}) {
+  const { viewAll, companyId } = scope
+  return viewAll
+    ? monthlyAssessmentRepository.getCalendarByCompany(companyId)
+    : monthlyAssessmentRepository.getCalendarVisibleToUser(userId)
 }
 
 function monthIndexForDate(startDate, year, month) {
@@ -554,6 +476,7 @@ module.exports = {
   createAssessment,
   assignCandidates,
   getAssessments,
+  getCalendar,
   getMonthPlan,
   deleteEnrollment,
   updateAssessment,

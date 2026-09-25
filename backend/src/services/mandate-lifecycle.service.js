@@ -1,116 +1,30 @@
-const db = require('../db/connection')
+const mandateLifecycleRepository = require('../repositories/mandate-lifecycle.repository')
 const storageService = require('./storage.service')
 
 /**
  * Permanently deletes a mandate and all its descendants.
  * Removes related emails, transcripts, reports, scorecards, report_jobs,
  * interviews, client interview records, client-team rows, requirements, and the mandate itself.
- * 
+ *
  * Storage cleanup for mandate-owned assets (reports, mandate-specific resumes)
  * is triggered asynchronously after successful DB deletion.
- * 
- * @param {number|string} mandateId 
- * @param {number|string} managerId 
+ *
+ * @param {number|string} mandateId
+ * @param {number|string} managerId
  */
 async function permanentlyDeleteMandate(mandateId, managerId) {
-  let storagePathsToDelete = []
+  const deleted = await mandateLifecycleRepository.deleteMandateCascade(mandateId, managerId)
+  if (!deleted) {
+    throw new Error('Mandate not found or not owned by manager')
+  }
 
-  await db.transaction(async (tx) => {
-    const mandateCheck = await tx.query(
-      `SELECT id, jd_file_path FROM client_templates WHERE id = @mandateId AND manager_id = @managerId`,
-      { mandateId, managerId }
-    )
-    if (mandateCheck.length === 0) {
-      throw new Error('Mandate not found or not owned by manager')
-    }
-    if (mandateCheck[0].jd_file_path) storagePathsToDelete.push(mandateCheck[0].jd_file_path)
-
-    const requirementJdPaths = await tx.query(
-      `SELECT jd_file_path FROM client_mandate_requirements WHERE mandate_id = @mandateId AND jd_file_path IS NOT NULL`,
-      { mandateId }
-    )
-    storagePathsToDelete.push(...requirementJdPaths.map(row => row.jd_file_path))
-
-    const interviewRows = await tx.query(
-      `SELECT id FROM interviews WHERE client_template_id = @mandateId`,
-      { mandateId }
-    )
-    const interviewIds = interviewRows.map(row => row.id)
-
-    if (interviewIds.length > 0) {
-      const reportPaths = await tx.query(
-        `SELECT pdf_url
-         FROM reports
-         WHERE interview_id = ANY(@interviewIds)`,
-        { interviewIds }
-      )
-      storagePathsToDelete.push(
-        ...reportPaths
-          .map(row => row.pdf_url)
-          .filter(url => url && !/^https?:\/\//i.test(url))
-      )
-
-      await tx.query(
-        `DELETE FROM email_outbox_jobs WHERE interview_id = ANY(@interviewIds)`,
-        { interviewIds }
-      )
-      await tx.query(
-        `DELETE FROM email_deliveries WHERE interview_id = ANY(@interviewIds)`,
-        { interviewIds }
-      )
-      await tx.query(
-        `DELETE FROM transcripts WHERE interview_id = ANY(@interviewIds)`,
-        { interviewIds }
-      )
-      await tx.query(
-        `DELETE FROM reports WHERE interview_id = ANY(@interviewIds)`,
-        { interviewIds }
-      )
-      await tx.query(
-        `DELETE FROM scorecards WHERE interview_id = ANY(@interviewIds)`,
-        { interviewIds }
-      )
-      await tx.query(
-        `DELETE FROM report_jobs WHERE interview_id = ANY(@interviewIds)`,
-        { interviewIds }
-      )
-      await tx.query(
-        `DELETE FROM interviews WHERE id = ANY(@interviewIds)`,
-        { interviewIds }
-      )
-    }
-
-    const resumeAssetPaths = await tx.query(
-      `SELECT storage_path
-       FROM resume_assets
-       WHERE mandate_id = @mandateId
-         AND purpose = 'mandate_submission'`,
-      { mandateId }
-    )
-    storagePathsToDelete.push(...resumeAssetPaths.map(row => row.storage_path).filter(Boolean))
-
-    await tx.query(
-      `DELETE FROM client_interview_rounds
-       WHERE client_team_id IN (SELECT id FROM client_teams WHERE mandate_id = @mandateId)`,
-      { mandateId }
-    )
-    await tx.query(
-      `UPDATE client_teams SET submitted_resume_asset_id = NULL WHERE mandate_id = @mandateId`,
-      { mandateId }
-    )
-    await tx.query(
-      `DELETE FROM resume_assets
-       WHERE mandate_id = @mandateId
-         AND purpose = 'mandate_submission'`,
-      { mandateId }
-    )
-    await tx.query(`DELETE FROM client_teams WHERE mandate_id = @mandateId`, { mandateId })
-    await tx.query(`DELETE FROM client_mandate_requirements WHERE mandate_id = @mandateId`, { mandateId })
-    await tx.query(
-      `DELETE FROM client_templates WHERE id = @mandateId AND manager_id = @managerId`,
-      { mandateId, managerId }
-    )
-  })
+  // Only real storage paths are cleaned up - legacy rows may hold full external URLs.
+  const storagePathsToDelete = [
+    ...(deleted.mandateJdPath ? [deleted.mandateJdPath] : []),
+    ...deleted.requirementJdPaths,
+    ...deleted.reportPdfUrls.filter(url => url && !storageService.isExternalUrl(url)),
+    ...deleted.resumeAssetPaths.filter(Boolean),
+  ]
 
   // Asynchronous cleanup
   if (storagePathsToDelete.length > 0) {
@@ -124,44 +38,18 @@ async function permanentlyDeleteMandate(mandateId, managerId) {
  * Calculates impact before permanent deletion.
  */
 async function getDeletionImpact(mandateId, managerId) {
-  const mandateCheck = await db.query(
-    `SELECT id FROM client_templates WHERE id = @mandateId AND manager_id = @managerId`,
-    { mandateId, managerId }
-  )
-  if (mandateCheck.length === 0) {
+  const counts = await mandateLifecycleRepository.getDeletionCounts(mandateId, managerId)
+  if (!counts) {
     throw new Error('Mandate not found or not owned by manager')
   }
 
-  const [candidates] = await db.query(
-    `SELECT COUNT(*) as count FROM client_teams WHERE mandate_id = @mandateId`,
-    { mandateId }
-  )
-  const [interviews] = await db.query(
-    `SELECT COUNT(*) as count FROM interviews WHERE client_template_id = @mandateId`,
-    { mandateId }
-  )
-  const [reports] = await db.query(
-    `SELECT COUNT(*) as count
-     FROM reports r
-     JOIN interviews i ON i.id = r.interview_id
-     WHERE i.client_template_id = @mandateId`,
-    { mandateId }
-  )
-
-  const [inProgressInterviews] = await db.query(
-    `SELECT COUNT(*) as count
-     FROM interviews
-     WHERE client_template_id = @mandateId
-       AND status = 'in_progress'`,
-    { mandateId }
-  )
-
+  const inProgressCount = parseInt(counts.inProgress, 10)
   return {
-    candidates: parseInt(candidates.count, 10),
-    interviews: parseInt(interviews.count, 10),
-    reports: parseInt(reports.count, 10),
-    inProgressCount: parseInt(inProgressInterviews.count, 10),
-    canDelete: parseInt(inProgressInterviews.count, 10) === 0
+    candidates: parseInt(counts.candidates, 10),
+    interviews: parseInt(counts.interviews, 10),
+    reports: parseInt(counts.reports, 10),
+    inProgressCount,
+    canDelete: inProgressCount === 0
   }
 }
 

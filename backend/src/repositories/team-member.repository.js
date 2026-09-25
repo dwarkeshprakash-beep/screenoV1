@@ -107,4 +107,16 @@ async function getIdsAndUserIdsByManager(managerId) {
   )
 }
 
-module.exports = { getByManager, getByCompany, getByIdForManager, getByIdsForManager, create, removeMember, getIdsAndUserIdsByManager }
+// The team_members row linking this user to this manager's team, or null.
+async function getByManagerAndUser(managerId, userId) {
+  const rows = await db.query(
+    `SELECT id FROM team_members WHERE manager_id = @managerId AND user_id = @userId LIMIT 1`,
+    { managerId, userId }
+  )
+  return rows[0] || null
+}
+
+module.exports = {
+  getByManager, getByCompany, getByIdForManager, getByIdsForManager, create, removeMember,
+  getIdsAndUserIdsByManager, getByManagerAndUser,
+}

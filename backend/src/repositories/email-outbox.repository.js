@@ -68,4 +68,84 @@ async function enqueueWelcomeSetPassword(data) {
   return rows[0]
 }
 
-module.exports = { enqueuePasswordReset, hasRecentPasswordReset, enqueueWelcomeSetPassword }
+/**
+ * Queue a monthly-occurrence invite for when its window opens. Runs inside the caller's
+ * transaction; the event key makes re-queuing the same month a no-op.
+ */
+async function enqueueMonthlyOccurrence(tx, { eventKey, interviewId, recipient, payload, sendAfter }) {
+  await tx.query(
+    `INSERT INTO email_outbox_jobs (event_key, interview_id, recipient, payload, send_after, status)
+     VALUES (@eventKey, @interviewId, @recipient, @payload, @sendAfter, 'pending')
+     ON CONFLICT (event_key) DO NOTHING`,
+    { eventKey, interviewId, recipient, payload, sendAfter }
+  )
+}
+
+// ── Worker ──────────────────────────────────────────────────────────────────
+
+/**
+ * Claim the next batch of due jobs for this worker. In one transaction: release claims
+ * older than 5 minutes (a worker that died mid-batch), lock due pending rows with
+ * SKIP LOCKED so concurrent workers never pick the same job, and mark them claimed.
+ * @returns {Promise<object[]>} the claimed jobs (as they were before claiming)
+ */
+async function claimDueBatch({ maxAttempts, batchSize }) {
+  return db.transaction(async (tx) => {
+    await tx.query(
+      `UPDATE email_outbox_jobs
+       SET status = 'pending', claimed_at = NULL, updated = CURRENT_TIMESTAMP
+       WHERE status = 'claimed'
+         AND claimed_at < CURRENT_TIMESTAMP - INTERVAL '5 minutes'`
+    )
+
+    const rows = await tx.query(
+      `SELECT * FROM email_outbox_jobs
+       WHERE status = 'pending'
+         AND send_after <= CURRENT_TIMESTAMP
+         AND attempts < @maxAttempts
+       ORDER BY send_after ASC
+       LIMIT @batchSize
+       FOR UPDATE SKIP LOCKED`,
+      { maxAttempts, batchSize }
+    )
+
+    if (rows.length === 0) return []
+
+    const jobIds = rows.map(r => r.id)
+
+    await tx.query(
+      `UPDATE email_outbox_jobs
+       SET status = 'claimed', claimed_at = CURRENT_TIMESTAMP, attempts = attempts + 1
+       WHERE id = ANY(@jobIds::int[])`,
+      { jobIds }
+    )
+
+    return rows
+  })
+}
+
+async function markStatus(id, status) {
+  await db.query(
+    `UPDATE email_outbox_jobs
+     SET status = @status, finished_at = CURRENT_TIMESTAMP, updated = CURRENT_TIMESTAMP
+     WHERE id = @id`,
+    { status, id }
+  )
+}
+
+// Back to pending for another attempt, or 'failed' once attempts are used up.
+async function markFailed(id, errorMsg, maxAttempts) {
+  await db.query(
+    `UPDATE email_outbox_jobs
+     SET status = CASE WHEN attempts >= @maxAttempts THEN 'failed' ELSE 'pending' END,
+         last_error = @errorMsg,
+         updated = CURRENT_TIMESTAMP
+     WHERE id = @id`,
+    { maxAttempts, errorMsg: errorMsg || 'Unknown error', id }
+  )
+}
+
+module.exports = {
+  enqueuePasswordReset, hasRecentPasswordReset, enqueueWelcomeSetPassword, enqueueMonthlyOccurrence,
+  claimDueBatch, markStatus, markFailed,
+}

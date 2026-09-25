@@ -350,6 +350,112 @@ async function updateSchedule(id, data) {
   return rows[0] || null
 }
 
+// Candidate-safe interview list for many client_teams rows in one query (newest first
+// within each row). candidate_result exposes only pass/fail, never scores. Callers group
+// by client_team_id.
+async function getCandidateViewByClientTeamIds(clientTeamIds) {
+  if (clientTeamIds.length === 0) return []
+  return db.query(
+    `SELECT i.client_team_id, i.id, i.type, i.status, i.scheduled_at, i.duration_minutes,
+            i.location, i.created,
+            CASE
+              WHEN i.status = 'completed' AND (sc.decision = 'pass' OR i.result = 'pass') THEN 'pass'
+              WHEN i.status = 'completed' AND (
+                sc.decision IS NOT NULL
+                OR i.result IN ('fail', 'failed_mid_interview', 'cheating_attempt', 'expired_no_show')
+              ) THEN 'fail'
+              ELSE NULL
+            END AS candidate_result
+     FROM interviews i
+     LEFT JOIN scorecards sc ON sc.interview_id = i.id
+     WHERE i.client_team_id = ANY(@clientTeamIds)
+     ORDER BY i.created DESC`,
+    { clientTeamIds }
+  )
+}
+
+// One month's interview in a monthly-assessment plan. Runs inside the caller's transaction.
+async function createMonthlyOccurrenceInterview(tx, data) {
+  const rows = await tx.query(
+    `INSERT INTO interviews
+      (manager_id, internal_user_id, type, interview_mode, difficulty, question_count,
+       duration_minutes, scheduled_at, available_from, due_at, schedule_timezone,
+       monthly_assessment_id, report_emails)
+     VALUES
+      (@managerId, @internalUserId, @interviewType, @interviewMode, @difficulty, @questionCount,
+       @durationMinutes, @scheduledAt, @availableFrom, @dueAt, @scheduleTimezone,
+       @monthlyAssessmentId, @reportEmails)
+     RETURNING *`,
+    {
+      managerId: data.managerId,
+      internalUserId: data.internalUserId,
+      interviewType: data.interviewType,
+      interviewMode: data.interviewMode,
+      difficulty: data.difficulty,
+      questionCount: data.questionCount,
+      durationMinutes: data.durationMinutes,
+      scheduledAt: data.scheduledAt,
+      availableFrom: data.availableFrom,
+      dueAt: data.dueAt,
+      scheduleTimezone: data.scheduleTimezone,
+      monthlyAssessmentId: data.monthlyAssessmentId,
+      reportEmails: data.reportEmails,
+    }
+  )
+  return rows[0]
+}
+
+// Just the fields the email worker needs to decide whether to (re)send an invite.
+async function getLaunchState(id) {
+  const rows = await db.query(
+    `SELECT id, status, due_at, available_from, schedule_timezone, duration_minutes
+     FROM interviews WHERE id = @id`,
+    { id }
+  )
+  return rows[0] || null
+}
+
+/**
+ * Single-use magic-link claim. Locks the interview row, runs `validate(interview)` inside
+ * the lock (it throws to reject the claim, which rolls back), then clears the token so
+ * the link can't be used again.
+ * @param {string} tokenHash
+ * @param {(interview: object) => Promise<void>} validate
+ * @returns {Promise<object|null>} the interview as it was before clearing, or null if no match
+ */
+async function claimByTokenHash(tokenHash, validate) {
+  return db.transaction(async (tx) => {
+    const rows = await tx.query(
+      `SELECT *
+       FROM interviews
+       WHERE token = @tokenHash
+       FOR UPDATE`,
+      { tokenHash }
+    )
+    const interview = rows[0]
+    if (!interview) return null
+
+    await validate(interview)
+
+    await tx.query(
+      `UPDATE interviews
+       SET token = NULL,
+           token_expires = NULL
+       WHERE id = @id`,
+      { id: interview.id }
+    )
+    return interview
+  })
+}
+
+// Link a client-mandate interview to its client_teams row and store where/when it happens.
+async function linkClientTeamSchedule(id, { ctId, scheduledAt, location, meetingUrl }) {
+  await db.query(
+    `UPDATE interviews SET client_team_id = @ctId, scheduled_at = @scheduledAt, location = @location, meeting_url = @meetingUrl WHERE id = @id`,
+    { id, ctId, scheduledAt, location, meetingUrl }
+  )
+}
+
 module.exports = {
   create,
   getById,
@@ -370,6 +476,11 @@ module.exports = {
   updateTokenHash,
   updateMeetingDetails,
   setCalendarSyncError,
+  linkClientTeamSchedule,
+  getCandidateViewByClientTeamIds,
+  claimByTokenHash,
+  getLaunchState,
+  createMonthlyOccurrenceInterview,
   markExpiredNoShow,
   updateSchedule,
 }

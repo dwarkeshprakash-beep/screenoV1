@@ -2,7 +2,6 @@ const express = require('express')
 const authMiddleware = require('../middleware/auth')
 const { loadAccess, requireModule } = require('../middleware/access')
 const accessService = require('../services/access.service')
-const monthlyAssessmentRepository = require('../repositories/monthly-assessment.repository')
 const monthlyAssessmentService = require('../services/monthly-assessment.service')
 const llmService = require('../services/llm.service')
 
@@ -75,10 +74,7 @@ router.get('/', requireModule('monthly_assessments'), async (req, res) => {
 
 router.get('/calendar', requireModule('monthly_assessments'), async (req, res) => {
   try {
-    const { viewAll, companyId } = monthlyViewScope(req)
-    const rows = viewAll
-      ? await monthlyAssessmentRepository.getCalendarByCompany(companyId)
-      : await monthlyAssessmentRepository.getCalendarVisibleToUser(req.user.id)
+    const rows = await monthlyAssessmentService.getCalendar(req.user.id, monthlyViewScope(req))
     res.json({ success: true, data: rows })
   } catch (err) {
     console.error('GET /monthly-assessments/calendar failed:', err)

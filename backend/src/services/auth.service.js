@@ -3,7 +3,6 @@ const crypto = require('crypto')
 const bcrypt = require('bcryptjs')
 const jwt = require('jsonwebtoken')
 
-const db = require('../db/connection')
 const userRepository = require('../repositories/user.repository')
 const accessService = require('./access.service')
 const refreshTokenRepository = require('../repositories/refresh-token.repository')
@@ -296,26 +295,8 @@ async function resetPassword(token, newPassword) {
   const tokenHash = hashToken(token)
   const passwordHash = await bcrypt.hash(String(newPassword), 10)
 
-  // Lock the token row for the duration of the check+update so two concurrent
-  // submits (e.g. a double-click, or the link opened in two tabs) can't both
-  // pass the validity check before either marks it used.
-  const claimed = await db.transaction(async (tx) => {
-    const rows = await tx.query(
-      `SELECT * FROM password_reset_tokens
-       WHERE token_hash = @tokenHash AND used = FALSE AND expires > NOW()
-       FOR UPDATE`,
-      { tokenHash }
-    )
-    const stored = rows[0]
-    if (!stored) return null
-
-    await tx.query(`UPDATE password_reset_tokens SET used = TRUE WHERE id = @id`, { id: stored.id })
-    await tx.query(`UPDATE users SET password = @passwordHash WHERE id = @userId`, {
-      passwordHash, userId: stored.user_id,
-    })
-    return stored
-  })
-
+  // Row-locked in the repository so concurrent submits can't both use the token.
+  const claimed = await passwordResetRepository.consumeAndSetPassword(tokenHash, passwordHash)
   if (!claimed) throw new Error('Reset link is invalid or expired')
 }
 
@@ -345,28 +326,10 @@ async function claimMagicLink(token) {
   if (!token) throw new Error('Invalid link')
   const tokenHash = hashToken(token)
 
-  const lockedInterview = await db.transaction(async (tx) => {
-    const rows = await tx.query(
-      `SELECT *
-       FROM interviews
-       WHERE token = @tokenHash
-       FOR UPDATE`,
-      { tokenHash }
-    )
-    const interview = rows[0]
-    if (!interview) return null
-
+  // The link is single-use: validated and cleared under a row lock (see repository).
+  const lockedInterview = await interviewRepository.claimByTokenHash(tokenHash, async (interview) => {
     assertMagicLinkUsable(interview)
     await ensureLaunchWindow(interview)
-
-    await tx.query(
-      `UPDATE interviews
-       SET token = NULL,
-           token_expires = NULL
-       WHERE id = @id`,
-      { id: interview.id }
-    )
-    return interview
   })
 
   if (!lockedInterview) throw new Error('Invalid link')

@@ -257,12 +257,9 @@ async function getOrganizationMemberProfile(userId, companyId, managerId) {
   if (!profile) return null
   
   // Determine if this user is in the manager's team
-  const tmRows = await require('../db/connection').query(
-    `SELECT id FROM team_members WHERE manager_id = @managerId AND user_id = @userId LIMIT 1`,
-    { managerId, userId }
-  )
-  profile.in_team = tmRows.length > 0
-  profile.team_member_id = tmRows[0]?.id || null
+  const teamMember = await teamMemberRepository.getByManagerAndUser(managerId, userId)
+  profile.in_team = !!teamMember
+  profile.team_member_id = teamMember?.id || null
 
   return withSignedResumeUrl(profile)
 }

@@ -349,6 +349,20 @@ async function run() {
   assert.equal(invalidDocumentUpload.status, 400)
   assert.match(invalidDocumentUpload.payload.error, /Document file type not allowed/)
 
+  // Team membership only links an existing organization user now (users are created in
+  // the Users module first), so seed the user this step adds to the team.
+  const addedMemberUser = (await db.query(
+    `INSERT INTO users (company_id, first_name, last_name, email, password)
+     VALUES (@companyId, 'Added', 'Member', @email, @password)
+     RETURNING id`,
+    {
+      companyId: primary.company.id,
+      email: `added-${stamp}@example.test`,
+      password: await bcrypt.hash(primary.password, 10),
+    }
+  ))[0]
+  state.userIds.push(addedMemberUser.id)
+
   const addedMember = await api('/api/team/member', {
     method: 'POST',
     token: managerToken,

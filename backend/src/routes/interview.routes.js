@@ -4,9 +4,6 @@ const authMiddleware = require('../middleware/auth')
 const { loadAccess, requireModule } = require('../middleware/access')
 const { audioUpload } = require('../middleware/upload')
 const interviewService = require('../services/interview.service')
-const transcriptRepository = require('../repositories/transcript.repository')
-const interviewRepository = require('../repositories/interview.repository')
-const reportRepository = require('../repositories/report.repository')
 const candidateIdentityService = require('../services/candidate-identity.service')
 
 const router = express.Router()
@@ -121,11 +118,8 @@ router.post('/:id/proctoring', requireCandidateToken, async (req, res) => {
 router.get('/:id/transcript', loadAccess, requireModule('team'), async (req, res) => {
   try {
     const interviewId = parseInt(req.params.id, 10)
-    const interview = await interviewRepository.getById(interviewId)
-    if (!interview || interview.manager_id !== req.user.id || interview.type !== 'ai_voice') {
-      return res.status(404).json({ success: false, error: 'Interview not found' })
-    }
-    const qa = await transcriptRepository.getByInterview(interviewId)
+    const qa = await interviewService.getManagerTranscript(interviewId, req.user.id)
+    if (!qa) return res.status(404).json({ success: false, error: 'Interview not found' })
     res.json({ success: true, data: qa })
   } catch (err) {
     console.error('GET /interviews/:id/transcript failed:', err)
@@ -141,22 +135,10 @@ router.get('/:id/report', requireCandidateToken, async (req, res) => {
   try {
     const interviewId = parseInt(req.params.id, 10)
     const identity = candidateIdentityService.fromUser(req.user)
-    candidateIdentityService.assertInterviewScope(identity, interviewId)
-    const report = await reportRepository.getLatestByCandidateIdentity(identity, interviewId)
-    // Not generated / still 'generating' is a normal state while the report job runs,
-    // not an error - the client keeps polling until it's 'ready'
-    if (!report || report.status !== 'ready') return res.json({ success: true, data: null })
-    res.json({
-      success: true,
-      data: {
-        id: report.id,
-        interview_id: report.interview_id,
-        status: report.status,
-        summary: report.summary,
-        strengths: report.strengths,
-        created: report.created,
-      },
-    })
+    // null (not generated / still 'generating') is a normal state while the report job
+    // runs, not an error - the client keeps polling until it's 'ready'
+    const report = await interviewService.getCandidateReportSummary(interviewId, identity)
+    res.json({ success: true, data: report })
   } catch (err) {
     if (err.message.includes('Unauthorized')) {
       return res.status(403).json({ success: false, error: err.message })
