@@ -27,34 +27,55 @@ frontend/
 ├── src/
 │   ├── components/
 │   │   ├── shared/           ← ALWAYS check here first before building anything
-│   │   │   ├── Avatar.jsx, Badge.jsx, Button.jsx, Card.jsx, EmptyState.jsx,
-│   │   │   │   ErrorBoundary.jsx, ErrorMessage.jsx, Input.jsx, Modal.jsx, Spinner.jsx
+│   │   │   ├── Avatar, Badge, Button, ConfirmDialog, DataTable, EmptyState, ErrorBoundary,
+│   │   │   │   ErrorMessage, FileUploadButton, FormActions, FormError, Input, Modal, MultiSelect,
+│   │   │   │   Notice, Pagination, RowActions, Select, Spinner, ChangePasswordForm,
+│   │   │   │   InterviewerAssignmentsPanel (.jsx)
+│   │   │   └── tableStyles.js      ← shared table style objects for DataTable-based lists
 │   │   ├── layout/
-│   │   │   ├── AppLayout.jsx       ← sidebar + topbar for manager/admin
-│   │   │   ├── Sidebar.jsx
-│   │   │   ├── TopBar.jsx
-│   │   │   └── CandidateLayout.jsx ← minimal layout for candidate/interview screens
-│   │   └── manager/                ← AddCandidateModal, CompareModal, EditMemberModal,
-│   │                                  ScheduleModal, MonthlyAssessmentAssignModal
+│   │   │   ├── AppLayout.jsx       ← sidebar + topbar for /workspace and /admin
+│   │   │   ├── Sidebar.jsx, TopBar.jsx
+│   │   │   ├── RequireModule.jsx   ← route guard: redirects when the user lacks a module
+│   │   │   └── CandidateLayout.jsx ← minimal layout for magic-link interview screens
+│   │   ├── manager/                ← AddTeamMemberModal, CompareModal, DeleteMandateModal,
+│   │   │   │                          EditMemberModal, InterviewFlowModal, InterviewHistoryPanel,
+│   │   │   │                          MonthlyAssessmentAssignModal, MonthlyReports,
+│   │   │   │                          ReportRecipientsSelector, RescheduleModal, ScheduleModal
+│   │   │   ├── client-mandates/    ← everything behind ClientInterviewsPage: MandateDetail,
+│   │   │   │                          MandateListView, CreateMandateModal, EditMandateModal,
+│   │   │   │                          RequirementModal, RequirementProfilesEditor, AddProspectsModal,
+│   │   │   │                          CandidateActionModal, SendJDModal, ScheduleClientTeamModal,
+│   │   │   │                          OutcomeRoundsModal, MandateReportDetailModal,
+│   │   │   │                          MandateListPagination, Field, mandateHelpers.js
+│   │   │   └── monthly-assessments/ ← WizardModal, SubjectDetailModal, monthlyHelpers.js
+│   │   ├── admin/                  ← admin tables, form modals and repair-tool pieces
+│   │   │                              (AdminStatCard, BrokenStateIssue, MandatesAdminTable, ...)
+│   │   └── candidate/              ← CodeAnswerEditor, MandateJdDetails, MandateResumeAction
 │   ├── pages/
 │   │   ├── auth/LoginPage.jsx
 │   │   ├── manager/      DashboardPage, TeamPage, MemberProfilePage, SchedulePage, ReportsPage,
-│   │   │                 ClientInterviewsPage, MonthlyAssessmentPage, ManagerProfilePage,
-│   │   │                 ResumeAnalyzerPage
+│   │   │                 ClientInterviewsPage, MonthlyAssessmentPage, ResumeAnalyzerPage
+│   │   ├── workspace/    InterviewsPage, FeedbackPage, ClientOutcomesPage, ProfilePage
+│   │   │                 (a user's own interviews/feedback/outcomes/profile)
 │   │   ├── candidate/    InterviewLandingPage, DeviceCheckPage, ConsentPage, AIInterviewPage,
-│   │   │                 ExamPage, DonePage, CandidateOverviewPage, CandidateInterviewsPage,
-│   │   │                 CandidateMonthlyPage, CandidateFeedbackPage, CandidateMandatesPage,
-│   │   │                 CandidateClientOutcomesPage, CandidateProfilePage
-│   │   ├── admin/        AdminDashboardPage, AdminMandatesPage, AdminInterviewsPage,
-│   │   │                 AdminBrokenStatesPage
+│   │   │                 ExamPage, DonePage   (magic-link interview flow)
+│   │   └── admin/        AdminDashboardPage, AdminMandatesPage, AdminInterviewsPage,
+│   │                     AdminBrokenStatesPage, AdminOrganizationsPage, AdminRolesPage,
+│   │                     AdminUsersPage, AdminModulesPage, AdminAclsPage, AdminPermissionsPage
+│   │                     + a *DetailPage for organizations, roles, users, ACLs, permissions
+│   ├── context/
+│   │   ├── AccessContext.jsx ← provider: loads GET /api/auth/me/access once per session
+│   │   └── access-context.js ← the React context object
 │   ├── hooks/
+│   │   ├── useAccess.js      ← hasModule(moduleKey, permission) and the loaded access context
 │   │   ├── useInterview.js   ← AI-interview state machine (phases: loading|ai_speaking|listening|
 │   │   │                        recording|processing|paused|ended|error); MediaRecorder + speechSynthesis
 │   │   └── useProctoring.js
 │   ├── services/
 │   │   └── api.js            ← ALL backend calls live here (fetch-based, JWT + refresh handling)
-│   ├── utils/helpers.js
-│   ├── App.jsx               ← real role-based router (RequireAuth guard + route tree)
+│   ├── utils/helpers.js, utils/password-policy.js
+│   ├── config/app.config.js  ← APP_NAME and other build-time settings
+│   ├── App.jsx               ← router (RequireAuth / RequireModule guards + route tree)
 │   ├── main.jsx
 │   └── index.css / App.css
 ├── CLAUDE.md                       ← THIS FILE
@@ -64,6 +85,10 @@ frontend/
 
 Legacy prototype screens, old layouts, and loose v2 page dumps have been removed. There is no
 `components/interview/` folder; the interview UI lives directly in `pages/candidate/` + `hooks/useInterview.js`.
+
+When a page grows past a few hundred lines, move its modals and sections into a folder under
+`components/<area>/<feature>/` (as `client-mandates/` and `monthly-assessments/` do) and keep the
+page file for data loading and layout.
 
 ---
 
@@ -223,38 +248,45 @@ if (window.innerWidth < 768) {
 
 ## Routes (React Router v6 — actual, from `App.jsx`)
 
+There are only two signed-in shells: `/workspace` for every regular user and `/admin` for platform
+admins. What a workspace user sees is decided by their modules (RBAC), not by a role: each route is
+wrapped in `RequireModule moduleKey="..."`, which sends users without that module to their profile.
+
 ```jsx
 /login                          → LoginPage                    (public)
 
-// Manager — AppLayout, RequireAuth role="manager"
-/manager                        → redirect to dashboard
-/manager/dashboard              → DashboardPage
-/manager/team                   → TeamPage
-/manager/team/:id               → MemberProfilePage
-/manager/monthly                → MonthlyAssessmentPage
-/manager/clients                → ClientInterviewsPage
-/manager/schedule               → SchedulePage
-/manager/reports                → ReportsPage
-/manager/resume-analyzer        → ResumeAnalyzerPage
-/manager/profile                → ManagerProfilePage
+// Workspace - AppLayout role="workspace", RequireAuth (any signed-in non-admin)
+/workspace                      → redirect to dashboard
+/workspace/dashboard            → DashboardPage
+/workspace/team                 → TeamPage                     module: team
+/workspace/team/:id             → MemberProfilePage            module: team
+/workspace/organization/:userId → MemberProfilePage            module: team
+/workspace/monthly              → MonthlyAssessmentPage        module: monthly_assessments
+/workspace/monthly/plan         → redirect to /workspace/monthly
+/workspace/clients              → ClientInterviewsPage         module: client_mandates
+/workspace/clients/:mandateId   → ClientInterviewsPage (detail) module: client_mandates
+/workspace/schedule             → SchedulePage                 module: schedule
+/workspace/reports              → ReportsPage                  module: reports
+/workspace/interviews           → InterviewsPage               module: interviews
+/workspace/feedback             → FeedbackPage                 module: feedback
+/workspace/outcomes             → ClientOutcomesPage           module: outcomes
+/workspace/resume-analyzer      → ResumeAnalyzerPage           module: resume_analyzer
+/workspace/interview-complete   → DonePage (inside the shell)
+/workspace/profile              → ProfilePage
 
-// Candidate dashboard — CandidateLayout, RequireAuth role="candidate"
-/candidate                      → redirect to dashboard
-/candidate/dashboard            → redirect to /candidate/overview
-/candidate/overview             → CandidateOverviewPage
-/candidate/interviews           → CandidateInterviewsPage
-/candidate/monthly              → CandidateMonthlyPage
-/candidate/feedback             → CandidateFeedbackPage
-/candidate/mandates             → CandidateMandatesPage
-/candidate/outcomes             → CandidateClientOutcomesPage
-/candidate/profile              → CandidateProfilePage
-
-// Admin — AppLayout, RequireAuth role="admin"
-/admin                           → redirect to dashboard
-/admin/dashboard                 → AdminDashboardPage
-/admin/mandates                  → AdminMandatesPage
-/admin/interviews                → AdminInterviewsPage
-/admin/broken-states             → AdminBrokenStatesPage
+// Admin - AppLayout role="admin", RequireAuth adminOnly
+/admin                          → redirect to dashboard
+/admin/dashboard                → AdminDashboardPage
+/admin/mandates                 → AdminMandatesPage
+/admin/interviews               → AdminInterviewsPage
+/admin/broken-states            → AdminBrokenStatesPage
+/admin/organizations[/:id]      → AdminOrganizationsPage / OrganizationDetailPage
+/admin/roles[/:id]              → AdminRolesPage / RoleDetailPage
+/admin/users[/:id]              → AdminUsersPage / UserDetailPage
+/admin/modules                  → AdminModulesPage
+/admin/acls[/:id]               → AdminAclsPage / AclDetailPage
+/admin/permissions[/:id]        → AdminPermissionsPage / PermissionDetailPage
+/admin/profile                  → ProfilePage
 
 // Candidate interview flow — CandidateLayout, no auth (magic-link token validates on landing)
 /interview/:token               → InterviewLandingPage
@@ -262,11 +294,11 @@ if (window.innerWidth < 768) {
 /interview/:token/consent       → ConsentPage
 /interview/:token/ai            → AIInterviewPage
 /interview/:token/exam          → ExamPage
-/interview/:token/done          → DonePage
+/interview/:token/done          → DonePage (a signed-in user is sent to /workspace/interview-complete)
 
-/                               → redirect to /login
-*                               → redirect to /login
+/  and  *                       → HomeRedirect (admin → /admin/dashboard, user → /workspace/dashboard, else /login)
 ```
 
-`RequireAuth` checks `localStorage.accessToken` and (when a `role` prop is given) the cached
-`localStorage.user.role`, redirecting to `/login` on any mismatch or parse failure.
+`RequireAuth` checks `localStorage.accessToken` and the cached `localStorage.user.role`
+(`'admin'` or `'user'` only), sending signed-out users to `/login` (remembering the deep link) and
+the wrong shell to its own home.

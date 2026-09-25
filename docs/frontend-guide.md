@@ -7,16 +7,16 @@
 
 ## How the app is organized
 
-Four entry areas, one router. `App.jsx` is the entire route tree.
+Three entry areas, one router. `App.jsx` is the entire route tree.
 
 ```
 /login                          -> LoginPage (auth)
-/manager/*                      -> RequireAuth(role=manager) -> AppLayout -> manager pages
-/candidate/*                    -> RequireAuth(role=candidate) -> CandidateLayout -> overview/interviews/monthly/mandates/profile
+/workspace/*                    -> RequireAuth -> AppLayout -> RequireModule(moduleKey) per page
+/admin/*                        -> RequireAuth(adminOnly) -> AppLayout -> admin pages
 /interview/:token/*             -> magic-link interview flow -> CandidateLayout -> landing/device/consent/AI/exam/done
 ```
 
-`RequireAuth` checks that `accessToken` exists and compares the requested role with the stored `user.role` object in `localStorage`. Token refresh, bearer headers, interview-scoped auth, and redirects live in `src/services/api.js`.
+`RequireAuth` checks that `accessToken` exists and sends `admin` users to `/admin` and everyone else to `/workspace`, using the stored `user.role` (`admin` or `user`). Inside `/workspace`, `RequireModule` hides pages the user has no module for. Token refresh, bearer headers, interview-scoped auth, and redirects live in `src/services/api.js`.
 
 The magic-link interview flow validates `/interview/:token`, swaps the emailed token for a short-lived interview-scoped session token, and skips normal dashboard login.
 
@@ -117,9 +117,9 @@ Candidate dashboard pages include overview, interviews, monthly assessments, cli
 
 ## How to add a new manager page
 
-1. Create `frontend/src/pages/manager/MyNewPage.jsx`.
-2. Add a route in `App.jsx` inside the manager route block.
-3. Add a nav link in the manager layout/sidebar.
+1. Create `frontend/src/pages/manager/MyNewPage.jsx` (move its modals into `components/manager/<feature>/` once it grows).
+2. Add a route in `App.jsx` inside the `/workspace` block, wrapped in `RequireModule moduleKey="..."`.
+3. Add a nav link in the sidebar for that module.
 4. Create the API function in `api.js`.
 5. Follow the data-fetching pattern above.
 

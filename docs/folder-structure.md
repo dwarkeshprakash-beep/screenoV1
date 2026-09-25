@@ -21,23 +21,29 @@ screeno/
 ```text
 frontend/
   src/
-    App.jsx                 Role-based router
+    App.jsx                 Router: /workspace (module-gated) and /admin shells
     main.jsx                React entry
     services/api.js         Fetch client with auth refresh
     utils/helpers.js        Date, status, parsing helpers
+    context/                AccessContext (loads the user's modules/permissions)
     hooks/
+      useAccess.js          hasModule() and the loaded access context
       useInterview.js       Candidate AI interview state machine
       useProctoring.js      Tab/fullscreen integrity checks
     components/
-      shared/               Button, Modal, Spinner, EmptyState, etc.
-      layout/               AppLayout, Sidebar, TopBar, candidate layouts
-      manager/              Manager modals and monthly/report helpers
-      candidate/            Candidate-only editor components
+      shared/               Button, Modal, DataTable, Pagination, Spinner, EmptyState, etc.
+      layout/               AppLayout, Sidebar, TopBar, RequireModule, CandidateLayout
+      manager/              Manager modals and panels
+        client-mandates/    Mandate detail, list, and all mandate modals
+        monthly-assessments/  Monthly subject wizard and detail modal
+      admin/                Admin tables, form modals, repair-tool pieces
+      candidate/            Candidate-only editor and mandate components
     pages/
       auth/                 Login and password reset surface
-      manager/              Dashboard, Team, Monthly, Mandates, Schedule, Reports, Profile
-      candidate/            Dashboard tabs, interview launch, device check, consent, AI/exam, done
-      admin/                Admin dashboard, mandates, interviews, broken-state repair
+      manager/              Dashboard, Team, Monthly, Mandates, Schedule, Reports, Resume Analyzer
+      workspace/            A user's own Interviews, Feedback, Outcomes, Profile
+      candidate/            Magic-link interview flow: landing, device check, consent, AI/exam, done
+      admin/                Dashboard, mandates, interviews, broken states, and RBAC admin
 ```
 
 ## Backend
@@ -49,38 +55,43 @@ backend/
                               whatever's pending, on a fresh DB or an existing one
   test/                     Node test runner and API regression
   src/
-    routes/                 HTTP handlers only
+    routes/                 HTTP handlers only (never import repositories or db)
     services/               Business logic and integrations
-    repositories/           SQL query layer
-    middleware/             Auth, role, upload, rate-limit
+    repositories/           SQL query layer, including multi-statement transactions
+    middleware/             Auth, access (RBAC), upload, rate-limit
     workers/                Durable email outbox worker
-    utils/                  Shared parse/fetch helpers
-    db/                     Connection factory and schema reference
+    utils/                  Shared parse/fetch/pagination helpers
+    config/                 App and auth settings
+    db/                     Connection factory
 ```
 
 ## Current Main Routes
 
 ```text
 /login
-/manager/dashboard
-/manager/team
-/manager/monthly
-/manager/clients
-/manager/schedule
-/manager/reports
-/manager/resume-analyzer
-/manager/profile
-/candidate/overview
-/candidate/interviews
-/candidate/monthly
-/candidate/feedback
-/candidate/mandates
-/candidate/outcomes
-/candidate/profile
+/workspace/dashboard
+/workspace/team
+/workspace/team/:id
+/workspace/monthly
+/workspace/clients
+/workspace/clients/:mandateId
+/workspace/schedule
+/workspace/reports
+/workspace/interviews
+/workspace/feedback
+/workspace/outcomes
+/workspace/resume-analyzer
+/workspace/profile
 /admin/dashboard
 /admin/mandates
 /admin/interviews
 /admin/broken-states
+/admin/organizations
+/admin/roles
+/admin/users
+/admin/modules
+/admin/acls
+/admin/permissions
 /interview/:token
 /interview/:token/device-check
 /interview/:token/consent

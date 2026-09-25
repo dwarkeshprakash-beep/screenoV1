@@ -26,18 +26,17 @@ supabase.connection.js
 
 ## File 1: connection.js (the factory)
 
+Only repositories import this. Routes, services and workers never touch the database directly.
+
 ```js
 // backend/src/db/connection.js
-// ─────────────────────────────────────────────────────────────
-// Factory file — this is the ONLY file repositories should import.
-//
-// Usage in repositories:
-//   const db = require('../db/connection')
-//   const rows = await db.query('SELECT * FROM users WHERE id = @id', { id: 1 })
-// ─────────────────────────────────────────────────────────────
+// All repositories import from HERE, never from supabase.connection.js directly.
+
+require('dotenv').config()
 
 const db = require('./supabase.connection')
-console.log('[db] Connected to: PostgreSQL')
+// The pool connects lazily on the first query - GET /health confirms connectivity.
+console.log('[db] PostgreSQL pool configured')
 
 module.exports = db
 ```
@@ -46,64 +45,70 @@ module.exports = db
 
 ## File 2: supabase.connection.js (PostgreSQL)
 
+The real file, verbatim. It exports `query(sql, params)` for single statements and
+`transaction(work)` for several statements on one client (BEGIN / COMMIT, ROLLBACK on error).
+
 ```js
 // backend/src/db/supabase.connection.js
-// ─────────────────────────────────────────────────────────────
-// PostgreSQL connection. Named after Supabase (the current host) but this is
-// plain node-postgres — it works against any PostgreSQL instance, not just Supabase.
-//
-// Key points:
-// - Uses 'pg' npm package (node-postgres)
-// - Port 6543 = Supabase transaction pooler (pgBouncer)
-//   This means: no session-level SET commands, no LISTEN/NOTIFY
-//   For our use case (simple CRUD), this is fine.
-//   A different Postgres host may not need a pooler at all — connect directly
-//   on port 5432 instead if there's no pgBouncer in front of it.
-// - SSL: rejectUnauthorized: false (Supabase uses a self-signed cert). If you
-//   move to a host that doesn't need this, adjust or drop the ssl option.
-// - Converts @param named params to $1, $2 (PostgreSQL syntax)
-// ─────────────────────────────────────────────────────────────
+// PostgreSQL connection via pg (node-postgres). Works against Supabase or any other
+// Postgres host - point DATABASE_URL at it.
+// Port 6543 = pgBouncer transaction pooler - no session-level commands (Supabase-specific).
+// Converts @paramName → $1, $2 so all repos can use readable named params.
 
-const { Pool } = require('pg')
+const { Pool, types } = require('pg')
 
-// ── CONNECTION POOL ──────────────────────────────────────────
-// Pool reuses connections instead of opening a new one every query.
-// max: 5 — keep small because pgBouncer has connection limits
-// idleTimeoutMillis: 30000 — release idle connections after 30s
+// node-postgres parses DATE columns (OID 1082) into a JS Date anchored to *local* midnight,
+// not UTC. Serializing that with toISOString() (as res.json() does) shifts it onto the
+// previous/next UTC day whenever the server's local timezone offset is non-zero - e.g. a
+// period_month of "2026-09-01" silently becomes "2026-08-31T18:30:00.000Z" in IST, bucketing
+// it into August everywhere it's displayed. Keep DATE columns as their raw "YYYY-MM-DD"
+// string instead - a bare date string parses as UTC midnight everywhere it's later consumed.
+types.setTypeParser(1082, value => value)
+
+// Supabase requires SSL with a self-signed cert, so SSL is on by default.
+// Set DB_SSL=false in .env for a host that doesn't support/require SSL (e.g. local Postgres).
+const sslEnabled = process.env.DB_SSL !== 'false'
+
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: {
-    // Required for Supabase — they use self-signed certificates
-    rejectUnauthorized: false
-  },
+  ssl: sslEnabled ? { rejectUnauthorized: false } : false,
   max: 5,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,
 })
 
-// Log when pool has errors (important for debugging)
+const RETRYABLE_CONNECTION_CODES = new Set(['ENOTFOUND', 'EAI_AGAIN', 'ECONNRESET', 'ETIMEDOUT'])
+
 pool.on('error', (err) => {
-  console.error('Database pool error:', err.message)
+  console.error('[db] Pool error:', err.message)
 })
 
-// ── PARAM CONVERTER ──────────────────────────────────────────
-// PostgreSQL uses $1, $2, $3 for query params.
-// We write @paramName in our SQL (more readable).
-// This function converts: @name → $1, @email → $2, etc.
-//
-// Example:
-//   Input:  "SELECT * FROM users WHERE id = @id AND role = @role"
-//           { id: 1, role: 'manager' }
-//   Output: "SELECT * FROM users WHERE id = $1 AND role = $2"
-//           [1, 'manager']
+/**
+ * Acquire a database client, retrying once for temporary network failures.
+ * The retry occurs before a SQL statement is sent, so writes are not duplicated.
+ * @returns {Promise<import('pg').PoolClient>}
+ */
+async function connectWithRetry() {
+  try {
+    return await pool.connect()
+  } catch (err) {
+    if (!RETRYABLE_CONNECTION_CODES.has(err.code)) throw err
+    await new Promise(resolve => setTimeout(resolve, 500))
+    return pool.connect()
+  }
+}
+
+/**
+ * Convert @paramName markers to $1, $2 positional params for PostgreSQL.
+ * @param {string} sql - SQL with @name params
+ * @param {Object} params - key/value param map
+ * @returns {{ sql: string, values: Array }}
+ */
 function convertParams(sql, params) {
-  // Values array in the order params appear in SQL
   const values = []
   let counter = 1
 
-  // Replace each @paramName with $N and collect the value
-  const convertedSql = sql.replace(/@(\w+)/g, (match, paramName) => {
-    // Check the param exists — helps catch typos early
+  const convertedSql = sql.replace(/@(\w+)/g, (_, paramName) => {
     if (!(paramName in params)) {
       throw new Error(`Missing query parameter: @${paramName}`)
     }
@@ -114,120 +119,127 @@ function convertParams(sql, params) {
   return { sql: convertedSql, values }
 }
 
-// ── MAIN QUERY FUNCTION ───────────────────────────────────────
-// This is the only function exported — keep the interface simple.
-//
-// Usage examples:
-//   // Get all team members for a company
-//   const members = await query(
-//     'SELECT * FROM candidates WHERE company_id = @companyId',
-//     { companyId: 1 }
-//   )
-//
-//   // Insert a new record
-//   const rows = await query(
-//     'INSERT INTO candidates (first_name, email, company_id) VALUES (@first_name, @email, @company_id) RETURNING *',
-//     { first_name: 'Rahul', email: 'rahul@example.com', company_id: 1 }
-//   )
+/**
+ * Run a parameterized SQL query.
+ * @param {string} sql - SQL with @name style params
+ * @param {Object} params - param values, e.g. { companyId: 1 }
+ * @returns {Promise<Array>} array of result rows
+ */
 async function query(sql, params = {}) {
-  // Get a connection from the pool
-  const client = await pool.connect()
+  const client = await connectWithRetry()
 
   try {
-    // Convert @params to $1 positional style
     const { sql: convertedSql, values } = convertParams(sql, params)
-
-    // Execute the query
     const result = await client.query(convertedSql, values)
-
-    // Return the rows array
     return result.rows
   } catch (err) {
-    // Add the SQL to the error message to help with debugging
-    console.error('Query failed:', err.message)
-    console.error('SQL:', sql)
+    console.error('[db] Query failed:', err.message)
+    console.error('[db] SQL:', sql)
     throw err
   } finally {
-    // IMPORTANT: always release the connection back to the pool
-    // If we don't do this, the pool fills up and all queries hang
     client.release()
   }
 }
 
-// Export just the query function
-module.exports = { query }
+/**
+ * Run multiple statements on one client inside a transaction.
+ * @param {(tx: {query: Function}) => Promise<any>} work
+ * @returns {Promise<any>}
+ */
+async function transaction(work) {
+  const client = await connectWithRetry()
+  const tx = {
+    query: async (sql, params = {}) => {
+      const { sql: convertedSql, values } = convertParams(sql, params)
+      const result = await client.query(convertedSql, values)
+      return result.rows
+    },
+  }
+
+  try {
+    await client.query('BEGIN')
+    const result = await work(tx)
+    await client.query('COMMIT')
+    return result
+  } catch (err) {
+    await client.query('ROLLBACK')
+    throw err
+  } finally {
+    client.release()
+  }
+}
+
+module.exports = { query, transaction }
 ```
 
 ---
 
 ## How repositories use the connection (example)
 
-```js
-// backend/src/repositories/candidate.repository.js
-// ─────────────────────────────────────────────────────────────
-// All database queries for the candidates table.
-// Always import from '../db/connection' — never from supabase.connection.js directly.
-// ─────────────────────────────────────────────────────────────
+A real repository: plain queries use `db.query`; a multi-step change that must be atomic is one
+repository function using `db.transaction`, with `tx.query` for every statement inside it
+(`FOR UPDATE` locks the row for the rest of the transaction). Services call these functions and
+never build SQL themselves.
 
+```js
+// backend/src/repositories/password-reset.repository.js
 const db = require('../db/connection')
 
-/**
- * Get all candidates for a company
- * @param {number} companyId - the company's ID
- * @param {string} type - 'internal' or 'external'
- * @returns {Promise<Array>} list of candidate rows
- */
-async function getByCompany(companyId, type = 'internal') {
-  return db.query(
-    `SELECT id, first_name, last_name, email, type, resume_url, status, created
-     FROM candidates
-     WHERE company_id = @companyId AND type = @type AND deleted IS NULL
-     ORDER BY created DESC`,
-    { companyId, type }
-  )
-}
-
-/**
- * Get a single candidate by ID
- * @param {number} id - candidate ID
- * @returns {Promise<Object|null>} candidate row or null if not found
- */
-async function getById(id) {
+async function create(userId, tokenHash, expires) {
   const rows = await db.query(
-    'SELECT * FROM candidates WHERE id = @id AND deleted IS NULL',
-    { id }
-  )
-  // Return first row or null — not an array
-  return rows[0] || null
-}
-
-/**
- * Create a new candidate
- * @param {Object} data - candidate fields
- * @returns {Promise<Object>} the created candidate row
- */
-async function create(data) {
-  // RETURNING * works in PostgreSQL — returns the inserted row
-  const rows = await db.query(
-    `INSERT INTO candidates (first_name, last_name, email, phone, type, company_id, manager_id, source)
-     VALUES (@first_name, @last_name, @email, @phone, @type, @company_id, @manager_id, @source)
+    `INSERT INTO password_reset_tokens (user_id, token_hash, expires)
+     VALUES (@userId, @tokenHash, @expires)
      RETURNING *`,
-    {
-      first_name: data.firstName,
-      last_name: data.lastName,
-      email: data.email,
-      phone: data.phone || null,
-      type: data.type,
-      company_id: data.companyId,
-      manager_id: data.managerId || null,
-      source: data.source || 'manual'
-    }
+    { userId, tokenHash, expires }
   )
   return rows[0]
 }
 
-module.exports = { getByCompany, getById, create }
+async function getValidByHash(tokenHash) {
+  const rows = await db.query(
+    `SELECT *
+     FROM password_reset_tokens
+     WHERE token_hash = @tokenHash
+       AND used = FALSE
+       AND expires > NOW()
+     ORDER BY created DESC
+     LIMIT 1`,
+    { tokenHash }
+  )
+  return rows[0] || null
+}
+
+/**
+ * Atomically consume a valid reset token and set the user's new password. The token row
+ * is locked for the check+update, so two concurrent submits (double-click, two tabs)
+ * can't both pass the validity check before either marks it used.
+ * @returns {Promise<object|null>} the consumed token row, or null if invalid/expired/used
+ */
+async function consumeAndSetPassword(tokenHash, passwordHash) {
+  return db.transaction(async (tx) => {
+    const rows = await tx.query(
+      `SELECT * FROM password_reset_tokens
+       WHERE token_hash = @tokenHash AND used = FALSE AND expires > NOW()
+       FOR UPDATE`,
+      { tokenHash }
+    )
+    const stored = rows[0]
+    if (!stored) return null
+
+    await tx.query(`UPDATE password_reset_tokens SET used = TRUE WHERE id = @id`, { id: stored.id })
+    await tx.query(`UPDATE users SET password = @passwordHash WHERE id = @userId`, {
+      passwordHash, userId: stored.user_id,
+    })
+    return stored
+  })
+}
+
+module.exports = { create, getValidByHash, consumeAndSetPassword }
 ```
+
+When business rules must run while a row is locked, the service passes a callback instead of
+moving the rules into SQL - see `interviewRepository.claimByTokenHash(tokenHash, validate)`, used
+by `authService.claimMagicLink`.
 
 ---
 
@@ -264,3 +276,7 @@ This same command also bootstraps a brand-new database: point `DATABASE_URL` at 
 Postgres instance and run `npm run migrate` — it detects there's no existing schema and
 actually executes every migration file in order, instead of just recording them as already
 applied (which is what it does against a database that already has the schema).
+
+On an existing database that has no `schema_migrations` table yet, it records only the files up to
+`046_remove_read_permission.sql` (`PRE_TRACKING_BASELINE` in `migrate.js`) as already applied, so
+anything newer still runs. Never change that value.
