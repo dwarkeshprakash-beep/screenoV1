@@ -1,6 +1,7 @@
 // RolesTable - renders the per-company roles list.
 
-import DataTable, { tdStyle } from '../shared/DataTable'
+import DataTable from '../shared/DataTable'
+import { tdStyle } from '../shared/tableStyles'
 import RowActions from '../shared/RowActions'
 import { formatDate } from '../../utils/helpers'
 

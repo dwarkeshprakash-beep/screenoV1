@@ -3,7 +3,6 @@ const teamMemberRepository = require('../repositories/team-member.repository')
 const companyRepository = require('../repositories/company.repository')
 const userRepository = require('../repositories/user.repository')
 const emailService = require('./email.service')
-const scheduleService = require('./schedule.service')
 const { parseStoredArray } = require('../utils/parse')
 
 const parseArray = parseStoredArray
@@ -523,15 +522,6 @@ async function getMonthPlan(userId, monthValue, scope = {}) {
   }
 }
 
-async function cancelEnrollment(enrollmentId, managerId) {
-  const enrollment = await monthlyAssessmentRepository.cancelEnrollment(
-    Number(enrollmentId),
-    managerId
-  )
-  if (!enrollment) throw new Error('Monthly enrollment not found')
-  return enrollment
-}
-
 async function deleteEnrollment(enrollmentId, managerId) {
   const enrollment = await monthlyAssessmentRepository.deleteEnrollment(
     Number(enrollmentId),
@@ -565,7 +555,6 @@ module.exports = {
   assignCandidates,
   getAssessments,
   getMonthPlan,
-  cancelEnrollment,
   deleteEnrollment,
   updateAssessment,
   deleteAssessment,

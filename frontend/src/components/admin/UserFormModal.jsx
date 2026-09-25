@@ -71,7 +71,7 @@ function UserFormModal({ open, onClose, companyId, roles, user, onDone }) {
               selectedIds={roleIds}
               onChange={setRoleIds}
               placeholder="Select roles…"
-              emptyMessage="No roles exist yet for this company."
+              emptyMessage="No roles exist yet for this organization."
             />
           </div>
 

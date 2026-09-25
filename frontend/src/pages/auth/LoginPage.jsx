@@ -132,10 +132,16 @@ function LoginPage() {
   useEffect(() => {
     if (mode !== 'reset' || !resetToken) return
     let cancelled = false
-    setResetTokenStatus('checking')
-    api.validateResetToken(resetToken)
-      .then(() => { if (!cancelled) setResetTokenStatus('valid') })
-      .catch(() => { if (!cancelled) setResetTokenStatus('invalid') })
+    async function checkResetToken() {
+      setResetTokenStatus('checking')
+      try {
+        await api.validateResetToken(resetToken)
+        if (!cancelled) setResetTokenStatus('valid')
+      } catch {
+        if (!cancelled) setResetTokenStatus('invalid')
+      }
+    }
+    checkResetToken()
     return () => { cancelled = true }
   }, [mode, resetToken])
 
@@ -280,7 +286,7 @@ function LoginPage() {
               <button type="submit" disabled={loading} style={{ width: '100%', padding: '0.75rem', background: 'var(--brand-500)', color: 'var(--bg-surface)', border: 'none', borderRadius: '0.5rem', fontSize: '0.875rem', fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1, marginTop: '0.25rem' }}>
                 {loading ? 'Signing in...' : 'Sign in'}
               </button>
-              <button type="button" onClick={() => { setMode('forgot'); setError(null); setMessage(null) }} style={{ background: 'transparent', border: 0, color: '#94A3B8', fontSize: '0.8125rem', cursor: 'pointer', padding: '0.25rem' }}>
+              <button type="button" onClick={() => { setMode('forgot'); setError(null); setMessage(null) }} style={{ background: 'transparent', border: 0, color: 'var(--slate-400)', fontSize: '0.8125rem', cursor: 'pointer', padding: '0.25rem' }}>
                 Forgot password?
               </button>
             </form>
@@ -297,14 +303,14 @@ function LoginPage() {
               <button type="submit" disabled={loading} style={{ width: '100%', padding: '0.75rem', background: 'var(--brand-500)', color: 'var(--bg-surface)', border: 'none', borderRadius: '0.5rem', fontSize: '0.875rem', fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1, marginTop: '0.25rem' }}>
                 {loading ? 'Sending...' : 'Send reset link'}
               </button>
-              <button type="button" onClick={() => { setMode('login'); setError(null); setMessage(null) }} style={{ background: 'transparent', border: 0, color: '#94A3B8', fontSize: '0.8125rem', cursor: 'pointer', padding: '0.25rem' }}>
+              <button type="button" onClick={() => { setMode('login'); setError(null); setMessage(null) }} style={{ background: 'transparent', border: 0, color: 'var(--slate-400)', fontSize: '0.8125rem', cursor: 'pointer', padding: '0.25rem' }}>
                 Back to sign in
               </button>
             </form>
           )}
 
           {mode === 'reset' && resetTokenStatus === 'checking' && (
-            <p style={{ fontSize: '0.8125rem', color: '#94A3B8', textAlign: 'center' }}>Checking your reset link...</p>
+            <p style={{ fontSize: '0.8125rem', color: 'var(--slate-400)', textAlign: 'center' }}>Checking your reset link...</p>
           )}
 
           {mode === 'reset' && resetTokenStatus === 'invalid' && (
@@ -332,8 +338,8 @@ function LoginPage() {
                 <label style={{ color: 'var(--slate-400)', fontSize: '0.8125rem', fontWeight: 500, display: 'block', marginBottom: '0.375rem' }}>Confirm password</label>
                 <input type={showPassword ? 'text' : 'password'} placeholder="Confirm password" value={confirmPassword} onChange={event => setConfirmPassword(event.target.value)} required style={inputStyle} />
               </div>
-              <p style={{ fontSize: '0.75rem', lineHeight: 1.45, color: '#94A3B8', margin: 0 }}>{PASSWORD_RULES}</p>
-              <button type="button" onClick={() => setShowPassword(p => !p)} style={{ background: 'transparent', border: 0, color: '#94A3B8', fontSize: '0.8125rem', cursor: 'pointer', padding: '0.25rem', alignSelf: 'flex-start' }}>
+              <p style={{ fontSize: '0.75rem', lineHeight: 1.45, color: 'var(--slate-400)', margin: 0 }}>{PASSWORD_RULES}</p>
+              <button type="button" onClick={() => setShowPassword(p => !p)} style={{ background: 'transparent', border: 0, color: 'var(--slate-400)', fontSize: '0.8125rem', cursor: 'pointer', padding: '0.25rem', alignSelf: 'flex-start' }}>
                 {showPassword ? 'Hide password' : 'Show password'}
               </button>
               {error && <p role="alert" style={{ fontSize: '0.8125rem', color: '#EF4444' }}>{error}</p>}

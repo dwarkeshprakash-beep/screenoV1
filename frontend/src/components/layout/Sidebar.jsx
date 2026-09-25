@@ -1,6 +1,6 @@
 import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { LayoutDashboard, Users, ScanSearch, Calendar, BarChart3, Settings, CheckSquare, UserCheck, ShieldCheck, UserCog, LayoutGrid, LockKeyhole, KeyRound, Building2, Lightbulb, Award } from 'lucide-react'
-import { useAccess } from '../../context/AccessContext'
+import { useAccess } from '../../hooks/useAccess'
 
 // Which admin-managed Module (see backend modules table) gates each nav item, so a
 // user without at least one permission on that module never sees the link - the

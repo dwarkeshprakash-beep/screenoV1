@@ -8,6 +8,7 @@ const express = require('express')
 const authMiddleware = require('../middleware/auth')
 const { loadAccess, requirePlatformAdmin } = require('../middleware/access')
 const userService = require('../services/user.service')
+const { parsePositiveInt } = require('../utils/parse')
 
 const router = express.Router()
 router.use(authMiddleware, loadAccess, requirePlatformAdmin)
@@ -15,15 +16,10 @@ router.use(authMiddleware, loadAccess, requirePlatformAdmin)
 const BAD_REQUEST_MESSAGES = [
   'First name is required',
   'A valid email is required',
-  'One or more roles are invalid for this company',
+  'One or more roles are invalid for this organization',
   'A user with this email already exists',
   'Email is already in use',
 ]
-
-function parseCompanyId(rawValue) {
-  const companyId = Number(rawValue)
-  return Number.isInteger(companyId) && companyId > 0 ? companyId : null
-}
 
 function sendUserError(res, err, fallback) {
   if (err.message === 'User not found') {
@@ -39,7 +35,7 @@ function sendUserError(res, err, fallback) {
 }
 
 router.get('/', async (req, res) => {
-  const companyId = parseCompanyId(req.query.companyId)
+  const companyId = parsePositiveInt(req.query.companyId)
   if (!companyId) return res.status(400).json({ success: false, error: 'companyId is required' })
 
   try {
@@ -54,7 +50,7 @@ router.get('/', async (req, res) => {
 })
 
 router.get('/:id', async (req, res) => {
-  const companyId = parseCompanyId(req.query.companyId)
+  const companyId = parsePositiveInt(req.query.companyId)
   if (!companyId) return res.status(400).json({ success: false, error: 'companyId is required' })
 
   try {
@@ -66,7 +62,7 @@ router.get('/:id', async (req, res) => {
 })
 
 router.get('/:id/access', async (req, res) => {
-  const companyId = parseCompanyId(req.query.companyId)
+  const companyId = parsePositiveInt(req.query.companyId)
   if (!companyId) return res.status(400).json({ success: false, error: 'companyId is required' })
 
   try {
@@ -78,7 +74,7 @@ router.get('/:id/access', async (req, res) => {
 })
 
 router.get('/:id/interviews', async (req, res) => {
-  const companyId = parseCompanyId(req.query.companyId)
+  const companyId = parsePositiveInt(req.query.companyId)
   if (!companyId) return res.status(400).json({ success: false, error: 'companyId is required' })
 
   try {
@@ -90,7 +86,7 @@ router.get('/:id/interviews', async (req, res) => {
 })
 
 router.post('/', async (req, res) => {
-  const companyId = parseCompanyId(req.body.companyId)
+  const companyId = parsePositiveInt(req.body.companyId)
   if (!companyId) return res.status(400).json({ success: false, error: 'companyId is required' })
 
   try {
@@ -102,7 +98,7 @@ router.post('/', async (req, res) => {
 })
 
 router.patch('/:id', async (req, res) => {
-  const companyId = parseCompanyId(req.body.companyId)
+  const companyId = parsePositiveInt(req.body.companyId)
   if (!companyId) return res.status(400).json({ success: false, error: 'companyId is required' })
 
   try {
@@ -114,7 +110,7 @@ router.patch('/:id', async (req, res) => {
 })
 
 router.delete('/:id', async (req, res) => {
-  const companyId = parseCompanyId(req.query.companyId)
+  const companyId = parsePositiveInt(req.query.companyId)
   if (!companyId) return res.status(400).json({ success: false, error: 'companyId is required' })
 
   try {

@@ -6,6 +6,7 @@ const express = require('express')
 const authMiddleware = require('../middleware/auth')
 const { loadAccess, requirePlatformAdmin } = require('../middleware/access')
 const aclService = require('../services/acl.service')
+const { parsePositiveInt } = require('../utils/parse')
 
 const router = express.Router()
 router.use(authMiddleware, loadAccess, requirePlatformAdmin)
@@ -15,14 +16,9 @@ const BAD_REQUEST_MESSAGES = [
   'ACL name is too long',
   'ACL description is too long',
   'An ACL with this name already exists',
-  'One or more roles are invalid for this company',
+  'One or more roles are invalid for this organization',
   'One or more permissions are invalid',
 ]
-
-function parseCompanyId(rawValue) {
-  const companyId = Number(rawValue)
-  return Number.isInteger(companyId) && companyId > 0 ? companyId : null
-}
 
 function sendAclError(res, err, fallback) {
   if (err.message === 'ACL not found') {
@@ -35,7 +31,7 @@ function sendAclError(res, err, fallback) {
 }
 
 router.get('/', async (req, res) => {
-  const companyId = parseCompanyId(req.query.companyId)
+  const companyId = parsePositiveInt(req.query.companyId)
   if (!companyId) return res.status(400).json({ success: false, error: 'companyId is required' })
 
   try {
@@ -50,7 +46,7 @@ router.get('/', async (req, res) => {
 })
 
 router.get('/:id', async (req, res) => {
-  const companyId = parseCompanyId(req.query.companyId)
+  const companyId = parsePositiveInt(req.query.companyId)
   if (!companyId) return res.status(400).json({ success: false, error: 'companyId is required' })
 
   try {
@@ -62,7 +58,7 @@ router.get('/:id', async (req, res) => {
 })
 
 router.post('/', async (req, res) => {
-  const companyId = parseCompanyId(req.body.companyId)
+  const companyId = parsePositiveInt(req.body.companyId)
   if (!companyId) return res.status(400).json({ success: false, error: 'companyId is required' })
 
   try {
@@ -74,7 +70,7 @@ router.post('/', async (req, res) => {
 })
 
 router.patch('/:id', async (req, res) => {
-  const companyId = parseCompanyId(req.body.companyId)
+  const companyId = parsePositiveInt(req.body.companyId)
   if (!companyId) return res.status(400).json({ success: false, error: 'companyId is required' })
 
   try {
@@ -86,7 +82,7 @@ router.patch('/:id', async (req, res) => {
 })
 
 router.get('/:id/permissions', async (req, res) => {
-  const companyId = parseCompanyId(req.query.companyId)
+  const companyId = parsePositiveInt(req.query.companyId)
   if (!companyId) return res.status(400).json({ success: false, error: 'companyId is required' })
 
   try {
@@ -98,7 +94,7 @@ router.get('/:id/permissions', async (req, res) => {
 })
 
 router.put('/:id/permissions', async (req, res) => {
-  const companyId = parseCompanyId(req.body.companyId)
+  const companyId = parsePositiveInt(req.body.companyId)
   if (!companyId) return res.status(400).json({ success: false, error: 'companyId is required' })
 
   try {
@@ -110,7 +106,7 @@ router.put('/:id/permissions', async (req, res) => {
 })
 
 router.delete('/:id', async (req, res) => {
-  const companyId = parseCompanyId(req.query.companyId)
+  const companyId = parsePositiveInt(req.query.companyId)
   if (!companyId) return res.status(400).json({ success: false, error: 'companyId is required' })
 
   try {

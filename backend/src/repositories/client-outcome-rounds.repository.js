@@ -26,14 +26,6 @@ async function listByClientTeamId(clientTeamId, mandateId) {
   )
 }
 
-async function getById(id) {
-  const rows = await db.query(
-    `SELECT * FROM client_interview_rounds WHERE id = @id`,
-    { id }
-  )
-  return rows[0] || null
-}
-
 async function getByIdForMandate(id, mandateId) {
   const rows = await db.query(
     `SELECT cr.* FROM client_interview_rounds cr
@@ -193,7 +185,6 @@ async function listVisibleByClientTeamId(clientTeamId) {
 
 module.exports = {
   listByClientTeamId,
-  getById,
   getByIdForMandate,
   create,
   update,

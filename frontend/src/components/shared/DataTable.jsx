@@ -3,12 +3,7 @@
 // rows. Each table still owns its own columns and cell rendering via renderRow -
 // this only removes the duplicated table shell, row hover, and cell/button styling.
 
-export const tdStyle = { padding: '14px 20px', borderBottom: '1px solid var(--border-default)' }
-
-export const iconBtnStyle = {
-  background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderRadius: 8,
-  padding: '6px 8px', cursor: 'pointer', display: 'inline-flex', alignItems: 'center',
-}
+// Cell/button style objects live in ./tableStyles.js.
 
 const thStyle = {
   textAlign: 'left', padding: '12px 20px', fontSize: 11, fontWeight: 600, letterSpacing: '0.08em',
@@ -20,7 +15,7 @@ const thStyle = {
  * @param {any[]} items - rows to render
  * @param {(item: any) => string|number} getRowKey
  * @param {(item: any) => JSX.Element} renderRow - returns the <td> cells for one row
- * @param {(item: any) => void} onRowClick
+ * @param {(item: any) => void} [onRowClick] - omit for rows that aren't clickable
  */
 function DataTable({ columns, items, getRowKey, renderRow, onRowClick }) {
   return (
@@ -35,10 +30,10 @@ function DataTable({ columns, items, getRowKey, renderRow, onRowClick }) {
           {items.map(item => (
             <tr
               key={getRowKey(item)}
-              style={{ transition: 'background 120ms', cursor: 'pointer' }}
+              style={{ transition: 'background 120ms', cursor: onRowClick ? 'pointer' : 'default' }}
               onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface-alt)'}
               onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-surface)'}
-              onClick={() => onRowClick(item)}
+              onClick={onRowClick ? () => onRowClick(item) : undefined}
             >
               {renderRow(item)}
             </tr>

@@ -1,7 +1,7 @@
 // AdminUsersPage - the only place user accounts are created. Lists users per company
 // and manages their legacy role plus RBAC role assignments. See docs/rbac-multi-tenant-plan.md.
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { UserPlus } from 'lucide-react'
 import Spinner from '../../components/shared/Spinner'
@@ -36,6 +36,15 @@ function AdminUsersPage() {
   const [deleteTarget, setDeleteTarget] = useState(null)
   const [actionError, setActionError] = useState(null)
 
+  async function loadCompanies() {
+    try {
+      const res = await api.getAdminCompanies()
+      setCompanies(res.data || [])
+    } catch {
+      setError('Could not load organizations. Please try again.')
+      setLoading(false)
+    }
+  }
   useEffect(() => { loadCompanies() }, [])
   // Re-derive the selected company whenever the ?companyId= query param changes, not
   // just on mount - OrganizationDetailPage links here with a different companyId each
@@ -50,24 +59,8 @@ function AdminUsersPage() {
     const timeout = setTimeout(() => { setSearch(searchInput.trim()); setPage(1) }, SEARCH_DEBOUNCE_MS)
     return () => clearTimeout(timeout)
   }, [searchInput])
-  useEffect(() => { if (companyId) loadData() }, [companyId, page, pageSize, search])
-
-  function handlePageSizeChange(newSize) {
-    setPageSize(newSize)
-    setPage(1)
-  }
-
-  async function loadCompanies() {
-    try {
-      const res = await api.getAdminCompanies()
-      setCompanies(res.data || [])
-    } catch {
-      setError('Could not load companies. Please try again.')
-      setLoading(false)
-    }
-  }
-
-  async function loadData() {
+  // Memoised on everything it reads so the effect below re-runs exactly when they change.
+  const loadData = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
@@ -88,6 +81,12 @@ function AdminUsersPage() {
     } finally {
       setLoading(false)
     }
+  }, [companyId, page, pageSize, search])
+  useEffect(() => { if (companyId) loadData() }, [companyId, loadData])
+
+  function handlePageSizeChange(newSize) {
+    setPageSize(newSize)
+    setPage(1)
   }
 
   async function handleDelete() {
@@ -132,7 +131,7 @@ function AdminUsersPage() {
         )}
 
         {loading ? <Spinner center /> : error ? <ErrorMessage message={error} onRetry={loadData} /> : users.length === 0 ? (
-          <EmptyState message={search ? 'No users match your search.' : 'No users yet for this company. Add the first one.'} />
+          <EmptyState message={search ? 'No users match your search.' : 'No users yet for this organization. Add the first one.'} />
         ) : (
           <>
             <UsersTable

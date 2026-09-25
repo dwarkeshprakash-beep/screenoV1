@@ -5,15 +5,10 @@ import Spinner from '../../components/shared/Spinner'
 import ErrorMessage from '../../components/shared/ErrorMessage'
 import Button from '../../components/shared/Button'
 import * as api from '../../services/api'
-import { formatDate, formatDateTime, interviewAvailability } from '../../utils/helpers'
-import { useAccess } from '../../context/AccessContext'
+import { formatDate, formatDateTime, interviewAvailability, interviewTypeLabel } from '../../utils/helpers'
+import { useAccess } from '../../hooks/useAccess'
 
 const card = { background: 'var(--bg-surface)', border: '1px solid var(--border-default)', borderRadius: 'var(--radius-lg)', padding: '1.25rem', boxShadow: 'var(--shadow-sm)' }
-
-const INTERVIEW_TYPE_LABEL = {
-  ai_voice: 'AI Voice', exam: 'Coding Exam', human: 'Video Interview',
-  offline: 'Offline Interview', client: 'Client Interview',
-}
 
 // Every logged-in user lands here, regardless of which modules their role has -
 // each section below only renders (and only fetches its data) if the caller has
@@ -130,7 +125,7 @@ function DashboardPage() {
                       </p>
                       <p style={{ fontSize: 15, fontWeight: 700, color: 'var(--fg-primary)', margin: 0 }}>{nextLaunchable.context_title || nextLaunchable.job_title || 'Interview'}</p>
                       <p style={{ fontSize: 12, color: 'var(--fg-muted)', margin: '2px 0 0' }}>
-                        {INTERVIEW_TYPE_LABEL[nextLaunchable.type]} · {nextLaunchable.scheduled_at ? formatDateTime(nextLaunchable.scheduled_at) : formatDate(nextLaunchable.created)}
+                        {interviewTypeLabel(nextLaunchable.type)} · {nextLaunchable.scheduled_at ? formatDateTime(nextLaunchable.scheduled_at) : formatDate(nextLaunchable.created)}
                       </p>
                     </div>
                   </div>
@@ -160,7 +155,7 @@ function DashboardPage() {
                             <Clock size={11} />{u.scheduled_at ? formatDateTime(u.scheduled_at) : formatDate(u.created)}
                           </div>
                         </div>
-                        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--fg-muted)' }}>{INTERVIEW_TYPE_LABEL[u.type] || u.type}</span>
+                        <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--fg-muted)' }}>{interviewTypeLabel(u.type)}</span>
                       </div>
                     ))}
                   </div>

@@ -51,17 +51,36 @@ function AIInterviewPage() {
   useEffect(() => { if (phase === 'ended') navigate(`/interview/${token}/done`) }, [phase, navigate, token])
   useEffect(() => {
     let stream
+    let cancelled = false
     if (!navigator.mediaDevices?.getUserMedia) return
 
-    navigator.mediaDevices.getUserMedia({ video: true }).then(mediaStream => {
-      stream = mediaStream
-      if (cameraVideoRef.current) {
-        cameraVideoRef.current.srcObject = mediaStream
-        cameraVideoRef.current.play().then(() => setCameraReady(true)).catch(() => {})
+    async function startCamera() {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: true })
+      } catch {
+        setCameraReady(false)
+        return
       }
-    }).catch(() => setCameraReady(false))
+      // Unmounted while the permission prompt was open - release the camera right away.
+      if (cancelled) {
+        stream.getTracks().forEach(track => track.stop())
+        return
+      }
+      if (!cameraVideoRef.current) return
+      cameraVideoRef.current.srcObject = stream
+      try {
+        await cameraVideoRef.current.play()
+        setCameraReady(true)
+      } catch {
+        // Autoplay can be refused; the preview simply stays hidden.
+      }
+    }
+    startCamera()
 
-    return () => stream?.getTracks().forEach(track => track.stop())
+    return () => {
+      cancelled = true
+      stream?.getTracks().forEach(track => track.stop())
+    }
   }, [])
 
   useEffect(() => {

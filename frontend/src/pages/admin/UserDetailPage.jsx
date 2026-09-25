@@ -11,13 +11,7 @@ import ErrorMessage from '../../components/shared/ErrorMessage'
 import EmptyState from '../../components/shared/EmptyState'
 import Badge from '../../components/shared/Badge'
 import * as api from '../../services/api'
-import { formatDate, statusVariant } from '../../utils/helpers'
-
-const INTERVIEW_TYPE_LABELS = { ai_voice: 'AI Voice', exam: 'Exam', human: 'Human', offline: 'Offline' }
-
-function interviewTypeLabel(type) {
-  return INTERVIEW_TYPE_LABELS[type] || (type ? type.replace(/_/g, ' ') : 'Interview')
-}
+import { formatDate, statusVariant, interviewTypeLabel } from '../../utils/helpers'
 
 function decisionVariant(decision) {
   if (decision === 'pass') return 'success'

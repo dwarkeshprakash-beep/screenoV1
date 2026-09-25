@@ -5,7 +5,7 @@
 // enforces it; this never substitutes for that.
 import { Navigate } from 'react-router-dom'
 import Spinner from '../shared/Spinner'
-import { useAccess } from '../../context/AccessContext'
+import { useAccess } from '../../hooks/useAccess'
 
 function RequireModule({ moduleKey, redirectTo, children }) {
   const { hasModule, loading } = useAccess()

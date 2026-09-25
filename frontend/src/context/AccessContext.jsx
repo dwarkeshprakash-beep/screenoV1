@@ -3,10 +3,10 @@
 // guards (block direct navigation). This is a UX layer only - the real enforcement
 // is requireModule() on the backend routes (see middleware/access.js); hiding a
 // link here never substitutes for that.
-import { createContext, useContext, useEffect, useState, useCallback } from 'react'
+// Read it with the useAccess hook (hooks/useAccess.js).
+import { useEffect, useState, useCallback } from 'react'
 import * as api from '../services/api'
-
-const AccessContext = createContext(null)
+import { AccessContext } from './access-context'
 
 // A transient failure (network blip, 5xx, refresh hiccup) must not look like "this
 // user has no modules" - that collapses the sidebar to just Overview. Retry a couple
@@ -61,10 +61,4 @@ function AccessProvider({ children }) {
   )
 }
 
-function useAccess() {
-  const ctx = useContext(AccessContext)
-  if (!ctx) throw new Error('useAccess must be used within an AccessProvider')
-  return ctx
-}
-
-export { AccessProvider, useAccess }
+export { AccessProvider }

@@ -15,13 +15,13 @@ import * as api from '../../services/api'
 import { formatDate } from '../../utils/helpers'
 
 const OUTCOME_STYLES = {
-  pending:    { label: 'Pending',        color: 'var(--fg-muted)',    bg: 'var(--bg-subtle)' },
+  pending:    { label: 'Pending',        color: 'var(--fg-muted)',    bg: 'var(--bg-surface-alt)' },
   passed:     { label: 'Passed',         color: 'var(--success-700)', bg: 'var(--success-50)' },
   failed:     { label: 'Did not clear',  color: 'var(--danger-700)',  bg: 'var(--danger-50)' },
   on_hold:    { label: 'On hold',        color: 'var(--warning-700)', bg: 'var(--warning-50)' },
   offer_made: { label: 'Offer made',     color: 'var(--info-700)',    bg: 'var(--info-50)' },
   hired:      { label: 'Hired',          color: 'var(--brand-600)',   bg: 'var(--brand-50)' },
-  withdrawn:  { label: 'Withdrawn',      color: 'var(--slate-500)',   bg: 'var(--bg-subtle)' },
+  withdrawn:  { label: 'Withdrawn',      color: 'var(--slate-500)',   bg: 'var(--bg-surface-alt)' },
 }
 
 function OutcomeBadge({ outcome }) {
@@ -44,7 +44,7 @@ function RoundRow({ round }) {
       background: 'var(--bg-surface)', marginBottom: 8,
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--fg-secondary)' }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--fg-body)' }}>
           Round {round.round_number}
         </span>
         <OutcomeBadge outcome={round.outcome} />

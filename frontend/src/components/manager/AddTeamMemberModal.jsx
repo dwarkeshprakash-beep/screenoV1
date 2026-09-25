@@ -8,6 +8,7 @@ import Button from '../shared/Button'
 import Spinner from '../shared/Spinner'
 import Avatar from '../shared/Avatar'
 import * as api from '../../services/api'
+import { formatDate } from '../../utils/helpers'
 
 function AddTeamMemberModal({ open, onClose, onDone }) {
   const [loading, setLoading]   = useState(false)
@@ -91,7 +92,7 @@ function AddTeamMemberModal({ open, onClose, onDone }) {
         </p>
 
         {success && (
-          <div style={{ padding: '10px 14px', background: 'var(--success-50)', border: '1px solid #A7F3D0', borderRadius: 8, fontSize: 13, color: 'var(--success-600)', marginBottom: 16 }}>
+          <div style={{ padding: '10px 14px', background: 'var(--success-50)', border: '1px solid var(--success-200)', borderRadius: 8, fontSize: 13, color: 'var(--success-600)', marginBottom: 16 }}>
             ✓ {success}
           </div>
         )}
@@ -152,7 +153,7 @@ function AddTeamMemberModal({ open, onClose, onDone }) {
                   </div>
                   {u.last_assessed && (
                     <span style={{ fontSize: 11, color: 'var(--slate-400)', whiteSpace: 'nowrap' }}>
-                      Last assessed {new Date(u.last_assessed).toLocaleDateString()}
+                      Last assessed {formatDate(u.last_assessed)}
                     </span>
                   )}
                 </div>

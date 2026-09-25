@@ -24,11 +24,4 @@ async function getValidByHash(tokenHash) {
   return rows[0] || null
 }
 
-async function markUsed(id) {
-  await db.query(
-    `UPDATE password_reset_tokens SET used = TRUE WHERE id = @id`,
-    { id }
-  )
-}
-
-module.exports = { create, getValidByHash, markUsed }
+module.exports = { create, getValidByHash }

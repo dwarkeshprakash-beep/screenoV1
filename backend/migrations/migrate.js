@@ -11,6 +11,12 @@ const db = require('../src/db/connection')
 
 const MIGRATIONS_DIR = __dirname
 
+// Last migration that existed before schema_migrations tracking was in place. When an
+// untracked existing database is seeded, only files up to this one are assumed applied -
+// anything newer still runs. (Seeding every file silently skipped real migrations
+// before; see 037_companies_logo_url.sql.) Never change this value.
+const PRE_TRACKING_BASELINE = '046_remove_read_permission.sql'
+
 function listMigrationFiles() {
   return fs.readdirSync(MIGRATIONS_DIR).filter(f => f.endsWith('.sql')).sort()
 }
@@ -40,14 +46,14 @@ async function ensureMigrationsTable() {
   `)
   if (coreTables.length === 0) return
 
-  const files = listMigrationFiles()
+  const files = listMigrationFiles().filter(f => f <= PRE_TRACKING_BASELINE)
   for (const filename of files) {
     await db.query(
       'INSERT INTO schema_migrations (filename) VALUES (@filename) ON CONFLICT DO NOTHING',
       { filename }
     )
   }
-  console.log(`[migrate] Existing database detected - seeded schema_migrations with ${files.length} already-applied migration(s).`)
+  console.log(`[migrate] Existing database detected - seeded schema_migrations with ${files.length} pre-tracking migration(s) up to ${PRE_TRACKING_BASELINE}.`)
 }
 
 async function main() {

@@ -3,7 +3,7 @@
 // to see (and assign) which ACL gates each module for that company - see
 // docs/rbac-multi-tenant-plan.md.
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import Spinner from '../../components/shared/Spinner'
 import ErrorMessage from '../../components/shared/ErrorMessage'
@@ -24,25 +24,23 @@ function AdminModulesPage() {
   const [formOpen, setFormOpen] = useState(false)
   const [editingModule, setEditingModule] = useState(null)
 
+  async function loadCompanies() {
+    try {
+      const res = await api.getAdminCompanies()
+      setCompanies(res.data || [])
+    } catch {
+      setError('Could not load organizations. Please try again.')
+      setLoading(false)
+    }
+  }
   useEffect(() => { loadCompanies() }, [])
   useEffect(() => {
     if (companies.length === 0) return
     const requestedId = Number(searchParams.get('companyId'))
     setCompanyId(companies.some(c => c.id === requestedId) ? requestedId : (companies[0]?.id || null))
   }, [searchParams, companies])
-  useEffect(() => { if (companyId) loadModules() }, [companyId])
-
-  async function loadCompanies() {
-    try {
-      const res = await api.getAdminCompanies()
-      setCompanies(res.data || [])
-    } catch {
-      setError('Could not load companies. Please try again.')
-      setLoading(false)
-    }
-  }
-
-  async function loadModules() {
+  // Memoised on everything it reads so the effect below re-runs exactly when they change.
+  const loadModules = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
@@ -57,7 +55,8 @@ function AdminModulesPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [companyId])
+  useEffect(() => { if (companyId) loadModules() }, [companyId, loadModules])
 
   async function handleAssignAcl(module, aclId) {
     try {

@@ -27,33 +27,6 @@ async function create(data) {
   return rows[0]
 }
 
-async function getByManager(managerId, state = 'active') {
-  let query = `SELECT client_templates.*,
-                      COALESCE((
-                        SELECT STRING_AGG(
-                          CONCAT_WS(' ', users.first_name, users.last_name, users.email),
-                          ' '
-                        )
-                        FROM client_teams
-                        JOIN users ON users.id = client_teams.user_id
-                        WHERE client_teams.mandate_id = client_templates.id
-                      ), '') AS candidate_search_text,
-                      (
-                        SELECT h.status FROM mandate_status_history h
-                        WHERE h.mandate_id = client_templates.id
-                        ORDER BY h.created DESC LIMIT 1
-                      ) AS current_status
-               FROM client_templates
-               WHERE manager_id = @managerId`
-  if (state === 'active') {
-    query += ` AND archived_at IS NULL`
-  } else if (state === 'archived') {
-    query += ` AND archived_at IS NOT NULL`
-  }
-  query += ` ORDER BY COALESCE(updated_at, created) DESC, created DESC`
-  return db.query(query, { managerId })
-}
-
 async function getById(id, managerId) {
   const rows = await db.query(
     `SELECT * FROM client_templates WHERE id = @id AND manager_id = @managerId`,
@@ -251,7 +224,7 @@ async function getAllForAdmin() {
 }
 
 module.exports = {
-  create, getByManager, getById,
+  create, getById,
   getVisibleToUser, getByIdVisibleToUser, getByCompany, getByIdForCompany,
   update, archive, restore, getAllForAdmin,
 }

@@ -1,7 +1,8 @@
 // AclsTable - renders the per-company ACLs list. Module association is managed from
 // the Modules screen, not shown here.
 
-import DataTable, { tdStyle } from '../shared/DataTable'
+import DataTable from '../shared/DataTable'
+import { tdStyle } from '../shared/tableStyles'
 import RowActions from '../shared/RowActions'
 import { formatDate } from '../../utils/helpers'
 

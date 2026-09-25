@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Bell, CalendarPlus, CheckCircle2, FileText, Clock, Menu, X } from 'lucide-react'
 import * as api from '../../services/api'
 import { formatDate } from '../../utils/helpers'
-import { useAccess } from '../../context/AccessContext'
+import { useAccess } from '../../hooks/useAccess'
 
 // ── Notification helpers ──────────────────────────────────────
 function notifMeta(what = '') {

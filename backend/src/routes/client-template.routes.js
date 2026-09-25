@@ -1,4 +1,3 @@
-const crypto = require('crypto')
 const express = require('express')
 const authMiddleware = require('../middleware/auth')
 const { loadAccess, requireModule } = require('../middleware/access')
@@ -801,7 +800,6 @@ router.post('/:id/team', async (req, res) => {
     }
 
     const requirements = await clientRequirementsRepo.getByMandate(mandateId)
-    const currentTeam = await clientTeamRepo.getByMandate(mandateId)
 
     const membersToAdd = []
 

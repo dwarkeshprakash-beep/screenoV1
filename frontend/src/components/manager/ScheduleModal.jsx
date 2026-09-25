@@ -5,7 +5,7 @@ import Button from '../shared/Button'
 import Avatar from '../shared/Avatar'
 import ReportRecipientsSelector from './ReportRecipientsSelector'
 import * as api from '../../services/api'
-import { serializeDatetimeLocal } from '../../utils/helpers'
+import { serializeDatetimeLocal, formatDateTime, matchesUserQuery } from '../../utils/helpers'
 
 const STEPS = ['Type', 'Configure', 'Candidates', 'Report emails', 'Confirm']
 const TYPES = [
@@ -25,25 +25,6 @@ const TYPES = [
 
 function candidateKey(candidate) {
   return `${candidate.external ? 'external' : 'internal'}:${candidate.id}`
-}
-
-function matchesUser(user, query) {
-  const normalized = query.trim().toLowerCase()
-  if (!normalized) return true
-  const firstName = String(user.first_name || '')
-  const lastName = String(user.last_name || '')
-  const name = `${firstName} ${lastName}`.trim().toLowerCase()
-  const initials = `${firstName[0] || ''}${lastName[0] || ''}`.toLowerCase()
-  let tags
-  try {
-    tags = Array.isArray(user.tags) ? user.tags : JSON.parse(user.tags || '[]')
-  } catch {
-    tags = []
-  }
-  return name.includes(normalized)
-    || String(user.email || '').toLowerCase().includes(normalized)
-    || initials.includes(normalized)
-    || tags.join(' ').toLowerCase().includes(normalized)
 }
 
 function ScheduleModal({
@@ -110,12 +91,10 @@ function ScheduleModal({
           api.getExternalCandidates(),
         ])
         const organizationUsers = orgResponse.data || []
-        const internal = organizationUsers
-          .filter(item => item.role !== 'manager')
-          .map(item => ({
+        const internal = organizationUsers.map(item => ({
           ...item,
           external: false,
-          }))
+        }))
         const external = (externalResponse.data || []).map(item => ({
           ...item,
           external: true,
@@ -151,7 +130,7 @@ function ScheduleModal({
   const selectedCandidates = candidates.filter(candidate =>
     selectedKeys.has(candidateKey(candidate))
   )
-  const visibleCandidates = candidates.filter(candidate => matchesUser(candidate, candidateQuery))
+  const visibleCandidates = candidates.filter(candidate => matchesUserQuery(candidate, candidateQuery))
 
   function toggleCandidate(candidate) {
     const key = candidateKey(candidate)
@@ -378,7 +357,7 @@ function ScheduleModal({
             ['Type', TYPES.find(option => option.id === type)?.label],
             ['Mode', type === 'exam' ? 'Fixed assessment' : interviewMode],
             ['Difficulty', difficulty],
-            ['Date', scheduledAt ? new Date(scheduledAt).toLocaleString() : 'Not selected'],
+            ['Date', scheduledAt ? formatDateTime(scheduledAt) : 'Not selected'],
             ['Questions', questionCount],
             ...(['ai_voice', 'exam'].includes(type) ? [['Duration', `${durationMinutes} minutes`]] : []),
             ['Candidates', selectedCandidates.length],

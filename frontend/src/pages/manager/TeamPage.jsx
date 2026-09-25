@@ -7,7 +7,7 @@ import EmptyState from '../../components/shared/EmptyState'
 import Modal from '../../components/shared/Modal'
 import Button from '../../components/shared/Button'
 import * as api from '../../services/api'
-import { formatDate } from '../../utils/helpers'
+import { formatDate, parseStoredArray } from '../../utils/helpers'
 import ScheduleModal from '../../components/manager/ScheduleModal'
 import AddTeamMemberModal from '../../components/manager/AddTeamMemberModal'
 import EditMemberModal from '../../components/manager/EditMemberModal'
@@ -236,16 +236,6 @@ function TeamPage() {
     return true
   })
   const rows = filtered
-  const parseCandidateTags = (raw) => {
-    if (Array.isArray(raw)) return raw
-    if (!raw) return []
-    try {
-      const parsed = JSON.parse(raw)
-      return Array.isArray(parsed) ? parsed : []
-    } catch {
-      return []
-    }
-  }
   const overdueCount = members.filter(m => isOverdue(m)).length
   const allSel = rows.length > 0 && selected.size === rows.length
   const hasActiveFilter = filterLocation || filterPosition || filterAvailability
@@ -391,7 +381,7 @@ function TeamPage() {
                                   </span>
                                 )}
                                 {/* Skill tags (up to 3) */}
-                                {(() => { try { const t = m.tags; return Array.isArray(t) ? t : JSON.parse(t || '[]') } catch { return [] } })().slice(0, 3).map(t => (
+                                {parseStoredArray(m.tags).slice(0, 3).map(t => (
                                   <span key={t} style={{ fontSize: 10, background: 'var(--bg-surface-alt)', color: 'var(--fg-muted)', padding: '1px 5px', borderRadius: 3, fontWeight: 600 }}>{t}</span>
                                 ))}
                               </div>
@@ -459,7 +449,7 @@ function TeamPage() {
                 <tbody>
                   {externals.map(c => {
                     const name = `${c.first_name} ${c.last_name}`.trim()
-                    const tags = parseCandidateTags(c.tags)
+                    const tags = parseStoredArray(c.tags)
                     return (
                       <tr key={c.id} style={{ transition: 'background 120ms' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-surface-alt)'} onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-surface)'}>
                         <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--border-default)' }}>

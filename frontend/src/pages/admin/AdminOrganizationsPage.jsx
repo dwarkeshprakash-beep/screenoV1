@@ -2,7 +2,7 @@
 // boundary every other RBAC module is scoped under). Backend-driven pagination +
 // search, same pattern as Roles/Users.
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Building2, Search } from 'lucide-react'
 import Spinner from '../../components/shared/Spinner'
@@ -36,14 +36,8 @@ function AdminOrganizationsPage() {
     const timeout = setTimeout(() => { setSearch(searchInput.trim()); setPage(1) }, SEARCH_DEBOUNCE_MS)
     return () => clearTimeout(timeout)
   }, [searchInput])
-  useEffect(() => { loadOrganizations() }, [page, pageSize, search])
-
-  function handlePageSizeChange(newSize) {
-    setPageSize(newSize)
-    setPage(1)
-  }
-
-  async function loadOrganizations() {
+  // Memoised on everything it reads so the effect below re-runs exactly when they change.
+  const loadOrganizations = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
@@ -60,6 +54,12 @@ function AdminOrganizationsPage() {
     } finally {
       setLoading(false)
     }
+  }, [page, pageSize, search])
+  useEffect(() => { loadOrganizations() }, [loadOrganizations])
+
+  function handlePageSizeChange(newSize) {
+    setPageSize(newSize)
+    setPage(1)
   }
 
   async function handleDelete() {

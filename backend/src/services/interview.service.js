@@ -10,22 +10,7 @@ const transcriptionService = require('./transcription.service')
 const emailService = require('./email.service')
 const pdfService = require('./pdf.service')
 const storageService = require('./storage.service')
-const { parseStoredArray } = require('../utils/parse')
-
-function buildResumeContext(interview) {
-  const parts = []
-  if (interview.candidate_resume_text) {
-    parts.push(`Resume text:\n${String(interview.candidate_resume_text).slice(0, 4000)}`)
-  }
-  if (interview.candidate_resume_url) {
-    parts.push(`Resume file URL: ${interview.candidate_resume_url}`)
-  }
-  const tags = parseStoredArray(interview.candidate_tags)
-  if (tags.length > 0) {
-    parts.push(`Candidate resume/profile tags: ${tags.join(', ')}`)
-  }
-  return parts.join('\n') || null
-}
+const { buildResumeContext } = require('../utils/resume-context')
 
 async function getCandidateInterview(interviewId, identity) {
   candidateIdentityService.assertInterviewScope(identity, interviewId)

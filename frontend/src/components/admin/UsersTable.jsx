@@ -1,6 +1,7 @@
 // UsersTable - renders the per-company user list with their RBAC role assignments.
 
-import DataTable, { tdStyle } from '../shared/DataTable'
+import DataTable from '../shared/DataTable'
+import { tdStyle } from '../shared/tableStyles'
 import RowActions from '../shared/RowActions'
 import Badge from '../shared/Badge'
 

@@ -53,10 +53,6 @@ function hasAnyViewPermission(access, moduleKey) {
   return hasModulePermission(access, moduleKey, 'View') || hasModulePermission(access, moduleKey, 'View All')
 }
 
-function hasAnyModulePermission(access, moduleKey) {
-  return Boolean(access?.moduleAccess?.[moduleKey]?.size)
-}
-
 // JSON-safe shape for the frontend (Sets -> arrays) - powers sidebar visibility and
 // client-side route guards. The frontend hiding a nav item is a UX nicety only; the
 // actual enforcement is requireModule() on the backend routes.
@@ -72,5 +68,5 @@ async function getClientAccess(userId) {
 }
 
 module.exports = {
-  getUserAccessContext, hasModulePermission, hasAnyViewPermission, hasAnyModulePermission, getClientAccess,
+  getUserAccessContext, hasModulePermission, hasAnyViewPermission, getClientAccess,
 }

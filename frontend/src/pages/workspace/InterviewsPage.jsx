@@ -11,12 +11,7 @@ import { Calendar, Clock, MapPin, Search } from 'lucide-react'
 import InterviewerAssignmentsPanel from '../../components/shared/InterviewerAssignmentsPanel'
 import Spinner from '../../components/shared/Spinner'
 import * as api from '../../services/api'
-import { formatDate, formatDateTime, interviewAvailability } from '../../utils/helpers'
-
-const INTERVIEW_TYPE_LABEL = {
-  ai_voice: 'AI Voice', exam: 'Coding Exam', human: 'Video Interview',
-  offline: 'Offline Interview', client: 'Client Interview',
-}
+import { formatDate, formatDateTime, interviewAvailability, interviewTypeLabel } from '../../utils/helpers'
 const TYPE_COLOR = { ai_voice: 'var(--brand-500)', exam: 'var(--info-500)', human: 'var(--success-500)', offline: 'var(--warning-500)' }
 const TYPE_BG = { ai_voice: 'var(--brand-50)', exam: 'var(--info-50)', human: 'var(--success-50)', offline: 'var(--warning-50)' }
 
@@ -38,7 +33,7 @@ function InterviewCard({ interview, onLaunch, onJoinHuman, launchingId }) {
           <p style={{ fontSize: 14, fontWeight: 700, color: 'var(--fg-primary)', margin: 0 }}>{interview.context_title || interview.job_title || 'Interview'}</p>
           {interview.company_name && <p style={{ fontSize: 12, color: 'var(--fg-muted)', margin: '2px 0 0' }}>{interview.company_name}</p>}
         </div>
-        <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 6, background, color }}>{INTERVIEW_TYPE_LABEL[interview.type] || interview.type}</span>
+        <span style={{ fontSize: 11, fontWeight: 600, padding: '3px 9px', borderRadius: 6, background, color }}>{interviewTypeLabel(interview.type)}</span>
       </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: canLaunch || canJoinHuman ? 12 : 0 }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--fg-muted)' }}><Clock size={11} />{interview.scheduled_at ? formatDateTime(interview.scheduled_at) : formatDate(interview.created)}</span>

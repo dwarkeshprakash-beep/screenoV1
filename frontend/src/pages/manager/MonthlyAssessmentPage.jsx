@@ -28,7 +28,7 @@ import ConfirmDialog from '../../components/shared/ConfirmDialog'
 import Spinner from '../../components/shared/Spinner'
 import * as api from '../../services/api'
 import { parseStoredArray } from '../../utils/helpers'
-import { useAccess } from '../../context/AccessContext'
+import { useAccess } from '../../hooks/useAccess'
 
 function currentMonth() {
   const date = new Date()

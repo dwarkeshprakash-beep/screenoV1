@@ -2,7 +2,7 @@
 // Roles belong to one company at a time (admin is platform-wide), so a company
 // must be picked before the role list/actions are usable. See docs/rbac-multi-tenant-plan.md.
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { ShieldPlus } from 'lucide-react'
 import Spinner from '../../components/shared/Spinner'
@@ -35,6 +35,15 @@ function AdminRolesPage() {
   const [editingRole, setEditingRole] = useState(null)
   const [deleteTarget, setDeleteTarget] = useState(null)
 
+  async function loadCompanies() {
+    try {
+      const res = await api.getAdminCompanies()
+      setCompanies(res.data || [])
+    } catch {
+      setError('Could not load organizations. Please try again.')
+      setLoading(false)
+    }
+  }
   useEffect(() => { loadCompanies() }, [])
   // Re-derive the selected company whenever the ?companyId= query param changes, not
   // just on mount - OrganizationDetailPage links here with a different companyId each
@@ -49,24 +58,8 @@ function AdminRolesPage() {
     const timeout = setTimeout(() => { setSearch(searchInput.trim()); setPage(1) }, SEARCH_DEBOUNCE_MS)
     return () => clearTimeout(timeout)
   }, [searchInput])
-  useEffect(() => { if (companyId) loadRoles() }, [companyId, page, pageSize, search])
-
-  function handlePageSizeChange(newSize) {
-    setPageSize(newSize)
-    setPage(1)
-  }
-
-  async function loadCompanies() {
-    try {
-      const res = await api.getAdminCompanies()
-      setCompanies(res.data || [])
-    } catch {
-      setError('Could not load companies. Please try again.')
-      setLoading(false)
-    }
-  }
-
-  async function loadRoles() {
+  // Memoised on everything it reads so the effect below re-runs exactly when they change.
+  const loadRoles = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
@@ -83,6 +76,12 @@ function AdminRolesPage() {
     } finally {
       setLoading(false)
     }
+  }, [companyId, page, pageSize, search])
+  useEffect(() => { if (companyId) loadRoles() }, [companyId, loadRoles])
+
+  function handlePageSizeChange(newSize) {
+    setPageSize(newSize)
+    setPage(1)
   }
 
   async function handleDelete() {
@@ -118,7 +117,7 @@ function AdminRolesPage() {
         />
 
         {loading ? <Spinner center /> : error ? <ErrorMessage message={error} onRetry={loadRoles} /> : roles.length === 0 ? (
-          <EmptyState message={search ? 'No roles match your search.' : 'No roles yet for this company. Add the first one.'} />
+          <EmptyState message={search ? 'No roles match your search.' : 'No roles yet for this organization. Add the first one.'} />
         ) : (
           <>
             <RolesTable

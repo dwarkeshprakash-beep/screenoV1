@@ -9,12 +9,8 @@ const interviewHistoryRepository = require('../repositories/interview-history.re
 const externalCandidateRepository = require('../repositories/external-candidate.repository')
 const storageService = require('./storage.service')
 
-function isHttpUrl(value) {
-  return /^https?:\/\//i.test(String(value || ''))
-}
-
 async function withSignedResumeUrl(profile) {
-  if (!profile?.resume_url || isHttpUrl(profile.resume_url)) return profile
+  if (!profile?.resume_url || storageService.isExternalUrl(profile.resume_url)) return profile
   try {
     return {
       ...profile,

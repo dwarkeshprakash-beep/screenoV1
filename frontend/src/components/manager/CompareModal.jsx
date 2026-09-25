@@ -3,6 +3,7 @@
 
 import Modal from '../shared/Modal'
 import Avatar from '../shared/Avatar'
+import { formatDate, parseStoredArray } from '../../utils/helpers'
 
 function assessLabel(lastAssessed) {
   if (!lastAssessed) return { label: 'Never assessed', bg: 'var(--danger-50)', fg: 'var(--danger-500)' }
@@ -48,13 +49,8 @@ function CompareModal({ open, onClose, members = [] }) {
   const assessB = assessLabel(b.last_assessed)
 
   // Tags are stored as JSON string in the DB
-  function parseTags(raw) {
-    if (!raw) return []
-    if (Array.isArray(raw)) return raw
-    try { return JSON.parse(raw) } catch { return [] }
-  }
-  const skillsA = parseTags(a.tags)
-  const skillsB = parseTags(b.tags)
+  const skillsA = parseStoredArray(a.tags)
+  const skillsB = parseStoredArray(b.tags)
   const allSkills = [...new Set([...skillsA, ...skillsB])]
 
   return (
@@ -98,8 +94,8 @@ function CompareModal({ open, onClose, members = [] }) {
         />
         <Row
           label="LAST"
-          left={a.last_assessed ? new Date(a.last_assessed).toLocaleDateString() : 'Never'}
-          right={b.last_assessed ? new Date(b.last_assessed).toLocaleDateString() : 'Never'}
+          left={a.last_assessed ? formatDate(a.last_assessed) : 'Never'}
+          right={b.last_assessed ? formatDate(b.last_assessed) : 'Never'}
         />
       </div>
 

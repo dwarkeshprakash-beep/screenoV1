@@ -37,16 +37,4 @@ async function transcribeGroq(audioBuffer, mimeType = 'audio/webm') {
   return text.trim()
 }
 
-/**
- * Local Whisper transcription - Phase 2 only (@huggingface/transformers).
- * Returns a placeholder until the local model is configured.
- * @param {Buffer} audioBuffer
- * @returns {Promise<string>}
- */
-async function transcribeLocal(audioBuffer) {
-  // Phase 2: replace with @huggingface/transformers whisper-small
-  console.error('Local transcription requested but not yet configured - using API fallback note')
-  return '[Local transcription not available - please configure local Whisper in Phase 2]'
-}
-
-module.exports = { transcribeGroq, transcribeLocal }
+module.exports = { transcribeGroq }

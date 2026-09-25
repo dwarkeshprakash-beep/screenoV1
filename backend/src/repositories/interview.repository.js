@@ -169,33 +169,6 @@ async function cancelScheduledClientInterview(interviewId, clientTemplateId, man
   return rows[0] || null
 }
 
-async function getByInternalUser(userId) {
-  return db.query(
-    `SELECT i.*, ${INTERVIEW_COLS}, sc.overall AS overall_score
-     FROM interviews i
-     ${INTERVIEW_JOINS}
-     LEFT JOIN scorecards sc ON sc.interview_id = i.id
-     WHERE i.internal_user_id = @userId
-     ORDER BY i.created DESC`,
-    { userId }
-  )
-}
-
-const getByInternalUserId = getByInternalUser
-
-async function getByInternalUserForManager(userId, managerId) {
-  return db.query(
-    `SELECT i.*, ${INTERVIEW_COLS}, sc.overall AS overall_score
-     FROM interviews i
-     ${INTERVIEW_JOINS}
-     LEFT JOIN scorecards sc ON sc.interview_id = i.id
-     WHERE i.internal_user_id = @userId
-       AND i.manager_id = @managerId
-     ORDER BY i.created DESC`,
-    { userId, managerId }
-  )
-}
-
 // For the Admin Users module - every interview this internal user was the
 // candidate for, scoped by their OWN company (iu.company_id), not the manager
 // who created the interview. Includes the report row (at most one per interview,
@@ -386,9 +359,6 @@ module.exports = {
   getByClientTemplateForManager,
   getByClientTeamId,
   cancelScheduledClientInterview,
-  getByInternalUser,
-  getByInternalUserId,
-  getByInternalUserForManager,
   getByInternalUserForCompany,
   getByCompany,
   getByCandidateIdentity,

@@ -319,10 +319,6 @@ async function resetPassword(token, newPassword) {
   if (!claimed) throw new Error('Reset link is invalid or expired')
 }
 
-async function validateMagicLink(token) {
-  return claimMagicLink(token)
-}
-
 function assertMagicLinkUsable(interview) {
   if (!interview) throw new Error('Invalid link')
 
@@ -397,7 +393,6 @@ module.exports = {
   validateResetToken,
   previewMagicLink,
   claimMagicLink,
-  validateMagicLink,
   createCandidateLaunch,
   hashToken,
 }

@@ -342,15 +342,6 @@ async function deleteRun(runId, managerId) {
   })
 }
 
-/** Create a candidate run. */
-async function createRun(data) {
-  const rows = await db.query(
-    `INSERT INTO candidate_flow_runs (flow_id, client_team_id, created_by_manager_id)
-     VALUES (@flowId, @clientTeamId, @managerId) RETURNING *`, data
-  )
-  return rows[0]
-}
-
 /** Clone a reusable template and atomically create an isolated candidate run. */
 async function createIsolatedRun(flowId, clientTeamId, managerId) {
   return db.transaction(async tx => {
@@ -823,7 +814,7 @@ module.exports = {
   createFlow, createStage, listByMandate, getOwnedFlow, updateFlow, updateStage,
   syncScheduledStageInterviews, getAssignedInterviewer, syncInterviewAssignments,
   ensureStageRuns, syncStageRunOrder,
-  deleteUnusedStage, deleteFlow, getRunDeletionContext, deleteRun, createRun, createIsolatedRun,
+  deleteUnusedStage, deleteFlow, getRunDeletionContext, deleteRun, createIsolatedRun,
   isolateRun, getOwnedRunFlow, listDirectRunIds, getActiveRun, claimRunStatus,
   listExpiredFlowInterviews, completeAssignmentsAsNoShow, createStageRun,
   updateStageRunStatus,

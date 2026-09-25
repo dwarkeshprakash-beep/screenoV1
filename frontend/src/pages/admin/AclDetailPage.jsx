@@ -132,7 +132,7 @@ function AclDetailPage() {
               } />
             ) : rows.length === 0 ? (
               <EmptyState message={
-                <>No roles exist yet for this company. Create one in the <Link to="/admin/roles">Roles module</Link> first.</>
+                <>No roles exist yet for this organization. Create one in the <Link to="/admin/roles">Roles module</Link> first.</>
               } />
             ) : (
               <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>

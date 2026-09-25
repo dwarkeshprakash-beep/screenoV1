@@ -125,7 +125,8 @@ app.use((req, res) => {
 })
 
 // Global error handler - catches anything thrown without a try/catch
-app.use((err, req, res, next) => {
+// Express identifies error handlers by their 4-argument signature, so _next must stay.
+app.use((err, req, res, _next) => {
   if (err.name === 'MulterError' || /file type not allowed/i.test(err.message)) {
     return res.status(400).json({ success: false, error: err.message })
   }

@@ -1,7 +1,7 @@
 // RowActions - Edit/Delete icon-button pair shared by the admin CRUD list tables.
 
 import { Pencil, Trash2 } from 'lucide-react'
-import { iconBtnStyle } from './DataTable'
+import { iconBtnStyle } from './tableStyles'
 
 function RowActions({ entityLabel, onEdit, onDelete }) {
   return (

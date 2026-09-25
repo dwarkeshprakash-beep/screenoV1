@@ -11,6 +11,7 @@ import Avatar from '../../components/shared/Avatar'
 import ChangePasswordForm from '../../components/shared/ChangePasswordForm'
 import FileUploadButton from '../../components/shared/FileUploadButton'
 import * as api from '../../services/api'
+import { formatDate, parseStoredArray } from '../../utils/helpers'
 
 const MAX_RESUMES = 5
 
@@ -73,7 +74,7 @@ function ProfilePage() {
         timezone: p.timezone || '',
       })
       setAvailability(p.availability || null)
-      try { setResumeTags(JSON.parse(p.tags || '[]')) } catch { setResumeTags([]) }
+      setResumeTags(parseStoredArray(p.tags))
       setResumes(resumesRes.data || [])
 
       let stored = {}
@@ -252,7 +253,7 @@ function ProfilePage() {
                     </p>
                     <p style={{ fontSize: 12, color: 'var(--fg-subtle)', margin: '2px 0 0' }}>
                       {resume.size ? `${(resume.size / 1024).toFixed(1)} KB` : 'Uploaded file'}
-                      {resume.uploadedAt && ` • ${new Date(resume.uploadedAt).toLocaleDateString()}`}
+                      {resume.uploadedAt && ` • ${formatDate(resume.uploadedAt)}`}
                     </p>
                   </div>
                 </div>

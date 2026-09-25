@@ -11,7 +11,6 @@ const storageService = require('../services/storage.service')
 const resumeService = require('../services/resume.service')
 const candidateIdentityService = require('../services/candidate-identity.service')
 const authService = require('../services/auth.service')
-const monthlyAssessmentRepository = require('../repositories/monthly-assessment.repository')
 const clientOutcomeRoundsRepo = require('../repositories/client-outcome-rounds.repository')
 const { launchWindow, launchWindowMessage } = require('../services/interview-window.service')
 const db = require('../db/connection')
@@ -22,21 +21,6 @@ const router = express.Router()
 // modules (interviews, feedback, outcomes, client_mandates, monthly_assessments), each
 // gated per-route below. Only auth/access-context loading is common to all of them.
 router.use(authMiddleware, loadAccess)
-
-function isHttpUrl(value) {
-  return /^https?:\/\//i.test(String(value || ''))
-}
-
-async function safeSignedResumeUrl(value) {
-  if (!value) return null
-  if (isHttpUrl(value)) return value
-  try {
-    return await storageService.getSignedUrl(value)
-  } catch (err) {
-    console.error('Failed to sign resume URL:', err.message)
-    return null
-  }
-}
 
 router.get('/interviews', requireModule('interviews'), async (req, res) => {
   try {
@@ -183,7 +167,7 @@ router.get('/client-mandates', requireModule('client_mandates', { permission: 'V
         { ctId: row.id }
       )
       const publishedRounds = await clientOutcomeRoundsRepo.listVisibleByClientTeamId(row.id)
-      const resumeDownloadUrl = await safeSignedResumeUrl(row.client_resume_url)
+      const resumeDownloadUrl = await storageService.resolveFileUrl(row.client_resume_url)
       const jdText = row.jd_sent ? (row.requirement_jd_text || row.jd_text || null) : null
       const mandateTags = row.jd_sent ? (row.requirement_tags || row.mandate_tags || null) : null
       return {
@@ -192,7 +176,7 @@ router.get('/client-mandates', requireModule('client_mandates', { permission: 'V
         jd_text: jdText,
         mandate_tags: mandateTags,
         resume_deadline: null,
-        client_resume_storage_path: row.client_resume_url && !isHttpUrl(row.client_resume_url)
+        client_resume_storage_path: row.client_resume_url && !storageService.isExternalUrl(row.client_resume_url)
           ? row.client_resume_url
           : null,
         client_resume_url: resumeDownloadUrl,
@@ -252,13 +236,13 @@ router.post(
       }
 
       const updated = await clientTeamRepo.updateClientResume(ctId, asset.storage_path, asset.id)
-      const resumeDownloadUrl = await safeSignedResumeUrl(updated.client_resume_url)
+      const resumeDownloadUrl = await storageService.resolveFileUrl(updated.client_resume_url)
 
       res.json({
         success: true,
         data: {
           ...updated,
-          client_resume_storage_path: updated.client_resume_url && !isHttpUrl(updated.client_resume_url)
+          client_resume_storage_path: updated.client_resume_url && !storageService.isExternalUrl(updated.client_resume_url)
             ? updated.client_resume_url
             : null,
           client_resume_url: resumeDownloadUrl,
@@ -288,7 +272,7 @@ router.get('/client-mandates/:ctId/resume', requireModule(['client_mandates', 'o
     if (entry.submitted_resume_asset_id) {
       const asset = await resumeRepository.getAssetById(entry.submitted_resume_asset_id)
       if (asset) {
-        const downloadUrl = await safeSignedResumeUrl(asset.storage_path)
+        const downloadUrl = await storageService.resolveFileUrl(asset.storage_path)
         resumeMetadata = {
           id: asset.id,
           filename: asset.original_filename,
@@ -304,7 +288,7 @@ router.get('/client-mandates/:ctId/resume', requireModule(['client_mandates', 'o
       resumeMetadata = {
         filename: 'resume.pdf',
         submittedAt: entry.resume_updated_at,
-        downloadUrl: await safeSignedResumeUrl(entry.client_resume_url),
+        downloadUrl: await storageService.resolveFileUrl(entry.client_resume_url),
         isSnapshot: false
       }
     }
@@ -438,7 +422,7 @@ router.get('/client-outcomes', requireModule('outcomes'), async (req, res) => {
       clientTeams.map(async (ct) => {
         const [rounds, resumeUrl] = await Promise.all([
           clientOutcomeRoundsRepo.listVisibleByClientTeamId(ct.id),
-          safeSignedResumeUrl(ct.client_resume_url),
+          storageService.resolveFileUrl(ct.client_resume_url),
         ])
         return {
           client_team_id: ct.id,

@@ -6,22 +6,7 @@ const reportRepository = require('../repositories/report.repository')
 const scorecardRepository = require('../repositories/scorecard.repository')
 const llmService = require('./llm.service')
 const judgeService = require('./judge.service')
-const { parseStoredArray } = require('../utils/parse')
-
-function buildResumeContext(interview) {
-  const parts = []
-  if (interview.candidate_resume_text) {
-    parts.push(`Resume text:\n${String(interview.candidate_resume_text).slice(0, 4000)}`)
-  }
-  if (interview.candidate_resume_url) {
-    parts.push(`Resume file URL: ${interview.candidate_resume_url}`)
-  }
-  const tags = parseStoredArray(interview.candidate_tags)
-  if (tags.length > 0) {
-    parts.push(`Candidate resume/profile tags: ${tags.join(', ')}`)
-  }
-  return parts.join('\n') || null
-}
+const { buildResumeContext } = require('../utils/resume-context')
 
 function validateInterview(interview) {
   if (!interview || interview.type !== 'exam') throw new Error('Invalid or expired link')

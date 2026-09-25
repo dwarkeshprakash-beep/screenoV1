@@ -1326,7 +1326,7 @@ async function run() {
   assert.equal(externalSchedule.status, 201)
   state.interviewIds.push(externalSchedule.payload.data.id)
 
-  const calendar = await api('/api/schedule/calendar', { token: managerToken })
+  const calendar = await api('/api/schedule/interviews', { token: managerToken })
   assert.equal(calendar.status, 200)
   assert.ok(calendar.payload.data.some(item => item.id === schedule.payload.data.id))
 

@@ -20,14 +20,6 @@ async function create(data) {
   return rows[0]
 }
 
-async function getById(id) {
-  const rows = await db.query(
-    `SELECT * FROM external_candidates WHERE id = @id`,
-    { id }
-  )
-  return rows[0] || null
-}
-
 async function getByIdForCompany(id, companyId) {
   const rows = await db.query(
     `SELECT *
@@ -53,4 +45,4 @@ async function getByCompany(companyId) {
   )
 }
 
-module.exports = { create, getById, getByIdForCompany, getByCompany }
+module.exports = { create, getByIdForCompany, getByCompany }

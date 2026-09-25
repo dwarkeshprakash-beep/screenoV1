@@ -10,7 +10,7 @@ import ScheduleModal from '../../components/manager/ScheduleModal'
 import RescheduleModal from '../../components/manager/RescheduleModal'
 import * as api from '../../services/api'
 import { formatDateTime } from '../../utils/helpers'
-import { useAccess } from '../../context/AccessContext'
+import { useAccess } from '../../hooks/useAccess'
 
 const HOURS = Array.from({ length: 9 }, (_, i) => i + 9)
 const H = 60
@@ -389,7 +389,7 @@ function SchedulePage() {
                       <div className="assignment-row" key={row.id}>
                         <div className="assignment-row__content">
                           <strong>{row.kind}</strong>
-                          <span>{row.intended_to || 'No recipient'} | {row.created ? new Date(row.created).toLocaleString() : ''}</span>
+                          <span>{row.intended_to || 'No recipient'} | {row.created ? formatDateTime(row.created) : ''}</span>
                           {row.error && <span style={{ color: 'var(--danger-700)' }}>{row.error}</span>}
                         </div>
                         <span className={`status-pill${row.status === 'sent' ? ' status-pill--success' : ' status-pill--danger'}`}>{row.status}</span>

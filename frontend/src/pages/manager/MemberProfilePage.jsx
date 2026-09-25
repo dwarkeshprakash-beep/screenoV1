@@ -5,7 +5,7 @@ import Spinner from '../../components/shared/Spinner'
 import ErrorMessage from '../../components/shared/ErrorMessage'
 import EmptyState from '../../components/shared/EmptyState'
 import * as api from '../../services/api'
-import { formatDate } from '../../utils/helpers'
+import { formatDate, parseStoredArray } from '../../utils/helpers'
 import ScheduleModal from '../../components/manager/ScheduleModal'
 import EditMemberModal from '../../components/manager/EditMemberModal'
 import InterviewHistoryPanel from '../../components/manager/InterviewHistoryPanel'
@@ -181,14 +181,14 @@ function MemberProfilePage() {
     }
   }
 
-  const strengthsList = (() => { try { return JSON.parse(report?.strengths || '[]') } catch { return [] } })()
+  const strengthsList = parseStoredArray(report?.strengths)
 
   if (loading) return <Spinner center />
   if (error)   return <ErrorMessage message={error} />
   if (!member) return <EmptyState message="Member not found." />
 
   const fullName = `${member.first_name || ''} ${member.last_name || ''}`.trim()
-  const tags     = (() => { try { return typeof member.tags === 'string' ? JSON.parse(member.tags) : (member.tags || []) } catch { return [] } })()
+  const tags     = parseStoredArray(member.tags)
   const assessmentCount = reportHistory.length
   const bestScore = reportHistory.reduce((max, r) => {
     const s = Number(r.overall_score)

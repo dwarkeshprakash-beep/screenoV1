@@ -10,6 +10,7 @@ const userService = require('../services/user.service')
 const companyRepository = require('../repositories/company.repository')
 const clientTemplateRepository = require('../repositories/client-template.repository')
 const userRepository = require('../repositories/user.repository')
+const adminRepository = require('../repositories/admin.repository')
 
 const router = express.Router()
 router.use(authMiddleware, loadAccess, requirePlatformAdmin)
@@ -21,7 +22,7 @@ router.get('/companies', async (req, res) => {
     res.json({ success: true, data: companies })
   } catch (err) {
     console.error('[Admin] GET /companies failed:', err.message)
-    res.status(500).json({ success: false, error: 'Could not load companies' })
+    res.status(500).json({ success: false, error: 'Could not load organizations' })
   }
 })
 
@@ -55,7 +56,7 @@ router.patch('/mandates/:id/reassign', async (req, res) => {
 
     const mandate = await clientTemplateRepository.getById(mandateId, newManager.company_id)
     if (!mandate) {
-      return res.status(404).json({ success: false, error: 'Mandate not found or not in same company' })
+      return res.status(404).json({ success: false, error: 'Mandate not found or not in same organization' })
     }
 
     const updated = await clientTemplateRepository.update(mandateId, newManagerId, { manager_id: newManagerId })
@@ -68,9 +69,9 @@ router.patch('/mandates/:id/reassign', async (req, res) => {
 
 const CREATE_USER_ERROR_STATUS = {
   'email is required': 400,
-  'Company not found': 404,
+  'Organization not found': 404,
   'Select a valid role for this user': 400,
-  'A user with this email already exists in that company': 409,
+  'A user with this email already exists in that organization': 409,
   'Could not create user - email may already be in use': 409,
 }
 
@@ -110,17 +111,11 @@ router.patch('/mandates/:id/force-status', async (req, res) => {
       return res.status(400).json({ success: false, error: 'archived must be boolean' })
     }
 
-    const updated = await db.query(
-      `UPDATE client_templates
-       SET archived_at = CASE WHEN @archived THEN NOW() ELSE NULL END
-       WHERE id = @mandateId
-       RETURNING *`,
-      { mandateId, archived }
-    )
-    if (updated.length === 0) {
+    const updated = await adminRepository.setMandateArchived(mandateId, archived)
+    if (!updated) {
       return res.status(404).json({ success: false, error: 'Mandate not found' })
     }
-    res.json({ success: true, data: updated[0] })
+    res.json({ success: true, data: updated })
   } catch (err) {
     console.error('[Admin] PATCH /mandates/:id/force-status failed:', err.message)
     res.status(500).json({ success: false, error: 'Could not update mandate status' })
@@ -130,22 +125,19 @@ router.patch('/mandates/:id/force-status', async (req, res) => {
 router.delete('/mandates/:id/force-delete', async (req, res) => {
   try {
     const mandateId = parseInt(req.params.id, 10)
-    const mandate = await db.query(
-      `SELECT id, client_name, manager_id FROM client_templates WHERE id = @mandateId`,
-      { mandateId }
-    )
-    if (mandate.length === 0) {
+    const mandate = await adminRepository.getMandateSummary(mandateId)
+    if (!mandate) {
       return res.status(404).json({ success: false, error: 'Mandate not found' })
     }
-    if (req.body.confirmText !== mandate[0].client_name) {
+    if (req.body.confirmText !== mandate.client_name) {
       return res.status(400).json({
         success: false,
         error: 'Confirmation text does not match mandate client name',
       })
     }
 
-    const impact = await mandateLifecycleService.getDeletionImpact(mandateId, mandate[0].manager_id)
-    await mandateLifecycleService.permanentlyDeleteMandate(mandateId, mandate[0].manager_id)
+    const impact = await mandateLifecycleService.getDeletionImpact(mandateId, mandate.manager_id)
+    await mandateLifecycleService.permanentlyDeleteMandate(mandateId, mandate.manager_id)
     res.json({ success: true, data: { deleted: true, impact } })
   } catch (err) {
     console.error('[Admin] DELETE /mandates/:id/force-delete failed:', err.message)
@@ -156,29 +148,7 @@ router.delete('/mandates/:id/force-delete', async (req, res) => {
 router.get('/interviews', async (req, res) => {
   try {
     const status = req.query.status ? String(req.query.status) : null
-    const statusFilter = status ? 'WHERE i.status = @status' : ''
-    const interviews = await db.query(
-      `SELECT
-         i.id, i.status, i.type, i.scheduled_at, i.available_from, i.due_at,
-         i.client_template_id, i.monthly_assessment_id, i.client_team_id, i.created,
-         COALESCE(iu.first_name, ec.first_name) AS first_name,
-         COALESCE(iu.last_name, ec.last_name) AS last_name,
-         COALESCE(iu.email, ec.email) AS email,
-         c.name AS company_name,
-         ct.client_name AS mandate_name,
-         ma.subject_name AS monthly_subject
-       FROM interviews i
-       LEFT JOIN users iu ON iu.id = i.internal_user_id
-       LEFT JOIN external_candidates ec ON ec.id = i.external_candidate_id
-       LEFT JOIN users manager ON manager.id = i.manager_id
-       LEFT JOIN companies c ON c.id = manager.company_id
-       LEFT JOIN client_templates ct ON ct.id = i.client_template_id
-       LEFT JOIN monthly_assessments ma ON ma.id = i.monthly_assessment_id
-       ${statusFilter}
-       ORDER BY i.created DESC
-       LIMIT 100`,
-      status ? { status } : {}
-    )
+    const interviews = await adminRepository.getRecentInterviews(status)
     res.json({ success: true, data: interviews })
   } catch (err) {
     console.error('[Admin] GET /interviews failed:', err.message)
@@ -197,17 +167,11 @@ router.patch('/interviews/:id/force-status', async (req, res) => {
       })
     }
 
-    const updated = await db.query(
-      `UPDATE interviews
-       SET status = @status
-       WHERE id = @interviewId
-       RETURNING *`,
-      { interviewId, status: req.body.status }
-    )
-    if (updated.length === 0) {
+    const updated = await adminRepository.setInterviewStatus(interviewId, req.body.status)
+    if (!updated) {
       return res.status(404).json({ success: false, error: 'Interview not found' })
     }
-    res.json({ success: true, data: updated[0] })
+    res.json({ success: true, data: updated })
   } catch (err) {
     console.error('[Admin] PATCH /interviews/:id/force-status failed:', err.message)
     res.status(500).json({ success: false, error: 'Could not update interview status' })
@@ -225,18 +189,11 @@ router.patch('/client-teams/:id/force-status', async (req, res) => {
       })
     }
 
-    const updated = await db.query(
-      `UPDATE client_teams
-       SET status = @status,
-           notes = COALESCE(@notes, notes)
-       WHERE id = @clientTeamId
-       RETURNING *`,
-      { clientTeamId, status: req.body.status, notes: req.body.notes || null }
-    )
-    if (updated.length === 0) {
+    const updated = await adminRepository.setClientTeamStatus(clientTeamId, req.body.status, req.body.notes || null)
+    if (!updated) {
       return res.status(404).json({ success: false, error: 'Client team member not found' })
     }
-    res.json({ success: true, data: updated[0] })
+    res.json({ success: true, data: updated })
   } catch (err) {
     console.error('[Admin] PATCH /client-teams/:id/force-status failed:', err.message)
     res.status(500).json({ success: false, error: 'Could not update client team status' })
@@ -247,34 +204,20 @@ router.post('/client-teams/:id/reassign-requirement', async (req, res) => {
   try {
     const clientTeamId = parseInt(req.params.id, 10)
     const requirementId = req.body.requirementId ? Number(req.body.requirementId) : null
-    const current = await db.query(
-      `SELECT id, mandate_id FROM client_teams WHERE id = @clientTeamId`,
-      { clientTeamId }
-    )
-    if (current.length === 0) {
+    const current = await adminRepository.getClientTeamMandate(clientTeamId)
+    if (!current) {
       return res.status(404).json({ success: false, error: 'Client team member not found' })
     }
 
     if (requirementId) {
-      const requirement = await db.query(
-        `SELECT id FROM client_mandate_requirements
-         WHERE id = @requirementId
-           AND mandate_id = @mandateId`,
-        { requirementId, mandateId: current[0].mandate_id }
-      )
-      if (requirement.length === 0) {
+      const belongs = await adminRepository.requirementBelongsToMandate(requirementId, current.mandate_id)
+      if (!belongs) {
         return res.status(400).json({ success: false, error: 'Requirement does not belong to this mandate' })
       }
     }
 
-    const updated = await db.query(
-      `UPDATE client_teams
-       SET requirement_id = @requirementId
-       WHERE id = @clientTeamId
-       RETURNING *`,
-      { clientTeamId, requirementId }
-    )
-    res.json({ success: true, data: updated[0] })
+    const updated = await adminRepository.setClientTeamRequirement(clientTeamId, requirementId)
+    res.json({ success: true, data: updated })
   } catch (err) {
     console.error('[Admin] POST /client-teams/:id/reassign-requirement failed:', err.message)
     res.status(500).json({ success: false, error: 'Could not reassign requirement' })
@@ -285,13 +228,7 @@ router.get('/broken-states', async (req, res) => {
   try {
     const issues = []
 
-    const orphanedMandates = await db.query(
-      `SELECT ct.id, ct.client_name, ct.manager_id
-       FROM client_templates ct
-       LEFT JOIN users u ON u.id = ct.manager_id
-       WHERE u.id IS NULL`,
-      {}
-    )
+    const orphanedMandates = await adminRepository.getOrphanedMandates()
     if (orphanedMandates.length > 0) {
       issues.push({
         type: 'orphaned_mandates',
@@ -301,18 +238,7 @@ router.get('/broken-states', async (req, res) => {
       })
     }
 
-    const invalidRequirements = await db.query(
-      `SELECT ct.id, ct.mandate_id, ct.user_id, ct.requirement_id
-       FROM client_teams ct
-       WHERE ct.requirement_id IS NOT NULL
-         AND NOT EXISTS (
-           SELECT 1
-           FROM client_mandate_requirements cmr
-           WHERE cmr.id = ct.requirement_id
-             AND cmr.mandate_id = ct.mandate_id
-         )`,
-      {}
-    )
+    const invalidRequirements = await adminRepository.getInvalidRequirementLinks()
     if (invalidRequirements.length > 0) {
       issues.push({
         type: 'invalid_requirements',
@@ -322,13 +248,7 @@ router.get('/broken-states', async (req, res) => {
       })
     }
 
-    const stuckInterviews = await db.query(
-      `SELECT id, status, type, scheduled_at, created
-       FROM interviews
-       WHERE status = 'in_progress'
-         AND created < NOW() - INTERVAL '7 days'`,
-      {}
-    )
+    const stuckInterviews = await adminRepository.getStuckInterviews()
     if (stuckInterviews.length > 0) {
       issues.push({
         type: 'stuck_interviews',

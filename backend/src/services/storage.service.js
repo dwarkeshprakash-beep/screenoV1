@@ -29,7 +29,7 @@ async function uploadResumeAsset(buffer, ownerId, file = {}) {
   const uuid = crypto.randomUUID()
   const path = `resumes/${ownerId}/${uuid}.${extension}`
 
-  const { data, error } = await supabase.storage.from(BUCKET).upload(path, buffer, {
+  const { error } = await supabase.storage.from(BUCKET).upload(path, buffer, {
     contentType,
     upsert: false,
   })
@@ -72,18 +72,6 @@ async function uploadReportAsset(buffer, reportId) {
   if (error) throw error
 
   return { path }
-}
-
-/**
- * Alias for uploadReportAsset that also returns a signed URL.
- * @param {Buffer} buffer
- * @param {number|string} reportId
- * @returns {Promise<{ path: string, url: string }>}
- */
-async function uploadReport(buffer, reportId) {
-  const { path } = await uploadReportAsset(buffer, reportId)
-  const url = await getSignedUrl(path)
-  return { path, url }
 }
 
 /** Upload an optional document attached to interviewer feedback. */
@@ -144,6 +132,33 @@ async function getSignedUrl(path, expiresIn = 3600) {
 }
 
 /**
+ * True when a stored file reference is already a full http(s) URL (legacy rows)
+ * rather than a Supabase Storage path that still needs signing.
+ * @param {string} value
+ * @returns {boolean}
+ */
+function isExternalUrl(value) {
+  return /^https?:\/\//i.test(String(value || ''))
+}
+
+/**
+ * Turn a stored file reference into a downloadable URL: full URLs pass through,
+ * storage paths are signed. Never throws - returns null if signing fails.
+ * @param {string} value - storage path or URL
+ * @returns {Promise<string|null>}
+ */
+async function resolveFileUrl(value) {
+  if (!value) return null
+  if (isExternalUrl(value)) return value
+  try {
+    return await getSignedUrl(value)
+  } catch (err) {
+    console.error('Failed to sign storage URL:', err.message)
+    return null
+  }
+}
+
+/**
  * Delete a file from Supabase Storage by its path.
  * @param {string} path - storage path
  */
@@ -184,9 +199,10 @@ module.exports = {
   uploadResumeAsset,
   uploadResume,
   uploadReportAsset,
-  uploadReport,
   uploadJdAsset,
   getSignedUrl,
+  isExternalUrl,
+  resolveFileUrl,
   deleteFile,
   cleanupOrphanedFiles,
   downloadFile,

@@ -26,7 +26,7 @@ function CompanyScopedToolbar({
     }}>
       <div style={{ display: 'flex', alignItems: 'flex-end', gap: 16, flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <label htmlFor="company-scoped-select" style={labelStyle}>Company</label>
+          <label htmlFor="company-scoped-select" style={labelStyle}>Organization</label>
           <div style={{ position: 'relative' }}>
             <select id="company-scoped-select" value={companyId || ''} onChange={e => onCompanyChange(Number(e.target.value))} style={selectStyle}>
               {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}

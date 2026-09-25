@@ -19,7 +19,7 @@ import Spinner from '../../components/shared/Spinner'
 import * as api from '../../services/api'
 import { formatDate, formatDateTime, parseStoredArray, serializeDatetimeLocal } from '../../utils/helpers'
 import { APP_NAME } from '../../config/app.config'
-import { useAccess } from '../../context/AccessContext'
+import { useAccess } from '../../hooks/useAccess'
 
 const parseTags = parseStoredArray
 const MANDATE_FILTERS = [
@@ -277,20 +277,37 @@ function CreateMandateModal({ open, onClose, onCreated, isBde = false }) {
     setHighlightedCompanyIndex(-1)
     setAssignedManagerId('')
     setAssignedBdeId('')
-    setCompaniesLoading(true)
-    api.getClientTemplates('all')
-      .then(response => setExistingMandates(response.data || []))
-      .catch(() => setExistingMandates([]))
-      .finally(() => setCompaniesLoading(false))
-    if (isBde) {
-      api.getClientTemplateManagers()
-        .then(response => setManagers(response.data || []))
-        .catch(() => setManagers([]))
-    } else {
-      api.getClientTemplateBdes()
-        .then(response => setBdes(response.data || []))
-        .catch(() => setBdes([]))
+    // The two loaders run in parallel - neither awaits the other.
+    async function loadExistingMandates() {
+      setCompaniesLoading(true)
+      try {
+        const response = await api.getClientTemplates('all')
+        setExistingMandates(response.data || [])
+      } catch {
+        setExistingMandates([])
+      } finally {
+        setCompaniesLoading(false)
+      }
     }
+    async function loadAssignees() {
+      if (isBde) {
+        try {
+          const response = await api.getClientTemplateManagers()
+          setManagers(response.data || [])
+        } catch {
+          setManagers([])
+        }
+      } else {
+        try {
+          const response = await api.getClientTemplateBdes()
+          setBdes(response.data || [])
+        } catch {
+          setBdes([])
+        }
+      }
+    }
+    loadExistingMandates()
+    loadAssignees()
   }, [open, isBde])
 
   const companies = useMemo(() => {
@@ -691,11 +708,15 @@ function EditMandateModal({ open, template, onClose, onSaved, isBde = false }) {
     setTags(parseTags(template.tags))
     setAssignedBdeId(template.assigned_bde_id ? String(template.assigned_bde_id) : '')
     setError(null)
-    if (!isBde) {
-      api.getClientTemplateBdes()
-        .then(response => setBdes(response.data || []))
-        .catch(() => setBdes([]))
+    async function loadBdes() {
+      try {
+        const response = await api.getClientTemplateBdes()
+        setBdes(response.data || [])
+      } catch {
+        setBdes([])
+      }
     }
+    if (!isBde) loadBdes()
   }, [open, template, isBde])
 
   async function readJdFile(event) {
@@ -994,11 +1015,18 @@ function AddProspectsModal({ open, onClose, onAdded, mandateId, requirements }) 
 
   useEffect(() => {
     if (!open) { setSelectedIds([]); setQuery(''); setError(null); return }
-    setLoading(true)
-    api.getTemplateMatches(mandateId)
-      .then(r => setMembers(r.data || []))
-      .catch(() => setMembers([]))
-      .finally(() => setLoading(false))
+    async function loadMatches() {
+      setLoading(true)
+      try {
+        const r = await api.getTemplateMatches(mandateId)
+        setMembers(r.data || [])
+      } catch {
+        setMembers([])
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadMatches()
   }, [open, mandateId])
 
   const teamMembers = useMemo(() => members.filter(m => m.in_team), [members])
@@ -1317,9 +1345,15 @@ function ScheduleClientTeamModal({ open, onClose, onScheduled, member, template 
     setReportUserIds([])
     setInterviewerUserId('')
     setError(null)
-    api.getScheduleOrgUsers()
-      .then(response => setOrganizationUsers((response.data || []).filter(user => Number(user.id) !== Number(member.user_id))))
-      .catch(() => setOrganizationUsers([]))
+    async function loadOrganizationUsers() {
+      try {
+        const response = await api.getScheduleOrgUsers()
+        setOrganizationUsers((response.data || []).filter(user => Number(user.id) !== Number(member.user_id)))
+      } catch {
+        setOrganizationUsers([])
+      }
+    }
+    loadOrganizationUsers()
   }, [open, member.user_id])
 
   function validateDetails() {
@@ -1858,24 +1892,32 @@ function MandateDetail({ initialTemplate, isBde = false, basePath = '/manager' }
   useEffect(() => {
     setReportsError(null)
     if (tab !== 'reports') return
-    api.getTeamReports('client')
-      .then(r => setReports((r.data?.reports || []).filter(rp => Number(rp.client_template_id) === Number(template.id))))
-      .catch(err => {
+    async function loadReports() {
+      try {
+        const r = await api.getTeamReports('client')
+        setReports((r.data?.reports || []).filter(rp => Number(rp.client_template_id) === Number(template.id)))
+      } catch (err) {
         setReportsError(err.message || 'Failed to load reports')
-      })
+      }
+    }
+    loadReports()
   }, [tab, template.id])
   useEffect(() => {
     if (tab !== 'flows') return
     setFlowRunsError(null)
-    Promise.all([
-      api.getMandateInterviewFlowRuns(template.id),
-      api.getMandateSchedules(template.id),
-    ])
-      .then(([runsResponse, schedulesResponse]) => {
+    async function loadFlowRuns() {
+      try {
+        const [runsResponse, schedulesResponse] = await Promise.all([
+          api.getMandateInterviewFlowRuns(template.id),
+          api.getMandateSchedules(template.id),
+        ])
         setFlowRuns(runsResponse.data || [])
         setScheduleRows(schedulesResponse.data || [])
-      })
-      .catch(err => setFlowRunsError(err.message || 'Failed to load schedules'))
+      } catch (err) {
+        setFlowRunsError(err.message || 'Failed to load schedules')
+      }
+    }
+    loadFlowRuns()
   }, [tab, template.id])
 
   const teamMembers = useMemo(() => members.filter(m => m.in_team), [members])
@@ -2548,7 +2590,7 @@ function MandateDetail({ initialTemplate, isBde = false, basePath = '/manager' }
                       && new Date(stage.interview_due_at) <= new Date()
                     )) && (
                       <div style={{ display: 'flex', gap: 8, marginTop: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: 12, color: 'var(--status-danger)' }}>Current stage expired without attendance.</span>
+                        <span style={{ fontSize: 12, color: 'var(--danger-600)' }}>Current stage expired without attendance.</span>
                         <Button size="sm" onClick={() => processExpiredRun(run.run_id)}>Process no-show</Button>
                       </div>
                     )}
@@ -2842,12 +2884,19 @@ function ClientInterviewsPage() {
       return
     }
     let cancelled = false
-    setDetailLoading(true)
-    setDetailError(null)
-    api.getClientTemplate(mandateId)
-      .then(response => { if (!cancelled) setSelectedTemplate(response.data) })
-      .catch(err => { if (!cancelled) setDetailError(err.message || 'Could not load this mandate.') })
-      .finally(() => { if (!cancelled) setDetailLoading(false) })
+    async function loadMandate() {
+      setDetailLoading(true)
+      setDetailError(null)
+      try {
+        const response = await api.getClientTemplate(mandateId)
+        if (!cancelled) setSelectedTemplate(response.data)
+      } catch (err) {
+        if (!cancelled) setDetailError(err.message || 'Could not load this mandate.')
+      } finally {
+        if (!cancelled) setDetailLoading(false)
+      }
+    }
+    loadMandate()
     return () => { cancelled = true }
   }, [mandateId])
 

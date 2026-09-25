@@ -1,7 +1,8 @@
 // PermissionsTable - renders the global permissions catalog list. Add-only -
 // no edit/delete actions, so this table only ever displays.
 
-import DataTable, { tdStyle } from '../shared/DataTable'
+import DataTable from '../shared/DataTable'
+import { tdStyle } from '../shared/tableStyles'
 import Badge from '../shared/Badge'
 import { formatDate } from '../../utils/helpers'
 

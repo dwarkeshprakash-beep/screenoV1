@@ -53,7 +53,7 @@ class ErrorBoundary extends Component {
             textAlign: 'center',
           }}
         >
-          <h2 style={{ fontSize: 18, fontWeight: 700, color: 'var(--fg-heading, var(--slate-900))' }}>Something went wrong</h2>
+          <h2 style={{ fontSize: 18, fontWeight: 700, color: 'var(--fg-primary)' }}>Something went wrong</h2>
           <p style={{ fontSize: 14, color: 'var(--fg-muted, #64748B)', maxWidth: 420 }}>
             This page ran into an unexpected error. Reloading usually fixes it - your data is safe.
           </p>

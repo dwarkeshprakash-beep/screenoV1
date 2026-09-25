@@ -16,12 +16,17 @@ export function MonthlyReports() {
   const [userFilter, setUserFilter] = useState('')
 
   useEffect(() => {
-    api.getTeamReports('monthly')
-      .then(res => {
+    async function loadReports() {
+      try {
+        const res = await api.getTeamReports('monthly')
         setReports(Array.isArray(res) ? res : res.data?.reports || res.reports || [])
-      })
-      .catch(err => setError('Could not load reports. ' + err.message))
-      .finally(() => setLoading(false))
+      } catch (err) {
+        setError('Could not load reports. ' + err.message)
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadReports()
   }, [])
 
   const openReport = async (report) => {

@@ -1,5 +1,5 @@
 // Select - labeled dropdown styled to match Input.jsx, with the chevron affordance
-// every admin form's custom dropdown (module picker, portal picker, ...) needs.
+// every admin form's custom dropdown needs.
 
 import { ChevronDown } from 'lucide-react'
 

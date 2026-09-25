@@ -41,12 +41,15 @@ code, kbd, pre, samp, .ds-code {
   /* COLOR — Semantic */
   --danger-50:   #FFEDE6;
   --danger-100:  #FFD4C2;
+  --danger-200:  #FFB59C;   /* Soft error borders */
+  --danger-300:  #FF8A66;
   --danger-500:  #FF5C35;   /* Reject / errors */
   --danger-600:  #E0451F;
   --danger-700:  #B53618;
 
   --success-50:  #ECFDF5;
   --success-100: #D1FAE5;
+  --success-200: #A7F3D0;   /* Soft success borders */
   --success-500: #059669;   /* Pass / completed */
   --success-600: #047857;
   --success-700: #065F46;
@@ -60,6 +63,7 @@ code, kbd, pre, samp, .ds-code {
   --info-50:     #EFF6FF;
   --info-500:    #2563EB;
   --info-600:    #1D4ED8;
+  --info-700:    #1E40AF;
 
   /* COLOR — Neutrals (slate) */
   --slate-50:  #F8FAFC;

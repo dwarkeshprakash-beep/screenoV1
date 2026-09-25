@@ -26,17 +26,17 @@ const PAGE_META = {
   '/admin/interviews':         { title: 'Admin Interviews',    subtitle: 'Inspect and repair interview states' },
   '/admin/broken-states':      { title: 'Broken States',       subtitle: 'Detect and resolve inconsistent data' },
   '/admin/organizations':      { title: 'Organizations',       subtitle: 'Manage tenant organizations' },
-  '/admin/roles':              { title: 'Roles',               subtitle: 'Manage the role catalog for each company' },
+  '/admin/roles':              { title: 'Roles',               subtitle: 'Manage the role catalog for each organization' },
   '/admin/users':              { title: 'Users',               subtitle: 'Create users and manage their role assignments' },
   '/admin/modules':            { title: 'Modules',             subtitle: 'The fixed catalog of gate-able feature areas' },
-  '/admin/acls':               { title: 'ACLs',                subtitle: 'Each ACL gates one module for the selected company' },
+  '/admin/acls':               { title: 'ACLs',                subtitle: 'Each ACL gates one module for the selected organization' },
   '/admin/permissions':        { title: 'Permissions',         subtitle: 'The global catalog of actions an ACL can grant to a role' },
 }
 
 function getPageMeta(pathname) {
   if (PAGE_META[pathname]) return PAGE_META[pathname]
   if (pathname.startsWith('/workspace/team/')) return { title: 'Member Profile', subtitle: 'Team member details and history' }
-  if (pathname.startsWith('/workspace/organization/')) return { title: 'Organization Profile', subtitle: 'Company user details and history' }
+  if (pathname.startsWith('/workspace/organization/')) return { title: 'Organization Profile', subtitle: 'Organization user details and history' }
   return { title: '', subtitle: '' }
 }
 
@@ -65,7 +65,7 @@ function RoleBar({ role, onLogout, onLogoClick }) {
       display: 'flex', alignItems: 'center',
       padding: '0 14px', gap: 4,
       position: 'sticky', top: 0, zIndex: 100,
-      borderBottom: '1px solid #1E293B', flexShrink: 0,
+      borderBottom: '1px solid var(--border-sidebar)', flexShrink: 0,
     }}>
       <div
         onClick={onLogoClick}
@@ -77,7 +77,7 @@ function RoleBar({ role, onLogout, onLogoClick }) {
         <LogoMark size={22} />
         <span style={{ color: 'var(--bg-surface)', fontSize: 15, fontWeight: 700, letterSpacing: '-0.02em' }}>{APP_NAME}</span>
       </div>
-      <div style={{ width: 1, height: 18, background: '#1E293B', margin: '0 8px' }} />
+      <div style={{ width: 1, height: 18, background: 'var(--border-sidebar)', margin: '0 8px' }} />
       <span style={{
         padding: '4px 12px', borderRadius: 5,
         border: '1px solid #334155',

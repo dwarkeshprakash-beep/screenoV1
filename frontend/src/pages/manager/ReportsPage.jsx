@@ -8,7 +8,7 @@ import Avatar from '../../components/shared/Avatar'
 import Modal from '../../components/shared/Modal'
 import * as api from '../../services/api'
 import { formatDate, parseStoredArray } from '../../utils/helpers'
-import { useAccess } from '../../context/AccessContext'
+import { useAccess } from '../../hooks/useAccess'
 
 function DecisionBadge({ decision }) {
   const map = {
@@ -179,7 +179,7 @@ export function ReportDetailModal({ report, loading, error, onClose }) {
                   </div>
                   {t.answer && (
                     <div style={{ display: 'flex', gap: 10, alignSelf: 'flex-end', flexDirection: 'row-reverse' }}>
-                      <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'var(--gray-200)', color: 'var(--gray-700)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 12, fontWeight: 'bold' }}>
+                      <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'var(--slate-200)', color: 'var(--slate-700)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 12, fontWeight: 'bold' }}>
                         {candidateName.charAt(0)}
                       </div>
                       <div style={{ background: 'var(--brand-600)', color: '#fff', padding: '10px 14px', borderRadius: '12px 0 12px 12px', fontSize: 14, lineHeight: 1.5 }}>{t.answer}</div>

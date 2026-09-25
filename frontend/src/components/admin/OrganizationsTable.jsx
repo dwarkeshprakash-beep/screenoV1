@@ -1,6 +1,7 @@
 // OrganizationsTable - renders the organizations (companies) list.
 
-import DataTable, { tdStyle } from '../shared/DataTable'
+import DataTable from '../shared/DataTable'
+import { tdStyle } from '../shared/tableStyles'
 import RowActions from '../shared/RowActions'
 import { formatDate } from '../../utils/helpers'
 

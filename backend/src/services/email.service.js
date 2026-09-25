@@ -311,7 +311,6 @@ async function sendWelcomeSetPassword(to, { name, token, expiresMinutes = 60 * 2
 
 async function sendMagicLink(to, {
   candidateName,
-  interviewToken,
   companyName,
   jobTitle,
   windowDays,

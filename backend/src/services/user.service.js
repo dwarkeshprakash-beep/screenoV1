@@ -34,7 +34,7 @@ async function resolveRoleIds(companyId, roleIds) {
   const ids = Array.isArray(roleIds) ? [...new Set(roleIds.map(Number).filter(Boolean))] : []
   if (ids.length === 0) return []
   const valid = await roleRepository.getByIds(ids, companyId)
-  if (valid.length !== ids.length) throw new Error('One or more roles are invalid for this company')
+  if (valid.length !== ids.length) throw new Error('One or more roles are invalid for this organization')
 
   return ids
 }
@@ -184,13 +184,13 @@ async function createUserWithRole(companyId, { email, firstName, lastName, roleI
   if (!cleanEmail) throw new Error('email is required')
 
   const company = await companyRepository.getById(companyId)
-  if (!company) throw new Error('Company not found')
+  if (!company) throw new Error('Organization not found')
 
   const role = await roleRepository.getById(roleId, companyId)
   if (!role) throw new Error('Select a valid role for this user')
 
   const existing = await userRepository.getByEmailForCompany(cleanEmail, companyId)
-  if (existing) throw new Error('A user with this email already exists in that company')
+  if (existing) throw new Error('A user with this email already exists in that organization')
 
   const tempPasswordHash = await bcrypt.hash('TEMP_' + crypto.randomBytes(8).toString('hex'), BCRYPT_SALT_ROUNDS)
   const created = await userRepository.createMinimal(companyId, {

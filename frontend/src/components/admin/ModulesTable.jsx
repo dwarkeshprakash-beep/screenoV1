@@ -4,7 +4,8 @@
 // a dropdown to assign one - each ACL can only ever gate one module, so already
 // assigned ACLs never show up as an option here.
 
-import DataTable, { tdStyle } from '../shared/DataTable'
+import DataTable from '../shared/DataTable'
+import { tdStyle } from '../shared/tableStyles'
 import { ChevronDown } from 'lucide-react'
 
 const aclBadgeStyle = {

@@ -105,7 +105,7 @@ async function updateAclPermissions(companyId, aclId, grants) {
   const roleIds = Array.isArray(grants) ? [...new Set(grants.map(g => Number(g.roleId)).filter(Boolean))] : []
   if (roleIds.length > 0) {
     const validRoles = await roleRepository.getByIds(roleIds, companyId)
-    if (validRoles.length !== roleIds.length) throw new Error('One or more roles are invalid for this company')
+    if (validRoles.length !== roleIds.length) throw new Error('One or more roles are invalid for this organization')
   }
 
   const allPermissionIds = [...new Set(

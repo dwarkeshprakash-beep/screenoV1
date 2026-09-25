@@ -5,6 +5,7 @@ import * as api from '../../services/api'
 import Spinner from '../../components/shared/Spinner'
 import ErrorMessage from '../../components/shared/ErrorMessage'
 import useProctoring from '../../hooks/useProctoring'
+import { parseStoredArray } from '../../utils/helpers'
 
 const CodeAnswerEditor = lazy(() => import('../../components/candidate/CodeAnswerEditor'))
 
@@ -180,7 +181,7 @@ function ExamPage() {
                 onClick={() => setCurrentIdx(i)}
                 style={{
                   aspectRatio: '1', borderRadius: 8, fontFamily: 'inherit', fontSize: 13, fontWeight: 700, cursor: 'pointer',
-                  border: `1px solid ${currentIdx === i ? 'var(--brand-500)' : answers[q.id] != null ? '#A7F3D0' : 'var(--slate-200)'}`,
+                  border: `1px solid ${currentIdx === i ? 'var(--brand-500)' : answers[q.id] != null ? 'var(--success-200)' : 'var(--slate-200)'}`,
                   background: currentIdx === i ? 'var(--brand-500)' : answers[q.id] != null ? 'var(--success-50)' : 'var(--bg-surface)',
                   color: currentIdx === i ? 'var(--bg-surface)' : answers[q.id] != null ? 'var(--success-600)' : 'var(--slate-500)',
                 }}
@@ -222,7 +223,8 @@ function ExamPage() {
               {/* MCQ options */}
               {current.question_type === 'mcq' ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                  {(typeof current.options === 'string' ? JSON.parse(current.options) : current.options || []).map((opt, oi) => {
+                  {/* parseStoredArray never throws - a malformed options field must not crash the exam */}
+                  {parseStoredArray(current.options).map((opt, oi) => {
                     const sel = answers[current.id]?.selectedOption === oi
                     return (
                       <button

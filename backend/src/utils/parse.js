@@ -18,4 +18,14 @@ function parseStoredArray(value) {
   }
 }
 
-module.exports = { parseStoredArray }
+/**
+ * Parse a positive integer id from a query/body/path value.
+ * @param {any} rawValue
+ * @returns {number|null} the id, or null when missing or not a positive integer
+ */
+function parsePositiveInt(rawValue) {
+  const value = Number(rawValue)
+  return Number.isInteger(value) && value > 0 ? value : null
+}
+
+module.exports = { parseStoredArray, parsePositiveInt }

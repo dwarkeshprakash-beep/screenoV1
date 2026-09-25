@@ -8,6 +8,7 @@ const express = require('express')
 const authMiddleware = require('../middleware/auth')
 const { loadAccess, requirePlatformAdmin } = require('../middleware/access')
 const moduleService = require('../services/module.service')
+const { parsePositiveInt } = require('../utils/parse')
 
 const router = express.Router()
 router.use(authMiddleware, loadAccess, requirePlatformAdmin)
@@ -22,11 +23,6 @@ const BAD_REQUEST_MESSAGES = [
   'This ACL is already associated with a module',
 ]
 
-function parseCompanyId(rawValue) {
-  const companyId = Number(rawValue)
-  return Number.isInteger(companyId) && companyId > 0 ? companyId : null
-}
-
 function sendModuleError(res, err, fallback) {
   if (err.message === 'Module not found') {
     return res.status(404).json({ success: false, error: err.message })
@@ -39,7 +35,7 @@ function sendModuleError(res, err, fallback) {
 
 router.get('/', async (req, res) => {
   try {
-    const modules = await moduleService.listModules(parseCompanyId(req.query.companyId))
+    const modules = await moduleService.listModules(parsePositiveInt(req.query.companyId))
     res.json({ success: true, data: modules })
   } catch (err) {
     console.error('GET /modules failed:', err)
@@ -48,7 +44,7 @@ router.get('/', async (req, res) => {
 })
 
 router.get('/unassigned-acls', async (req, res) => {
-  const companyId = parseCompanyId(req.query.companyId)
+  const companyId = parsePositiveInt(req.query.companyId)
   if (!companyId) return res.status(400).json({ success: false, error: 'companyId is required' })
 
   try {
@@ -70,7 +66,7 @@ router.patch('/:id', async (req, res) => {
 })
 
 router.post('/:id/assign-acl', async (req, res) => {
-  const companyId = parseCompanyId(req.body.companyId)
+  const companyId = parsePositiveInt(req.body.companyId)
   if (!companyId) return res.status(400).json({ success: false, error: 'companyId is required' })
   const aclId = Number(req.body.aclId)
   if (!Number.isInteger(aclId) || aclId <= 0) return res.status(400).json({ success: false, error: 'aclId is required' })

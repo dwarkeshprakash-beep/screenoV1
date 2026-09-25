@@ -18,7 +18,7 @@ function CandidateLayout() {
     <div style={{ minHeight: '100svh', display: 'flex', flexDirection: 'column' }}>
       <header style={{
         background: 'var(--slate-900)',
-        borderBottom: '1px solid #1E293B',
+        borderBottom: '1px solid var(--border-sidebar)',
         height: 38,
         padding: '0 14px',
         display: 'flex',
@@ -32,7 +32,7 @@ function CandidateLayout() {
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
           <LogoMark size={22} />
           <span style={{ color: 'var(--bg-surface)', fontSize: 15, fontWeight: 700, letterSpacing: '-0.02em' }}>{APP_NAME}</span>
-          <div style={{ width: 1, height: 18, background: '#1E293B', margin: '0 8px' }} />
+          <div style={{ width: 1, height: 18, background: 'var(--border-sidebar)', margin: '0 8px' }} />
           <span style={{
             padding: '4px 12px',
             borderRadius: 5,
@@ -47,7 +47,7 @@ function CandidateLayout() {
         </div>
 
         <span style={{ fontSize: 12, color: '#64748B' }}>
-          Need help? <a href="mailto:support@screeno.ai" style={{ color: '#94A3B8', cursor: 'pointer', textDecoration: 'none', fontWeight: 600 }}>Support</a>
+          Need help? <a href="mailto:support@screeno.ai" style={{ color: 'var(--slate-400)', cursor: 'pointer', textDecoration: 'none', fontWeight: 600 }}>Support</a>
         </span>
       </header>
 
