@@ -98,7 +98,7 @@ One scheduled monthly occurrence per enrollment month. This table owns the inter
 
 One row per interview or exam attempt.
 
-`id`, `manager_id`, `internal_user_id`, `external_candidate_id`, `type`, `interview_mode`, `difficulty`, `status`, `result`, `token`, `token_expires`, `question_count`, `client_template_id`, `monthly_assessment_id`, `report_emails`, `scheduled_at`, `available_from`, `due_at`, `schedule_timezone`, `meeting_url`, `client_team_id`, `location`, `duration_minutes`, `flow_stage_run_id`, `calendar_event_id`, `calendar_sync_error`, `started_at`, `ended_at`, `created`
+`id`, `manager_id`, `internal_user_id`, `external_candidate_id`, `type`, `interview_mode`, `difficulty`, `status`, `result`, `token`, `token_expires`, `question_count`, `client_template_id`, `monthly_assessment_id`, `report_emails`, `scheduled_at`, `available_from`, `due_at`, `schedule_timezone`, `meeting_url`, `client_team_id`, `location`, `duration_minutes`, `flow_stage_run_id`, `calendar_event_id`, `calendar_sync_error`, `subject_name`, `focus_areas`, `context_notes`, `started_at`, `ended_at`, `created`
 
 ## Interview Flows
 

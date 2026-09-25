@@ -61,6 +61,20 @@ router.post('/email-deliveries/:interviewId/resend', async (req, res) => {
   }
 })
 
+// POST /api/schedule/suggest-focus-areas - AI focus areas for a general assessment subject
+router.post('/suggest-focus-areas', async (req, res) => {
+  try {
+    const focusAreas = await scheduleService.suggestFocusAreas(req.body.subject, req.body.difficulty)
+    res.json({ success: true, data: focusAreas })
+  } catch (err) {
+    console.error('POST /schedule/suggest-focus-areas failed:', err)
+    if (err.message === 'Subject is required') {
+      return res.status(400).json({ success: false, error: err.message })
+    }
+    res.status(500).json({ success: false, error: 'Could not suggest focus areas' })
+  }
+})
+
 // POST /api/schedule
 router.post('/', async (req, res) => {
   try {
@@ -97,7 +111,8 @@ router.post('/', async (req, res) => {
       'Invalid scheduled date and time',
       'Scheduled time must be in the future',
       'Some report recipients are not in your organization',
-    ].includes(err.message)) {
+      'Subject is required for a general assessment',
+    ].includes(err.message) || /^(Subject|Notes) must be|^Add at most/.test(err.message)) {
       return res.status(400).json({ success: false, error: err.message })
     }
     if (['Client template not found', 'Monthly assessment not found'].includes(err.message)) {

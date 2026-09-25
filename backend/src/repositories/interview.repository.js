@@ -17,9 +17,9 @@ const INTERVIEW_COLS = `
   COALESCE(iu.resume_text, ec.resume_text) AS candidate_resume_text,
   COALESCE(iu.tags, ec.tags) AS candidate_tags,
   co.name AS company_name,
-  COALESCE(ct.jd_text, ma.ai_generated_jd) AS context_text,
-  COALESCE(ct.tags, ma.sub_topics) AS context_focus_areas,
-  COALESCE(ct.client_name, ma.subject_name) AS context_title`
+  COALESCE(ct.jd_text, ma.ai_generated_jd, i.context_notes) AS context_text,
+  COALESCE(ct.tags, ma.sub_topics, i.focus_areas) AS context_focus_areas,
+  COALESCE(ct.client_name, ma.subject_name, i.subject_name) AS context_title`
 
 async function create(data) {
   const rows = await db.query(
@@ -28,18 +28,18 @@ async function create(data) {
         difficulty, question_count, duration_minutes, token, token_expires,
         client_template_id, monthly_assessment_id, report_emails, scheduled_at,
         available_from, due_at, schedule_timezone, client_team_id, location, meeting_url,
-        flow_stage_run_id, calendar_event_id)
+        flow_stage_run_id, calendar_event_id, subject_name, focus_areas, context_notes)
      VALUES
        (@managerId, @internalUserId, @externalCandidateId, @type, @interviewMode,
         @difficulty, @questionCount, @durationMinutes, @tokenHash, @tokenExpires,
         @clientTemplateId, @monthlyAssessmentId, @reportEmails, @scheduledAt,
         @availableFrom, @dueAt, @scheduleTimezone, @clientTeamId, @location, @meetingUrl,
-        @flowStageRunId, @calendarEventId)
+        @flowStageRunId, @calendarEventId, @subjectName, @focusAreas, @contextNotes)
      RETURNING id, manager_id, internal_user_id, external_candidate_id, type,
        interview_mode, difficulty, question_count, duration_minutes, token_expires, status,
        client_template_id, monthly_assessment_id, report_emails, scheduled_at,
        available_from, due_at, schedule_timezone, client_team_id, location, meeting_url,
-       flow_stage_run_id, calendar_event_id, created`,
+       flow_stage_run_id, calendar_event_id, subject_name, focus_areas, context_notes, created`,
     {
       managerId: data.managerId,
       internalUserId: data.internalUserId || null,
@@ -63,6 +63,10 @@ async function create(data) {
       meetingUrl: data.meetingUrl || null,
       flowStageRunId: data.flowStageRunId || null,
       calendarEventId: data.calendarEventId || null,
+      // General-assessment context (null for mandate / monthly interviews)
+      subjectName: data.subjectName || null,
+      focusAreas: data.focusAreas || null,
+      contextNotes: data.contextNotes || null,
     }
   )
   return rows[0]
@@ -180,7 +184,7 @@ async function getByInternalUserForCompany(userId, companyId) {
             i.started_at, i.ended_at, i.created,
             sc.overall AS overall_score, sc.decision,
             r.id AS report_id, r.status AS report_status, r.pdf_url AS report_pdf_url,
-            COALESCE(ct.client_name, ma.subject_name) AS context_title
+            COALESCE(ct.client_name, ma.subject_name, i.subject_name) AS context_title
      FROM interviews i
      JOIN users iu ON iu.id = i.internal_user_id
      LEFT JOIN scorecards sc ON sc.interview_id = i.id

@@ -305,7 +305,7 @@ async function getHistoryByCandidateIdentity({ internalUserId = null, externalCa
     SELECT r.id, r.interview_id, r.summary, r.strengths, r.status, r.created,
            i.type AS interview_type,
            i.scheduled_at,
-           COALESCE(ct.client_name, ma.subject_name) AS context_title
+           COALESCE(ct.client_name, ma.subject_name, i.subject_name) AS context_title
     FROM reports r
     JOIN interviews i ON i.id = r.interview_id
     LEFT JOIN client_templates ct ON ct.id = i.client_template_id

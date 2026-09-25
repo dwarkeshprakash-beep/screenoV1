@@ -253,6 +253,7 @@ GET    /api/schedule/slots/:token
 GET    /api/schedule/org-users
 GET    /api/schedule/email-deliveries/:interviewId
 POST   /api/schedule/email-deliveries/:interviewId/resend
+POST   /api/schedule/suggest-focus-areas
 POST   /api/schedule
 GET    /api/schedule/interviews
 GET    /api/schedule/:interviewId

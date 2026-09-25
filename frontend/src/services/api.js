@@ -214,6 +214,8 @@ export const getExternalCandidates = () => request('/api/team/external')
 export const addExternalCandidate = data =>
   request('/api/team/external', { method: 'POST', body: JSON.stringify(data) })
 
+export const suggestScheduleFocusAreas = data =>
+  request('/api/schedule/suggest-focus-areas', { method: 'POST', body: JSON.stringify(data) })
 export const createSchedule = data =>
   request('/api/schedule', { method: 'POST', body: JSON.stringify(data) })
 export const getInterview = interviewId =>

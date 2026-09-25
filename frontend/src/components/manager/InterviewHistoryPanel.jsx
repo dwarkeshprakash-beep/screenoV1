@@ -2,12 +2,21 @@
 import { Building2, CalendarDays, CircleHelp, Info, SlidersHorizontal } from 'lucide-react'
 import EmptyState from '../shared/EmptyState'
 import Modal from '../shared/Modal'
-import { formatDate, formatDateTime } from '../../utils/helpers'
+import { formatDate, formatDateTime, parseStoredArray } from '../../utils/helpers'
 
 const SOURCES = [
   { value: 'client_mandate', label: 'Client mandates' },
   { value: 'monthly_assessment', label: 'Monthly assessments' },
+  // Interviews scheduled directly (no mandate or monthly plan) - the backend tags these 'other'
+  { value: 'other', label: 'General assessments' },
 ]
+
+// Subtitle text describing how each source's rows are grouped
+const GROUPED_BY = {
+  client_mandate: 'client company',
+  monthly_assessment: 'assessment',
+  other: 'subject',
+}
 
 function displayValue(value, fallback = '-') {
   return value === undefined || value === null || value === '' ? fallback : value
@@ -84,9 +93,11 @@ export default function InterviewHistoryPanel({
   const groups = useMemo(() => {
     const grouped = new Map()
     filtered.forEach(item => {
-      const key = item.history_source === 'monthly_assessment'
-        ? item.context_title || item.role_name || 'Monthly assessment'
-        : item.company_name || item.context_title || 'Client mandate'
+      let key
+      if (item.history_source === 'monthly_assessment') key = item.context_title || item.role_name || 'Monthly assessment'
+      // context_title is the general assessment's subject; older rows without one say "General interview"
+      else if (item.history_source === 'other') key = item.context_title || 'General interview'
+      else key = item.company_name || item.context_title || 'Client mandate'
       if (!grouped.has(key)) grouped.set(key, [])
       grouped.get(key).push(item)
     })
@@ -99,7 +110,7 @@ export default function InterviewHistoryPanel({
         <div>
           <h3 style={{ fontSize: 16, margin: 0 }}>{title}</h3>
           <p style={{ margin: '4px 0 0', color: 'var(--fg-muted)', fontSize: 12 }}>
-            Grouped by {source === 'client_mandate' ? 'client company' : 'assessment'}.
+            Grouped by {GROUPED_BY[source] || 'assessment'}.
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
@@ -199,6 +210,7 @@ export default function InterviewHistoryPanel({
               <DetailFact label="Difficulty" value={titleCase(selected.difficulty)} />
               <DetailFact label="Score" value={scoreLabel(selected) === '-' ? null : scoreLabel(selected)} />
               <DetailFact label="Duration" value={selected.duration_minutes ? selected.duration_minutes + ' minutes' : null} />
+              <DetailFact label="Focus areas" value={parseStoredArray(selected.focus_areas).join(', ')} />
               <DetailFact label="Location" value={selected.location} />
               <DetailFact label="Feedback" value={selected.feedback} />
               <DetailFact label="Manager notes" value={selected.manager_notes} />
