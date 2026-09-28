@@ -43,7 +43,7 @@ async function getRecentInterviews(status) {
      LEFT JOIN client_templates ct ON ct.id = i.client_template_id
      LEFT JOIN monthly_assessments ma ON ma.id = i.monthly_assessment_id
      ${statusFilter}
-     ORDER BY i.created DESC
+     ORDER BY COALESCE(i.scheduled_at, i.created) DESC, i.id DESC
      LIMIT 100`,
     status ? { status } : {}
   )

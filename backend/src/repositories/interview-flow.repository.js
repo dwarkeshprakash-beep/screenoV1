@@ -681,7 +681,7 @@ async function listAssignmentsForUser(userId) {
      LEFT JOIN client_templates ct ON ct.id = i.client_template_id
      LEFT JOIN interview_assignment_files af ON af.assignment_id = a.id
      WHERE a.interviewer_user_id = @userId AND i.status != 'cancelled'
-     ORDER BY i.scheduled_at DESC`, { userId }
+     ORDER BY COALESCE(i.scheduled_at, i.created) DESC, a.id DESC`, { userId }
   )
 }
 

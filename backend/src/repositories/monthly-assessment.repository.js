@@ -87,7 +87,7 @@ async function getEnrollmentsVisibleToUser(userId) {
      JOIN users u ON u.id = tm.user_id
      WHERE a.manager_id = @userId
         OR tm.user_id = @userId
-     ORDER BY e.created`,
+     ORDER BY e.created DESC`,
     { userId }
   )
 }
@@ -103,7 +103,7 @@ async function getEnrollmentsByCompany(companyId) {
      JOIN users u ON u.id = tm.user_id
      JOIN users mgr ON mgr.id = a.manager_id
      WHERE mgr.company_id = @companyId
-     ORDER BY e.created`,
+     ORDER BY e.created DESC`,
     { companyId }
   )
 }

@@ -105,7 +105,7 @@ async function getByManager(managerId) {
        ON tm.user_id = i.internal_user_id AND tm.manager_id = i.manager_id
      LEFT JOIN scorecards sc ON sc.interview_id = i.id
      WHERE i.manager_id = @managerId
-     ORDER BY i.created DESC`,
+     ORDER BY COALESCE(i.scheduled_at, i.created) DESC, i.id DESC`,
     { managerId }
   )
 }
@@ -128,7 +128,7 @@ async function getVisibleToUser(userId) {
         OR ct.created_by_user_id = @userId
         OR ct.assigned_bde_id = @userId
         OR EXISTS (SELECT 1 FROM client_teams ctm WHERE ctm.mandate_id = ct.id AND ctm.user_id = @userId)
-     ORDER BY i.created DESC`,
+     ORDER BY COALESCE(i.scheduled_at, i.created) DESC, i.id DESC`,
     { userId }
   )
 }
@@ -143,7 +143,7 @@ async function getByClientTemplateForManager(clientTemplateId, managerId) {
      ${INTERVIEW_JOINS}
      WHERE i.client_template_id = @clientTemplateId
        AND i.manager_id = @managerId
-     ORDER BY i.created DESC`,
+     ORDER BY COALESCE(i.scheduled_at, i.created) DESC, i.id DESC`,
     { clientTemplateId, managerId }
   )
 }
@@ -154,7 +154,7 @@ async function getByClientTeamId(clientTeamId) {
      FROM interviews i
      ${INTERVIEW_JOINS}
      WHERE i.client_team_id = @clientTeamId
-     ORDER BY i.created DESC`,
+     ORDER BY COALESCE(i.scheduled_at, i.created) DESC, i.id DESC`,
     { clientTeamId }
   )
 }
@@ -192,7 +192,7 @@ async function getByInternalUserForCompany(userId, companyId) {
      LEFT JOIN client_templates ct ON ct.id = i.client_template_id
      LEFT JOIN monthly_assessments ma ON ma.id = i.monthly_assessment_id
      WHERE i.internal_user_id = @userId AND iu.company_id = @companyId
-     ORDER BY i.created DESC`,
+     ORDER BY COALESCE(i.scheduled_at, i.created) DESC, i.id DESC`,
     { userId, companyId }
   )
 }
@@ -210,7 +210,7 @@ async function getByCompany(companyId) {
        ON tm.user_id = i.internal_user_id AND tm.manager_id = i.manager_id
      LEFT JOIN scorecards sc ON sc.interview_id = i.id
      WHERE mu.company_id = @companyId
-     ORDER BY i.created DESC`,
+     ORDER BY COALESCE(i.scheduled_at, i.created) DESC, i.id DESC`,
     { companyId }
   )
 }
@@ -228,7 +228,7 @@ async function getByCandidateIdentity({ internalUserId = null, externalCandidate
      ${INTERVIEW_JOINS}
      LEFT JOIN scorecards sc ON sc.interview_id = i.id
      WHERE ${predicate.sql}
-     ORDER BY i.created DESC`,
+     ORDER BY COALESCE(i.scheduled_at, i.created) DESC, i.id DESC`,
     predicate.candidateId === null ? {} : { candidateId: predicate.candidateId }
   )
 }
@@ -374,7 +374,7 @@ async function getCandidateViewByClientTeamIds(clientTeamIds) {
      FROM interviews i
      LEFT JOIN scorecards sc ON sc.interview_id = i.id
      WHERE i.client_team_id = ANY(@clientTeamIds)
-     ORDER BY i.created DESC`,
+     ORDER BY COALESCE(i.scheduled_at, i.created) DESC, i.id DESC`,
     { clientTeamIds }
   )
 }

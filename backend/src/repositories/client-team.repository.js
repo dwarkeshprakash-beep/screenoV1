@@ -36,7 +36,7 @@ async function getByMandate(mandateId) {
      JOIN users u ON u.id = ct.user_id
      LEFT JOIN client_mandate_requirements cmr ON cmr.id = ct.requirement_id
      WHERE ct.mandate_id = @mandateId
-     ORDER BY ct.created ASC`,
+     ORDER BY ct.created DESC`,
     { mandateId }
   )
 }

@@ -162,8 +162,8 @@ function SchedulePage() {
     return 1
   }
 
-  // Already filtered server-side by category when in list view - just sort chronologically.
-  const sortedEvents = [...events].sort((a, b) => new Date(a.start || a.created) - new Date(b.start || b.created))
+  // Already filtered server-side by category when in list view - sort latest/upcoming first.
+  const sortedEvents = [...events].sort((a, b) => new Date(b.start || b.created) - new Date(a.start || a.created))
 
   function tabButtonStyle(active) {
     return {
