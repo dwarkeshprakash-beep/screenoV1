@@ -4,6 +4,7 @@ import Button from '../../shared/Button'
 import Modal from '../../shared/Modal'
 import * as api from '../../../services/api'
 import { parseStoredArray } from '../../../utils/helpers'
+import StudyMaterialFileField from './StudyMaterialFileField'
 
 function WizardModal({ open, onClose, onDone, initialData }) {
   const [step, setStep] = useState(1)
@@ -14,6 +15,8 @@ function WizardModal({ open, onClose, onDone, initialData }) {
   const [interviewMode, setInterviewMode] = useState('simple')
   const [subTopics, setSubTopics] = useState('')
   const [studyMaterial, setStudyMaterial] = useState('')
+  const [studyFile, setStudyFile] = useState(null)
+  const [uploadingFile, setUploadingFile] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [generatingMaterial, setGeneratingMaterial] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -29,6 +32,14 @@ function WizardModal({ open, onClose, onDone, initialData }) {
     setInterviewMode(initialData?.interview_mode || 'simple')
     setSubTopics(initialData?.sub_topics ? parseStoredArray(initialData.sub_topics).join('\n') : '')
     setStudyMaterial(initialData?.ai_generated_jd || '')
+    setStudyFile(initialData?.study_material_file_path
+      ? {
+          path: initialData.study_material_file_path,
+          name: initialData.study_material_file_name || 'Study material',
+          url: initialData.study_material_file_url || null,
+        }
+      : null)
+    setUploadingFile(false)
     setError(null)
   }, [open, initialData])
 
@@ -88,6 +99,9 @@ function WizardModal({ open, onClose, onDone, initialData }) {
         duration_months: durationMonths,
         interview_type: interviewType,
         interview_mode: interviewMode,
+        // null clears a previously attached file
+        study_material_file_path: studyFile?.path || null,
+        study_material_file_name: studyFile?.name || null,
       }
       if (initialData?.id) {
         await api.updateMonthlyAssessment(initialData.id, payload)
@@ -255,6 +269,11 @@ function WizardModal({ open, onClose, onDone, initialData }) {
               onChange={event => setStudyMaterial(event.target.value)}
               style={{ resize: 'vertical' }}
             />
+            <StudyMaterialFileField
+              value={studyFile}
+              onChange={setStudyFile}
+              onUploadingChange={setUploadingFile}
+            />
           </div>
         )}
 
@@ -271,7 +290,7 @@ function WizardModal({ open, onClose, onDone, initialData }) {
           {step < 3 ? (
             <Button onClick={nextStep}>Continue</Button>
           ) : (
-            <Button onClick={createSubject} loading={saving}>{initialData ? 'Save changes' : 'Create subject'}</Button>
+            <Button onClick={createSubject} loading={saving} disabled={uploadingFile}>{initialData ? 'Save changes' : 'Create subject'}</Button>
           )}
         </div>
       </div>

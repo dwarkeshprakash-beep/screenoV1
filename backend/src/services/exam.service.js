@@ -7,6 +7,7 @@ const scorecardRepository = require('../repositories/scorecard.repository')
 const llmService = require('./llm.service')
 const judgeService = require('./judge.service')
 const { buildResumeContext } = require('../utils/resume-context')
+const { buildQuestionContext } = require('./question-context.service')
 
 function validateInterview(interview) {
   if (!interview || interview.type !== 'exam') throw new Error('Invalid or expired link')
@@ -46,8 +47,7 @@ async function getExam(token) {
   if (questions.length === 0) {
     const generated = await llmService.generateExamQuestions({
       resume: buildResumeContext(interview),
-      jd: interview.context_text,
-      focusAreas: interview.context_focus_areas,
+      context: await buildQuestionContext(interview),
       difficulty: interview.difficulty,
       count: interview.question_count || 10,
     })

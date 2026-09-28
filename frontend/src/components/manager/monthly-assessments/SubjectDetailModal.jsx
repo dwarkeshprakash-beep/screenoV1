@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Pencil, Trash2, UserPlus } from 'lucide-react'
+import { ExternalLink, FileText, Pencil, Trash2, UserPlus } from 'lucide-react'
 import Avatar from '../../shared/Avatar'
 import Button from '../../shared/Button'
 import Modal from '../../shared/Modal'
@@ -73,6 +73,22 @@ function SubjectDetailModal({ assessment, open, onClose, onAssign, onEdit, onDel
           }}>
             {assessment.ai_generated_jd || 'No study material added.'}
           </div>
+          {assessment.study_material_file_path && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, fontSize: 13 }}>
+              <FileText size={15} color="var(--brand-500)" />
+              <span style={{ color: 'var(--fg-body)', fontWeight: 600 }}>
+                {assessment.study_material_file_name || 'Study material file'}
+              </span>
+              {assessment.study_material_file_url ? (
+                <a href={assessment.study_material_file_url} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: 4, color: 'var(--brand-600)', fontWeight: 600 }}>
+                  <ExternalLink size={13} />
+                  View
+                </a>
+              ) : (
+                <span style={{ color: 'var(--fg-subtle)' }}>(link unavailable - refresh to retry)</span>
+              )}
+            </div>
+          )}
         </section>
 
         {enrollments.length > 0 && (

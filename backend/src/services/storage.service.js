@@ -119,6 +119,52 @@ async function uploadJdAsset(buffer, ownerId, file = {}) {
   }
 }
 
+const STUDY_MATERIAL_EXTENSIONS = {
+  'application/pdf': 'pdf',
+  'application/msword': 'doc',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+  'application/vnd.ms-powerpoint': 'ppt',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'pptx',
+  'text/plain': 'txt',
+}
+
+/**
+ * Storage folder for one manager's monthly study-material files. Used both to build
+ * upload paths and to check that a path submitted on save belongs to that manager.
+ * @param {number|string} ownerId
+ * @returns {string}
+ */
+function studyMaterialPrefix(ownerId) {
+  return `study-material/${ownerId}/`
+}
+
+/**
+ * Upload a study-material document a manager attaches to a monthly subject.
+ * The subject may not exist yet (create wizard), so the file is keyed by uploader.
+ * @param {Buffer} buffer
+ * @param {number|string} ownerId - uploader's user id
+ * @param {object} file - file metadata from multer
+ * @returns {Promise<{ path: string, size: number, mimeType: string, originalName: string }>}
+ */
+async function uploadStudyMaterialAsset(buffer, ownerId, file = {}) {
+  const extension = STUDY_MATERIAL_EXTENSIONS[file.mimetype] || 'pdf'
+  const contentType = file.mimetype || 'application/pdf'
+  const path = `${studyMaterialPrefix(ownerId)}${crypto.randomUUID()}.${extension}`
+
+  const { error } = await supabase.storage.from(BUCKET).upload(path, buffer, {
+    contentType,
+    upsert: false,
+  })
+  if (error) throw error
+
+  return {
+    path,
+    size: buffer.length,
+    mimeType: contentType,
+    originalName: file.originalname || `study-material.${extension}`,
+  }
+}
+
 /**
  * Fetch a short-lived signed URL for a file in storage.
  * @param {string} path - storage path
@@ -200,6 +246,8 @@ module.exports = {
   uploadResume,
   uploadReportAsset,
   uploadJdAsset,
+  uploadStudyMaterialAsset,
+  studyMaterialPrefix,
   getSignedUrl,
   isExternalUrl,
   resolveFileUrl,

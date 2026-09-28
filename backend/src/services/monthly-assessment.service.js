@@ -5,9 +5,68 @@ const userRepository = require('../repositories/user.repository')
 const interviewRepository = require('../repositories/interview.repository')
 const emailOutboxRepository = require('../repositories/email-outbox.repository')
 const emailService = require('./email.service')
+const storageService = require('./storage.service')
+const documentTextService = require('./document-text.service')
 const { parseStoredArray } = require('../utils/parse')
 
 const parseArray = parseStoredArray
+
+/**
+ * Read the optional study-material file from a create/update body.
+ * Returns {} when the body doesn't mention it (leave as-is), { studyFilePath: null }
+ * to remove it, or the path + name to attach. The path must sit in this manager's own
+ * upload folder, so a crafted body can't point candidates at someone else's file.
+ */
+function parseStudyFile(body, managerId) {
+  if (!body || body.study_material_file_path === undefined) return {}
+  const path = String(body.study_material_file_path || '').trim()
+  if (!path) return { studyFilePath: null, studyFileName: null }
+  if (!path.startsWith(storageService.studyMaterialPrefix(managerId)) || path.includes('..')) {
+    throw new Error('Study material file is invalid')
+  }
+  const name = String(body.study_material_file_name || '').trim().slice(0, 255)
+  return { studyFilePath: path, studyFileName: name || path.split('/').pop() }
+}
+
+// Adds a short-lived signed study_material_file_url for display; the raw path stays for saves.
+async function withStudyFileUrl(row) {
+  if (!row?.study_material_file_path) return { ...row, study_material_file_url: null }
+  return { ...row, study_material_file_url: await storageService.resolveFileUrl(row.study_material_file_path) }
+}
+
+// Cap on stored extracted text; prompts use far less (llm.service CONTEXT_BUDGETS).
+const STUDY_TEXT_MAX_CHARS = 20000
+
+/**
+ * Keep the extracted text of the subject's study-material file in step with the file
+ * that is attached. Text is re-extracted server-side from storage (never taken from the
+ * client) and only when the file changed. Never throws - a failed extraction just means
+ * questions fall back to the sub-topics and free-text material.
+ */
+async function syncStudyText(assessment) {
+  try {
+    const path = assessment.study_material_file_path
+    if (!path) {
+      await monthlyAssessmentRepository.deleteStudyText(assessment.id)
+      return
+    }
+    const existing = await monthlyAssessmentRepository.getStudyText(assessment.id)
+    if (existing?.file_path === path) return
+
+    const buffer = await storageService.downloadFile(path)
+    // The storage path keeps the real extension, which picks the extractor.
+    const text = await documentTextService.extractTextFromBuffer(buffer, null, path)
+    await monthlyAssessmentRepository.upsertStudyText(assessment.id, path, String(text || '').trim().slice(0, STUDY_TEXT_MAX_CHARS))
+  } catch (err) {
+    console.error(`Study material text extraction failed for assessment ${assessment.id}:`, err.message)
+  }
+}
+
+// Best-effort removal of a study-material file that is no longer referenced.
+function cleanupStudyFile(oldPath, newPath) {
+  if (!oldPath || oldPath === newPath) return
+  storageService.deleteFile(oldPath).catch(err => console.error('Failed to clean up study material file:', err.message))
+}
 
 function addMonths(date, months) {
   const result = new Date(date)
@@ -93,8 +152,10 @@ async function createAssessment(body, managerId, companyId) {
     }
     parseStartDate(body)
   }
+  const studyFile = parseStudyFile(body, managerId)
 
   const assessment = await monthlyAssessmentRepository.createTemplate({
+    ...studyFile,
     managerId,
     subjectName,
     difficulty: ['easy', 'medium', 'hard'].includes(body.difficulty) ? body.difficulty : 'medium',
@@ -107,6 +168,7 @@ async function createAssessment(body, managerId, companyId) {
       ? (['simple', 'adaptive'].includes(body.interview_mode) ? body.interview_mode : 'simple')
       : 'simple',
   })
+  if (assessment.study_material_file_path) await syncStudyText(assessment)
 
   if (teamMemberIds.length === 0) {
     return { ...assessment, enrollments: [], invitations: { sent: 0, failed: 0 } }
@@ -148,6 +210,7 @@ async function sendAssignmentInvitations({
       assessmentEndDate: endDate,
       durationMonths: assessment.duration_months,
       jdText: assessment.ai_generated_jd || '',
+      studyFileName: assessment.study_material_file_name || null,
     })
   }))
   return {
@@ -369,10 +432,10 @@ async function getAssessments(userId, scope = {}) {
     list.push(enrollment)
     byAssessment.set(enrollment.assessment_id, list)
   }
-  return assessments.map(assessment => ({
-    ...assessment,
+  return Promise.all(assessments.map(async assessment => ({
+    ...(await withStudyFileUrl(assessment)),
     enrollments: byAssessment.get(assessment.id) || [],
-  }))
+  })))
 }
 
 // Calendar rows, scoped the same way as getAssessments.
@@ -454,13 +517,21 @@ async function deleteEnrollment(enrollmentId, managerId) {
 }
 
 async function updateAssessment(id, managerId, data) {
+  const studyFile = parseStudyFile(data, managerId)
+  const existing = studyFile.studyFilePath !== undefined
+    ? await monthlyAssessmentRepository.getByIdForManager(Number(id), managerId)
+    : null
   const assessment = await monthlyAssessmentRepository.updateTemplate(
     Number(id),
     managerId,
-    data
+    { ...data, ...studyFile }
   )
   if (!assessment) throw new Error('Monthly assessment not found')
-  return assessment
+  if (existing) {
+    cleanupStudyFile(existing.study_material_file_path, assessment.study_material_file_path)
+    await syncStudyText(assessment)
+  }
+  return withStudyFileUrl(assessment)
 }
 
 async function deleteAssessment(id, managerId) {
@@ -469,6 +540,7 @@ async function deleteAssessment(id, managerId) {
     managerId
   )
   if (!assessment) throw new Error('Monthly assessment not found')
+  cleanupStudyFile(assessment.study_material_file_path, null)
   return assessment
 }
 

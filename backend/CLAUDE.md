@@ -102,7 +102,8 @@ backend/
 │   │   ├── monthly-assessment.service.js  monthly subjects, enrollments, plans
 │   │   ├── upload.service.js            resume/JD uploads, AI resume analysis
 │   │   ├── resume.service.js            a user's resume pool
-│   │   ├── document-text.service.js     text extraction from PDF/DOCX/TXT
+│   │   ├── document-text.service.js     text extraction from PDF/DOCX/PPTX/TXT
+│   │   ├── question-context.service.js  subject/sub-topics/study material fed to question generation
 │   │   ├── admin.service.js             platform-admin inspection and repair
 │   │   ├── user.service.js / role.service.js / module.service.js / acl.service.js /
 │   │   │   permission.service.js / organization.service.js   RBAC administration
@@ -310,6 +311,7 @@ POST   /api/exam/:token/submit
 POST   /api/upload/resume
 POST   /api/upload/extract-text
 POST   /api/upload/jd
+POST   /api/upload/study-material
 POST   /api/upload/analyze-resume
 
 GET    /api/profile

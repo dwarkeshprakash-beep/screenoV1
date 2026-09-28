@@ -4,9 +4,11 @@ const db = require('../db/connection')
 async function createTemplate(data) {
   const rows = await db.query(
     `INSERT INTO monthly_assessments
-      (manager_id, subject_name, difficulty, topics, sub_topics, ai_generated_jd, duration_months, interview_type, interview_mode)
+      (manager_id, subject_name, difficulty, topics, sub_topics, ai_generated_jd, duration_months, interview_type, interview_mode,
+       study_material_file_path, study_material_file_name)
      VALUES
-      (@managerId, @subjectName, @difficulty, @topics, @subTopics, @jd, @durationMonths, @interviewType, @interviewMode)
+      (@managerId, @subjectName, @difficulty, @topics, @subTopics, @jd, @durationMonths, @interviewType, @interviewMode,
+       @studyFilePath, @studyFileName)
      RETURNING *`,
     {
       managerId: data.managerId,
@@ -18,6 +20,8 @@ async function createTemplate(data) {
       durationMonths: data.durationMonths,
       interviewType: data.interviewType || 'exam',
       interviewMode: data.interviewMode || 'simple',
+      studyFilePath: data.studyFilePath || null,
+      studyFileName: data.studyFileName || null,
     }
   )
   return rows[0]
@@ -223,7 +227,10 @@ async function updateTemplate(id, managerId, data) {
          ai_generated_jd = COALESCE(@jd, ai_generated_jd),
          duration_months = COALESCE(@durationMonths, duration_months),
          interview_type  = COALESCE(@interviewType, interview_type),
-         interview_mode  = COALESCE(@interviewMode, interview_mode)
+         interview_mode  = COALESCE(@interviewMode, interview_mode),
+         -- studyFileSet = false leaves the file alone; true replaces it (null removes it)
+         study_material_file_path = CASE WHEN CAST(@studyFileSet AS BOOLEAN) THEN @studyFilePath ELSE study_material_file_path END,
+         study_material_file_name = CASE WHEN CAST(@studyFileSet AS BOOLEAN) THEN @studyFileName ELSE study_material_file_name END
      WHERE id = @id AND manager_id = @managerId
      RETURNING *`,
     {
@@ -236,6 +243,9 @@ async function updateTemplate(id, managerId, data) {
       durationMonths: data.durationMonths || null,
       interviewType: data.interviewType || null,
       interviewMode: data.interviewMode || null,
+      studyFileSet: data.studyFilePath !== undefined,
+      studyFilePath: data.studyFilePath || null,
+      studyFileName: data.studyFilePath ? (data.studyFileName || null) : null,
     }
   )
   return rows[0] || null
@@ -286,6 +296,7 @@ async function deleteTemplate(id, managerId) {
       { id }
     )
     await tx.query(`DELETE FROM monthly_assessment_enrollments WHERE assessment_id = @id`, { id })
+    await tx.query(`DELETE FROM monthly_assessment_study_texts WHERE assessment_id = @id`, { id })
     const deleted = await tx.query(
       `DELETE FROM monthly_assessments WHERE id = @id AND manager_id = @managerId RETURNING *`,
       { id, managerId }
@@ -416,6 +427,8 @@ async function getCandidateEnrollments(userId) {
        ma.duration_months,
        ma.ai_generated_jd,
        ma.sub_topics,
+       ma.study_material_file_path,
+       ma.study_material_file_name,
        tm.manager_id,
        u.first_name AS manager_first_name,
        u.last_name AS manager_last_name,
@@ -452,7 +465,50 @@ async function getOccurrencesWithInterviewByEnrollmentIds(enrollmentIds) {
   )
 }
 
+// ── Study-material file text (question generation) ──────────────────────────
+
+// The stored extraction for a subject, or null. file_path says which upload it came from.
+async function getStudyText(assessmentId) {
+  const rows = await db.query(
+    `SELECT assessment_id, file_path, file_text
+     FROM monthly_assessment_study_texts
+     WHERE assessment_id = @assessmentId`,
+    { assessmentId }
+  )
+  return rows[0] || null
+}
+
+async function upsertStudyText(assessmentId, filePath, fileText) {
+  await db.query(
+    `INSERT INTO monthly_assessment_study_texts (assessment_id, file_path, file_text, updated)
+     VALUES (@assessmentId, @filePath, @fileText, NOW())
+     ON CONFLICT (assessment_id) DO UPDATE
+       SET file_path = EXCLUDED.file_path, file_text = EXCLUDED.file_text, updated = NOW()`,
+    { assessmentId, filePath, fileText }
+  )
+}
+
+async function deleteStudyText(assessmentId) {
+  await db.query(`DELETE FROM monthly_assessment_study_texts WHERE assessment_id = @assessmentId`, { assessmentId })
+}
+
+// Everything question generation needs from a subject. The file text only joins when it
+// was extracted from the file currently attached, so a stale extraction is never used.
+async function getQuestionContext(assessmentId) {
+  const rows = await db.query(
+    `SELECT ma.subject_name, ma.sub_topics, ma.ai_generated_jd, ma.study_material_file_name,
+            st.file_text AS study_file_text
+     FROM monthly_assessments ma
+     LEFT JOIN monthly_assessment_study_texts st
+       ON st.assessment_id = ma.id AND st.file_path = ma.study_material_file_path
+     WHERE ma.id = @assessmentId`,
+    { assessmentId }
+  )
+  return rows[0] || null
+}
+
 module.exports = {
+  getStudyText, upsertStudyText, deleteStudyText, getQuestionContext,
   runInTransaction, lockTeamMember, insertAssignmentRequest, getAssignmentRequestEnrollment,
   linkAssignmentRequestEnrollment, getOccurrenceIdsByEnrollment, findOverlappingEnrollment,
   insertEnrollment, insertOccurrence,

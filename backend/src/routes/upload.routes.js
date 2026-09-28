@@ -1,7 +1,7 @@
 const express = require('express')
 const authMiddleware = require('../middleware/auth')
 const { loadAccess, requireModule } = require('../middleware/access')
-const { documentUpload } = require('../middleware/upload')
+const { documentUpload, studyMaterialUpload } = require('../middleware/upload')
 const uploadService = require('../services/upload.service')
 
 const router = express.Router()
@@ -40,6 +40,17 @@ router.post('/jd', requireModule('client_mandates'), documentUpload.single('file
   } catch (err) {
     console.error('POST /upload/jd failed:', err)
     res.status(500).json({ success: false, error: 'Could not upload JD file' })
+  }
+})
+
+router.post('/study-material', requireModule('monthly_assessments'), studyMaterialUpload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ success: false, error: 'No file provided' })
+    const data = await uploadService.uploadStudyMaterial(req.user.id, req.file)
+    res.json({ success: true, data })
+  } catch (err) {
+    console.error('POST /upload/study-material failed:', err)
+    res.status(500).json({ success: false, error: 'Could not upload study material' })
   }
 })
 

@@ -61,11 +61,13 @@ async function listInterviews(user) {
   await interviewFlowService.processExpiredFlows({ userId: user.id })
     .catch(err => console.error('Candidate expired flow processing failed:', err.message))
   const interviews = await interviewRepository.getByCandidateIdentity(identity)
-  // token, score and the raw decision are never sent to the candidate.
-  return interviews.map(({ token, overall_score, candidate_decision, ...interview }) => ({
+  // token, score and the raw decision are never sent to the candidate; the study-material
+  // storage path is swapped for a short-lived signed URL.
+  return Promise.all(interviews.map(async ({ token, overall_score, candidate_decision, study_material_file_path, ...interview }) => ({
     ...interview,
+    study_material_file_url: await storageService.resolveFileUrl(study_material_file_path),
     candidate_result: candidateResult(interview, candidate_decision),
-  }))
+  })))
 }
 
 // Launch payload for the candidate's own scheduled or in-progress interview. Launch-window
@@ -238,13 +240,15 @@ async function listMonthlyPlans(userId) {
   }
 
   const now = new Date()
-  return enrollments.map(enrollment => ({
+  return Promise.all(enrollments.map(async enrollment => ({
     enrollment_id: enrollment.id,
     assessment_id: enrollment.assessment_id,
     subject_name: enrollment.subject_name,
     difficulty: enrollment.difficulty,
     duration_months: enrollment.duration_months,
     study_material: enrollment.ai_generated_jd || null,
+    study_material_file_name: enrollment.study_material_file_name || null,
+    study_material_file_url: await storageService.resolveFileUrl(enrollment.study_material_file_path),
     sub_topics: enrollment.sub_topics || null,
     company_name: enrollment.company_name || null,
     start_date: enrollment.start_date,
@@ -267,7 +271,7 @@ async function listMonthlyPlans(userId) {
         can_launch: availability.canLaunch,
       }
     }),
-  }))
+  })))
 }
 
 // ── Client outcomes ───────────────────────────────────────────────────────────

@@ -7,6 +7,13 @@ const DOCUMENT_TYPES = new Set([
   'text/plain',
 ])
 
+// Study material may also be a slide deck, so PowerPoint is allowed on top of documents.
+const STUDY_MATERIAL_TYPES = new Set([
+  ...DOCUMENT_TYPES,
+  'application/vnd.ms-powerpoint',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+])
+
 const AUDIO_TYPES = new Set([
   'audio/webm',
   'audio/ogg',
@@ -17,11 +24,11 @@ const AUDIO_TYPES = new Set([
   'video/webm',
 ])
 
-function createUpload(allowedTypes, label) {
+function createUpload(allowedTypes, label, maxBytes = 5 * 1024 * 1024) {
   return multer({
     storage: multer.memoryStorage(),
     limits: {
-      fileSize: 5 * 1024 * 1024,
+      fileSize: maxBytes,
       files: 1,
     },
     fileFilter(req, file, callback) {
@@ -37,4 +44,5 @@ function createUpload(allowedTypes, label) {
 module.exports = {
   documentUpload: createUpload(DOCUMENT_TYPES, 'Document'),
   audioUpload: createUpload(AUDIO_TYPES, 'Audio'),
+  studyMaterialUpload: createUpload(STUDY_MATERIAL_TYPES, 'Study material', 10 * 1024 * 1024),
 }

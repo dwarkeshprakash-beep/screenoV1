@@ -315,6 +315,13 @@ export const uploadJdFile = file => {
   formData.append('file', file)
   return request('/api/upload/jd', { method: 'POST', body: formData })
 }
+// Uploads a monthly subject's study-material file. Returns { filePath, fileName, fileUrl };
+// the path is saved on the subject when the wizard is submitted.
+export const uploadStudyMaterialFile = file => {
+  const formData = new FormData()
+  formData.append('file', file)
+  return request('/api/upload/study-material', { method: 'POST', body: formData })
+}
 export const analyzeResumeMatch = (jd, resume) =>
   request('/api/upload/analyze-resume', {
     method: 'POST',

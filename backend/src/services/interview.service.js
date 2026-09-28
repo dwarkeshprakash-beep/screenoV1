@@ -11,6 +11,7 @@ const emailService = require('./email.service')
 const pdfService = require('./pdf.service')
 const storageService = require('./storage.service')
 const { buildResumeContext } = require('../utils/resume-context')
+const { buildQuestionContext } = require('./question-context.service')
 
 async function getCandidateInterview(interviewId, identity) {
   candidateIdentityService.assertInterviewScope(identity, interviewId)
@@ -30,8 +31,7 @@ async function getOrCreateQuestions(interview) {
   const generated = await llmService.generateQuestions({
     candidateName: interview.candidate_first,
     resume: buildResumeContext(interview),
-    jd: interview.context_text,
-    focusAreas: interview.context_focus_areas,
+    context: await buildQuestionContext(interview),
     difficulty: interview.difficulty,
     count,
     mode: interview.interview_mode,
@@ -133,7 +133,11 @@ async function saveAnswer({
     }
   }
 
-  const nextQuestionText = await llmService.getAdaptiveQuestion(history, interview.question_count)
+  const nextQuestionText = await llmService.getAdaptiveQuestion(
+    history,
+    interview.question_count,
+    await buildQuestionContext(interview)
+  )
   if (!nextQuestionText) {
     return { complete: true, transcribedText: answerText }
   }

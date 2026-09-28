@@ -76,7 +76,13 @@ One row per lifecycle step a mandate has reached (`created`, `assigned_to_manage
 
 Reusable monthly subject definition.
 
-`id`, `manager_id`, `subject_name`, `difficulty`, `topics`, `sub_topics`, `ai_generated_jd`, `duration_months`, `status`, `interview_type`, `interview_mode`, `created`
+`id`, `manager_id`, `subject_name`, `difficulty`, `topics`, `sub_topics`, `ai_generated_jd`, `duration_months`, `status`, `interview_type`, `interview_mode`, `study_material_file_path`, `study_material_file_name`, `created`
+
+### `monthly_assessment_study_texts`
+
+Text extracted server-side from a subject's study-material file, used only for question generation (kept out of `monthly_assessments` so list endpoints stay small). One row per subject; `file_path` records which upload the text came from.
+
+`assessment_id` (PK), `file_path`, `file_text`, `updated`
 
 ### `monthly_assessment_enrollments`
 

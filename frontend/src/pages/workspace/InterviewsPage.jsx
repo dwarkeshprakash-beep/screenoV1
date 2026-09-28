@@ -7,7 +7,7 @@
 // the "I'm Interviewing" tab here.
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Calendar, Clock, MapPin, Search } from 'lucide-react'
+import { Calendar, Clock, FileText, MapPin, Search } from 'lucide-react'
 import InterviewerAssignmentsPanel from '../../components/shared/InterviewerAssignmentsPanel'
 import Spinner from '../../components/shared/Spinner'
 import * as api from '../../services/api'
@@ -38,6 +38,12 @@ function InterviewCard({ interview, onLaunch, onJoinHuman, launchingId }) {
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: canLaunch || canJoinHuman ? 12 : 0 }}>
         <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--fg-muted)' }}><Clock size={11} />{interview.scheduled_at ? formatDateTime(interview.scheduled_at) : formatDate(interview.created)}</span>
         {interview.location && <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: 'var(--fg-muted)' }}><MapPin size={11} />{interview.location}</span>}
+        {/* Monthly assessment study-material file attached by the manager */}
+        {interview.study_material_file_url && (
+          <a href={interview.study_material_file_url} target="_blank" rel="noopener noreferrer" title={interview.study_material_file_name || 'Study material'} style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 600, color: 'var(--brand-600)' }}>
+            <FileText size={11} />Study material
+          </a>
+        )}
         <span className={`status-pill${interview.status === 'completed' ? ' status-pill--success' : ' status-pill--brand'}`}>{interview.status}</span>
         {interview.candidate_result && (
           <span className={`status-pill${interview.candidate_result === 'pass' ? ' status-pill--success' : ' status-pill--danger'}`}>

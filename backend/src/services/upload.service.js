@@ -82,6 +82,28 @@ async function uploadJd(managerId, file) {
   }
 }
 
+// Store a monthly-subject study-material file. The path is saved on the subject later
+// (create/edit wizard), so this also returns a signed URL for an immediate preview.
+// textReadable tells the manager up front whether questions can use the file's contents
+// (the text itself is extracted again server-side when the subject is saved).
+async function uploadStudyMaterial(managerId, file) {
+  const uploaded = await storageService.uploadStudyMaterialAsset(file.buffer, managerId, file)
+  let textReadable = false
+  try {
+    textReadable = (await extractText(file)).trim().length > 0
+  } catch (err) {
+    console.error('Study material text check failed (file was still uploaded):', err.message)
+  }
+  return {
+    filePath: uploaded.path,
+    fileName: uploaded.originalName,
+    mimeType: uploaded.mimeType,
+    size: uploaded.size,
+    fileUrl: await storageService.resolveFileUrl(uploaded.path),
+    textReadable,
+  }
+}
+
 // AI match of a resume against a JD. Throws when the LLM does not return JSON.
 async function analyzeResume(jd, resume) {
   const prompt = `You are a technical recruiter. Analyze this candidate's resume against the job description.
@@ -118,5 +140,6 @@ module.exports = {
   extractText,
   uploadResume,
   uploadJd,
+  uploadStudyMaterial,
   analyzeResume,
 }

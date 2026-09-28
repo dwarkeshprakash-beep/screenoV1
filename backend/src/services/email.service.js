@@ -386,7 +386,12 @@ async function sendMonthlyAssessmentInvite(to, {
   durationMonths,
   scheduleTimezone,
   jdText,
+  studyFileName,
 }) {
+  // The file itself isn't linked here - signed URLs expire, so candidates open it in-app.
+  const studyFileNote = studyFileName
+    ? `A study material file (${studyFileName}) is attached to this subject. Open it from your Interviews page in ${APP_NAME}.`
+    : ''
   const dateText = (() => {
     try {
       return new Date(assessmentDate).toLocaleString('en-US', {
@@ -423,6 +428,7 @@ async function sendMonthlyAssessmentInvite(to, {
       `Duration    : ${durationMonths} month${durationMonths === 1 ? '' : 's'}`,
       '',
       details ? `Study Material / JD:\n${'─'.repeat(40)}\n${details}\n${'─'.repeat(40)}` : '',
+      studyFileNote,
       '',
       `Use the secure ${APP_NAME} assessment link sent for this scheduled assessment.`,
       'Please ensure you complete the assessment within the scheduled period.',
@@ -480,6 +486,10 @@ async function sendMonthlyAssessmentInvite(to, {
             <div style="font-size:12px;font-weight:700;color:#64748B;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px">Study Material</div>
             <div style="background:#FAFAFE;border-left:4px solid #5B4FE9;border-radius:0 8px 8px 0;padding:16px;font-size:13px;color:#374151;white-space:pre-line;line-height:1.7">${escapeHtml(details).slice(0, 5000)}</div>
           </div>
+          ` : ''}
+
+          ${studyFileNote ? `
+          <p style="margin:0 0 24px;font-size:13px;color:#374151;line-height:1.6">${escapeHtml(studyFileNote)}</p>
           ` : ''}
 
           <div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px;padding:14px 16px;margin-bottom:24px">

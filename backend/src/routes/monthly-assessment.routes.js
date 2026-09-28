@@ -26,6 +26,7 @@ const VALIDATION_ERRORS = new Set([
   'Question count must be an integer between 1 and 50',
   'Duration must be an integer between 15 and 180 minutes',
   'Some report recipients are not in your organization',
+  'Study material file is invalid',
 ])
 
 function handleMonthlyError(res, err, fallbackMessage) {
@@ -146,6 +147,8 @@ router.put('/:id', requireModule('monthly_assessments'), async (req, res) => {
       durationMonths: req.body.duration_months,
       interviewType: req.body.interview_type,
       interviewMode: req.body.interview_mode,
+      study_material_file_path: req.body.study_material_file_path,
+      study_material_file_name: req.body.study_material_file_name,
     }
     const assessment = await monthlyAssessmentService.updateAssessment(
       req.params.id,
