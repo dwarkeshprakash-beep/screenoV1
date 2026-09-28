@@ -9,20 +9,8 @@ import { formatDate, parseStoredArray } from '../../utils/helpers'
 import ScheduleModal from '../../components/manager/ScheduleModal'
 import EditMemberModal from '../../components/manager/EditMemberModal'
 import InterviewHistoryPanel from '../../components/manager/InterviewHistoryPanel'
+import SkillsEditor from '../../components/shared/SkillsEditor'
 import { UserCheck } from 'lucide-react'
-
-const SKILL_COLORS = {
-  '.NET': { bg: 'var(--brand-50)', fg: 'var(--brand-700)' }, 'C#': { bg: 'var(--brand-50)', fg: 'var(--brand-700)' },
-  'React': { bg: 'var(--info-50)', fg: 'var(--info-600)' }, 'SQL': { bg: 'var(--success-50)', fg: 'var(--success-700)' },
-  'Docker': { bg: 'var(--info-50)', fg: 'var(--info-600)' }, 'TypeScript': { bg: 'var(--info-50)', fg: 'var(--info-600)' },
-  'Node.js': { bg: 'var(--success-50)', fg: 'var(--success-700)' }, 'Java': { bg: 'var(--warning-100)', fg: 'var(--warning-700)' },
-  'Azure': { bg: 'var(--info-50)', fg: 'var(--info-600)' }, 'AWS': { bg: 'var(--warning-100)', fg: 'var(--warning-700)' },
-}
-
-function SkillTag({ label }) {
-  const c = SKILL_COLORS[label] || { bg: 'var(--slate-100)', fg: 'var(--slate-600)' }
-  return <span style={{ display: 'inline-flex', alignItems: 'center', padding: '2px 9px', borderRadius: 9999, fontSize: 12, fontWeight: 600, background: c.bg, color: c.fg }}>{label}</span>
-}
 
 function AssessBadge({ lastAssessed, now }) {
   if (!lastAssessed) return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 8px', borderRadius: 9999, background: 'var(--danger-50)', color: 'var(--danger-500)', fontSize: 12, fontWeight: 600 }}>Never assessed</span>
@@ -159,6 +147,12 @@ function MemberProfilePage() {
     finally { setUploading(false); e.target.value = '' }
   }
 
+  // Saves the member's full skill list; SkillsEditor shows the error if this throws
+  async function handleSkillsSave(next) {
+    const res = await api.updateMemberSkills(member.id, next)
+    setMember(prev => ({ ...prev, tags: res.data?.tags || [] }))
+  }
+
   async function handleAddToTeam() {
     setAddingToTeam(true)
     setError(null)
@@ -189,6 +183,8 @@ function MemberProfilePage() {
 
   const fullName = `${member.first_name || ''} ${member.last_name || ''}`.trim()
   const tags     = parseStoredArray(member.tags)
+  // Team route (/team/:id) only - org profiles of people outside the team stay read-only
+  const canEditSkills = !isOrgProfile && member.in_team !== false
   const assessmentCount = reportHistory.length
   const bestScore = reportHistory.reduce((max, r) => {
     const s = Number(r.overall_score)
@@ -228,14 +224,20 @@ function MemberProfilePage() {
                 {member.phone && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Phone size={12} />{member.phone}</span>}
                 {member.location && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><MapPin size={12} />{member.location}</span>}
               </div>
-              <div style={{ display: 'flex', gap: 16, fontSize: 12, color: 'var(--fg-muted)', flexWrap: 'wrap', marginBottom: tags.length > 0 ? 8 : 0 }}>
+              <div style={{ display: 'flex', gap: 16, fontSize: 12, color: 'var(--fg-muted)', flexWrap: 'wrap', marginBottom: (tags.length > 0 || canEditSkills) ? 8 : 0 }}>
                 {member.employee_id && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><BadgeCheck size={12} color="var(--brand-500)" />ID: {member.employee_id}</span>}
                 {member.department && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Building2 size={12} color="var(--brand-500)" />{member.department}</span>}
                 {member.current_position && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Briefcase size={12} color="var(--brand-500)" />{member.current_position}</span>}
               </div>
-              {tags.length > 0 && (
-                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
-                  {tags.map((t, i) => <SkillTag key={i} label={t} />)}
+              {/* Skills - editable only for the manager's own team members */}
+              {(tags.length > 0 || canEditSkills) && (
+                <div style={{ marginTop: 4 }}>
+                  <SkillsEditor
+                    skills={tags}
+                    onSave={handleSkillsSave}
+                    editable={canEditSkills}
+                    emptyText="No skills yet."
+                  />
                 </div>
               )}
             </div>

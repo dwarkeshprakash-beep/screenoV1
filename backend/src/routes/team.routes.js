@@ -18,6 +18,7 @@ function teamViewScope(req) {
 }
 
 function sendTeamError(res, err, fallback) {
+  if (err.httpStatus) return res.status(err.httpStatus).json({ success: false, error: err.message })
   if (err.message === 'Member not found') {
     return res.status(404).json({ success: false, error: err.message })
   }
@@ -124,6 +125,17 @@ router.patch('/member/:id', async (req, res) => {
   } catch (err) {
     console.error('PATCH /team/member/:id failed:', err.message)
     sendTeamError(res, err, 'Could not update member')
+  }
+})
+
+// Replaces a member's skill list: body { skills: string[] }. Own team only.
+router.put('/member/:id/skills', async (req, res) => {
+  try {
+    const result = await teamService.updateMemberSkills(parseInt(req.params.id, 10), req.body?.skills, req.user.id)
+    res.json({ success: true, data: result })
+  } catch (err) {
+    console.error('PUT /team/member/:id/skills failed:', err.message)
+    sendTeamError(res, err, 'Could not update skills')
   }
 })
 

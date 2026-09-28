@@ -28,4 +28,42 @@ function parsePositiveInt(rawValue) {
   return Number.isInteger(value) && value > 0 ? value : null
 }
 
-module.exports = { parseStoredArray, parsePositiveInt }
+/**
+ * Concatenate tag lists, trimming and dropping blanks and case-insensitive duplicates.
+ * The first spelling seen wins.
+ * @param {...any[]} lists
+ * @returns {string[]}
+ */
+function mergeTags(...lists) {
+  const seen = new Set()
+  const merged = []
+  for (const tag of lists.flat()) {
+    const clean = String(tag ?? '').trim()
+    const key = clean.toLowerCase()
+    if (!clean || seen.has(key)) continue
+    seen.add(key)
+    merged.push(clean)
+  }
+  return merged
+}
+
+const MAX_SKILLS = 30
+const MAX_SKILL_LENGTH = 40
+
+/**
+ * Validate a user-edited skill list (stored in users.tags) and clean it with mergeTags.
+ * @param {any} input
+ * @returns {{ skills?: string[], error?: string }}
+ */
+function normalizeSkillList(input) {
+  if (!Array.isArray(input)) return { error: 'skills must be an array' }
+  if (input.some(s => typeof s !== 'string')) return { error: 'Each skill must be text' }
+  const skills = mergeTags(input)
+  if (skills.some(s => s.length > MAX_SKILL_LENGTH)) {
+    return { error: `Each skill must be at most ${MAX_SKILL_LENGTH} characters` }
+  }
+  if (skills.length > MAX_SKILLS) return { error: `A profile can have at most ${MAX_SKILLS} skills` }
+  return { skills }
+}
+
+module.exports = { parseStoredArray, parsePositiveInt, mergeTags, normalizeSkillList }

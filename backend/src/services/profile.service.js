@@ -6,6 +6,7 @@ const userRepository = require('../repositories/user.repository')
 const resumeRepository = require('../repositories/resume.repository')
 const storageService = require('./storage.service')
 const { validatePassword } = require('../utils/password-policy')
+const { parseStoredArray, normalizeSkillList } = require('../utils/parse')
 
 const VALID_AVAILABILITY = ['bench', 'client_side']
 
@@ -97,8 +98,19 @@ async function updateProfile(userId, { firstName, lastName, currentPassword, new
   return updated
 }
 
+// Replaces the user's full skill list (users.tags - the same column resume extraction fills).
+async function updateSkills(userId, input) {
+  const { skills, error } = normalizeSkillList(input)
+  if (error) throw profileError(400, error)
+
+  const updated = await userRepository.updateProfile(userId, { tags: skills })
+  if (!updated) throw profileError(404, 'User not found')
+  return { tags: parseStoredArray(updated.tags) }
+}
+
 module.exports = {
   getProfile,
   getResumeMetadata,
   updateProfile,
+  updateSkills,
 }

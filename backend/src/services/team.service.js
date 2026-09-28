@@ -8,6 +8,7 @@ const interviewRepository = require('../repositories/interview.repository')
 const interviewHistoryRepository = require('../repositories/interview-history.repository')
 const externalCandidateRepository = require('../repositories/external-candidate.repository')
 const storageService = require('./storage.service')
+const { parseStoredArray, normalizeSkillList } = require('../utils/parse')
 
 async function withSignedResumeUrl(profile) {
   if (!profile?.resume_url || storageService.isExternalUrl(profile.resume_url)) return profile
@@ -99,6 +100,23 @@ async function updateMember(id, data, managerId) {
   }
 
   return teamMemberRepository.getByIdForManager(id, managerId)
+}
+
+// Replaces a team member's skill list (users.tags). Only the member's own manager may edit -
+// getByIdForManager scopes to tm.manager_id, so View All does not widen this.
+async function updateMemberSkills(id, input, managerId) {
+  const member = await teamMemberRepository.getByIdForManager(id, managerId)
+  if (!member) throw new Error('Member not found')
+
+  const { skills, error } = normalizeSkillList(input)
+  if (error) {
+    const err = new Error(error)
+    err.httpStatus = 400
+    throw err
+  }
+
+  const updated = await userRepository.updateProfile(member.user_id, { tags: skills })
+  return { tags: parseStoredArray(updated?.tags) }
 }
 
 async function removeMember(id, managerId) {
@@ -269,7 +287,7 @@ async function getOrganizationMemberInterviews(userId, managerId) {
 }
 
 module.exports = {
-  getTeam, getMember, getOrgUsersNotInTeam, addMember, updateMember,
+  getTeam, getMember, getOrgUsersNotInTeam, addMember, updateMember, updateMemberSkills,
   removeMember, getStats, getActivity, importFromCSV, getMemberInterviews, getInterviewHistory,
   parseCSV,
   getExternalCandidates, addExternalCandidate,

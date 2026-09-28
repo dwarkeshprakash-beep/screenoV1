@@ -10,6 +10,7 @@ import ErrorMessage from '../../components/shared/ErrorMessage'
 import Avatar from '../../components/shared/Avatar'
 import ChangePasswordForm from '../../components/shared/ChangePasswordForm'
 import FileUploadButton from '../../components/shared/FileUploadButton'
+import SkillsEditor from '../../components/shared/SkillsEditor'
 import * as api from '../../services/api'
 import { formatDate, parseStoredArray } from '../../utils/helpers'
 
@@ -110,6 +111,12 @@ function ProfilePage() {
   async function handleAvailabilityChange(value) {
     setAvailability(value)
     try { await api.updateCandidateProfile({ availability: value }) } catch { /* non-critical */ }
+  }
+
+  // Saves the full skill list; SkillsEditor shows the error if this throws
+  async function handleSkillsSave(next) {
+    const res = await api.updateOwnSkills(next)
+    setResumeTags(res.data?.tags || [])
   }
 
   async function handleResumeUpload(file) {
@@ -290,19 +297,18 @@ function ProfilePage() {
         />
       </div>
 
-      {/* Extracted skills */}
-      {resumeTags.length > 0 && (
-        <div style={cardStyle}>
-          <div style={eyebrowStyle}>Extracted Skills</div>
-          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {resumeTags.map(t => (
-              <span key={t} style={{ fontSize: 12, padding: '4px 10px', borderRadius: 999, background: 'var(--brand-50)', color: 'var(--brand-700)', fontWeight: 600, border: '1px solid var(--brand-100)' }}>
-                {t}
-              </span>
-            ))}
-          </div>
+      {/* Skills - extracted from the default resume, editable by the user */}
+      <div style={cardStyle}>
+        <div style={eyebrowStyle}>Skills</div>
+        <SkillsEditor
+          skills={resumeTags}
+          onSave={handleSkillsSave}
+          emptyText="No skills yet - upload a resume to extract them, or add your own."
+        />
+        <div style={{ fontSize: 11, color: 'var(--fg-muted)', marginTop: 10 }}>
+          Extracted from your default resume. Changing your default resume re-extracts this list.
         </div>
-      )}
+      </div>
 
       {/* Notifications */}
       <div style={cardStyle}>

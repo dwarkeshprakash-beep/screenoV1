@@ -45,7 +45,18 @@ router.patch('/', async (req, res) => {
   }
 })
 
-router.post('/resume', documentUpload.single('resume'), async (req, res) => {
+// Replaces the signed-in user's skill list: body { skills: string[] }
+router.put('/skills', async (req, res) => {
+  try {
+    const result = await profileService.updateSkills(req.user.id, req.body?.skills)
+    res.json({ success: true, data: result })
+  } catch (err) {
+    if (!err.httpStatus) console.error('PUT /profile/skills failed:', err)
+    sendProfileError(res, err, 'Could not update skills')
+  }
+})
+
+router.post('/resume',documentUpload.single('resume'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ success: false, error: 'No file provided' })
 
