@@ -5,6 +5,15 @@ import Modal from '../shared/Modal'
 import Avatar from '../shared/Avatar'
 import { formatDate, parseStoredArray } from '../../utils/helpers'
 
+// Combines the two experience columns into "4y 9m" (drops a part when it's 0/unset).
+function formatExperience(years, months) {
+  const parts = []
+  if (years) parts.push(`${years}y`)
+  if (months) parts.push(`${months}m`)
+  if (parts.length === 0) return years != null || months != null ? '0y' : '-'
+  return parts.join(' ')
+}
+
 function assessLabel(lastAssessed) {
   if (!lastAssessed) return { label: 'Never assessed', bg: 'var(--danger-50)', fg: 'var(--danger-500)' }
   const days = (Date.now() - new Date(lastAssessed).getTime()) / 86400000
@@ -91,6 +100,16 @@ function CompareModal({ open, onClose, members = [] }) {
           label="LOCATION"
           left={a.location || '-'}
           right={b.location || '-'}
+        />
+        <Row
+          label="EXPERIENCE"
+          left={formatExperience(a.experience_years, a.experience_months)}
+          right={formatExperience(b.experience_years, b.experience_months)}
+        />
+        <Row
+          label="JOINED"
+          left={a.joining_date ? formatDate(a.joining_date) : '-'}
+          right={b.joining_date ? formatDate(b.joining_date) : '-'}
         />
         <Row
           label="LAST"

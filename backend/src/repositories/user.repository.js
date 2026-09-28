@@ -17,6 +17,7 @@ async function getById(id) {
   const rows = await db.query(
     `SELECT u.id, u.company_id, u.first_name, u.last_name, u.email, u.is_platform_admin,
             u.resume_url, u.resume_text, u.tags, u.availability, u.current_resume_asset_id,
+            u.experience_years, u.experience_months, u.joining_date,
             ra.original_filename as resume_filename, ra.size as resume_size, ra.mime_type as resume_mime_type, ra.created_at as resume_uploaded_at
      FROM users u
      LEFT JOIN resume_assets ra ON ra.id = u.current_resume_asset_id AND ra.deleted_at IS NULL
@@ -44,17 +45,23 @@ async function updateProfile(id, {
   tags,
   availability,
   currentResumeAssetId,
+  experienceYears,
+  experienceMonths,
+  joiningDate,
 }) {
   const rows = await db.query(
     `UPDATE users
      SET
-       first_name   = COALESCE(@first_name,   first_name),
-       last_name    = COALESCE(@last_name,    last_name),
-       resume_url   = COALESCE(@resume_url,   resume_url),
-       resume_text  = COALESCE(@resume_text,  resume_text),
-       tags         = COALESCE(@tags,         tags),
-       availability = COALESCE(@availability, availability),
-       current_resume_asset_id = COALESCE(@current_resume_asset_id, current_resume_asset_id)
+       first_name        = COALESCE(@first_name,        first_name),
+       last_name         = COALESCE(@last_name,         last_name),
+       resume_url        = COALESCE(@resume_url,        resume_url),
+       resume_text       = COALESCE(@resume_text,       resume_text),
+       tags              = COALESCE(@tags,              tags),
+       availability      = COALESCE(@availability,      availability),
+       current_resume_asset_id = COALESCE(@current_resume_asset_id, current_resume_asset_id),
+       experience_years  = COALESCE(@experience_years,  experience_years),
+       experience_months = COALESCE(@experience_months, experience_months),
+       joining_date      = COALESCE(@joining_date,      joining_date)
      WHERE id = @id
      RETURNING *`,
     {
@@ -66,6 +73,10 @@ async function updateProfile(id, {
       tags:         tags ? (typeof tags === 'string' ? tags : JSON.stringify(tags)) : null,
       availability: availability || null,
       current_resume_asset_id: currentResumeAssetId || null,
+      // ?? not || - 0 years/months of experience is a valid value and must not be dropped
+      experience_years: experienceYears ?? null,
+      experience_months: experienceMonths ?? null,
+      joining_date: joiningDate || null,
     }
   )
   return rows[0]
@@ -407,7 +418,7 @@ async function getOrganizationMemberProfile(userId, companyId) {
     `SELECT u.id, u.company_id, u.first_name, u.last_name, u.email, u.created,
             u.emp_number AS employee_id, u.job_title AS current_position,
             u.location, u.availability, u.tags, u.resume_url, u.resume_text, u.resume_updated,
-            u.current_resume_asset_id, d.name AS department
+            u.current_resume_asset_id, u.experience_years, u.experience_months, u.joining_date, d.name AS department
      FROM users u
      LEFT JOIN departments d ON d.id = u.department_id
      WHERE u.id = @userId AND u.company_id = @companyId

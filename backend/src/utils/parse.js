@@ -66,4 +66,54 @@ function normalizeSkillList(input) {
   return { skills }
 }
 
-module.exports = { parseStoredArray, parsePositiveInt, mergeTags, normalizeSkillList }
+const MAX_EXPERIENCE_YEARS = 60
+
+/**
+ * Validate a user-edited whole-number "years of experience" value (users.experience_years).
+ * undefined/null/'' means "leave unchanged".
+ * @param {any} input
+ * @returns {{ value?: number|null, error?: string }}
+ */
+function normalizeExperienceYears(input) {
+  if (input === undefined || input === null || input === '') return { value: null }
+  const years = Number(input)
+  if (!Number.isInteger(years) || years < 0 || years > MAX_EXPERIENCE_YEARS) {
+    return { error: `Experience years must be a whole number between 0 and ${MAX_EXPERIENCE_YEARS}` }
+  }
+  return { value: years }
+}
+
+/**
+ * Validate a user-edited "extra months of experience" value (users.experience_months),
+ * the 0-11 remainder on top of experience_years - e.g. 4 years 9 months is
+ * experience_years 4, experience_months 9. undefined/null/'' means "leave unchanged".
+ * @param {any} input
+ * @returns {{ value?: number|null, error?: string }}
+ */
+function normalizeExperienceMonths(input) {
+  if (input === undefined || input === null || input === '') return { value: null }
+  const months = Number(input)
+  if (!Number.isInteger(months) || months < 0 || months > 11) {
+    return { error: 'Experience months must be a whole number between 0 and 11' }
+  }
+  return { value: months }
+}
+
+/**
+ * Validate a user-edited joining date (users.joining_date). undefined/null/'' means
+ * "leave unchanged". Stored as a plain YYYY-MM-DD string - see the DATE type-parser
+ * note in db/supabase.connection.js for why dates are kept as raw strings.
+ * @param {any} input
+ * @returns {{ value?: string|null, error?: string }}
+ */
+function normalizeJoiningDate(input) {
+  if (input === undefined || input === null || input === '') return { value: null }
+  const date = new Date(input)
+  if (Number.isNaN(date.getTime())) return { error: 'Joining date is not a valid date' }
+  return { value: String(input).slice(0, 10) }
+}
+
+module.exports = {
+  parseStoredArray, parsePositiveInt, mergeTags, normalizeSkillList,
+  normalizeExperienceYears, normalizeExperienceMonths, normalizeJoiningDate,
+}

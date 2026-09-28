@@ -73,6 +73,9 @@ function ProfilePage() {
         team: p.team || '',
         loc: p.location || p.loc || '',
         timezone: p.timezone || '',
+        experienceYears: p.experience_years != null ? String(p.experience_years) : '',
+        experienceMonths: p.experience_months != null ? String(p.experience_months) : '',
+        joiningDate: p.joining_date ? String(p.joining_date).slice(0, 10) : '',
       })
       setAvailability(p.availability || null)
       setResumeTags(parseStoredArray(p.tags))
@@ -99,7 +102,13 @@ function ProfilePage() {
       const parts = form.name.trim().split(/\s+/)
       const firstName = parts[0] || ''
       const lastName = parts.slice(1).join(' ')
-      await api.updateManagerProfile({ firstName, lastName })
+      await api.updateManagerProfile({
+        firstName,
+        lastName,
+        experienceYears: form.experienceYears === '' ? null : Number(form.experienceYears),
+        experienceMonths: form.experienceMonths === '' ? null : Number(form.experienceMonths),
+        joiningDate: form.joiningDate || null,
+      })
       setSaved(true)
     } catch (err) {
       setNameError(err.message)
@@ -215,6 +224,36 @@ function ProfilePage() {
                 <input readOnly value={form[f.k] || ''} style={{ width: '100%', padding: '9px 12px', border: '1px solid var(--border-default)', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', boxSizing: 'border-box', background: 'var(--bg-surface-alt)', color: 'var(--fg-muted)' }} />
               </div>
             ))}
+            <div>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--fg-body)', marginBottom: 5 }}>Experience</label>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  type="number" min="0" max="60" step="1"
+                  value={form.experienceYears || ''}
+                  onChange={e => { setForm(prev => ({ ...prev, experienceYears: e.target.value })); setSaved(false) }}
+                  placeholder="Years"
+                  aria-label="Experience years"
+                  style={{ width: '100%', padding: '9px 12px', border: '1px solid var(--border-default)', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', boxSizing: 'border-box' }}
+                />
+                <input
+                  type="number" min="0" max="11" step="1"
+                  value={form.experienceMonths || ''}
+                  onChange={e => { setForm(prev => ({ ...prev, experienceMonths: e.target.value })); setSaved(false) }}
+                  placeholder="Months"
+                  aria-label="Experience months"
+                  style={{ width: '100%', padding: '9px 12px', border: '1px solid var(--border-default)', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', boxSizing: 'border-box' }}
+                />
+              </div>
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--fg-body)', marginBottom: 5 }}>Joining date</label>
+              <input
+                type="date"
+                value={form.joiningDate || ''}
+                onChange={e => { setForm(prev => ({ ...prev, joiningDate: e.target.value })); setSaved(false) }}
+                style={{ width: '100%', padding: '9px 12px', border: '1px solid var(--border-default)', borderRadius: 8, fontSize: 13, fontFamily: 'inherit', boxSizing: 'border-box' }}
+              />
+            </div>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 18 }}>
             <button type="submit" disabled={saving} style={{ background: saving ? 'var(--bg-surface-alt)' : 'var(--brand-500)', color: saving ? 'var(--fg-subtle)' : 'var(--bg-surface)', border: 0, borderRadius: 8, fontWeight: 600, padding: '8px 14px', fontSize: 13, cursor: saving ? 'not-allowed' : 'pointer' }}>

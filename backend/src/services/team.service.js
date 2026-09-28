@@ -8,7 +8,10 @@ const interviewRepository = require('../repositories/interview.repository')
 const interviewHistoryRepository = require('../repositories/interview-history.repository')
 const externalCandidateRepository = require('../repositories/external-candidate.repository')
 const storageService = require('./storage.service')
-const { parseStoredArray, normalizeSkillList } = require('../utils/parse')
+const {
+  parseStoredArray, normalizeSkillList,
+  normalizeExperienceYears, normalizeExperienceMonths, normalizeJoiningDate,
+} = require('../utils/parse')
 
 async function withSignedResumeUrl(profile) {
   if (!profile?.resume_url || storageService.isExternalUrl(profile.resume_url)) return profile
@@ -70,12 +73,36 @@ async function updateMember(id, data, managerId) {
 
   const hasProfileUpdate = data.firstName !== undefined || data.lastName !== undefined
     || data.resumeUrl !== undefined || data.availability !== undefined
+    || data.experienceYears !== undefined || data.experienceMonths !== undefined
+    || data.joiningDate !== undefined
   if (hasProfileUpdate) {
+    const years = normalizeExperienceYears(data.experienceYears)
+    if (years.error) {
+      const err = new Error(years.error)
+      err.httpStatus = 400
+      throw err
+    }
+    const months = normalizeExperienceMonths(data.experienceMonths)
+    if (months.error) {
+      const err = new Error(months.error)
+      err.httpStatus = 400
+      throw err
+    }
+    const joining = normalizeJoiningDate(data.joiningDate)
+    if (joining.error) {
+      const err = new Error(joining.error)
+      err.httpStatus = 400
+      throw err
+    }
+
     await userRepository.updateProfile(member.user_id, {
       firstName:    data.firstName    || null,
       lastName:     data.lastName     || null,
       resumeUrl:    data.resumeUrl    || null,
       availability: data.availability || null,
+      experienceYears: years.value,
+      experienceMonths: months.value,
+      joiningDate: joining.value,
     })
   }
 

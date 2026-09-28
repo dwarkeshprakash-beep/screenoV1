@@ -6,7 +6,10 @@ const userRepository = require('../repositories/user.repository')
 const resumeRepository = require('../repositories/resume.repository')
 const storageService = require('./storage.service')
 const { validatePassword } = require('../utils/password-policy')
-const { parseStoredArray, normalizeSkillList } = require('../utils/parse')
+const {
+  parseStoredArray, normalizeSkillList,
+  normalizeExperienceYears, normalizeExperienceMonths, normalizeJoiningDate,
+} = require('../utils/parse')
 
 const VALID_AVAILABILITY = ['bench', 'client_side']
 
@@ -69,7 +72,10 @@ async function getResumeMetadata(userId) {
 }
 
 // Password change (when newPassword is given) runs before the name/availability update.
-async function updateProfile(userId, { firstName, lastName, currentPassword, newPassword, availability }) {
+async function updateProfile(userId, {
+  firstName, lastName, currentPassword, newPassword, availability,
+  experienceYears, experienceMonths, joiningDate,
+}) {
   if (newPassword) {
     if (!currentPassword) throw profileError(400, 'Current password required')
     const passwordError = validatePassword(newPassword)
@@ -86,11 +92,24 @@ async function updateProfile(userId, { firstName, lastName, currentPassword, new
     await userRepository.updatePassword(userId, await bcrypt.hash(newPassword, 10))
   }
 
-  if (firstName || lastName || availability) {
+  if (firstName || lastName || availability
+    || experienceYears !== undefined || experienceMonths !== undefined || joiningDate !== undefined) {
     if (availability && !VALID_AVAILABILITY.includes(availability)) {
       throw profileError(400, 'Invalid availability')
     }
-    await userRepository.updateProfile(userId, { firstName, lastName, availability })
+    const years = normalizeExperienceYears(experienceYears)
+    if (years.error) throw profileError(400, years.error)
+    const months = normalizeExperienceMonths(experienceMonths)
+    if (months.error) throw profileError(400, months.error)
+    const joining = normalizeJoiningDate(joiningDate)
+    if (joining.error) throw profileError(400, joining.error)
+
+    await userRepository.updateProfile(userId, {
+      firstName, lastName, availability,
+      experienceYears: years.value,
+      experienceMonths: months.value,
+      joiningDate: joining.value,
+    })
   }
 
   const updated = await userRepository.getById(userId)

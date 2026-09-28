@@ -1,6 +1,6 @@
 ﻿import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Mail, Phone, MapPin, Briefcase, CalendarPlus, Pencil, FileText, Download, ThumbsUp, Check, Building2, BadgeCheck } from 'lucide-react'
+import { ArrowLeft, Mail, Phone, MapPin, Briefcase, CalendarPlus, Pencil, FileText, Download, ThumbsUp, Check, Building2, BadgeCheck, History, CalendarDays } from 'lucide-react'
 import Spinner from '../../components/shared/Spinner'
 import ErrorMessage from '../../components/shared/ErrorMessage'
 import EmptyState from '../../components/shared/EmptyState'
@@ -228,6 +228,13 @@ function MemberProfilePage() {
                 {member.employee_id && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><BadgeCheck size={12} color="var(--brand-500)" />ID: {member.employee_id}</span>}
                 {member.department && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Building2 size={12} color="var(--brand-500)" />{member.department}</span>}
                 {member.current_position && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Briefcase size={12} color="var(--brand-500)" />{member.current_position}</span>}
+                {(member.experience_years != null || member.experience_months != null) && (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                    <History size={12} color="var(--brand-500)" />
+                    {[member.experience_years && `${member.experience_years}y`, member.experience_months && `${member.experience_months}m`].filter(Boolean).join(' ') || '0y'} experience
+                  </span>
+                )}
+                {member.joining_date && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><CalendarDays size={12} color="var(--brand-500)" />Joined {formatDate(member.joining_date)}</span>}
               </div>
               {/* Skills - editable only for the manager's own team members */}
               {(tags.length > 0 || canEditSkills) && (
