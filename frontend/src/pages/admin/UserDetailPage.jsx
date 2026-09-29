@@ -134,7 +134,7 @@ function UserDetailPage() {
 
   return (
     <div className="workspace-page" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <button type="button" style={backBtnStyle} onClick={() => navigate('/admin/users')}>
+      <button type="button" style={backBtnStyle} onClick={() => navigate('/workspace/users')}>
         <ArrowLeft size={15} /> Back to Users
       </button>
 

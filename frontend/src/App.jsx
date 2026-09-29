@@ -3,6 +3,7 @@ import { Navigate, Route, Routes, useNavigate, useLocation } from 'react-router-
 import AppLayout from './components/layout/AppLayout'
 import CandidateLayout from './components/layout/CandidateLayout'
 import RequireModule from './components/layout/RequireModule'
+import RequirePlatformAdmin from './components/layout/RequirePlatformAdmin'
 import Spinner from './components/shared/Spinner'
 
 const LoginPage = lazy(() => import('./pages/auth/LoginPage'))
@@ -27,8 +28,6 @@ const DonePage = lazy(() => import('./pages/candidate/DonePage'))
 
 // Admin Pages
 const AdminDashboardPage = lazy(() => import('./pages/admin/AdminDashboardPage'))
-const AdminMandatesPage = lazy(() => import('./pages/admin/AdminMandatesPage'))
-const AdminInterviewsPage = lazy(() => import('./pages/admin/AdminInterviewsPage'))
 const AdminBrokenStatesPage = lazy(() => import('./pages/admin/AdminBrokenStatesPage'))
 const AdminRolesPage = lazy(() => import('./pages/admin/AdminRolesPage'))
 const RoleDetailPage = lazy(() => import('./pages/admin/RoleDetailPage'))
@@ -93,37 +92,25 @@ function AuthProvider({ children }) {
 
 function storedSession() {
   const token = localStorage.getItem('accessToken')
-  try {
-    const role = JSON.parse(localStorage.getItem('user') || '{}').role || null
-    return { token, role }
-  } catch {
-    return { token, role: null }
-  }
+  return { token }
 }
 
-// There is no portal split anymore - every non-admin user shares one app
-// ('/workspace'), and what they see inside it is entirely ACL/module-driven.
-// 'role' here is only ever 'admin' or 'user' (see auth.service.js#resolveUserRole) -
-// just enough to pick a shell.
-function roleHome(role) {
-  if (role === 'admin') return '/admin/dashboard'
-  if (role === 'user') return '/workspace/dashboard'
-  return '/login'
-}
+// One shell for every signed-in account - platform admin, company sub-admin, or a
+// plain workspace user. There is no portal/shell split anymore: what a user sees
+// inside '/workspace' is entirely ACL/module-driven (see AccessContext/useAccess),
+// down to whether they can even reach the Organizations/Roles/Users/ACLs pages.
+const WORKSPACE_HOME = '/workspace/dashboard'
 
 function HomeRedirect() {
-  const { token, role } = storedSession()
-  return <Navigate to={token ? roleHome(role) : '/login'} replace />
+  const { token } = storedSession()
+  return <Navigate to={token ? WORKSPACE_HOME : '/login'} replace />
 }
 
-function RequireAuth({ children, adminOnly }) {
+function RequireAuth({ children }) {
   const location = useLocation()
-  const { token, role: storedRole } = storedSession()
+  const { token } = storedSession()
   // Remember the deep link (e.g. from an email) so login can return the user to it
   if (!token) return <Navigate to="/login" replace state={{ from: `${location.pathname}${location.search}` }} />
-
-  if (adminOnly && storedRole !== 'admin') return <Navigate to={roleHome(storedRole)} replace />
-  if (!adminOnly && storedRole === 'admin') return <Navigate to={roleHome(storedRole)} replace />
   return children
 }
 
@@ -131,14 +118,14 @@ function RequireAuth({ children, adminOnly }) {
 // the normal shell (sidebar to move on); a magic-link-only candidate has no account
 // to navigate, so they keep the standalone page.
 function InterviewDoneRoute() {
-  const { token, role } = storedSession()
-  if (token && role === 'user') return <Navigate to="/workspace/interview-complete" replace />
+  const { token } = storedSession()
+  if (token) return <Navigate to="/workspace/interview-complete" replace />
   return <DonePage />
 }
 
 function RedirectIfAuthed({ children }) {
-  const { token, role } = storedSession()
-  if (token && roleHome(role) !== '/login') return <Navigate to={roleHome(role)} replace />
+  const { token } = storedSession()
+  if (token) return <Navigate to={WORKSPACE_HOME} replace />
   return children
 }
 
@@ -151,7 +138,7 @@ function App() {
 
           <Route
             path="/workspace"
-            element={<RequireAuth><AppLayout role="workspace" /></RequireAuth>}
+            element={<RequireAuth><AppLayout /></RequireAuth>}
           >
             <Route index element={<Navigate to="dashboard" replace />} />
             <Route path="dashboard" element={<DashboardPage />} />
@@ -170,29 +157,25 @@ function App() {
             <Route path="resume-analyzer" element={<RequireModule moduleKey="resume_analyzer" redirectTo="/workspace/profile"><ResumeAnalyzerPage /></RequireModule>} />
             <Route path="interview-complete" element={<DonePage inWorkspace />} />
             <Route path="profile" element={<ProfilePage />} />
-          </Route>
 
-          <Route
-            path="/admin"
-            element={<RequireAuth adminOnly><AppLayout role="admin" /></RequireAuth>}
-          >
-            <Route index element={<Navigate to="dashboard" replace />} />
-            <Route path="dashboard" element={<AdminDashboardPage />} />
-            <Route path="mandates" element={<AdminMandatesPage />} />
-            <Route path="interviews" element={<AdminInterviewsPage />} />
-            <Route path="broken-states" element={<AdminBrokenStatesPage />} />
-            <Route path="organizations" element={<AdminOrganizationsPage />} />
-            <Route path="organizations/:id" element={<OrganizationDetailPage />} />
-            <Route path="roles" element={<AdminRolesPage />} />
-            <Route path="roles/:id" element={<RoleDetailPage />} />
-            <Route path="users" element={<AdminUsersPage />} />
-            <Route path="users/:id" element={<UserDetailPage />} />
-            <Route path="modules" element={<AdminModulesPage />} />
-            <Route path="acls" element={<AdminAclsPage />} />
-            <Route path="acls/:id" element={<AclDetailPage />} />
-            <Route path="permissions" element={<AdminPermissionsPage />} />
-            <Route path="permissions/:id" element={<PermissionDetailPage />} />
-            <Route path="profile" element={<ProfilePage />} />
+            {/* Delegable admin: gated the same way as any other module - a company
+                can grant a "sub-admin" role View/Save/Delete on just these. */}
+            <Route path="organizations" element={<RequirePlatformAdmin redirectTo="/workspace/profile"><AdminOrganizationsPage /></RequirePlatformAdmin>} />
+            <Route path="organizations/:id" element={<RequireModule moduleKey="organizations" redirectTo="/workspace/profile"><OrganizationDetailPage /></RequireModule>} />
+            <Route path="roles" element={<RequireModule moduleKey="roles" redirectTo="/workspace/profile"><AdminRolesPage /></RequireModule>} />
+            <Route path="roles/:id" element={<RequireModule moduleKey="roles" redirectTo="/workspace/profile"><RoleDetailPage /></RequireModule>} />
+            <Route path="users" element={<RequireModule moduleKey="users" redirectTo="/workspace/profile"><AdminUsersPage /></RequireModule>} />
+            <Route path="users/:id" element={<RequireModule moduleKey="users" redirectTo="/workspace/profile"><UserDetailPage /></RequireModule>} />
+            <Route path="acls" element={<RequireModule moduleKey="acls" redirectTo="/workspace/profile"><AdminAclsPage /></RequireModule>} />
+            <Route path="acls/:id" element={<RequireModule moduleKey="acls" redirectTo="/workspace/profile"><AclDetailPage /></RequireModule>} />
+
+            {/* Platform-wide only, never delegable: the global Modules/Permissions
+                catalogs and the system-repair tools. */}
+            <Route path="modules" element={<RequirePlatformAdmin redirectTo="/workspace/profile"><AdminModulesPage /></RequirePlatformAdmin>} />
+            <Route path="permissions" element={<RequirePlatformAdmin redirectTo="/workspace/profile"><AdminPermissionsPage /></RequirePlatformAdmin>} />
+            <Route path="permissions/:id" element={<RequirePlatformAdmin redirectTo="/workspace/profile"><PermissionDetailPage /></RequirePlatformAdmin>} />
+            <Route path="system/dashboard" element={<RequirePlatformAdmin redirectTo="/workspace/profile"><AdminDashboardPage /></RequirePlatformAdmin>} />
+            <Route path="system/broken-states" element={<RequirePlatformAdmin redirectTo="/workspace/profile"><AdminBrokenStatesPage /></RequirePlatformAdmin>} />
           </Route>
 
           <Route path="/interview/:token" element={<CandidateLayout />}>

@@ -81,9 +81,7 @@ export default function AdminDashboardPage() {
       <div className="admin-panel admin-panel__body">
         <h2 className="admin-panel__title" style={{ marginBottom: 12 }}>Quick Actions</h2>
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-          <Button onClick={() => navigate('/admin/mandates')}>Manage Mandates</Button>
-          <Button onClick={() => navigate('/admin/interviews')}>Manage Interviews</Button>
-          <Button variant={issueCount > 0 ? 'danger' : 'secondary'} onClick={() => navigate('/admin/broken-states')}>
+          <Button variant={issueCount > 0 ? 'danger' : 'secondary'} onClick={() => navigate('/workspace/system/broken-states')}>
             Fix Broken States ({issueCount})
           </Button>
         </div>

@@ -36,19 +36,6 @@ router.get('/mandates', async (req, res) => {
   }
 })
 
-router.patch('/mandates/:id/reassign', async (req, res) => {
-  try {
-    const newManagerId = Number(req.body.newManagerId)
-    if (!Number.isInteger(newManagerId)) {
-      return res.status(400).json({ success: false, error: 'newManagerId is required' })
-    }
-    const updated = await adminService.reassignMandate(parseInt(req.params.id, 10), newManagerId)
-    res.json({ success: true, data: updated })
-  } catch (err) {
-    sendAdminError(res, err, 'PATCH /mandates/:id/reassign', 'Could not reassign mandate')
-  }
-})
-
 const CREATE_USER_ERROR_STATUS = {
   'email is required': 400,
   'Organization not found': 404,

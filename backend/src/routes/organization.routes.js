@@ -1,14 +1,18 @@
 // backend/src/routes/organization.routes.js
-// HTTP only - receive, call organizationService, respond. Admin-only, global
-// (organizations/companies are the tenant boundary itself, not scoped under one).
+// HTTP only - receive, call organizationService, respond. Listing every tenant,
+// creating one, and deleting one stay platform-admin-only (a brand-new/removed
+// company isn't "scoped" to anyone yet). Viewing/editing a single organization is
+// delegable via the 'organizations' module - a company-scoped sub-admin can reach
+// it, but only for their own company (organizationService enforces that - see
+// assertOwnCompany).
 
 const express = require('express')
 const authMiddleware = require('../middleware/auth')
-const { loadAccess, requirePlatformAdmin } = require('../middleware/access')
+const { loadAccess, requirePlatformAdmin, requireModule } = require('../middleware/access')
 const organizationService = require('../services/organization.service')
 
 const router = express.Router()
-router.use(authMiddleware, loadAccess, requirePlatformAdmin)
+router.use(authMiddleware, loadAccess)
 
 const BAD_REQUEST_MESSAGES = [
   'Organization name is required',
@@ -30,7 +34,7 @@ function sendOrganizationError(res, err, fallback) {
   return res.status(500).json({ success: false, error: fallback })
 }
 
-router.get('/', async (req, res) => {
+router.get('/', requirePlatformAdmin, async (req, res) => {
   try {
     const { data, pagination } = await organizationService.listOrganizations({
       page: req.query.page, pageSize: req.query.pageSize, search: req.query.search,
@@ -42,25 +46,25 @@ router.get('/', async (req, res) => {
   }
 })
 
-router.get('/:id', async (req, res) => {
+router.get('/:id', requireModule('organizations'), async (req, res) => {
   try {
-    const organization = await organizationService.getOrganization(Number(req.params.id))
+    const organization = await organizationService.getOrganization(Number(req.params.id), req.access)
     res.json({ success: true, data: organization })
   } catch (err) {
     sendOrganizationError(res, err, 'Could not load organization')
   }
 })
 
-router.get('/:id/summary', async (req, res) => {
+router.get('/:id/summary', requireModule('organizations'), async (req, res) => {
   try {
-    const summary = await organizationService.getOrganizationSummary(Number(req.params.id))
+    const summary = await organizationService.getOrganizationSummary(Number(req.params.id), req.access)
     res.json({ success: true, data: summary })
   } catch (err) {
     sendOrganizationError(res, err, 'Could not load organization summary')
   }
 })
 
-router.post('/', async (req, res) => {
+router.post('/', requirePlatformAdmin, async (req, res) => {
   try {
     const organization = await organizationService.createOrganization(req.body)
     res.status(201).json({ success: true, data: organization })
@@ -69,16 +73,16 @@ router.post('/', async (req, res) => {
   }
 })
 
-router.patch('/:id', async (req, res) => {
+router.patch('/:id', requireModule('organizations'), async (req, res) => {
   try {
-    const organization = await organizationService.updateOrganization(Number(req.params.id), req.body)
+    const organization = await organizationService.updateOrganization(Number(req.params.id), req.body, req.access)
     res.json({ success: true, data: organization })
   } catch (err) {
     sendOrganizationError(res, err, 'Could not update organization')
   }
 })
 
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', requirePlatformAdmin, async (req, res) => {
   try {
     await organizationService.deleteOrganization(Number(req.params.id))
     res.json({ success: true })

@@ -60,6 +60,7 @@ async function getClientAccess(userId) {
   const access = await getUserAccessContext(userId)
   return {
     isPlatformAdmin: access.isPlatformAdmin,
+    companyId: access.companyId,
     roleNames: access.roleNames,
     modules: Object.fromEntries(
       Object.entries(access.moduleAccess).map(([key, permissions]) => [key, [...permissions]])

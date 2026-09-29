@@ -1,15 +1,15 @@
 // backend/src/routes/role.routes.js
-// HTTP only - receive, call roleService, respond. Admin manages roles per company
-// (the 'admin' role is platform-wide, not scoped to one company - see admin.routes.js).
+// HTTP only - receive, call roleService, respond. Delegable per company via the
+// 'roles' module (a platform admin acts on any company via ?companyId=, a
+// company-scoped sub-admin is always forced to their own - see scopedCompanyId).
 
 const express = require('express')
 const authMiddleware = require('../middleware/auth')
-const { loadAccess, requirePlatformAdmin } = require('../middleware/access')
+const { loadAccess, requireModule, scopedCompanyId } = require('../middleware/access')
 const roleService = require('../services/role.service')
-const { parsePositiveInt } = require('../utils/parse')
 
 const router = express.Router()
-router.use(authMiddleware, loadAccess, requirePlatformAdmin)
+router.use(authMiddleware, loadAccess, requireModule('roles'))
 
 function sendRoleError(res, err, fallback) {
   if (err.message === 'Role not found') {
@@ -25,7 +25,7 @@ function sendRoleError(res, err, fallback) {
 }
 
 router.get('/', async (req, res) => {
-  const companyId = parsePositiveInt(req.query.companyId)
+  const companyId = scopedCompanyId(req)
   if (!companyId) return res.status(400).json({ success: false, error: 'companyId is required' })
 
   try {
@@ -40,7 +40,7 @@ router.get('/', async (req, res) => {
 })
 
 router.get('/:id', async (req, res) => {
-  const companyId = parsePositiveInt(req.query.companyId)
+  const companyId = scopedCompanyId(req)
   if (!companyId) return res.status(400).json({ success: false, error: 'companyId is required' })
 
   try {
@@ -52,7 +52,7 @@ router.get('/:id', async (req, res) => {
 })
 
 router.get('/:id/users', async (req, res) => {
-  const companyId = parsePositiveInt(req.query.companyId)
+  const companyId = scopedCompanyId(req)
   if (!companyId) return res.status(400).json({ success: false, error: 'companyId is required' })
 
   try {
@@ -66,7 +66,7 @@ router.get('/:id/users', async (req, res) => {
 })
 
 router.post('/', async (req, res) => {
-  const companyId = parsePositiveInt(req.body.companyId)
+  const companyId = scopedCompanyId(req)
   if (!companyId) return res.status(400).json({ success: false, error: 'companyId is required' })
 
   try {
@@ -78,7 +78,7 @@ router.post('/', async (req, res) => {
 })
 
 router.patch('/:id', async (req, res) => {
-  const companyId = parsePositiveInt(req.body.companyId)
+  const companyId = scopedCompanyId(req)
   if (!companyId) return res.status(400).json({ success: false, error: 'companyId is required' })
 
   try {
@@ -90,7 +90,7 @@ router.patch('/:id', async (req, res) => {
 })
 
 router.delete('/:id', async (req, res) => {
-  const companyId = parsePositiveInt(req.query.companyId)
+  const companyId = scopedCompanyId(req)
   if (!companyId) return res.status(400).json({ success: false, error: 'companyId is required' })
 
   try {

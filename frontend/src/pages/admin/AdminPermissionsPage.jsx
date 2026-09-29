@@ -67,7 +67,7 @@ function AdminPermissionsPage() {
         ) : (
           <PermissionsTable
             permissions={permissions}
-            onView={permission => navigate(`/admin/permissions/${permission.id}`)}
+            onView={permission => navigate(`/workspace/permissions/${permission.id}`)}
           />
         )}
       </div>

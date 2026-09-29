@@ -33,7 +33,17 @@ async function listOrganizations({ page, pageSize, search } = {}) {
   return { data: rows, pagination: buildPaginationMeta({ ...resolved, total }) }
 }
 
-async function getOrganization(id) {
+// A company-scoped sub-admin reaches this route via the delegable 'organizations'
+// module, but must never see another company's record - a platform admin (no
+// single company of their own) is exempt from this check entirely.
+function assertOwnCompany(id, access) {
+  if (access && !access.isPlatformAdmin && access.companyId !== id) {
+    throw new Error('Organization not found')
+  }
+}
+
+async function getOrganization(id, access) {
+  assertOwnCompany(id, access)
   const organization = await companyRepository.getById(id)
   if (!organization) throw new Error('Organization not found')
   return organization
@@ -41,8 +51,8 @@ async function getOrganization(id) {
 
 // Per-tenant summary for the Organizations detail view - a dashboard-lite look at
 // how much of the RBAC surface (users/roles/ACLs) this company actually uses.
-async function getOrganizationSummary(id) {
-  const organization = await getOrganization(id)
+async function getOrganizationSummary(id, access) {
+  const organization = await getOrganization(id, access)
   const [userCount, roleCount, aclCount] = await Promise.all([
     userRepository.countByCompany(id),
     roleRepository.countByCompany(id),
@@ -60,7 +70,8 @@ async function createOrganization(input) {
   return companyRepository.create({ name, logoUrl })
 }
 
-async function updateOrganization(id, input) {
+async function updateOrganization(id, input, access) {
+  assertOwnCompany(id, access)
   const { name, logoUrl } = validateOrganizationInput(input)
 
   const existing = await companyRepository.getByName(name)

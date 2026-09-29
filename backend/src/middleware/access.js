@@ -5,6 +5,7 @@
 // Usage: router.use(authMiddleware, loadAccess, requirePlatformAdmin | requireModule('team'))
 
 const accessService = require('../services/access.service')
+const { parsePositiveInt } = require('../utils/parse')
 
 // Must run immediately after authMiddleware. Attaches req.access for every guard below.
 async function loadAccess(req, res, next) {
@@ -41,9 +42,14 @@ const METHOD_PERMISSION = { GET: 'View', POST: 'Save', PATCH: 'Save', PUT: 'Save
 // so every module gates viewing the same way instead of some using a flat Read.
 // moduleKey may be an array: the permission on ANY one of those modules passes (for a
 // self-scoped action reachable from more than one module's page).
+// A platform admin always passes, same as the frontend's hasModule() already assumes
+// (AccessContext.jsx) - they aren't necessarily granted a role/ACL on every module
+// (their access was historically all-or-nothing via requirePlatformAdmin alone), so
+// without this a real admin could get locked out of a route newly gated by module.
 function requireModule(moduleKey, { permission } = {}) {
   const moduleKeys = Array.isArray(moduleKey) ? moduleKey : [moduleKey]
   return (req, res, next) => {
+    if (req.access?.isPlatformAdmin) return next()
     const needed = permission || METHOD_PERMISSION[req.method] || 'View'
     const allowed = moduleKeys.some(key => (needed === 'View'
       ? accessService.hasAnyViewPermission(req.access, key)
@@ -55,4 +61,14 @@ function requireModule(moduleKey, { permission } = {}) {
   }
 }
 
-module.exports = { loadAccess, requirePlatformAdmin, requireModule }
+// Organizations/Roles/Users/ACLs are delegable per-company (see requireModule above),
+// but their routes historically trusted a client-supplied companyId because only a
+// platform admin (who has no single company) could ever reach them. Now that a
+// company-scoped sub-admin can reach these routes too, that param must be ignored for
+// them - otherwise they could pass another company's id and read/edit its data.
+function scopedCompanyId(req) {
+  if (req.access?.isPlatformAdmin) return parsePositiveInt(req.query.companyId ?? req.body?.companyId)
+  return req.access.companyId
+}
+
+module.exports = { loadAccess, requirePlatformAdmin, requireModule, scopedCompanyId }

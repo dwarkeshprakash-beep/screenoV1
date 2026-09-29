@@ -21,22 +21,25 @@ const PAGE_META = {
   '/workspace/outcomes':         { title: 'Client Outcomes',    subtitle: 'Interview round results for your client mandates' },
   '/workspace/profile':          { title: 'My Profile',         subtitle: 'Account and notification settings' },
   '/workspace/interview-complete': { title: 'Assessment submitted', subtitle: 'Your responses were saved' },
-  '/admin/dashboard':          { title: 'Admin Dashboard',     subtitle: 'System-wide overview and controls' },
-  '/admin/mandates':           { title: 'Admin Mandates',      subtitle: 'Inspect and repair client mandates' },
-  '/admin/interviews':         { title: 'Admin Interviews',    subtitle: 'Inspect and repair interview states' },
-  '/admin/broken-states':      { title: 'Broken States',       subtitle: 'Detect and resolve inconsistent data' },
-  '/admin/organizations':      { title: 'Organizations',       subtitle: 'Manage tenant organizations' },
-  '/admin/roles':              { title: 'Roles',               subtitle: 'Manage the role catalog for each organization' },
-  '/admin/users':              { title: 'Users',               subtitle: 'Create users and manage their role assignments' },
-  '/admin/modules':            { title: 'Modules',             subtitle: 'The fixed catalog of gate-able feature areas' },
-  '/admin/acls':               { title: 'ACLs',                subtitle: 'Each ACL gates one module for the selected organization' },
-  '/admin/permissions':        { title: 'Permissions',         subtitle: 'The global catalog of actions an ACL can grant to a role' },
+  '/workspace/system/dashboard':   { title: 'Admin Dashboard',     subtitle: 'System-wide overview and controls' },
+  '/workspace/system/broken-states': { title: 'Broken States',    subtitle: 'Detect and resolve inconsistent data' },
+  '/workspace/organizations':      { title: 'Organizations',       subtitle: 'Manage tenant organizations' },
+  '/workspace/roles':              { title: 'Roles',               subtitle: 'Manage the role catalog for each organization' },
+  '/workspace/users':              { title: 'Users',               subtitle: 'Create users and manage their role assignments' },
+  '/workspace/modules':            { title: 'Modules',             subtitle: 'The fixed catalog of gate-able feature areas' },
+  '/workspace/acls':               { title: 'ACLs',                subtitle: 'Each ACL gates one module for the selected organization' },
+  '/workspace/permissions':        { title: 'Permissions',         subtitle: 'The global catalog of actions an ACL can grant to a role' },
 }
 
 function getPageMeta(pathname) {
   if (PAGE_META[pathname]) return PAGE_META[pathname]
   if (pathname.startsWith('/workspace/team/')) return { title: 'Member Profile', subtitle: 'Team member details and history' }
   if (pathname.startsWith('/workspace/organization/')) return { title: 'Organization Profile', subtitle: 'Organization user details and history' }
+  if (pathname.startsWith('/workspace/organizations/')) return { title: 'Organization Details', subtitle: 'Organization usage summary' }
+  if (pathname.startsWith('/workspace/roles/')) return { title: 'Role Details', subtitle: 'Role permissions and assigned users' }
+  if (pathname.startsWith('/workspace/users/')) return { title: 'User Details', subtitle: 'User profile and access' }
+  if (pathname.startsWith('/workspace/acls/')) return { title: 'ACL Details', subtitle: 'ACL permissions and role grants' }
+  if (pathname.startsWith('/workspace/permissions/')) return { title: 'Permission Details', subtitle: 'Roles granted this permission' }
   return { title: '', subtitle: '' }
 }
 
@@ -51,14 +54,9 @@ function LogoMark({ size = 22 }) {
 }
 
 // ── Role bar (dark strip at very top) ─────────────────────────
-// No portal split anymore - this badge just names the shell (workspace vs admin),
-// not the signed-in user's role. The Sidebar footer shows the user's actual role name(s).
-const ROLE_LABELS = {
-  workspace: 'WORKSPACE',
-  admin:     'ADMIN',
-}
-
-function RoleBar({ role, onLogout, onLogoClick }) {
+// One shell for everyone now - no portal/admin split. The Sidebar footer shows the
+// signed-in user's actual role name(s) instead.
+function RoleBar({ onLogout, onLogoClick }) {
   return (
     <div style={{
       background: 'var(--slate-900)', height: 38,
@@ -77,16 +75,6 @@ function RoleBar({ role, onLogout, onLogoClick }) {
         <LogoMark size={22} />
         <span style={{ color: 'var(--bg-surface)', fontSize: 15, fontWeight: 700, letterSpacing: '-0.02em' }}>{APP_NAME}</span>
       </div>
-      <div style={{ width: 1, height: 18, background: 'var(--border-sidebar)', margin: '0 8px' }} />
-      <span style={{
-        padding: '4px 12px', borderRadius: 5,
-        border: '1px solid #334155',
-        color: 'var(--bg-surface)',
-        fontSize: 12, fontWeight: 600,
-        letterSpacing: '0.06em',
-      }}>
-        {ROLE_LABELS[role] || role?.toUpperCase()}
-      </span>
       <div style={{ flex: 1 }} />
       <button
         onClick={onLogout}
@@ -107,7 +95,7 @@ function RoleBar({ role, onLogout, onLogoClick }) {
 }
 
 // ── App layout shell ──────────────────────────────────────────
-function AppLayout({ role = 'manager' }) {
+function AppLayout() {
   const location = useLocation()
   const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -129,18 +117,16 @@ function AppLayout({ role = 'manager' }) {
   }
 
   function handleLogoClick() {
-    if (role === 'admin') return navigate('/admin/dashboard')
-    if (role === 'workspace') return navigate('/workspace/dashboard')
-    navigate(`/${role}/dashboard`)
+    navigate('/workspace/dashboard')
   }
 
   return (
     <AccessProvider>
       <div className="app-shell">
-        <RoleBar role={role} onLogout={handleLogout} onLogoClick={handleLogoClick} />
+        <RoleBar onLogout={handleLogout} onLogoClick={handleLogoClick} />
 
         <div className="app-shell__body">
-          <Sidebar role={role} open={sidebarOpen} onNavigate={() => setSidebarOpen(false)} />
+          <Sidebar open={sidebarOpen} onNavigate={() => setSidebarOpen(false)} />
           {sidebarOpen && (
             <button
               type="button"
@@ -154,7 +140,7 @@ function AppLayout({ role = 'manager' }) {
             <TopBar
               title={title}
               subtitle={subtitle}
-              role={role}
+              role="workspace"
               onMenuClick={() => setSidebarOpen(current => !current)}
             />
 

@@ -112,7 +112,7 @@ function CompareModal({ open, onClose, members = [] }) {
           right={b.joining_date ? formatDate(b.joining_date) : '-'}
         />
         <Row
-          label="LAST"
+          label="LAST ASSESSED"
           left={a.last_assessed ? formatDate(a.last_assessed) : 'Never'}
           right={b.last_assessed ? formatDate(b.last_assessed) : 'Never'}
         />

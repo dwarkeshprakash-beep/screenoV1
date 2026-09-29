@@ -12,6 +12,7 @@ import Pagination from '../../components/shared/Pagination'
 import UserFormModal from '../../components/admin/UserFormModal'
 import CompanyScopedToolbar from '../../components/admin/CompanyScopedToolbar'
 import UsersTable from '../../components/admin/UsersTable'
+import { useAccess } from '../../hooks/useAccess'
 import * as api from '../../services/api'
 
 const DEFAULT_PAGE_SIZE = 10
@@ -20,6 +21,8 @@ const SEARCH_DEBOUNCE_MS = 300
 function AdminUsersPage() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
+  const { access } = useAccess()
+  const isPlatformAdmin = Boolean(access?.isPlatformAdmin)
   const [companies, setCompanies] = useState([])
   const [companyId, setCompanyId] = useState(null)
   const [users, setUsers] = useState([])
@@ -45,15 +48,20 @@ function AdminUsersPage() {
       setLoading(false)
     }
   }
-  useEffect(() => { loadCompanies() }, [])
+  // A company-scoped sub-admin has exactly one company (their own) - skip the
+  // platform-admin-only company list entirely and lock straight to it.
+  useEffect(() => {
+    if (isPlatformAdmin) loadCompanies()
+    else if (access?.companyId) setCompanyId(access.companyId)
+  }, [isPlatformAdmin, access?.companyId])
   // Re-derive the selected company whenever the ?companyId= query param changes, not
   // just on mount - OrganizationDetailPage links here with a different companyId each
   // time, and React Router doesn't remount this page for a same-route navigation.
   useEffect(() => {
-    if (companies.length === 0) return
+    if (!isPlatformAdmin || companies.length === 0) return
     const requestedId = Number(searchParams.get('companyId'))
     setCompanyId(companies.some(c => c.id === requestedId) ? requestedId : (companies[0]?.id || null))
-  }, [searchParams, companies])
+  }, [searchParams, companies, isPlatformAdmin])
   useEffect(() => { setPage(1); setSearchInput(''); setSearch('') }, [companyId])
   useEffect(() => {
     const timeout = setTimeout(() => { setSearch(searchInput.trim()); setPage(1) }, SEARCH_DEBOUNCE_MS)
@@ -113,6 +121,7 @@ function AdminUsersPage() {
           companies={companies}
           companyId={companyId}
           onCompanyChange={setCompanyId}
+          showCompanyPicker={isPlatformAdmin}
           searchValue={searchInput}
           onSearchChange={setSearchInput}
           searchPlaceholder="Search by name or email…"
@@ -136,7 +145,7 @@ function AdminUsersPage() {
           <>
             <UsersTable
               users={users}
-              onView={u => navigate(`/admin/users/${u.id}?companyId=${companyId}`)}
+              onView={u => navigate(`/workspace/users/${u.id}?companyId=${companyId}`)}
               onEdit={u => { setEditingUser(u); setFormOpen(true) }}
               onDelete={u => { setDeleteTarget(u); setActionError(null) }}
             />

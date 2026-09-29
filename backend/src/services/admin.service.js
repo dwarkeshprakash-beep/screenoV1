@@ -1,11 +1,9 @@
 // backend/src/services/admin.service.js
 // Platform-admin inspection and emergency repair controls (see admin.routes.js).
 // Expected failures throw with err.httpStatus set and a user-facing message.
-const accessService = require('./access.service')
 const mandateLifecycleService = require('./mandate-lifecycle.service')
 const companyRepository = require('../repositories/company.repository')
 const clientTemplateRepository = require('../repositories/client-template.repository')
-const userRepository = require('../repositories/user.repository')
 const adminRepository = require('../repositories/admin.repository')
 
 const INTERVIEW_STATUSES = ['scheduled', 'in_progress', 'completed', 'cancelled', 'expired']
@@ -29,22 +27,6 @@ async function listCompanies() {
 
 async function listMandates() {
   return clientTemplateRepository.getAllForAdmin()
-}
-
-// Move a mandate to another user in the same organization who can own client mandates.
-async function reassignMandate(mandateId, newManagerId) {
-  const newManager = await userRepository.getById(newManagerId)
-  if (!newManager) throw adminError(404, 'Manager not found')
-
-  const targetAccess = await accessService.getUserAccessContext(newManagerId)
-  if (!accessService.hasModulePermission(targetAccess, 'client_mandates', 'Save')) {
-    throw adminError(400, 'Target user cannot own client mandates')
-  }
-
-  const mandate = await clientTemplateRepository.getById(mandateId, newManager.company_id)
-  if (!mandate) throw adminError(404, 'Mandate not found or not in same organization')
-
-  return clientTemplateRepository.update(mandateId, newManagerId, { manager_id: newManagerId })
 }
 
 async function setMandateArchived(mandateId, archived) {
@@ -130,7 +112,6 @@ async function findBrokenStates() {
 module.exports = {
   listCompanies,
   listMandates,
-  reassignMandate,
   setMandateArchived,
   forceDeleteMandate,
   listRecentInterviews,

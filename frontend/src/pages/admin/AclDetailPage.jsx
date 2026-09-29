@@ -102,7 +102,7 @@ function AclDetailPage() {
 
   return (
     <div className="workspace-page" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <button type="button" style={backBtnStyle} onClick={() => navigate('/admin/acls')}>
+      <button type="button" style={backBtnStyle} onClick={() => navigate('/workspace/acls')}>
         <ArrowLeft size={15} /> Back to ACLs
       </button>
 
@@ -128,11 +128,11 @@ function AclDetailPage() {
 
             {permissions.length === 0 ? (
               <EmptyState message={
-                <>No permissions exist yet. Add some in the <Link to="/admin/permissions">Permissions module</Link> first.</>
+                <>No permissions exist yet. Add some in the <Link to="/workspace/permissions">Permissions module</Link> first.</>
               } />
             ) : rows.length === 0 ? (
               <EmptyState message={
-                <>No roles exist yet for this organization. Create one in the <Link to="/admin/roles">Roles module</Link> first.</>
+                <>No roles exist yet for this organization. Create one in the <Link to="/workspace/roles">Roles module</Link> first.</>
               } />
             ) : (
               <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>

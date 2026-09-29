@@ -63,7 +63,7 @@ function PermissionDetailPage() {
 
   return (
     <div className="workspace-page" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <button type="button" style={backBtnStyle} onClick={() => navigate('/admin/permissions')}>
+      <button type="button" style={backBtnStyle} onClick={() => navigate('/workspace/permissions')}>
         <ArrowLeft size={15} /> Back to Permissions
       </button>
 

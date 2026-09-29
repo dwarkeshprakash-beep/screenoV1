@@ -25,16 +25,8 @@ class ErrorBoundary extends Component {
   }
 
   handleDashboard = () => {
-    let role = null
-    try {
-      role = JSON.parse(localStorage.getItem('user') || '{}').role || null
-    } catch { /* use login fallback */ }
-    const target = role === 'admin'
-      ? '/admin/dashboard'
-      : role === 'user'
-        ? '/workspace/dashboard'
-        : '/login'
-    window.location.assign(target)
+    const hasToken = Boolean(localStorage.getItem('accessToken'))
+    window.location.assign(hasToken ? '/workspace/dashboard' : '/login')
   }
 
   render() {

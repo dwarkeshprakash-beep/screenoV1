@@ -138,7 +138,7 @@ function AdminOrganizationsPage() {
           <>
             <OrganizationsTable
               organizations={organizations}
-              onView={org => navigate(`/admin/organizations/${org.id}`)}
+              onView={org => navigate(`/workspace/organizations/${org.id}`)}
               onEdit={org => { setEditingOrg(org); setFormOpen(true) }}
               onDelete={org => setDeleteTarget(org)}
             />

@@ -10,12 +10,18 @@ import { ArrowLeft, Users, ShieldCheck, LockKeyhole } from 'lucide-react'
 import Spinner from '../../components/shared/Spinner'
 import ErrorMessage from '../../components/shared/ErrorMessage'
 import { formatDate } from '../../utils/helpers'
+import { useAccess } from '../../hooks/useAccess'
 import * as api from '../../services/api'
 
 function OrganizationDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
   const { setPageMeta } = useOutletContext()
+  const { access } = useAccess()
+  // A platform admin came from the Organizations list and can go back to it; a
+  // company-scoped sub-admin was sent straight here (they have no list to browse -
+  // GET /organizations is platform-admin-only) and has nowhere to "go back" to.
+  const isPlatformAdmin = Boolean(access?.isPlatformAdmin)
 
   const [summary, setSummary] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -64,9 +70,11 @@ function OrganizationDetailPage() {
 
   return (
     <div className="workspace-page" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <button type="button" style={backBtnStyle} onClick={() => navigate('/admin/organizations')}>
-        <ArrowLeft size={15} /> Back to Organizations
-      </button>
+      {isPlatformAdmin && (
+        <button type="button" style={backBtnStyle} onClick={() => navigate('/workspace/organizations')}>
+          <ArrowLeft size={15} /> Back to Organizations
+        </button>
+      )}
 
       <div style={{ ...cardStyle, padding: 20, display: 'flex', alignItems: 'center', gap: 16 }}>
         {organization.logo_url && (
@@ -79,17 +87,17 @@ function OrganizationDetailPage() {
       </div>
 
       <div style={statGridStyle}>
-        <Link to={`/admin/users?companyId=${organization.id}`} style={statTileStyle}>
+        <Link to={`/workspace/users?companyId=${organization.id}`} style={statTileStyle}>
           <Users size={18} color="var(--brand-500)" />
           <span style={statValueStyle}>{userCount}</span>
           <span style={statLabelStyle}>Users</span>
         </Link>
-        <Link to={`/admin/roles?companyId=${organization.id}`} style={statTileStyle}>
+        <Link to={`/workspace/roles?companyId=${organization.id}`} style={statTileStyle}>
           <ShieldCheck size={18} color="var(--brand-500)" />
           <span style={statValueStyle}>{roleCount}</span>
           <span style={statLabelStyle}>Roles</span>
         </Link>
-        <Link to={`/admin/acls?companyId=${organization.id}`} style={statTileStyle}>
+        <Link to={`/workspace/acls?companyId=${organization.id}`} style={statTileStyle}>
           <LockKeyhole size={18} color="var(--brand-500)" />
           <span style={statValueStyle}>{aclCount}</span>
           <span style={statLabelStyle}>ACLs</span>

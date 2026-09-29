@@ -1,12 +1,14 @@
 // CompanyScopedToolbar - company picker + optional search/item count/"Add" action, shown
-// above a per-company admin table (Roles, Users, ...). Admin is platform-wide, so every
-// per-company screen needs this same "pick a company first" header. Pass no onAdd for a
+// above a per-company admin table (Roles, Users, ...). A platform admin picks any
+// company, so every per-company screen needs this "pick a company first" header; a
+// company-scoped sub-admin has exactly one company, so pass showCompanyPicker={false}
+// to lock the header to a plain label instead (nothing to pick). Pass no onAdd for a
 // screen with nothing to add (e.g. Modules, which only lets you assign an existing ACL).
 
 import { ChevronDown, Search } from 'lucide-react'
 
 function CompanyScopedToolbar({
-  companies, companyId, onCompanyChange, searchValue, onSearchChange, searchPlaceholder,
+  companies, companyId, onCompanyChange, showCompanyPicker = true, searchValue, onSearchChange, searchPlaceholder,
   itemLabel, count, showCount, addLabel, addIcon: AddIcon, onAdd,
 }) {
   const labelStyle = { fontSize: 11, fontWeight: 600, color: 'var(--fg-subtle)', textTransform: 'uppercase', letterSpacing: '0.04em' }
@@ -25,18 +27,20 @@ function CompanyScopedToolbar({
       padding: '16px 20px', borderBottom: '1px solid var(--border-default)', background: 'var(--bg-surface-alt)',
     }}>
       <div style={{ display: 'flex', alignItems: 'flex-end', gap: 16, flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <label htmlFor="company-scoped-select" style={labelStyle}>Organization</label>
-          <div style={{ position: 'relative' }}>
-            <select id="company-scoped-select" value={companyId || ''} onChange={e => onCompanyChange(Number(e.target.value))} style={selectStyle}>
-              {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
-            <ChevronDown
-              size={14}
-              style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--fg-subtle)', pointerEvents: 'none' }}
-            />
+        {showCompanyPicker && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label htmlFor="company-scoped-select" style={labelStyle}>Organization</label>
+            <div style={{ position: 'relative' }}>
+              <select id="company-scoped-select" value={companyId || ''} onChange={e => onCompanyChange(Number(e.target.value))} style={selectStyle}>
+                {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+              <ChevronDown
+                size={14}
+                style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--fg-subtle)', pointerEvents: 'none' }}
+              />
+            </div>
           </div>
-        </div>
+        )}
 
         {hasSearch && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>

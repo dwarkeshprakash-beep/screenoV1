@@ -94,20 +94,15 @@ const DEMO_ACCOUNTS = mergeDemoAccounts([
   ...configuredDemoAccounts,
 ])
 
-function roleRedirect(role) {
-  if (role === 'admin') return '/admin/dashboard'
-  if (role === 'user') return '/workspace/dashboard'
-  return '/login'
-}
+// One shell for every signed-in account now - no admin/workspace split.
+const WORKSPACE_HOME = '/workspace/dashboard'
 
 // Where to go after login: the page the user was sent here from (RequireAuth puts it
-// in location.state.from), but only if it's an internal path inside their own area -
-// otherwise their home. Never follows an absolute or protocol-relative URL.
-function postLoginPath(role, from) {
-  const home = roleRedirect(role)
-  const area = role === 'admin' ? '/admin/' : '/workspace/'
-  if (typeof from === 'string' && from.startsWith(area) && !from.startsWith('//')) return from
-  return home
+// in location.state.from), but only if it's an internal workspace path - otherwise
+// their home. Never follows an absolute or protocol-relative URL.
+function postLoginPath(from) {
+  if (typeof from === 'string' && from.startsWith('/workspace/') && !from.startsWith('//')) return from
+  return WORKSPACE_HOME
 }
 
 function LoginPage() {
@@ -157,7 +152,7 @@ function LoginPage() {
       localStorage.setItem('accessToken', result.data.accessToken)
       localStorage.setItem('user', JSON.stringify(result.data.user))
       window.dispatchEvent(new Event('user_login'))
-      navigate(postLoginPath(result.data.user.role, location.state?.from), { replace: true })
+      navigate(postLoginPath(location.state?.from), { replace: true })
     } catch (err) {
       setError(err.message || 'Could not sign in. Please try again.')
     } finally {

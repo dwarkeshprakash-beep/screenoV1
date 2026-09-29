@@ -6,7 +6,10 @@ import { useAccess } from '../../hooks/useAccess'
 // user without at least one permission on that module never sees the link - the
 // actual enforcement is the backend's requireModule(), this just keeps the sidebar
 // from advertising pages the user can't use. Every account shares this one list now -
-// there's no portal split, just whichever modules a role's ACLs actually grant.
+// there's no portal/admin shell split, just whichever modules a role's ACLs actually
+// grant. An item tagged `platformAdminOnly` instead of `module` stays non-delegable
+// (the global Modules/Permissions catalogs, system-repair tools) - only a true
+// platform admin (access.isPlatformAdmin) ever sees it, never a company sub-admin.
 const WORKSPACE_NAV = [
   {
     section: 'TEAM',
@@ -38,22 +41,28 @@ const WORKSPACE_NAV = [
       { to: '/workspace/outcomes',        icon: Award,           label: 'Outcomes',           module: 'outcomes' },
     ],
   },
-]
-
-const ADMIN_NAV = [
+  {
+    section: 'ADMINISTRATION',
+    items: [
+      // A platform admin browses every company (list page); a company-scoped
+      // sub-admin has exactly one, so send them straight to its detail page.
+      // access is still null while loading - fall back to the list path rather
+      // than build a broken '/undefined' link (this item is hidden until access
+      // resolves anyway, since the module filter is skipped only while loading).
+      { getTo: access => (access && !access.isPlatformAdmin) ? `/workspace/organizations/${access.companyId}` : '/workspace/organizations',
+        icon: Building2, label: 'Organizations', module: 'organizations' },
+      { to: '/workspace/users',       icon: UserCog,     label: 'Users',       module: 'users' },
+      { to: '/workspace/roles',       icon: ShieldCheck, label: 'Roles',       module: 'roles' },
+      { to: '/workspace/acls',        icon: LockKeyhole, label: 'ACLs',        module: 'acls' },
+      { to: '/workspace/modules',     icon: LayoutGrid,  label: 'Modules',     platformAdminOnly: true },
+      { to: '/workspace/permissions', icon: KeyRound,    label: 'Permissions', platformAdminOnly: true },
+    ],
+  },
   {
     section: 'SYSTEM',
     items: [
-      { to: '/admin/dashboard',      icon: LayoutDashboard, label: 'Dashboard' },
-      { to: '/admin/mandates',       icon: Users,           label: 'Mandates' },
-      { to: '/admin/interviews',     icon: Calendar,        label: 'Interviews' },
-      { to: '/admin/broken-states',  icon: CheckSquare,     label: 'Broken States' },
-      { to: '/admin/organizations',  icon: Building2,       label: 'Organizations' },
-      { to: '/admin/users',          icon: UserCog,         label: 'Users' },
-      { to: '/admin/roles',          icon: ShieldCheck,     label: 'Roles' },
-      { to: '/admin/acls',           icon: LockKeyhole,     label: 'ACLs' },
-      { to: '/admin/modules',        icon: LayoutGrid,      label: 'Modules' },
-      { to: '/admin/permissions',    icon: KeyRound,        label: 'Permissions' },
+      { to: '/workspace/system/dashboard',      icon: LayoutDashboard, label: 'Admin Dashboard', platformAdminOnly: true },
+      { to: '/workspace/system/broken-states',  icon: CheckSquare,     label: 'Broken States',   platformAdminOnly: true },
     ],
   },
 ]
@@ -63,18 +72,25 @@ function getInitials(name) {
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase()
 }
 
-function Sidebar({ role = 'workspace', open = false, onNavigate }) {
+function Sidebar({ open = false, onNavigate }) {
   const navigate  = useNavigate()
   const location  = useLocation()
   const { access, hasModule, loading: accessLoading, error: accessError, reload: reloadAccess } = useAccess()
-  const rawNav = { admin: ADMIN_NAV }[role] || WORKSPACE_NAV
-  // Admin's nav isn't module-gated (platform-wide, see access.service.js), and while
-  // access is still loading we show everything rather than flash an empty sidebar.
-  const nav = role === 'admin' || accessLoading
-    ? rawNav
-    : rawNav
-        .map(sec => ({ ...sec, items: sec.items.filter(item => !item.module || hasModule(item.module)) }))
-        .filter(sec => sec.items.length > 0)
+  // While access is still loading we show everything rather than flash an empty
+  // sidebar - but `to` must still be resolved for every item (an item using
+  // `getTo` has no static `to` at all), so only the two permission filters are
+  // skipped, never the map. A platform admin bypasses every module check
+  // (hasModule already returns true for them - see AccessContext), so
+  // `platformAdminOnly` items only ever need their own explicit check.
+  const nav = WORKSPACE_NAV
+    .map(sec => ({
+      ...sec,
+      items: sec.items
+        .filter(item => accessLoading || !item.module || hasModule(item.module))
+        .filter(item => accessLoading || !item.platformAdminOnly || access?.isPlatformAdmin)
+        .map(item => ({ ...item, to: item.getTo ? item.getTo(access) : item.to })),
+    }))
+    .filter(sec => sec.items.length > 0)
 
   let user = {}
   try {
@@ -87,7 +103,7 @@ function Sidebar({ role = 'workspace', open = false, onNavigate }) {
   const userName = [user.first_name, user.last_name].filter(Boolean).join(' ') || user.name || user.email || 'User'
   // No portal label anymore - show the caller's actual role name(s) (e.g. "Manager",
   // "BDE", whatever an admin named the role), same source the ACL grid uses.
-  const userRole = role === 'admin' ? 'Admin' : (access?.roleNames?.join(', ') || 'Member')
+  const userRole = access?.isPlatformAdmin ? 'Admin' : (access?.roleNames?.join(', ') || 'Member')
 
   return (
     <aside className={`manager-sidebar${open ? ' is-open' : ''}`} style={{
@@ -153,7 +169,7 @@ function Sidebar({ role = 'workspace', open = false, onNavigate }) {
         ))}
 
         {/* Access failed to load - say so instead of silently showing a near-empty menu */}
-        {role !== 'admin' && accessError && (
+        {accessError && (
           <div style={{ padding: '10px', fontSize: 'var(--fs-xs)', color: 'var(--fg-on-dark-muted)' }}>
             Couldn't load your menu.{' '}
             <button
@@ -170,7 +186,7 @@ function Sidebar({ role = 'workspace', open = false, onNavigate }) {
       {/* User footer */}
       <div
         onClick={() => {
-          navigate(role === 'admin' ? '/admin/profile' : '/workspace/profile')
+          navigate('/workspace/profile')
           onNavigate?.()
         }}
         style={{

@@ -78,7 +78,7 @@ function RoleDetailPage() {
 
   return (
     <div className="workspace-page" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      <button type="button" style={backBtnStyle} onClick={() => navigate('/admin/roles')}>
+      <button type="button" style={backBtnStyle} onClick={() => navigate('/workspace/roles')}>
         <ArrowLeft size={15} /> Back to Roles
       </button>
 
