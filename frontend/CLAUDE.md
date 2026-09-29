@@ -30,7 +30,7 @@ frontend/
 │   │   │   ├── Avatar, Badge, Button, ConfirmDialog, DataTable, EmptyState, ErrorBoundary,
 │   │   │   │   ErrorMessage, FileUploadButton, FormActions, FormError, Input, Modal, MultiSelect,
 │   │   │   │   Notice, Pagination, RowActions, Select, Spinner, ChangePasswordForm,
-│   │   │   │   InterviewerAssignmentsPanel (.jsx)
+│   │   │   │   InterviewerAssignmentsPanel, SkillsEditor, CompetencyEditor (.jsx)
 │   │   │   └── tableStyles.js      ← shared table style objects for DataTable-based lists
 │   │   ├── layout/
 │   │   │   ├── AppLayout.jsx       ← sidebar + topbar for /workspace and /admin

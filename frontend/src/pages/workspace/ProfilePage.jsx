@@ -11,8 +11,9 @@ import Avatar from '../../components/shared/Avatar'
 import ChangePasswordForm from '../../components/shared/ChangePasswordForm'
 import FileUploadButton from '../../components/shared/FileUploadButton'
 import SkillsEditor from '../../components/shared/SkillsEditor'
+import CompetencyEditor from '../../components/shared/CompetencyEditor'
 import * as api from '../../services/api'
-import { formatDate, parseStoredArray } from '../../utils/helpers'
+import { formatDate, parseStoredArray, parseStoredObject } from '../../utils/helpers'
 
 const MAX_RESUMES = 5
 
@@ -36,6 +37,7 @@ function ProfilePage() {
   const [form, setForm]           = useState({})
   const [availability, setAvailability] = useState(null)
   const [resumeTags, setResumeTags]     = useState([])
+  const [competencies, setCompetencies] = useState({})
   const [resumes, setResumes]           = useState([])
   const [resumeUploading, setResumeUploading] = useState(false)
   const [resumeActionId, setResumeActionId]   = useState(null)
@@ -79,6 +81,7 @@ function ProfilePage() {
       })
       setAvailability(p.availability || null)
       setResumeTags(parseStoredArray(p.tags))
+      setCompetencies(parseStoredObject(p.skill_competencies))
       setResumes(resumesRes.data || [])
 
       let stored = {}
@@ -126,6 +129,12 @@ function ProfilePage() {
   async function handleSkillsSave(next) {
     const res = await api.updateOwnSkills(next)
     setResumeTags(res.data?.tags || [])
+  }
+
+  // Saves the full skill competency map; CompetencyEditor shows the error if this throws
+  async function handleCompetencySave(next) {
+    const res = await api.updateOwnCompetencies(next)
+    setCompetencies(res.data?.competencies || {})
   }
 
   async function handleResumeUpload(file) {
@@ -347,6 +356,17 @@ function ProfilePage() {
         <div style={{ fontSize: 11, color: 'var(--fg-muted)', marginTop: 10 }}>
           Extracted from your default resume. Changing your default resume re-extracts this list.
         </div>
+      </div>
+
+      {/* Competency - a level per skill, set by the user; "N/A" until one is chosen */}
+      <div style={cardStyle}>
+        <div style={eyebrowStyle}>Competency</div>
+        <CompetencyEditor
+          skills={resumeTags}
+          competencies={competencies}
+          onSave={handleCompetencySave}
+          emptyText="Add a skill above to set its competency."
+        />
       </div>
 
       {/* Notifications */}

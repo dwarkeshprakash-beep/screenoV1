@@ -10,6 +10,7 @@ const SELECT_COLS = `
   u.location,
   u.availability,
   u.tags,
+  u.skill_competencies,
   u.experience_years,
   u.experience_months,
   u.joining_date,

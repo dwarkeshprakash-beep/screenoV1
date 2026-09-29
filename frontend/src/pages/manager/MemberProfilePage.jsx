@@ -5,11 +5,12 @@ import Spinner from '../../components/shared/Spinner'
 import ErrorMessage from '../../components/shared/ErrorMessage'
 import EmptyState from '../../components/shared/EmptyState'
 import * as api from '../../services/api'
-import { formatDate, parseStoredArray } from '../../utils/helpers'
+import { formatDate, parseStoredArray, parseStoredObject } from '../../utils/helpers'
 import ScheduleModal from '../../components/manager/ScheduleModal'
 import EditMemberModal from '../../components/manager/EditMemberModal'
 import InterviewHistoryPanel from '../../components/manager/InterviewHistoryPanel'
 import SkillsEditor from '../../components/shared/SkillsEditor'
+import CompetencyEditor from '../../components/shared/CompetencyEditor'
 import { UserCheck } from 'lucide-react'
 
 function AssessBadge({ lastAssessed, now }) {
@@ -24,6 +25,7 @@ const TABS = [
   { id: 'analysis', label: 'Analysis' },
   { id: 'interviews', label: 'Interviews' },
   { id: 'transcript', label: 'AI transcript' },
+  { id: 'competency', label: 'Competency' },
 ]
 
 function MemberProfilePage() {
@@ -153,6 +155,12 @@ function MemberProfilePage() {
     setMember(prev => ({ ...prev, tags: res.data?.tags || [] }))
   }
 
+  // Saves the member's full skill competency map; CompetencyEditor shows the error if this throws
+  async function handleCompetencySave(next) {
+    const res = await api.updateMemberCompetencies(member.id, next)
+    setMember(prev => ({ ...prev, skill_competencies: res.data?.competencies || {} }))
+  }
+
   async function handleAddToTeam() {
     setAddingToTeam(true)
     setError(null)
@@ -183,6 +191,7 @@ function MemberProfilePage() {
 
   const fullName = `${member.first_name || ''} ${member.last_name || ''}`.trim()
   const tags     = parseStoredArray(member.tags)
+  const competencies = parseStoredObject(member.skill_competencies)
   // Team route (/team/:id) only - org profiles of people outside the team stay read-only
   const canEditSkills = !isOrgProfile && member.in_team !== false
   const assessmentCount = reportHistory.length
@@ -412,6 +421,20 @@ function MemberProfilePage() {
               )}
             </div>
           )
+        )}
+
+        {/* Competency tab */}
+        {tab === 'competency' && (
+          <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--slate-200)', borderRadius: 12, padding: 20, boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
+            <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--brand-500)', marginBottom: 6 }}>Skill competency</div>
+            <CompetencyEditor
+              skills={tags}
+              competencies={competencies}
+              onSave={handleCompetencySave}
+              editable={canEditSkills}
+              emptyText="No skills yet. Add a skill above to set its competency."
+            />
+          </div>
         )}
 
       </div>

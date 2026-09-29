@@ -203,6 +203,9 @@ export const getMemberInterviews = id => request(`/api/team/member/${id}/intervi
 // Replaces a team member's skill list (own team only); returns { tags }
 export const updateMemberSkills = (id, skills) =>
   request(`/api/team/member/${id}/skills`, { method: 'PUT', body: JSON.stringify({ skills }) })
+// Replaces a team member's skill competency map (own team only); returns { competencies }
+export const updateMemberCompetencies = (id, competencies) =>
+  request(`/api/team/member/${id}/competencies`, { method: 'PUT', body: JSON.stringify({ competencies }) })
 export const getOrganizationUser = id => request(`/api/team/organization-users/${id}`)
 export const getOrganizationUserInterviews = id => request(`/api/team/organization-users/${id}/interviews`)
 export const addMember = data =>
@@ -341,6 +344,9 @@ export const changePassword = data =>
 // Replaces the signed-in user's skill list; returns { tags }
 export const updateOwnSkills = skills =>
   request('/api/profile/skills', { method: 'PUT', body: JSON.stringify({ skills }) })
+// Replaces the signed-in user's skill competency map; returns { competencies }
+export const updateOwnCompetencies = competencies =>
+  request('/api/profile/competencies', { method: 'PUT', body: JSON.stringify({ competencies }) })
 export const uploadOwnResume = file => {
   const formData = new FormData()
   formData.append('resume', file)

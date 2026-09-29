@@ -9,7 +9,7 @@ const interviewHistoryRepository = require('../repositories/interview-history.re
 const externalCandidateRepository = require('../repositories/external-candidate.repository')
 const storageService = require('./storage.service')
 const {
-  parseStoredArray, normalizeSkillList,
+  parseStoredArray, parseStoredObject, normalizeSkillList, normalizeCompetencyMap,
   normalizeExperienceYears, normalizeExperienceMonths, normalizeJoiningDate,
 } = require('../utils/parse')
 
@@ -130,7 +130,8 @@ async function updateMember(id, data, managerId) {
 }
 
 // Replaces a team member's skill list (users.tags). Only the member's own manager may edit -
-// getByIdForManager scopes to tm.manager_id, so View All does not widen this.
+// getByIdForManager scopes to tm.manager_id, so View All does not widen this. Also drops any
+// competency entries for skills that no longer exist.
 async function updateMemberSkills(id, input, managerId) {
   const member = await teamMemberRepository.getByIdForManager(id, managerId)
   if (!member) throw new Error('Member not found')
@@ -142,8 +143,32 @@ async function updateMemberSkills(id, input, managerId) {
     throw err
   }
 
-  const updated = await userRepository.updateProfile(member.user_id, { tags: skills })
+  const skillKeys = new Set(skills.map(s => s.toLowerCase()))
+  const competencies = Object.fromEntries(
+    Object.entries(parseStoredObject(member.skill_competencies)).filter(([skill]) => skillKeys.has(skill.toLowerCase()))
+  )
+
+  const updated = await userRepository.updateProfile(member.user_id, { tags: skills, skillCompetencies: competencies })
   return { tags: parseStoredArray(updated?.tags) }
+}
+
+// Replaces a team member's skill -> competency level map (users.skill_competencies). Only the
+// member's own manager may edit - same scope as updateMemberSkills. Every key must match one of
+// the member's current skills; omitting a skill clears it (N/A).
+async function updateMemberCompetencies(id, input, managerId) {
+  const member = await teamMemberRepository.getByIdForManager(id, managerId)
+  if (!member) throw new Error('Member not found')
+
+  const skills = parseStoredArray(member.tags)
+  const { competencies, error } = normalizeCompetencyMap(input, skills)
+  if (error) {
+    const err = new Error(error)
+    err.httpStatus = 400
+    throw err
+  }
+
+  const updated = await userRepository.updateProfile(member.user_id, { skillCompetencies: competencies })
+  return { competencies: parseStoredObject(updated?.skill_competencies) }
 }
 
 async function removeMember(id, managerId) {
@@ -315,6 +340,7 @@ async function getOrganizationMemberInterviews(userId, managerId) {
 
 module.exports = {
   getTeam, getMember, getOrgUsersNotInTeam, addMember, updateMember, updateMemberSkills,
+  updateMemberCompetencies,
   removeMember, getStats, getActivity, importFromCSV, getMemberInterviews, getInterviewHistory,
   parseCSV,
   getExternalCandidates, addExternalCandidate,

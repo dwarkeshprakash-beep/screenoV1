@@ -7,7 +7,7 @@ const resumeRepository = require('../repositories/resume.repository')
 const storageService = require('./storage.service')
 const { validatePassword } = require('../utils/password-policy')
 const {
-  parseStoredArray, normalizeSkillList,
+  parseStoredArray, parseStoredObject, normalizeSkillList, normalizeCompetencyMap,
   normalizeExperienceYears, normalizeExperienceMonths, normalizeJoiningDate,
 } = require('../utils/parse')
 
@@ -118,13 +118,37 @@ async function updateProfile(userId, {
 }
 
 // Replaces the user's full skill list (users.tags - the same column resume extraction fills).
+// Also drops any competency entries for skills that no longer exist, so skill_competencies
+// never references a skill that was removed or renamed.
 async function updateSkills(userId, input) {
   const { skills, error } = normalizeSkillList(input)
   if (error) throw profileError(400, error)
 
-  const updated = await userRepository.updateProfile(userId, { tags: skills })
+  const user = await userRepository.getById(userId)
+  if (!user) throw profileError(404, 'User not found')
+  const skillKeys = new Set(skills.map(s => s.toLowerCase()))
+  const competencies = Object.fromEntries(
+    Object.entries(parseStoredObject(user.skill_competencies)).filter(([skill]) => skillKeys.has(skill.toLowerCase()))
+  )
+
+  const updated = await userRepository.updateProfile(userId, { tags: skills, skillCompetencies: competencies })
   if (!updated) throw profileError(404, 'User not found')
   return { tags: parseStoredArray(updated.tags) }
+}
+
+// Replaces the user's full skill -> competency level map (users.skill_competencies).
+// Every key must match one of the user's current skills; omitting a skill clears it (N/A).
+async function updateCompetencies(userId, input) {
+  const user = await userRepository.getById(userId)
+  if (!user) throw profileError(404, 'User not found')
+
+  const skills = parseStoredArray(user.tags)
+  const { competencies, error } = normalizeCompetencyMap(input, skills)
+  if (error) throw profileError(400, error)
+
+  const updated = await userRepository.updateProfile(userId, { skillCompetencies: competencies })
+  if (!updated) throw profileError(404, 'User not found')
+  return { competencies: parseStoredObject(updated.skill_competencies) }
 }
 
 module.exports = {
@@ -132,4 +156,5 @@ module.exports = {
   getResumeMetadata,
   updateProfile,
   updateSkills,
+  updateCompetencies,
 }

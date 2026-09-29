@@ -228,6 +228,8 @@ GET    /api/team/member/:id
 POST   /api/team/member
 PATCH  /api/team/member/:id
 DELETE /api/team/member/:id
+PUT    /api/team/member/:id/skills
+PUT    /api/team/member/:id/competencies
 GET    /api/team/member/:id/interviews
 POST   /api/team/import
 GET    /api/team/external
@@ -317,6 +319,8 @@ POST   /api/upload/analyze-resume
 GET    /api/profile
 GET    /api/profile/resume-metadata
 PATCH  /api/profile
+PUT    /api/profile/skills
+PUT    /api/profile/competencies
 POST   /api/profile/resume
 GET    /api/profile/resumes
 PATCH  /api/profile/resume/:assetId/default

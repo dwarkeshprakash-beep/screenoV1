@@ -56,6 +56,17 @@ router.put('/skills', async (req, res) => {
   }
 })
 
+// Replaces the signed-in user's skill competency map: body { competencies: Object<string,string> }
+router.put('/competencies', async (req, res) => {
+  try {
+    const result = await profileService.updateCompetencies(req.user.id, req.body?.competencies)
+    res.json({ success: true, data: result })
+  } catch (err) {
+    if (!err.httpStatus) console.error('PUT /profile/competencies failed:', err)
+    sendProfileError(res, err, 'Could not update competency')
+  }
+})
+
 router.post('/resume',documentUpload.single('resume'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ success: false, error: 'No file provided' })

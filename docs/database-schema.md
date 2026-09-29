@@ -1,6 +1,6 @@
 # Screeno V2 Database Schema
 
-This is the compact PostgreSQL schema used by the current V2 app. Current numbered migrations: `001` through `051` (`backend/migrations/`, applied by `npm run migrate`).
+This is the compact PostgreSQL schema used by the current V2 app. Current numbered migrations: `001` through `053` (`backend/migrations/`, applied by `npm run migrate`).
 
 Relationships are enforced by repositories/services for ownership checks and lifecycle cleanup. Migrations avoid foreign key constraints in the active schema, and business value/window checks are validated in backend services rather than DB check constraints.
 
@@ -20,9 +20,11 @@ Interview automation uses `interview_flows` and ordered `interview_flow_stages` 
 
 Internal managers, candidates, and admins.
 
-`id`, `emp_number`, `first_name`, `last_name`, `email`, `department_id`, `job_title`, `location`, `password`, `company_id`, `is_platform_admin`, `resume_url`, `resume_text`, `resume_updated`, `current_resume_asset_id`, `tags`, `availability`, `experience_years`, `experience_months`, `joining_date`, `created`
+`id`, `emp_number`, `first_name`, `last_name`, `email`, `department_id`, `job_title`, `location`, `password`, `company_id`, `is_platform_admin`, `resume_url`, `resume_text`, `resume_updated`, `current_resume_asset_id`, `tags`, `skill_competencies`, `availability`, `experience_years`, `experience_months`, `joining_date`, `created`
 
 `experience_years`/`experience_months` (whole years plus 0-11 remaining months, e.g. 4y 9m) and `joining_date` are self-service profile fields (migration `051`) - editable by the user on their own profile and by their manager on the team edit form, same as `job_title`/`location`.
+
+`skill_competencies` (migration `053`) is a JSON object mapping a skill spelled as it appears in `tags` to a competency level (`Beginner`/`Intermediate`/`Advanced`/`Expert`); a skill with no entry has no competency set (shown as "N/A"). Editable by the user on their own profile and by their manager on the team member profile, same scope as `tags`. Validated in `utils/parse.js` (`normalizeCompetencyMap`), not DB constraints.
 
 ### `team_members`
 

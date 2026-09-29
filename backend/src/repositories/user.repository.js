@@ -16,7 +16,7 @@ async function getByEmail(email) {
 async function getById(id) {
   const rows = await db.query(
     `SELECT u.id, u.company_id, u.first_name, u.last_name, u.email, u.is_platform_admin,
-            u.resume_url, u.resume_text, u.tags, u.availability, u.current_resume_asset_id,
+            u.resume_url, u.resume_text, u.tags, u.skill_competencies, u.availability, u.current_resume_asset_id,
             u.experience_years, u.experience_months, u.joining_date,
             ra.original_filename as resume_filename, ra.size as resume_size, ra.mime_type as resume_mime_type, ra.created_at as resume_uploaded_at
      FROM users u
@@ -43,6 +43,7 @@ async function updateProfile(id, {
   resumeUrl,
   resumeText,
   tags,
+  skillCompetencies,
   availability,
   currentResumeAssetId,
   experienceYears,
@@ -57,6 +58,7 @@ async function updateProfile(id, {
        resume_url        = COALESCE(@resume_url,        resume_url),
        resume_text       = COALESCE(@resume_text,       resume_text),
        tags              = COALESCE(@tags,              tags),
+       skill_competencies = COALESCE(@skill_competencies, skill_competencies),
        availability      = COALESCE(@availability,      availability),
        current_resume_asset_id = COALESCE(@current_resume_asset_id, current_resume_asset_id),
        experience_years  = COALESCE(@experience_years,  experience_years),
@@ -71,6 +73,7 @@ async function updateProfile(id, {
       resume_url:   resumeUrl    || null,
       resume_text:  resumeText ? String(resumeText).slice(0, 12000) : null,
       tags:         tags ? (typeof tags === 'string' ? tags : JSON.stringify(tags)) : null,
+      skill_competencies: skillCompetencies ? (typeof skillCompetencies === 'string' ? skillCompetencies : JSON.stringify(skillCompetencies)) : null,
       availability: availability || null,
       current_resume_asset_id: currentResumeAssetId || null,
       // ?? not || - 0 years/months of experience is a valid value and must not be dropped
@@ -417,7 +420,7 @@ async function getOrganizationMemberProfile(userId, companyId) {
   const rows = await db.query(
     `SELECT u.id, u.company_id, u.first_name, u.last_name, u.email, u.created,
             u.emp_number AS employee_id, u.job_title AS current_position,
-            u.location, u.availability, u.tags, u.resume_url, u.resume_text, u.resume_updated,
+            u.location, u.availability, u.tags, u.skill_competencies, u.resume_url, u.resume_text, u.resume_updated,
             u.current_resume_asset_id, u.experience_years, u.experience_months, u.joining_date, d.name AS department
      FROM users u
      LEFT JOIN departments d ON d.id = u.department_id

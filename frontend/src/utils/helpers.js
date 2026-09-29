@@ -45,6 +45,23 @@ export function parseStoredArray(value) {
   }
 }
 
+/**
+ * Parse a JSON-stringified object or pass through a real plain object.
+ * Returns {} on any failure - safe for skill_competencies and other stored maps.
+ * @param {any} value
+ * @returns {Object<string,any>}
+ */
+export function parseStoredObject(value) {
+  if (value && typeof value === 'object' && !Array.isArray(value)) return value
+  if (!value) return {}
+  try {
+    const parsed = JSON.parse(value)
+    return (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
 const INTERVIEW_TYPE_LABELS = {
   ai_voice: 'AI Voice',
   exam: 'Coding Exam',

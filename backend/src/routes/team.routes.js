@@ -139,6 +139,17 @@ router.put('/member/:id/skills', async (req, res) => {
   }
 })
 
+// Replaces a member's skill competency map: body { competencies: Object<string,string> }. Own team only.
+router.put('/member/:id/competencies', async (req, res) => {
+  try {
+    const result = await teamService.updateMemberCompetencies(parseInt(req.params.id, 10), req.body?.competencies, req.user.id)
+    res.json({ success: true, data: result })
+  } catch (err) {
+    console.error('PUT /team/member/:id/competencies failed:', err.message)
+    sendTeamError(res, err, 'Could not update competency')
+  }
+})
+
 router.delete('/member/:id', async (req, res) => {
   try {
     await teamService.removeMember(parseInt(req.params.id, 10), req.user.id)
