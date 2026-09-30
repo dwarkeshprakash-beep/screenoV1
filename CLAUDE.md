@@ -38,7 +38,8 @@ Frontend    React 19 (JSX only — no TypeScript), React Router v6, fetch via sr
 Backend     Node.js 20 + Express 5 (single service)
 Database    PostgreSQL (currently hosted on Supabase) — plain `pg`, portable to any Postgres host
             by changing DATABASE_URL. No SQL Server support.
-Files       Supabase Storage (bucket "files") — resumes and reports only (no audio stored)
+Files       Supabase Storage locally, S3 in production (STORAGE_PROVIDER env var, backend/src/services/storage.service.js)
+            — resumes and reports only (no audio stored)
 Video       Human interviews use manager-provided or Google Meet links; LiveKit is not part of the active V2 runtime
 Auth        JWT access token (15 min) + HttpOnly cookie refresh token (7 days)
 LLM         Groq gpt-oss-120b → Gemini 3.6 Flash fallback, called via plain fetch() to REST endpoints

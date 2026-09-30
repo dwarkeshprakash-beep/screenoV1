@@ -15,7 +15,9 @@ jsonwebtoken        JWT tokens
 cookie-parser       refresh-token cookie
 cors                CORS (origin allowlist from FRONTEND_URL)
 multer              file uploads (memory storage — buffers only)
-@supabase/supabase-js  file storage (resumes/reports — bucket "files" in the same Supabase project as the DB)
+@supabase/supabase-js  file storage (resumes/reports) via storage.service.js when STORAGE_PROVIDER=supabase (default, local dev)
+@aws-sdk/client-s3,
+@aws-sdk/s3-request-presigner  file storage via storage.service.js when STORAGE_PROVIDER=s3 (production)
 Human interview links are stored on interviews as Google Meet or manager-provided URLs; LiveKit is not part of the active V2 runtime.
 nodemailer          transactional email over SMTP (Brevo)
 pdfkit / pdf-parse / mammoth   PDF & docx generation/parsing (reports, resume analysis)
@@ -112,7 +114,10 @@ backend/
 │   │   ├── pdf.service.js               report PDFs
 │   │   ├── email.service.js             nodemailer/SMTP
 │   │   ├── google-meet.service.js       Google Calendar/Meet links
-│   │   └── storage.service.js           Supabase Storage (bucket "files")
+│   │   ├── storage.service.js           file paths + business logic; delegates I/O to storage/
+│   │   └── storage/
+│   │       ├── supabase.provider.js     Supabase Storage adapter (bucket "files")
+│   │       └── s3.provider.js           AWS S3 adapter
 │   ├── repositories/     ← SQL queries only - no business logic here. Multi-statement
 │   │                        transactions live here too (db.transaction), never in services.
 │   │   ├── user, user-role, role, role-acl-permission, acl, module, permission, company
@@ -184,9 +189,18 @@ REFRESH_EXPIRES_IN=7d
 GROQ_API_KEY=        # console.groq.com
 GEMINI_API_KEY=      # aistudio.google.com
 
-# Files (Supabase Storage — bucket "files", public, folders resumes/ and reports/)
+# Files — which storage backend storage.service.js delegates to: "supabase" (default) or "s3"
+STORAGE_PROVIDER=supabase
+
+# Required when STORAGE_PROVIDER=supabase (bucket "files", public, folders resumes/ and reports/)
 SUPABASE_URL=
 SUPABASE_SERVICE_ROLE_KEY=
+
+# Required when STORAGE_PROVIDER=s3
+AWS_REGION=
+AWS_ACCESS_KEY_ID=
+AWS_SECRET_ACCESS_KEY=
+S3_BUCKET_NAME=
 
 # Email — SMTP via nodemailer (Gmail, Brevo, or any SMTP provider)
 SMTP_HOST=
