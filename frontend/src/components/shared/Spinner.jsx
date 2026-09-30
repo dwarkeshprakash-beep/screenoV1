@@ -1,4 +1,4 @@
-// Spinner — shown while data is loading.
+// Spinner - shown while data is loading.
 // Use <Spinner /> inline, or <Spinner center /> to center in the nearest block.
 
 function Spinner({ size = 24, label = 'Loading…', center = false }) {

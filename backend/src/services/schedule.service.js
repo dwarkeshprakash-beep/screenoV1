@@ -7,8 +7,60 @@ const clientTemplateRepository = require('../repositories/client-template.reposi
 const monthlyAssessmentRepository = require('../repositories/monthly-assessment.repository')
 const emailDeliveryRepository = require('../repositories/email-delivery.repository')
 const emailService = require('./email.service')
+const llmService = require('./llm.service')
+const mandateStatusService = require('./mandate-status.service')
 
 const inviteWindowDays = Number(process.env.INVITE_WINDOW_DAYS || 14)
+
+const SUBJECT_MAX = 200
+const FOCUS_AREA_MAX = 100
+const FOCUS_AREAS_MAX_COUNT = 20
+const CONTEXT_NOTES_MAX = 4000
+
+// A general assessment has no mandate or monthly subject to draw questions from, so
+// the manager supplies the subject (required for AI voice / exam), optional focus
+// areas, and optional notes. These are stored on the interview and read back as its
+// context_title / context_focus_areas / context_text. Ignored for linked interviews.
+function normalizeGeneralContext(data) {
+  const empty = { subjectName: null, focusAreas: null, contextNotes: null }
+  if (data.clientTemplateId || data.monthlyAssessmentId) return empty
+
+  const subjectName = String(data.subjectName || '').trim()
+  if (!subjectName && ['ai_voice', 'exam'].includes(data.type)) {
+    throw new Error('Subject is required for a general assessment')
+  }
+  if (subjectName.length > SUBJECT_MAX) {
+    throw new Error(`Subject must be ${SUBJECT_MAX} characters or fewer`)
+  }
+
+  const rawAreas = Array.isArray(data.focusAreas) ? data.focusAreas : []
+  const focusAreas = [...new Set(rawAreas
+    .map(area => String(area || '').trim().slice(0, FOCUS_AREA_MAX))
+    .filter(Boolean))]
+  if (focusAreas.length > FOCUS_AREAS_MAX_COUNT) {
+    throw new Error(`Add at most ${FOCUS_AREAS_MAX_COUNT} focus areas`)
+  }
+
+  const contextNotes = String(data.contextNotes || '').trim()
+  if (contextNotes.length > CONTEXT_NOTES_MAX) {
+    throw new Error(`Notes must be ${CONTEXT_NOTES_MAX} characters or fewer`)
+  }
+
+  return {
+    subjectName: subjectName || null,
+    // Same JSON-array shape as monthly_assessments.sub_topics
+    focusAreas: focusAreas.length > 0 ? JSON.stringify(focusAreas) : null,
+    contextNotes: contextNotes || null,
+  }
+}
+
+// AI-suggested focus areas for a general assessment's subject.
+async function suggestFocusAreas(subject, difficulty) {
+  const cleanSubject = String(subject || '').trim().slice(0, SUBJECT_MAX)
+  if (!cleanSubject) throw new Error('Subject is required')
+  const level = ['easy', 'medium', 'hard'].includes(difficulty) ? difficulty : 'medium'
+  return llmService.generateSubtopics(cleanSubject, level)
+}
 
 async function validateContext(data, managerId) {
   if (data.clientTemplateId && data.monthlyAssessmentId) {
@@ -61,6 +113,7 @@ async function createSchedule(data, managerId, companyId) {
     throw new Error('Scheduled time must be in the future')
   }
   await validateContext(data, managerId)
+  const generalContext = normalizeGeneralContext(data)
 
   let candidateName = ''
   let candidateEmail = ''
@@ -152,14 +205,22 @@ async function createSchedule(data, managerId, companyId) {
     flowStageRunId: data.flowStageRunId || null,
     calendarEventId: data.calendarEventId || null,
     reportEmails: reportEmails.join(',') || null,
+    ...generalContext,
   })
+
+  // Scheduling any interview against a mandate - mock or client-facing - moves it
+  // into the generic "interview in progress" stage.
+  if (data.clientTemplateId) {
+    await mandateStatusService.recordInterviewInProgress(data.clientTemplateId, managerId)
+  }
 
   if (!data.monthlyAssessmentId) {
     finishScheduleSetup({
     interview,
     candidateEmail,
     candidateName,
-    data,
+    // A general assessment's invite names its subject instead of plain "Assessment"
+    data: { ...data, jobTitle: data.jobTitle || generalContext.subjectName },
     token,
     windowDays,
     }).catch(err => console.error('finishScheduleSetup failed:', err))
@@ -203,6 +264,7 @@ async function finishScheduleSetup({
         assessmentDate: data.assessmentDate || null,
         scheduleTimezone: data.scheduleTimezone || null,
         details: data.details || null,
+        meetingUrl: data.meetingUrl || null,
       })
     }
     inviteSent = true
@@ -235,7 +297,7 @@ function dateRangeBounds(dateFrom, dateTo) {
     const parsed = new Date(dateTo)
     if (!Number.isNaN(parsed.getTime())) {
       parsed.setUTCHours(0, 0, 0, 0)
-      parsed.setUTCDate(parsed.getUTCDate() + 1) // exclusive bound — include the whole "to" day
+      parsed.setUTCDate(parsed.getUTCDate() + 1) // exclusive bound - include the whole "to" day
       end = parsed
     }
   }
@@ -243,8 +305,20 @@ function dateRangeBounds(dateFrom, dateTo) {
   return { start, end }
 }
 
-async function getScheduledInterviews(managerId, { dateFrom, dateTo, category } = {}) {
-  const interviews = await interviewRepository.getByManager(managerId)
+// Self-scoped "View" tier - own interviews plus any mandate the caller created,
+// collaborates on, or participates in (see interviewRepository.getVisibleToUser).
+async function getScheduledInterviews(userId, { dateFrom, dateTo, category } = {}) {
+  const interviews = await interviewRepository.getVisibleToUser(userId)
+  return filterAndMapScheduledInterviews(interviews, { dateFrom, dateTo, category })
+}
+
+// Company-wide "View All" tier.
+async function getScheduledInterviewsForCompany(companyId, { dateFrom, dateTo, category } = {}) {
+  const interviews = await interviewRepository.getByCompany(companyId)
+  return filterAndMapScheduledInterviews(interviews, { dateFrom, dateTo, category })
+}
+
+function filterAndMapScheduledInterviews(interviews, { dateFrom, dateTo, category } = {}) {
   const bounds = dateRangeBounds(dateFrom, dateTo)
   return interviews
     .filter(interview => {
@@ -316,7 +390,7 @@ async function resendMagicLink(interviewId, managerId) {
       candidateName,
       interviewToken: newToken,
       companyName: '',
-      jobTitle: 'Assessment',
+      jobTitle: interview.context_title || 'Assessment',
       windowDays,
       assessmentDate: interview.scheduled_at || null,
       scheduleTimezone: interview.schedule_timezone || null,
@@ -430,7 +504,7 @@ async function rescheduleInterview(interviewId, managerId, data) {
       candidateName,
       interviewToken: newToken,
       companyName: '',
-      jobTitle: 'Assessment (Rescheduled)',
+      jobTitle: `${interview.context_title || 'Assessment'} (Rescheduled)`,
       windowDays,
       assessmentDate: scheduledAt.toISOString(),
       scheduleTimezone: data.scheduleTimezone || null,
@@ -455,7 +529,9 @@ async function rescheduleInterview(interviewId, managerId, data) {
 
 module.exports = {
   createSchedule,
+  suggestFocusAreas,
   getScheduledInterviews,
+  getScheduledInterviewsForCompany,
   getOrgUsers,
   getEmailDeliveries,
   resendMagicLink,

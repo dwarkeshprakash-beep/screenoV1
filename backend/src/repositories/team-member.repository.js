@@ -10,6 +10,10 @@ const SELECT_COLS = `
   u.location,
   u.availability,
   u.tags,
+  u.skill_competencies,
+  u.experience_years,
+  u.experience_months,
+  u.joining_date,
   d.name           AS department,
   u.resume_url,
   u.resume_updated,
@@ -42,6 +46,23 @@ async function getByIdForManager(id, managerId) {
     { id, managerId }
   )
   return rows[0] || null
+}
+
+// Company-wide roster - used by the "View All" tier of Team and the monthly assessment
+// plan (unassigned/teamCount stats), where the caller isn't scoped to their own team only.
+async function getByCompany(companyId, filter = 'all') {
+  let filterSql = ''
+  if (filter === 'never')   filterSql = 'AND (SELECT MAX(ended_at) FROM interviews i WHERE i.internal_user_id = u.id) IS NULL'
+  if (filter === 'overdue') filterSql = "AND (SELECT MAX(ended_at) FROM interviews i WHERE i.internal_user_id = u.id) < NOW() - INTERVAL '30 days'"
+
+  return db.query(
+    `SELECT ${SELECT_COLS}
+     FROM team_members tm ${JOIN_PROFILE}
+     WHERE u.company_id = @companyId
+       ${filterSql}
+     ORDER BY u.first_name, u.last_name`,
+    { companyId }
+  )
 }
 
 async function getByIdsForManager(ids, managerId) {
@@ -83,4 +104,23 @@ async function removeMember(id, managerId) {
   )
 }
 
-module.exports = { getByManager, getByIdForManager, getByIdsForManager, create, removeMember }
+async function getIdsAndUserIdsByManager(managerId) {
+  return db.query(
+    `SELECT id, user_id FROM team_members WHERE manager_id = @managerId`,
+    { managerId }
+  )
+}
+
+// The team_members row linking this user to this manager's team, or null.
+async function getByManagerAndUser(managerId, userId) {
+  const rows = await db.query(
+    `SELECT id FROM team_members WHERE manager_id = @managerId AND user_id = @userId LIMIT 1`,
+    { managerId, userId }
+  )
+  return rows[0] || null
+}
+
+module.exports = {
+  getByManager, getByCompany, getByIdForManager, getByIdsForManager, create, removeMember,
+  getIdsAndUserIdsByManager, getByManagerAndUser,
+}

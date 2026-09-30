@@ -1,28 +1,17 @@
 ﻿import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { ArrowLeft, Mail, Phone, MapPin, Briefcase, CalendarPlus, Pencil, FileText, Download, ThumbsUp, Check, Building2, BadgeCheck } from 'lucide-react'
+import { ArrowLeft, Mail, Phone, MapPin, Briefcase, CalendarPlus, Pencil, FileText, Download, ThumbsUp, Check, Building2, BadgeCheck, History, CalendarDays } from 'lucide-react'
 import Spinner from '../../components/shared/Spinner'
 import ErrorMessage from '../../components/shared/ErrorMessage'
 import EmptyState from '../../components/shared/EmptyState'
 import * as api from '../../services/api'
-import { formatDate } from '../../utils/helpers'
+import { formatDate, parseStoredArray, parseStoredObject } from '../../utils/helpers'
 import ScheduleModal from '../../components/manager/ScheduleModal'
 import EditMemberModal from '../../components/manager/EditMemberModal'
 import InterviewHistoryPanel from '../../components/manager/InterviewHistoryPanel'
+import SkillsEditor from '../../components/shared/SkillsEditor'
+import CompetencyEditor from '../../components/shared/CompetencyEditor'
 import { UserCheck } from 'lucide-react'
-
-const SKILL_COLORS = {
-  '.NET': { bg: 'var(--brand-50)', fg: 'var(--brand-700)' }, 'C#': { bg: 'var(--brand-50)', fg: 'var(--brand-700)' },
-  'React': { bg: 'var(--info-50)', fg: 'var(--info-600)' }, 'SQL': { bg: 'var(--success-50)', fg: 'var(--success-700)' },
-  'Docker': { bg: 'var(--info-50)', fg: 'var(--info-600)' }, 'TypeScript': { bg: 'var(--info-50)', fg: 'var(--info-600)' },
-  'Node.js': { bg: 'var(--success-50)', fg: 'var(--success-700)' }, 'Java': { bg: 'var(--warning-100)', fg: 'var(--warning-700)' },
-  'Azure': { bg: 'var(--info-50)', fg: 'var(--info-600)' }, 'AWS': { bg: 'var(--warning-100)', fg: 'var(--warning-700)' },
-}
-
-function SkillTag({ label }) {
-  const c = SKILL_COLORS[label] || { bg: 'var(--slate-100)', fg: 'var(--slate-600)' }
-  return <span style={{ display: 'inline-flex', alignItems: 'center', padding: '2px 9px', borderRadius: 9999, fontSize: 12, fontWeight: 600, background: c.bg, color: c.fg }}>{label}</span>
-}
 
 function AssessBadge({ lastAssessed, now }) {
   if (!lastAssessed) return <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, padding: '3px 8px', borderRadius: 9999, background: 'var(--danger-50)', color: 'var(--danger-500)', fontSize: 12, fontWeight: 600 }}>Never assessed</span>
@@ -36,6 +25,7 @@ const TABS = [
   { id: 'analysis', label: 'Analysis' },
   { id: 'interviews', label: 'Interviews' },
   { id: 'transcript', label: 'AI transcript' },
+  { id: 'competency', label: 'Competency' },
 ]
 
 function MemberProfilePage() {
@@ -159,6 +149,18 @@ function MemberProfilePage() {
     finally { setUploading(false); e.target.value = '' }
   }
 
+  // Saves the member's full skill list; SkillsEditor shows the error if this throws
+  async function handleSkillsSave(next) {
+    const res = await api.updateMemberSkills(member.id, next)
+    setMember(prev => ({ ...prev, tags: res.data?.tags || [] }))
+  }
+
+  // Saves the member's full skill competency map; CompetencyEditor shows the error if this throws
+  async function handleCompetencySave(next) {
+    const res = await api.updateMemberCompetencies(member.id, next)
+    setMember(prev => ({ ...prev, skill_competencies: res.data?.competencies || {} }))
+  }
+
   async function handleAddToTeam() {
     setAddingToTeam(true)
     setError(null)
@@ -181,14 +183,17 @@ function MemberProfilePage() {
     }
   }
 
-  const strengthsList = (() => { try { return JSON.parse(report?.strengths || '[]') } catch { return [] } })()
+  const strengthsList = parseStoredArray(report?.strengths)
 
   if (loading) return <Spinner center />
   if (error)   return <ErrorMessage message={error} />
   if (!member) return <EmptyState message="Member not found." />
 
   const fullName = `${member.first_name || ''} ${member.last_name || ''}`.trim()
-  const tags     = (() => { try { return typeof member.tags === 'string' ? JSON.parse(member.tags) : (member.tags || []) } catch { return [] } })()
+  const tags     = parseStoredArray(member.tags)
+  const competencies = parseStoredObject(member.skill_competencies)
+  // Team route (/team/:id) only - org profiles of people outside the team stay read-only
+  const canEditSkills = !isOrgProfile && member.in_team !== false
   const assessmentCount = reportHistory.length
   const bestScore = reportHistory.reduce((max, r) => {
     const s = Number(r.overall_score)
@@ -200,7 +205,7 @@ function MemberProfilePage() {
       {/* Left */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         {/* Back */}
-        <button onClick={() => navigate('/manager/team')} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'transparent', border: 0, color: 'var(--brand-500)', fontWeight: 500, fontSize: 13, cursor: 'pointer', alignSelf: 'flex-start' }}>
+        <button onClick={() => navigate('/workspace/team')} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, background: 'transparent', border: 0, color: 'var(--brand-500)', fontWeight: 500, fontSize: 13, cursor: 'pointer', alignSelf: 'flex-start' }}>
           <ArrowLeft size={16} /> Back to team
         </button>
 
@@ -228,14 +233,27 @@ function MemberProfilePage() {
                 {member.phone && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Phone size={12} />{member.phone}</span>}
                 {member.location && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><MapPin size={12} />{member.location}</span>}
               </div>
-              <div style={{ display: 'flex', gap: 16, fontSize: 12, color: 'var(--fg-muted)', flexWrap: 'wrap', marginBottom: tags.length > 0 ? 8 : 0 }}>
+              <div style={{ display: 'flex', gap: 16, fontSize: 12, color: 'var(--fg-muted)', flexWrap: 'wrap', marginBottom: (tags.length > 0 || canEditSkills) ? 8 : 0 }}>
                 {member.employee_id && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><BadgeCheck size={12} color="var(--brand-500)" />ID: {member.employee_id}</span>}
                 {member.department && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Building2 size={12} color="var(--brand-500)" />{member.department}</span>}
                 {member.current_position && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><Briefcase size={12} color="var(--brand-500)" />{member.current_position}</span>}
+                {(member.experience_years != null || member.experience_months != null) && (
+                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                    <History size={12} color="var(--brand-500)" />
+                    {[member.experience_years && `${member.experience_years}y`, member.experience_months && `${member.experience_months}m`].filter(Boolean).join(' ') || '0y'} experience
+                  </span>
+                )}
+                {member.joining_date && <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}><CalendarDays size={12} color="var(--brand-500)" />Joined {formatDate(member.joining_date)}</span>}
               </div>
-              {tags.length > 0 && (
-                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 4 }}>
-                  {tags.map((t, i) => <SkillTag key={i} label={t} />)}
+              {/* Skills - editable only for the manager's own team members */}
+              {(tags.length > 0 || canEditSkills) && (
+                <div style={{ marginTop: 4 }}>
+                  <SkillsEditor
+                    skills={tags}
+                    onSave={handleSkillsSave}
+                    editable={canEditSkills}
+                    emptyText="No skills yet."
+                  />
                 </div>
               )}
             </div>
@@ -270,10 +288,10 @@ function MemberProfilePage() {
               <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--brand-500)', marginBottom: 14 }}>Performance summary</div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 12 }}>
                 {[
-                  { label: 'Last score',   value: report?.overall_score ? `${Number(report.overall_score).toFixed(1)}/10` : '—' },
+                  { label: 'Last score',   value: report?.overall_score ? `${Number(report.overall_score).toFixed(1)}/10` : '-' },
                   { label: 'Assessments',  value: assessmentCount || '0' },
-                  { label: 'Best score',   value: bestScore > 0 ? `${bestScore.toFixed(1)}/10` : '—' },
-                  { label: 'Days since',   value: member.last_assessed ? `${Math.round((now - new Date(member.last_assessed).getTime()) / 86400000)}d` : '—' },
+                  { label: 'Best score',   value: bestScore > 0 ? `${bestScore.toFixed(1)}/10` : '-' },
+                  { label: 'Days since',   value: member.last_assessed ? `${Math.round((now - new Date(member.last_assessed).getTime()) / 86400000)}d` : '-' },
                 ].map((s, i) => (
                   <div key={i} style={{ textAlign: 'center', padding: '12px 8px', background: 'var(--slate-50)', borderRadius: 8 }}>
                     <div style={{ fontFamily: "var(--font-display,'Inter')", fontSize: 22, fontWeight: 700, color: 'var(--slate-900)', letterSpacing: '-0.015em' }}>{s.value}</div>
@@ -403,6 +421,20 @@ function MemberProfilePage() {
               )}
             </div>
           )
+        )}
+
+        {/* Competency tab */}
+        {tab === 'competency' && (
+          <div style={{ background: 'var(--bg-surface)', border: '1px solid var(--slate-200)', borderRadius: 12, padding: 20, boxShadow: '0 1px 3px rgba(15,23,42,0.04)' }}>
+            <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--brand-500)', marginBottom: 6 }}>Skill competency</div>
+            <CompetencyEditor
+              skills={tags}
+              competencies={competencies}
+              onSave={handleCompetencySave}
+              editable={canEditSkills}
+              emptyText="No skills yet. Add a skill above to set its competency."
+            />
+          </div>
         )}
 
       </div>

@@ -52,7 +52,7 @@ function AssignmentCard({ assignment, onCompleted }) {
       {assignment.meeting_url && assignment.status !== 'completed' && <a className="product-button product-button--secondary product-button--sm" href={assignment.meeting_url} target="_blank" rel="noreferrer">Join meeting</a>}
       {assignment.status !== 'completed' && (
         <div className="workspace-stack" style={{ marginTop: 14 }}>
-          <label className="form-field"><span className="form-label">Outcome</span><select className="form-input" value={outcome} onChange={event => setOutcome(event.target.value)}><option value="pass">Pass</option><option value="fail">Fail</option></select></label>
+          <label className="form-field"><span className="form-label">Outcome</span><select className="form-input" value={outcome} onChange={event => setOutcome(event.target.value)}><option value="pass">Pass</option><option value="fail">Fail</option><option value="on_hold">On Hold</option></select></label>
           <label className="form-field"><span className="form-label">Feedback</span><textarea className="form-input" rows={4} value={feedback} onChange={event => setFeedback(event.target.value)} placeholder="Interview feedback (optional)" /></label>
           <label className="product-button product-button--secondary product-button--sm" style={{ width: 'fit-content', cursor: 'pointer' }}><Upload size={13} />{file ? file.name : 'Attach document (optional)'}<input type="file" accept=".pdf,.doc,.docx,.txt" hidden onChange={event => setFile(event.target.files?.[0] || null)} /></label>
           {error && <p style={{ color: 'var(--danger-700)', fontSize: 12 }}>{error}</p>}
@@ -64,8 +64,8 @@ function AssignmentCard({ assignment, onCompleted }) {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: 10 }}>
             <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
               <strong style={{ fontSize: 12 }}>Your submitted review</strong>
-              <span className={`status-pill${assignment.outcome === 'pass' ? ' status-pill--success' : ' status-pill--danger'}`}>
-                {assignment.outcome === 'pass' ? 'Passed' : 'Failed'}
+              <span className={`status-pill${assignment.outcome === 'pass' ? ' status-pill--success' : assignment.outcome === 'on_hold' ? ' status-pill--warning' : ' status-pill--danger'}`}>
+                {assignment.outcome === 'pass' ? 'Passed' : assignment.outcome === 'on_hold' ? 'On Hold' : 'Failed'}
               </span>
             </div>
             {!editingFeedback && (
@@ -96,7 +96,7 @@ function AssignmentCard({ assignment, onCompleted }) {
               <FileText size={12} />{assignment.original_filename || 'Submitted document'}
             </a>
           )}
-          <p className="form-help" style={{ marginTop: 8 }}>The pass/fail decision and attachment are locked after submission.</p>
+          <p className="form-help" style={{ marginTop: 8 }}>The decision and attachment are locked after submission.</p>
         </div>
       )}
     </div>

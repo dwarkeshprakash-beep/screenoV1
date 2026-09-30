@@ -11,6 +11,9 @@ function EditMemberModal({ open, member, onClose, onDone }) {
     employeeId: '',
     location: '',
     position: '',
+    experienceYears: '',
+    experienceMonths: '',
+    joiningDate: '',
   })
   const [loading, setLoading] = useState(false)
   const [removing, setRemoving] = useState(false)
@@ -26,6 +29,9 @@ function EditMemberModal({ open, member, onClose, onDone }) {
       employeeId: member.employee_id || '',
       location: member.location || '',
       position: member.current_position || '',
+      experienceYears: member.experience_years != null ? String(member.experience_years) : '',
+      experienceMonths: member.experience_months != null ? String(member.experience_months) : '',
+      joiningDate: member.joining_date ? String(member.joining_date).slice(0, 10) : '',
     })
     setConfirmRemove(false)
     setError(null)
@@ -38,7 +44,12 @@ function EditMemberModal({ open, member, onClose, onDone }) {
     setLoading(true)
     setError(null)
     try {
-      await api.updateMember(member.id, form)
+      await api.updateMember(member.id, {
+        ...form,
+        experienceYears: form.experienceYears === '' ? null : Number(form.experienceYears),
+        experienceMonths: form.experienceMonths === '' ? null : Number(form.experienceMonths),
+        joiningDate: form.joiningDate || null,
+      })
       await onDone?.()
       onClose()
     } catch (err) {
@@ -96,6 +107,16 @@ function EditMemberModal({ open, member, onClose, onDone }) {
                 <div>{label('Location')}<input style={inputStyle} value={form.location} onChange={event => set('location', event.target.value)} placeholder="Mumbai" /></div>
               </div>
               <div>{label('Job title / Position')}<input style={inputStyle} value={form.position} onChange={event => set('position', event.target.value)} placeholder="Senior Engineer" /></div>
+              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12 }}>
+                <div>
+                  {label('Experience')}
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <input type="number" min="0" max="60" step="1" style={inputStyle} value={form.experienceYears} onChange={event => set('experienceYears', event.target.value)} placeholder="Years" aria-label="Experience years" />
+                    <input type="number" min="0" max="11" step="1" style={inputStyle} value={form.experienceMonths} onChange={event => set('experienceMonths', event.target.value)} placeholder="Months" aria-label="Experience months" />
+                  </div>
+                </div>
+                <div>{label('Joining date')}<input type="date" style={inputStyle} value={form.joiningDate} onChange={event => set('joiningDate', event.target.value)} /></div>
+              </div>
             </div>
           </div>
 

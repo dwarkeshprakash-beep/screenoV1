@@ -5,6 +5,7 @@ import Button from '../shared/Button'
 import Avatar from '../shared/Avatar'
 import ReportRecipientsSelector from './ReportRecipientsSelector'
 import * as api from '../../services/api'
+import { formatDate } from '../../utils/helpers'
 
 function toDateValue(date) {
   const year = date.getFullYear()
@@ -183,7 +184,7 @@ function MonthlyAssessmentAssignModal({
         return
       }
       if (failed.length > 0) {
-        setError(`${failed.length} assignment(s) failed — others were saved. Refresh to see results.`)
+        setError(`${failed.length} assignment(s) failed - others were saved. Refresh to see results.`)
       }
       await onDone?.()
       if (failed.length === 0) onClose()
@@ -223,7 +224,7 @@ function MonthlyAssessmentAssignModal({
 
         {step === 'details' && (
           <>
-        {/* Start date row — the due date for each monthly window is derived automatically */}
+        {/* Start date row - the due date for each monthly window is derived automatically */}
         <div>
           <label htmlFor="monthly-start-date" style={labelStyle}>
             Start date
@@ -297,7 +298,7 @@ function MonthlyAssessmentAssignModal({
                   <strong style={{ display: 'block', fontSize: 13, color: 'var(--fg-primary)' }}>{name}</strong>
                   {conflict ? (
                     <span style={{ display: 'block', fontSize: 11, color: 'var(--danger-600)', marginTop: 2 }}>
-                      Already assigned: {conflict.subject} ({conflict.durationMonths}m) — {new Date(conflict.startDate).toLocaleDateString()} to {new Date(conflict.endDate).toLocaleDateString()}
+                      Already assigned: {conflict.subject} ({conflict.durationMonths}m) - {formatDate(conflict.startDate)} to {formatDate(conflict.endDate)}
                     </span>
                   ) : (
                     <span style={{ fontSize: 11, color: 'var(--fg-muted)' }}>{member.email}</span>

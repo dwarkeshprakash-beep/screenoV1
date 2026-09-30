@@ -4,32 +4,43 @@ import Sidebar from './Sidebar'
 import TopBar from './TopBar'
 import * as api from '../../services/api'
 import { LogOut } from 'lucide-react'
+import { APP_NAME } from '../../config/app.config'
+import { AccessProvider } from '../../context/AccessContext'
 
 // ── Page meta ─────────────────────────────────────────────────
 const PAGE_META = {
-  '/manager/dashboard':        { title: 'Team Overview',      subtitle: 'Your team at a glance' },
-  '/manager/team':             { title: 'My Team',            subtitle: 'Manage team members and assessments' },
-  '/manager/monthly':          { title: 'Monthly Assessment', subtitle: 'Subjects, assignments, and yearly view' },
-  '/manager/clients':          { title: 'Client Mandates',    subtitle: 'Create hiring requirements and schedule interviews' },
-  '/manager/schedule':         { title: 'Schedule',           subtitle: 'Upcoming interviews and sessions' },
-  '/manager/reports':          { title: 'Reports',            subtitle: 'Analytics and candidate insights' },
-  '/manager/templates':        { title: 'Templates',          subtitle: 'Interview and exam templates' },
-  '/manager/resume-analyzer':  { title: 'Resume Analyzer',   subtitle: 'JD-match scoring and keyword gap analysis' },
-  '/manager/profile':          { title: 'My Profile',         subtitle: 'Account and notification settings' },
+  '/workspace/dashboard':        { title: 'Team Overview',      subtitle: 'Your team at a glance' },
+  '/workspace/team':             { title: 'My Team',            subtitle: 'Manage team members and assessments' },
+  '/workspace/monthly':          { title: 'Monthly Assessment', subtitle: 'Subjects, assignments, and yearly view' },
+  '/workspace/clients':          { title: 'Client Mandates',    subtitle: 'Create and manage client mandates' },
+  '/workspace/schedule':         { title: 'Schedule',           subtitle: 'Upcoming interviews and sessions' },
+  '/workspace/reports':          { title: 'Reports',            subtitle: 'Analytics and candidate insights' },
+  '/workspace/resume-analyzer':  { title: 'Resume Analyzer',   subtitle: 'JD-match scoring and keyword gap analysis' },
+  '/workspace/interviews':       { title: 'Interviews',         subtitle: 'Your interviews and interviews assigned for you to conduct' },
+  '/workspace/feedback':         { title: 'Feedback',           subtitle: 'Improvement tips from your completed assessments' },
+  '/workspace/outcomes':         { title: 'Client Outcomes',    subtitle: 'Interview round results for your client mandates' },
+  '/workspace/profile':          { title: 'My Profile',         subtitle: 'Account and notification settings' },
+  '/workspace/interview-complete': { title: 'Assessment submitted', subtitle: 'Your responses were saved' },
   '/admin/dashboard':          { title: 'Admin Dashboard',     subtitle: 'System-wide overview and controls' },
   '/admin/mandates':           { title: 'Admin Mandates',      subtitle: 'Inspect and repair client mandates' },
   '/admin/interviews':         { title: 'Admin Interviews',    subtitle: 'Inspect and repair interview states' },
   '/admin/broken-states':      { title: 'Broken States',       subtitle: 'Detect and resolve inconsistent data' },
+  '/admin/organizations':      { title: 'Organizations',       subtitle: 'Manage tenant organizations' },
+  '/admin/roles':              { title: 'Roles',               subtitle: 'Manage the role catalog for each organization' },
+  '/admin/users':              { title: 'Users',               subtitle: 'Create users and manage their role assignments' },
+  '/admin/modules':            { title: 'Modules',             subtitle: 'The fixed catalog of gate-able feature areas' },
+  '/admin/acls':               { title: 'ACLs',                subtitle: 'Each ACL gates one module for the selected organization' },
+  '/admin/permissions':        { title: 'Permissions',         subtitle: 'The global catalog of actions an ACL can grant to a role' },
 }
 
 function getPageMeta(pathname) {
   if (PAGE_META[pathname]) return PAGE_META[pathname]
-  if (pathname.startsWith('/manager/team/')) return { title: 'Member Profile', subtitle: 'Team member details and history' }
-  if (pathname.startsWith('/manager/organization/')) return { title: 'Organization Profile', subtitle: 'Company user details and history' }
+  if (pathname.startsWith('/workspace/team/')) return { title: 'Member Profile', subtitle: 'Team member details and history' }
+  if (pathname.startsWith('/workspace/organization/')) return { title: 'Organization Profile', subtitle: 'Organization user details and history' }
   return { title: '', subtitle: '' }
 }
 
-// ── Screeno logo mark ─────────────────────────────────────────
+// ── App logo mark ─────────────────────────────────────────
 function LogoMark({ size = 22 }) {
   return (
     <div style={{ width: size, height: size, borderRadius: Math.round(size * 0.27), background: 'linear-gradient(135deg,var(--brand-500),var(--brand-600))', display: 'inline-flex', flexShrink: 0, position: 'relative' }}>
@@ -40,10 +51,11 @@ function LogoMark({ size = 22 }) {
 }
 
 // ── Role bar (dark strip at very top) ─────────────────────────
+// No portal split anymore - this badge just names the shell (workspace vs admin),
+// not the signed-in user's role. The Sidebar footer shows the user's actual role name(s).
 const ROLE_LABELS = {
-  manager:     'MANAGER',
-  candidate:   'CANDIDATE',
-  admin:       'ADMIN',
+  workspace: 'WORKSPACE',
+  admin:     'ADMIN',
 }
 
 function RoleBar({ role, onLogout, onLogoClick }) {
@@ -53,7 +65,7 @@ function RoleBar({ role, onLogout, onLogoClick }) {
       display: 'flex', alignItems: 'center',
       padding: '0 14px', gap: 4,
       position: 'sticky', top: 0, zIndex: 100,
-      borderBottom: '1px solid #1E293B', flexShrink: 0,
+      borderBottom: '1px solid var(--border-sidebar)', flexShrink: 0,
     }}>
       <div
         onClick={onLogoClick}
@@ -63,9 +75,9 @@ function RoleBar({ role, onLogout, onLogoClick }) {
         style={{ display: 'flex', alignItems: 'center', gap: 8, marginRight: 12, cursor: 'pointer' }}
       >
         <LogoMark size={22} />
-        <span style={{ color: 'var(--bg-surface)', fontSize: 15, fontWeight: 700, letterSpacing: '-0.02em' }}>Screeno</span>
+        <span style={{ color: 'var(--bg-surface)', fontSize: 15, fontWeight: 700, letterSpacing: '-0.02em' }}>{APP_NAME}</span>
       </div>
-      <div style={{ width: 1, height: 18, background: '#1E293B', margin: '0 8px' }} />
+      <div style={{ width: 1, height: 18, background: 'var(--border-sidebar)', margin: '0 8px' }} />
       <span style={{
         padding: '4px 12px', borderRadius: 5,
         border: '1px solid #334155',
@@ -117,38 +129,42 @@ function AppLayout({ role = 'manager' }) {
   }
 
   function handleLogoClick() {
-    navigate(role === 'admin' ? '/admin/dashboard' : `/${role}/dashboard`)
+    if (role === 'admin') return navigate('/admin/dashboard')
+    if (role === 'workspace') return navigate('/workspace/dashboard')
+    navigate(`/${role}/dashboard`)
   }
 
   return (
-    <div className="app-shell">
-      <RoleBar role={role} onLogout={handleLogout} onLogoClick={handleLogoClick} />
+    <AccessProvider>
+      <div className="app-shell">
+        <RoleBar role={role} onLogout={handleLogout} onLogoClick={handleLogoClick} />
 
-      <div className="app-shell__body">
-        <Sidebar role={role} open={sidebarOpen} onNavigate={() => setSidebarOpen(false)} />
-        {sidebarOpen && (
-          <button
-            type="button"
-            className="mobile-sidebar-scrim"
-            aria-label="Close navigation"
-            onClick={() => setSidebarOpen(false)}
-          />
-        )}
+        <div className="app-shell__body">
+          <Sidebar role={role} open={sidebarOpen} onNavigate={() => setSidebarOpen(false)} />
+          {sidebarOpen && (
+            <button
+              type="button"
+              className="mobile-sidebar-scrim"
+              aria-label="Close navigation"
+              onClick={() => setSidebarOpen(false)}
+            />
+          )}
 
-        <div className="app-shell__content">
-          <TopBar
-            title={title}
-            subtitle={subtitle}
-            role={role}
-            onMenuClick={() => setSidebarOpen(current => !current)}
-          />
+          <div className="app-shell__content">
+            <TopBar
+              title={title}
+              subtitle={subtitle}
+              role={role}
+              onMenuClick={() => setSidebarOpen(current => !current)}
+            />
 
-          <main className="app-main">
-            <Outlet context={{ setPageMeta }} />
-          </main>
+            <main className="app-main">
+              <Outlet context={{ setPageMeta }} />
+            </main>
+          </div>
         </div>
       </div>
-    </div>
+    </AccessProvider>
   )
 }
 

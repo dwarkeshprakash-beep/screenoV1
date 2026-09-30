@@ -1,13 +1,21 @@
 const express = require('express')
 const authMiddleware = require('../middleware/auth')
-const requireRole = require('../middleware/role')
-const monthlyAssessmentRepository = require('../repositories/monthly-assessment.repository')
+const { loadAccess, requireModule } = require('../middleware/access')
+const accessService = require('../services/access.service')
 const monthlyAssessmentService = require('../services/monthly-assessment.service')
 const llmService = require('../services/llm.service')
 
 const router = express.Router()
 
-router.use(authMiddleware, requireRole('manager'))
+router.use(authMiddleware, loadAccess)
+
+// { viewAll, companyId } for the service/repository layer's scope-aware queries.
+function monthlyViewScope(req) {
+  return {
+    viewAll: accessService.hasModulePermission(req.access, 'monthly_assessments', 'View All'),
+    companyId: req.user.companyId,
+  }
+}
 
 const VALIDATION_ERRORS = new Set([
   'At least one team member is required',
@@ -18,6 +26,7 @@ const VALIDATION_ERRORS = new Set([
   'Question count must be an integer between 1 and 50',
   'Duration must be an integer between 15 and 180 minutes',
   'Some report recipients are not in your organization',
+  'Study material file is invalid',
 ])
 
 function handleMonthlyError(res, err, fallbackMessage) {
@@ -40,7 +49,7 @@ function handleMonthlyError(res, err, fallbackMessage) {
   return res.status(500).json({ success: false, error: fallbackMessage })
 }
 
-router.post('/', async (req, res) => {
+router.post('/', requireModule('monthly_assessments'), async (req, res) => {
   try {
     const assessment = await monthlyAssessmentService.createAssessment(
       req.body,
@@ -54,9 +63,9 @@ router.post('/', async (req, res) => {
   }
 })
 
-router.get('/', async (req, res) => {
+router.get('/', requireModule('monthly_assessments'), async (req, res) => {
   try {
-    const assessments = await monthlyAssessmentService.getAssessments(req.user.id)
+    const assessments = await monthlyAssessmentService.getAssessments(req.user.id, monthlyViewScope(req))
     res.json({ success: true, data: assessments })
   } catch (err) {
     console.error('GET /monthly-assessments failed:', err)
@@ -64,9 +73,9 @@ router.get('/', async (req, res) => {
   }
 })
 
-router.get('/calendar', async (req, res) => {
+router.get('/calendar', requireModule('monthly_assessments'), async (req, res) => {
   try {
-    const rows = await monthlyAssessmentRepository.getCalendarByManager(req.user.id)
+    const rows = await monthlyAssessmentService.getCalendar(req.user.id, monthlyViewScope(req))
     res.json({ success: true, data: rows })
   } catch (err) {
     console.error('GET /monthly-assessments/calendar failed:', err)
@@ -74,10 +83,10 @@ router.get('/calendar', async (req, res) => {
   }
 })
 
-router.get('/plan', async (req, res) => {
+router.get('/plan', requireModule('monthly_assessments'), async (req, res) => {
   try {
     const month = req.query.month || new Date().toISOString().slice(0, 7)
-    const plan = await monthlyAssessmentService.getMonthPlan(req.user.id, month)
+    const plan = await monthlyAssessmentService.getMonthPlan(req.user.id, month, monthlyViewScope(req))
     res.json({ success: true, data: plan })
   } catch (err) {
     console.error('GET /monthly-assessments/plan failed:', err)
@@ -85,7 +94,7 @@ router.get('/plan', async (req, res) => {
   }
 })
 
-router.post('/generate-subtopics', async (req, res) => {
+router.post('/generate-subtopics', requireModule('monthly_assessments'), async (req, res) => {
   try {
     const { subject, difficulty } = req.body
     if (!subject) {
@@ -99,7 +108,7 @@ router.post('/generate-subtopics', async (req, res) => {
   }
 })
 
-router.post('/generate-jd', async (req, res) => {
+router.post('/generate-jd', requireModule('monthly_assessments'), async (req, res) => {
   try {
     const { subject, subTopics, difficulty } = req.body
     if (!subject || !Array.isArray(subTopics) || subTopics.length === 0) {
@@ -113,7 +122,7 @@ router.post('/generate-jd', async (req, res) => {
   }
 })
 
-router.post('/:id/assign', async (req, res) => {
+router.post('/:id/assign', requireModule('monthly_assessments'), async (req, res) => {
   try {
     const assignment = await monthlyAssessmentService.assignCandidates(
       Number(req.params.id),
@@ -128,7 +137,7 @@ router.post('/:id/assign', async (req, res) => {
   }
 })
 
-router.put('/:id', async (req, res) => {
+router.put('/:id', requireModule('monthly_assessments'), async (req, res) => {
   try {
     const data = {
       subjectName: req.body.subject_name || req.body.subject,
@@ -138,6 +147,8 @@ router.put('/:id', async (req, res) => {
       durationMonths: req.body.duration_months,
       interviewType: req.body.interview_type,
       interviewMode: req.body.interview_mode,
+      study_material_file_path: req.body.study_material_file_path,
+      study_material_file_name: req.body.study_material_file_name,
     }
     const assessment = await monthlyAssessmentService.updateAssessment(
       req.params.id,
@@ -151,7 +162,7 @@ router.put('/:id', async (req, res) => {
   }
 })
 
-router.delete('/enrollments/:id', async (req, res) => {
+router.delete('/enrollments/:id', requireModule('monthly_assessments'), async (req, res) => {
   try {
     const enrollment = await monthlyAssessmentService.deleteEnrollment(
       Number(req.params.id),
@@ -164,7 +175,7 @@ router.delete('/enrollments/:id', async (req, res) => {
   }
 })
 
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', requireModule('monthly_assessments'), async (req, res) => {
   try {
     const assessment = await monthlyAssessmentService.deleteAssessment(
       req.params.id,

@@ -2,14 +2,23 @@
 import { Building2, CalendarDays, CircleHelp, Info, SlidersHorizontal } from 'lucide-react'
 import EmptyState from '../shared/EmptyState'
 import Modal from '../shared/Modal'
-import { formatDate, formatDateTime } from '../../utils/helpers'
+import { formatDate, formatDateTime, parseStoredArray } from '../../utils/helpers'
 
 const SOURCES = [
   { value: 'client_mandate', label: 'Client mandates' },
   { value: 'monthly_assessment', label: 'Monthly assessments' },
+  // Interviews scheduled directly (no mandate or monthly plan) - the backend tags these 'other'
+  { value: 'other', label: 'General assessments' },
 ]
 
-function displayValue(value, fallback = '—') {
+// Subtitle text describing how each source's rows are grouped
+const GROUPED_BY = {
+  client_mandate: 'client company',
+  monthly_assessment: 'assessment',
+  other: 'subject',
+}
+
+function displayValue(value, fallback = '-') {
   return value === undefined || value === null || value === '' ? fallback : value
 }
 
@@ -24,9 +33,9 @@ function recordDate(item) {
 }
 
 function scoreLabel(item) {
-  if (item.overall_score === undefined || item.overall_score === null || item.overall_score === '') return '—'
+  if (item.overall_score === undefined || item.overall_score === null || item.overall_score === '') return '-'
   const score = Number(item.overall_score)
-  return Number.isFinite(score) ? score.toFixed(1) + '/10' : '—'
+  return Number.isFinite(score) ? score.toFixed(1) + '/10' : '-'
 }
 
 function resultLabel(item) {
@@ -84,9 +93,11 @@ export default function InterviewHistoryPanel({
   const groups = useMemo(() => {
     const grouped = new Map()
     filtered.forEach(item => {
-      const key = item.history_source === 'monthly_assessment'
-        ? item.context_title || item.role_name || 'Monthly assessment'
-        : item.company_name || item.context_title || 'Client mandate'
+      let key
+      if (item.history_source === 'monthly_assessment') key = item.context_title || item.role_name || 'Monthly assessment'
+      // context_title is the general assessment's subject; older rows without one say "General interview"
+      else if (item.history_source === 'other') key = item.context_title || 'General interview'
+      else key = item.company_name || item.context_title || 'Client mandate'
       if (!grouped.has(key)) grouped.set(key, [])
       grouped.get(key).push(item)
     })
@@ -99,7 +110,7 @@ export default function InterviewHistoryPanel({
         <div>
           <h3 style={{ fontSize: 16, margin: 0 }}>{title}</h3>
           <p style={{ margin: '4px 0 0', color: 'var(--fg-muted)', fontSize: 12 }}>
-            Grouped by {source === 'client_mandate' ? 'client company' : 'assessment'}.
+            Grouped by {GROUPED_BY[source] || 'assessment'}.
           </p>
         </div>
         <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end', flexWrap: 'wrap' }}>
@@ -155,7 +166,7 @@ export default function InterviewHistoryPanel({
               <tbody>
                 {rows.map(item => (
                   <tr key={item.record_kind + '-' + item.id} style={{ borderTop: '1px solid var(--border-default)', color: 'var(--fg-primary)', fontSize: 12 }}>
-                    <td style={{ padding: '12px 14px', whiteSpace: 'nowrap' }}>{recordDate(item) ? formatDate(recordDate(item)) : '—'}</td>
+                    <td style={{ padding: '12px 14px', whiteSpace: 'nowrap' }}>{recordDate(item) ? formatDate(recordDate(item)) : '-'}</td>
                     <td style={{ padding: '12px 14px', fontWeight: 600 }}>{displayValue(item.role_name || item.context_title)}</td>
                     <td style={{ padding: '12px 14px' }}>
                       {item.record_kind === 'client_round'
@@ -197,8 +208,9 @@ export default function InterviewHistoryPanel({
               <DetailFact label="Interview type" value={selected.record_kind === 'client_round' ? 'Client round ' + displayValue(selected.round_number, '') : titleCase(selected.type)} />
               <DetailFact label="Mode" value={titleCase(selected.interview_mode)} />
               <DetailFact label="Difficulty" value={titleCase(selected.difficulty)} />
-              <DetailFact label="Score" value={scoreLabel(selected) === '—' ? null : scoreLabel(selected)} />
+              <DetailFact label="Score" value={scoreLabel(selected) === '-' ? null : scoreLabel(selected)} />
               <DetailFact label="Duration" value={selected.duration_minutes ? selected.duration_minutes + ' minutes' : null} />
+              <DetailFact label="Focus areas" value={parseStoredArray(selected.focus_areas).join(', ')} />
               <DetailFact label="Location" value={selected.location} />
               <DetailFact label="Feedback" value={selected.feedback} />
               <DetailFact label="Manager notes" value={selected.manager_notes} />

@@ -8,6 +8,7 @@ import Avatar from '../../components/shared/Avatar'
 import Modal from '../../components/shared/Modal'
 import * as api from '../../services/api'
 import { formatDate, parseStoredArray } from '../../utils/helpers'
+import { useAccess } from '../../hooks/useAccess'
 
 function DecisionBadge({ decision }) {
   const map = {
@@ -60,7 +61,7 @@ export function ReportTable({ reports, onOpenReport, btnSecondary, thStyle }) {
                       <span style={{ display: 'block', height: '100%', width: `${Math.min(100, (overall / 10) * 100)}%`, background: 'var(--brand-500)', borderRadius: 9999 }} />
                     </span>
                   </div>
-                ) : <span style={{ color: 'var(--fg-subtle)' }}>—</span>}
+                ) : <span style={{ color: 'var(--fg-subtle)' }}>-</span>}
               </td>
               <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--border-default)' }}><DecisionBadge decision={r.decision} /></td>
               <td style={{ padding: '14px 16px', borderBottom: '1px solid var(--border-default)' }}>
@@ -84,7 +85,7 @@ function ScoreMetric({ label, value }) {
   return (
     <div style={{ padding: '10px 12px', border: '1px solid var(--border-default)', borderRadius: 8, background: 'var(--bg-surface-alt)' }}>
       <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--fg-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>{label}</div>
-      <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--fg-primary)' }}>{score == null || Number.isNaN(score) ? '—' : score.toFixed(1)}</div>
+      <div style={{ fontSize: 18, fontWeight: 700, color: 'var(--fg-primary)' }}>{score == null || Number.isNaN(score) ? '-' : score.toFixed(1)}</div>
     </div>
   )
 }
@@ -178,7 +179,7 @@ export function ReportDetailModal({ report, loading, error, onClose }) {
                   </div>
                   {t.answer && (
                     <div style={{ display: 'flex', gap: 10, alignSelf: 'flex-end', flexDirection: 'row-reverse' }}>
-                      <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'var(--gray-200)', color: 'var(--gray-700)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 12, fontWeight: 'bold' }}>
+                      <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'var(--slate-200)', color: 'var(--slate-700)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 12, fontWeight: 'bold' }}>
                         {candidateName.charAt(0)}
                       </div>
                       <div style={{ background: 'var(--brand-600)', color: '#fff', padding: '10px 14px', borderRadius: '12px 0 12px 12px', fontSize: 14, lineHeight: 1.5 }}>{t.answer}</div>
@@ -198,6 +199,11 @@ export function ReportDetailModal({ report, loading, error, onClose }) {
 
 function ReportsPage() {
   const location = useLocation()
+  const { hasModule } = useAccess()
+  // Mirrors the backend's own View-vs-View-All split for this data (see
+  // report.routes.js) - a self-scoped viewer (today's replacement for "bde")
+  // doesn't get the owner-only management actions below.
+  const isBde = !hasModule('client_mandates', 'View All')
   const [mainTab, setMainTab]         = useState('all')
   const [reports, setReports]         = useState([])
   const [reportJobs, setReportJobs]   = useState([])
@@ -322,8 +328,8 @@ function ReportsPage() {
 
   const statCards = [
     { icon: FileText,   bg: 'var(--brand-50)',   color: 'var(--brand-500)',   label: 'Total reports',    value: reports.length,                              sub: 'Completed interviews' },
-    { icon: TrendingUp, bg: 'var(--success-50)', color: 'var(--success-500)', label: 'Pass rate',         value: passRate == null ? '—' : `${passRate}%`,      sub: `${passCount} pass decisions` },
-    { icon: Star,       bg: 'var(--warning-50)', color: 'var(--warning-500)', label: 'Avg score',         value: avgScore == null ? '—' : avgScore.toFixed(1), sub: 'Out of 10' },
+    { icon: TrendingUp, bg: 'var(--success-50)', color: 'var(--success-500)', label: 'Pass rate',         value: passRate == null ? '-' : `${passRate}%`,      sub: `${passCount} pass decisions` },
+    { icon: Star,       bg: 'var(--warning-50)', color: 'var(--warning-500)', label: 'Avg score',         value: avgScore == null ? '-' : avgScore.toFixed(1), sub: 'Out of 10' },
     { icon: Clock,      bg: 'var(--danger-50)',  color: 'var(--danger-600)',  label: 'Pending reports',   value: pendingCount,                                 sub: 'Generating…' },
   ]
 
@@ -361,7 +367,7 @@ function ReportsPage() {
                     {job.last_error && <span style={{ color: 'var(--danger-700)' }}>{job.last_error}</span>}
                   </div>
                   <span className={`status-pill${job.status === 'failed' ? ' status-pill--danger' : ' status-pill--brand'}`}>{job.status}</span>
-                  {job.status === 'failed' && (
+                  {job.status === 'failed' && !isBde && (
                     <button type="button" onClick={() => retryJob(job)} disabled={retryingJobId === job.id} style={btnSecondary}>
                       <RotateCw size={12} />{retryingJobId === job.id ? 'Retrying...' : 'Retry'}
                     </button>

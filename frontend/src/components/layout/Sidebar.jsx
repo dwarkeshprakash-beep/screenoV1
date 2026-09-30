@@ -1,33 +1,41 @@
 import { Link, useNavigate, useLocation } from 'react-router-dom'
-import { LayoutDashboard, Users, ScanSearch, Calendar, BarChart3, Settings, CheckSquare, UserCheck } from 'lucide-react'
+import { LayoutDashboard, Users, ScanSearch, Calendar, BarChart3, Settings, CheckSquare, UserCheck, ShieldCheck, UserCog, LayoutGrid, LockKeyhole, KeyRound, Building2, Lightbulb, Award } from 'lucide-react'
+import { useAccess } from '../../hooks/useAccess'
 
-const MANAGER_NAV = [
+// Which admin-managed Module (see backend modules table) gates each nav item, so a
+// user without at least one permission on that module never sees the link - the
+// actual enforcement is the backend's requireModule(), this just keeps the sidebar
+// from advertising pages the user can't use. Every account shares this one list now -
+// there's no portal split, just whichever modules a role's ACLs actually grant.
+const WORKSPACE_NAV = [
   {
     section: 'TEAM',
     items: [
-      { to: '/manager/dashboard',       icon: LayoutDashboard, label: 'Team Overview' },
-      { to: '/manager/team',            icon: Users,           label: 'My Team' },
+      { to: '/workspace/dashboard',       icon: LayoutDashboard, label: 'Overview' },
+      { to: '/workspace/team',            icon: Users,           label: 'My Team',            module: 'team' },
     ],
   },
   {
     section: 'ASSESSMENTS',
     items: [
-      { to: '/manager/monthly',         icon: CheckSquare,     label: 'Monthly Assessment' },
-      { to: '/manager/clients',         icon: Users,           label: 'Client Mandates' },
+      { to: '/workspace/monthly',         icon: CheckSquare,     label: 'Monthly Assessment', module: 'monthly_assessments' },
+      { to: '/workspace/clients',         icon: Users,           label: 'Client Mandates',    module: 'client_mandates' },
     ],
   },
   {
     section: 'TOOLS',
     items: [
-      { to: '/manager/resume-analyzer', icon: ScanSearch,      label: 'Resume Analyzer' },
+      { to: '/workspace/resume-analyzer', icon: ScanSearch,      label: 'Resume Analyzer',    module: 'resume_analyzer' },
     ],
   },
   {
     section: 'SHARED',
     items: [
-      { to: '/manager/schedule',        icon: Calendar,        label: 'Schedule' },
-      { to: '/manager/reports',         icon: BarChart3,       label: 'Reports' },
-      { to: '/manager/interviewer',     icon: UserCheck,       label: 'I’m Interviewing' },
+      { to: '/workspace/schedule',        icon: Calendar,        label: 'Schedule',           module: 'schedule' },
+      { to: '/workspace/reports',         icon: BarChart3,       label: 'Reports',            module: 'reports' },
+      { to: '/workspace/interviews',      icon: UserCheck,       label: 'Interviews',         module: 'interviews' },
+      { to: '/workspace/feedback',        icon: Lightbulb,       label: 'Feedback',           module: 'feedback' },
+      { to: '/workspace/outcomes',        icon: Award,           label: 'Outcomes',           module: 'outcomes' },
     ],
   },
 ]
@@ -40,6 +48,12 @@ const ADMIN_NAV = [
       { to: '/admin/mandates',       icon: Users,           label: 'Mandates' },
       { to: '/admin/interviews',     icon: Calendar,        label: 'Interviews' },
       { to: '/admin/broken-states',  icon: CheckSquare,     label: 'Broken States' },
+      { to: '/admin/organizations',  icon: Building2,       label: 'Organizations' },
+      { to: '/admin/users',          icon: UserCog,         label: 'Users' },
+      { to: '/admin/roles',          icon: ShieldCheck,     label: 'Roles' },
+      { to: '/admin/acls',           icon: LockKeyhole,     label: 'ACLs' },
+      { to: '/admin/modules',        icon: LayoutGrid,      label: 'Modules' },
+      { to: '/admin/permissions',    icon: KeyRound,        label: 'Permissions' },
     ],
   },
 ]
@@ -49,10 +63,18 @@ function getInitials(name) {
   return name.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase()
 }
 
-function Sidebar({ role = 'manager', open = false, onNavigate }) {
+function Sidebar({ role = 'workspace', open = false, onNavigate }) {
   const navigate  = useNavigate()
   const location  = useLocation()
-  const nav = role === 'admin' ? ADMIN_NAV : MANAGER_NAV
+  const { access, hasModule, loading: accessLoading, error: accessError, reload: reloadAccess } = useAccess()
+  const rawNav = { admin: ADMIN_NAV }[role] || WORKSPACE_NAV
+  // Admin's nav isn't module-gated (platform-wide, see access.service.js), and while
+  // access is still loading we show everything rather than flash an empty sidebar.
+  const nav = role === 'admin' || accessLoading
+    ? rawNav
+    : rawNav
+        .map(sec => ({ ...sec, items: sec.items.filter(item => !item.module || hasModule(item.module)) }))
+        .filter(sec => sec.items.length > 0)
 
   let user = {}
   try {
@@ -63,7 +85,9 @@ function Sidebar({ role = 'manager', open = false, onNavigate }) {
   }
 
   const userName = [user.first_name, user.last_name].filter(Boolean).join(' ') || user.name || user.email || 'User'
-  const userRole = role === 'admin' ? 'Admin' : 'Manager'
+  // No portal label anymore - show the caller's actual role name(s) (e.g. "Manager",
+  // "BDE", whatever an admin named the role), same source the ACL grid uses.
+  const userRole = role === 'admin' ? 'Admin' : (access?.roleNames?.join(', ') || 'Member')
 
   return (
     <aside className={`manager-sidebar${open ? ' is-open' : ''}`} style={{
@@ -127,12 +151,26 @@ function Sidebar({ role = 'manager', open = false, onNavigate }) {
             })}
           </div>
         ))}
+
+        {/* Access failed to load - say so instead of silently showing a near-empty menu */}
+        {role !== 'admin' && accessError && (
+          <div style={{ padding: '10px', fontSize: 'var(--fs-xs)', color: 'var(--fg-on-dark-muted)' }}>
+            Couldn't load your menu.{' '}
+            <button
+              type="button"
+              onClick={reloadAccess}
+              style={{ background: 'none', border: 'none', padding: 0, color: 'var(--brand-500)', cursor: 'pointer', fontSize: 'inherit' }}
+            >
+              Retry
+            </button>
+          </div>
+        )}
       </div>
 
       {/* User footer */}
       <div
         onClick={() => {
-          navigate(role === 'admin' ? '/admin/profile' : '/manager/profile')
+          navigate(role === 'admin' ? '/admin/profile' : '/workspace/profile')
           onNavigate?.()
         }}
         style={{

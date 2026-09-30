@@ -17,9 +17,9 @@ const INTERVIEW_COLS = `
   COALESCE(iu.resume_text, ec.resume_text) AS candidate_resume_text,
   COALESCE(iu.tags, ec.tags) AS candidate_tags,
   co.name AS company_name,
-  COALESCE(ct.jd_text, ma.ai_generated_jd) AS context_text,
-  COALESCE(ct.tags, ma.sub_topics) AS context_focus_areas,
-  COALESCE(ct.client_name, ma.subject_name) AS context_title`
+  COALESCE(ct.jd_text, ma.ai_generated_jd, i.context_notes) AS context_text,
+  COALESCE(ct.tags, ma.sub_topics, i.focus_areas) AS context_focus_areas,
+  COALESCE(ct.client_name, ma.subject_name, i.subject_name) AS context_title`
 
 async function create(data) {
   const rows = await db.query(
@@ -28,18 +28,18 @@ async function create(data) {
         difficulty, question_count, duration_minutes, token, token_expires,
         client_template_id, monthly_assessment_id, report_emails, scheduled_at,
         available_from, due_at, schedule_timezone, client_team_id, location, meeting_url,
-        flow_stage_run_id, calendar_event_id)
+        flow_stage_run_id, calendar_event_id, subject_name, focus_areas, context_notes)
      VALUES
        (@managerId, @internalUserId, @externalCandidateId, @type, @interviewMode,
         @difficulty, @questionCount, @durationMinutes, @tokenHash, @tokenExpires,
         @clientTemplateId, @monthlyAssessmentId, @reportEmails, @scheduledAt,
         @availableFrom, @dueAt, @scheduleTimezone, @clientTeamId, @location, @meetingUrl,
-        @flowStageRunId, @calendarEventId)
+        @flowStageRunId, @calendarEventId, @subjectName, @focusAreas, @contextNotes)
      RETURNING id, manager_id, internal_user_id, external_candidate_id, type,
        interview_mode, difficulty, question_count, duration_minutes, token_expires, status,
        client_template_id, monthly_assessment_id, report_emails, scheduled_at,
        available_from, due_at, schedule_timezone, client_team_id, location, meeting_url,
-       flow_stage_run_id, calendar_event_id, created`,
+       flow_stage_run_id, calendar_event_id, subject_name, focus_areas, context_notes, created`,
     {
       managerId: data.managerId,
       internalUserId: data.internalUserId || null,
@@ -63,6 +63,10 @@ async function create(data) {
       meetingUrl: data.meetingUrl || null,
       flowStageRunId: data.flowStageRunId || null,
       calendarEventId: data.calendarEventId || null,
+      // General-assessment context (null for mandate / monthly interviews)
+      subjectName: data.subjectName || null,
+      focusAreas: data.focusAreas || null,
+      contextNotes: data.contextNotes || null,
     }
   )
   return rows[0]
@@ -101,8 +105,31 @@ async function getByManager(managerId) {
        ON tm.user_id = i.internal_user_id AND tm.manager_id = i.manager_id
      LEFT JOIN scorecards sc ON sc.interview_id = i.id
      WHERE i.manager_id = @managerId
-     ORDER BY i.created DESC`,
+     ORDER BY COALESCE(i.scheduled_at, i.created) DESC, i.id DESC`,
     { managerId }
+  )
+}
+
+// Self-scoped "View" tier for the client_mandates ownership chain - owner (own
+// scheduled interviews via manager_id), creator/assigned collaborator on the mandate,
+// or a client_teams participant on it. Replaces getByMandateCreator, which only
+// checked created_by_user_id (missing assigned_bde_id was a bug) and didn't cover a
+// caller's own non-mandate interviews the way the old "manager" portal branch did.
+async function getVisibleToUser(userId) {
+  return db.query(
+    `SELECT i.*, ${INTERVIEW_COLS}, tm.id AS team_member_id,
+            sc.overall AS overall_score
+     FROM interviews i
+     ${INTERVIEW_JOINS}
+     LEFT JOIN team_members tm
+       ON tm.user_id = i.internal_user_id AND tm.manager_id = i.manager_id
+     LEFT JOIN scorecards sc ON sc.interview_id = i.id
+     WHERE i.manager_id = @userId
+        OR ct.created_by_user_id = @userId
+        OR ct.assigned_bde_id = @userId
+        OR EXISTS (SELECT 1 FROM client_teams ctm WHERE ctm.mandate_id = ct.id AND ctm.user_id = @userId)
+     ORDER BY COALESCE(i.scheduled_at, i.created) DESC, i.id DESC`,
+    { userId }
   )
 }
 
@@ -116,7 +143,7 @@ async function getByClientTemplateForManager(clientTemplateId, managerId) {
      ${INTERVIEW_JOINS}
      WHERE i.client_template_id = @clientTemplateId
        AND i.manager_id = @managerId
-     ORDER BY i.created DESC`,
+     ORDER BY COALESCE(i.scheduled_at, i.created) DESC, i.id DESC`,
     { clientTemplateId, managerId }
   )
 }
@@ -127,7 +154,7 @@ async function getByClientTeamId(clientTeamId) {
      FROM interviews i
      ${INTERVIEW_JOINS}
      WHERE i.client_team_id = @clientTeamId
-     ORDER BY i.created DESC`,
+     ORDER BY COALESCE(i.scheduled_at, i.created) DESC, i.id DESC`,
     { clientTeamId }
   )
 }
@@ -146,40 +173,44 @@ async function cancelScheduledClientInterview(interviewId, clientTemplateId, man
   return rows[0] || null
 }
 
-async function getByInternalUser(userId) {
+// For the Admin Users module - every interview this internal user was the
+// candidate for, scoped by their OWN company (iu.company_id), not the manager
+// who created the interview. Includes the report row (at most one per interview,
+// enforced by reports.interview_id being unique - see report.repository.js
+// upsertGenerating's ON CONFLICT) so the UI can tell "no report yet" from "ready".
+async function getByInternalUserForCompany(userId, companyId) {
   return db.query(
-    `SELECT i.*, ${INTERVIEW_COLS}, sc.overall AS overall_score
+    `SELECT i.id, i.type, i.status, i.result, i.question_count, i.scheduled_at,
+            i.started_at, i.ended_at, i.created,
+            sc.overall AS overall_score, sc.decision,
+            r.id AS report_id, r.status AS report_status, r.pdf_url AS report_pdf_url,
+            COALESCE(ct.client_name, ma.subject_name, i.subject_name) AS context_title
      FROM interviews i
-     ${INTERVIEW_JOINS}
+     JOIN users iu ON iu.id = i.internal_user_id
      LEFT JOIN scorecards sc ON sc.interview_id = i.id
-     WHERE i.internal_user_id = @userId
-     ORDER BY i.created DESC`,
-    { userId }
+     LEFT JOIN reports r ON r.interview_id = i.id
+     LEFT JOIN client_templates ct ON ct.id = i.client_template_id
+     LEFT JOIN monthly_assessments ma ON ma.id = i.monthly_assessment_id
+     WHERE i.internal_user_id = @userId AND iu.company_id = @companyId
+     ORDER BY COALESCE(i.scheduled_at, i.created) DESC, i.id DESC`,
+    { userId, companyId }
   )
 }
 
-const getByInternalUserId = getByInternalUser
-
-async function getByInternalUserForManager(userId, managerId) {
-  return db.query(
-    `SELECT i.*, ${INTERVIEW_COLS}, sc.overall AS overall_score
-     FROM interviews i
-     ${INTERVIEW_JOINS}
-     LEFT JOIN scorecards sc ON sc.interview_id = i.id
-     WHERE i.internal_user_id = @userId
-       AND i.manager_id = @managerId
-     ORDER BY i.created DESC`,
-    { userId, managerId }
-  )
-}
-
+// Company-wide "View All" tier (also used as the schedule module's company-wide view -
+// see schedule.service.js#getScheduledInterviewsForCompany). Includes the same
+// team_member_id/overall_score joins as getByManager/getVisibleToUser for shape parity.
 async function getByCompany(companyId) {
   return db.query(
-    `SELECT i.*, ${INTERVIEW_COLS}
+    `SELECT i.*, ${INTERVIEW_COLS}, tm.id AS team_member_id,
+            sc.overall AS overall_score
      FROM interviews i
      ${INTERVIEW_JOINS}
+     LEFT JOIN team_members tm
+       ON tm.user_id = i.internal_user_id AND tm.manager_id = i.manager_id
+     LEFT JOIN scorecards sc ON sc.interview_id = i.id
      WHERE mu.company_id = @companyId
-     ORDER BY i.created DESC`,
+     ORDER BY COALESCE(i.scheduled_at, i.created) DESC, i.id DESC`,
     { companyId }
   )
 }
@@ -191,12 +222,13 @@ async function getByCandidateIdentity({ internalUserId = null, externalCandidate
       ? { sql: 'i.external_candidate_id = @candidateId', candidateId: externalCandidateId }
       : { sql: '1 = 0', candidateId: null }
   return db.query(
-    `SELECT i.*, ${INTERVIEW_COLS}, sc.decision AS candidate_decision
+    `SELECT i.*, ${INTERVIEW_COLS}, sc.decision AS candidate_decision,
+            ma.study_material_file_path, ma.study_material_file_name
      FROM interviews i
      ${INTERVIEW_JOINS}
      LEFT JOIN scorecards sc ON sc.interview_id = i.id
      WHERE ${predicate.sql}
-     ORDER BY i.created DESC`,
+     ORDER BY COALESCE(i.scheduled_at, i.created) DESC, i.id DESC`,
     predicate.candidateId === null ? {} : { candidateId: predicate.candidateId }
   )
 }
@@ -323,17 +355,122 @@ async function updateSchedule(id, data) {
   return rows[0] || null
 }
 
+// Candidate-safe interview list for many client_teams rows in one query (newest first
+// within each row). candidate_result exposes only pass/fail, never scores. Callers group
+// by client_team_id.
+async function getCandidateViewByClientTeamIds(clientTeamIds) {
+  if (clientTeamIds.length === 0) return []
+  return db.query(
+    `SELECT i.client_team_id, i.id, i.type, i.status, i.scheduled_at, i.duration_minutes,
+            i.location, i.created,
+            CASE
+              WHEN i.status = 'completed' AND (sc.decision = 'pass' OR i.result = 'pass') THEN 'pass'
+              WHEN i.status = 'completed' AND (
+                sc.decision IS NOT NULL
+                OR i.result IN ('fail', 'failed_mid_interview', 'cheating_attempt', 'expired_no_show')
+              ) THEN 'fail'
+              ELSE NULL
+            END AS candidate_result
+     FROM interviews i
+     LEFT JOIN scorecards sc ON sc.interview_id = i.id
+     WHERE i.client_team_id = ANY(@clientTeamIds)
+     ORDER BY COALESCE(i.scheduled_at, i.created) DESC, i.id DESC`,
+    { clientTeamIds }
+  )
+}
+
+// One month's interview in a monthly-assessment plan. Runs inside the caller's transaction.
+async function createMonthlyOccurrenceInterview(tx, data) {
+  const rows = await tx.query(
+    `INSERT INTO interviews
+      (manager_id, internal_user_id, type, interview_mode, difficulty, question_count,
+       duration_minutes, scheduled_at, available_from, due_at, schedule_timezone,
+       monthly_assessment_id, report_emails)
+     VALUES
+      (@managerId, @internalUserId, @interviewType, @interviewMode, @difficulty, @questionCount,
+       @durationMinutes, @scheduledAt, @availableFrom, @dueAt, @scheduleTimezone,
+       @monthlyAssessmentId, @reportEmails)
+     RETURNING *`,
+    {
+      managerId: data.managerId,
+      internalUserId: data.internalUserId,
+      interviewType: data.interviewType,
+      interviewMode: data.interviewMode,
+      difficulty: data.difficulty,
+      questionCount: data.questionCount,
+      durationMinutes: data.durationMinutes,
+      scheduledAt: data.scheduledAt,
+      availableFrom: data.availableFrom,
+      dueAt: data.dueAt,
+      scheduleTimezone: data.scheduleTimezone,
+      monthlyAssessmentId: data.monthlyAssessmentId,
+      reportEmails: data.reportEmails,
+    }
+  )
+  return rows[0]
+}
+
+// Just the fields the email worker needs to decide whether to (re)send an invite.
+async function getLaunchState(id) {
+  const rows = await db.query(
+    `SELECT id, status, due_at, available_from, schedule_timezone, duration_minutes
+     FROM interviews WHERE id = @id`,
+    { id }
+  )
+  return rows[0] || null
+}
+
+/**
+ * Single-use magic-link claim. Locks the interview row, runs `validate(interview)` inside
+ * the lock (it throws to reject the claim, which rolls back), then clears the token so
+ * the link can't be used again.
+ * @param {string} tokenHash
+ * @param {(interview: object) => Promise<void>} validate
+ * @returns {Promise<object|null>} the interview as it was before clearing, or null if no match
+ */
+async function claimByTokenHash(tokenHash, validate) {
+  return db.transaction(async (tx) => {
+    const rows = await tx.query(
+      `SELECT *
+       FROM interviews
+       WHERE token = @tokenHash
+       FOR UPDATE`,
+      { tokenHash }
+    )
+    const interview = rows[0]
+    if (!interview) return null
+
+    await validate(interview)
+
+    await tx.query(
+      `UPDATE interviews
+       SET token = NULL,
+           token_expires = NULL
+       WHERE id = @id`,
+      { id: interview.id }
+    )
+    return interview
+  })
+}
+
+// Link a client-mandate interview to its client_teams row and store where/when it happens.
+async function linkClientTeamSchedule(id, { ctId, scheduledAt, location, meetingUrl }) {
+  await db.query(
+    `UPDATE interviews SET client_team_id = @ctId, scheduled_at = @scheduledAt, location = @location, meeting_url = @meetingUrl WHERE id = @id`,
+    { id, ctId, scheduledAt, location, meetingUrl }
+  )
+}
+
 module.exports = {
   create,
   getById,
   getByToken,
   getByManager,
+  getVisibleToUser,
   getByClientTemplateForManager,
   getByClientTeamId,
   cancelScheduledClientInterview,
-  getByInternalUser,
-  getByInternalUserId,
-  getByInternalUserForManager,
+  getByInternalUserForCompany,
   getByCompany,
   getByCandidateIdentity,
   getByIdForCandidateIdentity,
@@ -344,6 +481,11 @@ module.exports = {
   updateTokenHash,
   updateMeetingDetails,
   setCalendarSyncError,
+  linkClientTeamSchedule,
+  getCandidateViewByClientTeamIds,
+  claimByTokenHash,
+  getLaunchState,
+  createMonthlyOccurrenceInterview,
   markExpiredNoShow,
   updateSchedule,
 }

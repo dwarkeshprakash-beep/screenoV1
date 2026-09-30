@@ -1,5 +1,6 @@
 import { useCallback, useRef, useState } from 'react'
 import * as api from '../services/api'
+import { APP_NAME } from '../config/app.config'
 
 function useInterview(interviewId, mode, transcriptionMode = 'api') {
   const [phase, setPhase] = useState('loading')
@@ -24,7 +25,7 @@ function useInterview(interviewId, mode, transcriptionMode = 'api') {
 
   function logInterviewDebug(label, data) {
     if (!import.meta.env.DEV) return
-    console.groupCollapsed(`[Screeno AI] ${label}`)
+    console.groupCollapsed(`[${APP_NAME} AI] ${label}`)
     console.info(data)
     console.groupEnd()
   }

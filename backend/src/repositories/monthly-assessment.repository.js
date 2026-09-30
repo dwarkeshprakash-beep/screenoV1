@@ -1,95 +1,14 @@
 // backend/src/repositories/monthly-assessment.repository.js
 const db = require('../db/connection')
 
-async function create(data) {
-  const rows = await db.query(
-    `INSERT INTO monthly_assessments 
-      (manager_id, subject_name, difficulty, topics, sub_topics, ai_generated_jd, duration_months, interview_type, interview_mode)
-     VALUES 
-      (@manager_id, @subject_name, @difficulty, @topics, @sub_topics, @ai_generated_jd, @duration_months, @interview_type, @interview_mode)
-     RETURNING *`,
-    {
-      manager_id: data.manager_id,
-      subject_name: data.subject_name,
-      difficulty: data.difficulty || 'medium',
-      topics: JSON.stringify(data.topics || []),
-      sub_topics: JSON.stringify(data.sub_topics || []),
-      ai_generated_jd: data.ai_generated_jd || '',
-      duration_months: data.duration_months || 1,
-      interview_type: data.interview_type || 'exam',
-      interview_mode: data.interview_mode || 'simple',
-    }
-  )
-  return rows[0]
-}
-
-async function createEnrollment(data) {
-  const rows = await db.query(
-    `INSERT INTO monthly_assessment_enrollments 
-      (assessment_id, team_member_id, start_date, end_date)
-     VALUES 
-      (@assessment_id, @team_member_id, @start_date, @end_date)
-     RETURNING *`,
-    {
-      assessment_id: data.assessment_id,
-      team_member_id: data.team_member_id,
-      start_date: data.start_date || null,
-      end_date: data.end_date || null,
-    }
-  )
-  return rows[0]
-}
-
-async function createWithEnrollments(data, teamMemberIds) {
-  return db.transaction(async (tx) => {
-    const assessments = await tx.query(
-      `INSERT INTO monthly_assessments
-        (manager_id, subject_name, difficulty, topics, sub_topics, ai_generated_jd, duration_months, interview_type, interview_mode)
-       VALUES
-        (@managerId, @subjectName, @difficulty, @topics, @subTopics, @jd, @durationMonths, @interviewType, @interviewMode)
-       RETURNING *`,
-      {
-        managerId: data.managerId,
-        subjectName: data.subjectName,
-        difficulty: data.difficulty,
-        topics: JSON.stringify(data.topics),
-        subTopics: JSON.stringify(data.subTopics),
-        jd: data.jd,
-        durationMonths: data.durationMonths,
-        interviewType: data.interviewType || 'exam',
-        interviewMode: data.interviewMode || 'simple',
-      }
-    )
-    const assessment = assessments[0]
-    const enrollments = []
-
-    for (const teamMemberId of teamMemberIds) {
-      const rows = await tx.query(
-        `INSERT INTO monthly_assessment_enrollments
-          (assessment_id, team_member_id, start_date, end_date)
-         VALUES
-          (@assessmentId, @teamMemberId, @startDate, @endDate)
-         RETURNING *`,
-        {
-          assessmentId: assessment.id,
-          teamMemberId,
-          startDate: data.startDate,
-          endDate: data.endDate,
-        }
-      )
-      enrollments.push(rows[0])
-    }
-
-    return { ...assessment, enrollments }
-  })
-}
-
 async function createTemplate(data) {
   const rows = await db.query(
     `INSERT INTO monthly_assessments
-      (manager_id, subject_name, difficulty, topics, sub_topics, ai_generated_jd, duration_months, interview_type, interview_mode)
+      (manager_id, subject_name, difficulty, topics, sub_topics, ai_generated_jd, duration_months, interview_type, interview_mode,
+       study_material_file_path, study_material_file_name)
      VALUES
-      (@managerId, @subjectName, @difficulty, @topics, @subTopics, @jd, @durationMonths, @interviewType, @interviewMode)
+      (@managerId, @subjectName, @difficulty, @topics, @subTopics, @jd, @durationMonths, @interviewType, @interviewMode,
+       @studyFilePath, @studyFileName)
      RETURNING *`,
     {
       managerId: data.managerId,
@@ -101,113 +20,45 @@ async function createTemplate(data) {
       durationMonths: data.durationMonths,
       interviewType: data.interviewType || 'exam',
       interviewMode: data.interviewMode || 'simple',
+      studyFilePath: data.studyFilePath || null,
+      studyFileName: data.studyFileName || null,
     }
   )
   return rows[0]
 }
 
-async function createEnrollments(assessmentId, teamMemberIds, data) {
-  return db.transaction(async (tx) => {
-    const enrollments = []
-    for (const teamMemberId of teamMemberIds) {
-      const overlapping = await tx.query(
-        `SELECT e.id, e.assessment_id, e.start_date, e.end_date,
-                a.subject_name, a.duration_months
-         FROM monthly_assessment_enrollments e
-         JOIN monthly_assessments a ON a.id = e.assessment_id
-         JOIN monthly_assessments selected ON selected.id = @assessmentId
-         WHERE e.team_member_id = @teamMemberId
-           AND a.manager_id = selected.manager_id
-           AND COALESCE(e.status, 'pending') != 'cancelled'
-           AND e.start_date <= @endDate
-           AND e.end_date >= @startDate
-         LIMIT 1`,
-        {
-          assessmentId,
-          teamMemberId,
-          startDate: data.startDate,
-          endDate: data.endDate,
-        }
-      )
-      if (overlapping[0]) {
-        const conflict = overlapping[0]
-        const error = new Error(
-          `Candidate already has "${conflict.subject_name}" scheduled from `
-          + `${new Date(conflict.start_date).toISOString().slice(0, 10)} to `
-          + `${new Date(conflict.end_date).toISOString().slice(0, 10)}`
-        )
-        error.code = 'MONTHLY_ASSESSMENT_CONFLICT'
-        error.conflict = conflict
-        throw error
-      }
-
-      const rows = await tx.query(
-        `INSERT INTO monthly_assessment_enrollments
-          (assessment_id, team_member_id, start_date, end_date)
-         VALUES
-          (@assessmentId, @teamMemberId, @startDate, @endDate)
-         RETURNING *`,
-        {
-          assessmentId,
-          teamMemberId,
-          startDate: data.startDate,
-          endDate: data.endDate,
-        }
-      )
-      enrollments.push(rows[0])
-    }
-    return enrollments
-  })
-}
-
-async function getAssignmentRequest(requestKey) {
-  const rows = await db.query(
-    `SELECT * FROM assignment_requests WHERE request_key = @requestKey`,
-    { requestKey }
-  )
-  return rows[0] || null
-}
-
-async function createAssignmentRequest(tx, data) {
-  const rows = await tx.query(
-    `INSERT INTO assignment_requests
-      (request_key, assessment_id, team_member_id, enrollment_id)
-     VALUES
-      (@requestKey, @assessmentId, @teamMemberId, @enrollmentId)
-     RETURNING *`,
-    data
-  )
-  return rows[0]
-}
-
-async function createOccurrences(tx, occurrences) {
-  const inserted = []
-  for (const occ of occurrences) {
-    const rows = await tx.query(
-      `INSERT INTO monthly_assessment_occurrences
-        (enrollment_id, period_month, available_from, due_at, duration_minutes, interview_id, status)
-       VALUES
-        (@enrollmentId, @periodMonth, @availableFrom, @dueAt, @durationMinutes, @interviewId, @status)
-       RETURNING *`,
-      {
-        enrollmentId: occ.enrollment_id,
-        periodMonth: occ.period_month,
-        availableFrom: occ.available_from,
-        dueAt: occ.due_at,
-        durationMinutes: occ.duration_minutes,
-        interviewId: occ.interview_id || null,
-        status: occ.status || 'scheduled',
-      }
-    )
-    inserted.push(rows[0])
-  }
-  return inserted
-}
-
-async function getByManager(managerId) {
+// "View" tier: subjects the caller manages (created), UNION subjects they have no
+// ownership of but are personally enrolled in as a team member (assigned to them).
+// This is the merge of what the old manager-only queries covered plus what the
+// candidate-only /candidate/monthly-assessments endpoint used to cover separately.
+async function getVisibleToUser(userId) {
   return db.query(
-    `SELECT * FROM monthly_assessments WHERE manager_id = @managerId ORDER BY created DESC`,
-    { managerId }
+    `SELECT a.*
+     FROM monthly_assessments a
+     WHERE a.manager_id = @userId
+        OR EXISTS (
+          SELECT 1
+          FROM monthly_assessment_enrollments e
+          JOIN team_members tm ON tm.id = e.team_member_id
+          WHERE e.assessment_id = a.id
+            AND tm.user_id = @userId
+        )
+     ORDER BY a.created DESC`,
+    { userId }
+  )
+}
+
+// "View All" tier: every subject belonging to any manager in the caller's company.
+// monthly_assessments has no direct company_id column, so company is resolved via
+// the owning manager's users.company_id.
+async function getByCompany(companyId) {
+  return db.query(
+    `SELECT a.*
+     FROM monthly_assessments a
+     JOIN users mgr ON mgr.id = a.manager_id
+     WHERE mgr.company_id = @companyId
+     ORDER BY a.created DESC`,
+    { companyId }
   )
 }
 
@@ -221,46 +72,44 @@ async function getByIdForManager(id, managerId) {
   return rows[0] || null
 }
 
-async function getEnrollmentsByAssessment(assessmentId) {
-  // start_date/end_date describe the whole multi-month enrollment plan, which is NOT the same
-  // as when any single occurrence actually opens/closes. Pull the currently-relevant occurrence's
-  // real window too (whichever hasn't expired yet, or the earliest one if all have) so the UI can
-  // show what actually gates the candidate's access instead of only the outer plan range.
-  return db.query(
-    `SELECT e.*, tm.user_id, tm.manager_id, u.first_name, u.last_name, u.email, u.availability,
-            occ.available_from AS occurrence_available_from,
-            occ.due_at AS occurrence_due_at,
-            occ.status AS occurrence_status
-     FROM monthly_assessment_enrollments e
-     JOIN team_members tm ON tm.id = e.team_member_id
-     JOIN users u ON u.id = tm.user_id
-     LEFT JOIN LATERAL (
-       SELECT available_from, due_at, status
-       FROM monthly_assessment_occurrences o
-       WHERE o.enrollment_id = e.id
-       ORDER BY (due_at < NOW()) ASC, period_month ASC
-       LIMIT 1
-     ) occ ON true
-     WHERE e.assessment_id = @assessmentId`,
-    { assessmentId }
-  )
-}
-
-async function getEnrollmentsByManager(managerId) {
+// "View" tier enrollments. Note the WHERE clause is evaluated per enrollment row, not
+// per assessment: for a subject the caller manages, every enrollment row matches
+// (a.manager_id = @userId) so they see the full roster, same as today. For a subject
+// they don't manage but are personally enrolled in, only THEIR OWN row matches
+// (tm.user_id = @userId) - colleagues enrolled in that same outside subject are not
+// leaked to a self-scoped viewer.
+async function getEnrollmentsVisibleToUser(userId) {
   return db.query(
     `SELECT e.*, tm.user_id, tm.manager_id, u.first_name, u.last_name, u.email, u.availability
      FROM monthly_assessment_enrollments e
      JOIN monthly_assessments a ON a.id = e.assessment_id
      JOIN team_members tm ON tm.id = e.team_member_id
      JOIN users u ON u.id = tm.user_id
-     WHERE a.manager_id = @managerId
-     ORDER BY e.created`,
-    { managerId }
+     WHERE a.manager_id = @userId
+        OR tm.user_id = @userId
+     ORDER BY e.created DESC`,
+    { userId }
   )
 }
 
-// Calendar view: all enrollments for a manager with interview status
-async function getCalendarByManager(managerId) {
+// "View All" tier enrollments: every enrollment under any subject owned by a manager
+// in the caller's company.
+async function getEnrollmentsByCompany(companyId) {
+  return db.query(
+    `SELECT e.*, tm.user_id, tm.manager_id, u.first_name, u.last_name, u.email, u.availability
+     FROM monthly_assessment_enrollments e
+     JOIN monthly_assessments a ON a.id = e.assessment_id
+     JOIN team_members tm ON tm.id = e.team_member_id
+     JOIN users u ON u.id = tm.user_id
+     JOIN users mgr ON mgr.id = a.manager_id
+     WHERE mgr.company_id = @companyId
+     ORDER BY e.created DESC`,
+    { companyId }
+  )
+}
+
+// Calendar view, "View" tier: same self/assigned-to-me merge as getEnrollmentsVisibleToUser.
+async function getCalendarVisibleToUser(userId) {
   return db.query(
     `SELECT e.*, a.subject_name, a.difficulty, a.duration_months,
             a.created AS assessment_created,
@@ -277,90 +126,36 @@ async function getCalendarByManager(managerId) {
      JOIN users u ON u.id = tm.user_id
      LEFT JOIN monthly_assessment_occurrences o ON o.enrollment_id = e.id
      LEFT JOIN interviews i ON i.id = o.interview_id
-     WHERE a.manager_id = @managerId
+     WHERE a.manager_id = @userId
+        OR tm.user_id = @userId
      ORDER BY a.created DESC, u.first_name, o.period_month`,
-    { managerId }
+    { userId }
   )
 }
 
-// Called when a month-end interview is created from an enrollment
-async function updateEnrollmentInterview(enrollmentId, interviewId) {
-  const rows = await db.query(
-    `UPDATE monthly_assessment_enrollments
-     SET status = 'scheduled'
-     WHERE id = @id
-     RETURNING *`,
-    { id: enrollmentId }
+// Calendar view, "View All" tier: every enrollment for any manager in the company.
+async function getCalendarByCompany(companyId) {
+  return db.query(
+    `SELECT e.*, a.subject_name, a.difficulty, a.duration_months,
+            a.created AS assessment_created,
+            tm.user_id, u.first_name, u.last_name,
+            o.id AS occurrence_id,
+            o.period_month,
+            o.available_from AS occurrence_available_from,
+            o.due_at AS occurrence_due_at,
+            o.status AS occurrence_status,
+            i.id AS interview_id, i.status AS interview_status, i.result AS interview_result
+     FROM monthly_assessment_enrollments e
+     JOIN monthly_assessments a ON a.id = e.assessment_id
+     JOIN team_members tm ON tm.id = e.team_member_id
+     JOIN users u ON u.id = tm.user_id
+     JOIN users mgr ON mgr.id = a.manager_id
+     LEFT JOIN monthly_assessment_occurrences o ON o.enrollment_id = e.id
+     LEFT JOIN interviews i ON i.id = o.interview_id
+     WHERE mgr.company_id = @companyId
+     ORDER BY a.created DESC, u.first_name, o.period_month`,
+    { companyId }
   )
-  return rows[0] || null
-}
-
-async function cancelEnrollment(enrollmentId, managerId) {
-  return db.transaction(async tx => {
-    const rows = await tx.query(
-      `SELECT e.*, a.subject_name
-       FROM monthly_assessment_enrollments e
-       JOIN monthly_assessments a ON a.id = e.assessment_id
-       WHERE e.id = @enrollmentId
-         AND a.manager_id = @managerId
-       LIMIT 1`,
-      { enrollmentId, managerId }
-    )
-    const enrollment = rows[0]
-    if (!enrollment) return null
-    if (enrollment.status === 'cancelled') return enrollment
-
-    const updated = await tx.query(
-      `UPDATE monthly_assessment_enrollments
-       SET status = 'cancelled'
-       WHERE id = @enrollmentId
-       RETURNING *`,
-      { enrollmentId }
-    )
-
-    const occurrenceInterviews = await tx.query(
-      `SELECT interview_id
-       FROM monthly_assessment_occurrences
-       WHERE enrollment_id = @enrollmentId
-         AND interview_id IS NOT NULL`,
-      { enrollmentId }
-    )
-    const interviewIds = [
-      ...occurrenceInterviews.map(row => row.interview_id),
-    ].filter(Boolean)
-    if (interviewIds.length > 0) {
-      await tx.query(
-        `UPDATE interviews
-         SET status = 'cancelled', result = 'cancelled', token = NULL, token_expires = NULL
-         WHERE id = ANY(@interviewIds)
-           AND status <> 'completed'`,
-        { interviewIds }
-      )
-    }
-
-    // Cancel future/open occurrences
-    await tx.query(
-      `UPDATE monthly_assessment_occurrences
-       SET status = 'cancelled'
-       WHERE enrollment_id = @enrollmentId
-         AND status <> 'completed'`,
-      { enrollmentId }
-    )
-
-    // Mark pending outbox jobs terminal without introducing a DB status not allowed by old constraints.
-    await tx.query(
-      `UPDATE email_outbox_jobs
-       SET status = 'finished',
-           last_error = 'cancelled before delivery',
-           finished_at = CURRENT_TIMESTAMP,
-           updated = CURRENT_TIMESTAMP
-       WHERE event_key LIKE @eventKey
-         AND status = 'pending'`,
-      { eventKey: `monthly_occurrence_${enrollmentId}_%` }
-    )
-
-    return { ...updated[0], subject_name: enrollment.subject_name }
-  })
 }
 
 async function deleteEnrollment(enrollmentId, managerId) {
@@ -432,7 +227,10 @@ async function updateTemplate(id, managerId, data) {
          ai_generated_jd = COALESCE(@jd, ai_generated_jd),
          duration_months = COALESCE(@durationMonths, duration_months),
          interview_type  = COALESCE(@interviewType, interview_type),
-         interview_mode  = COALESCE(@interviewMode, interview_mode)
+         interview_mode  = COALESCE(@interviewMode, interview_mode),
+         -- studyFileSet = false leaves the file alone; true replaces it (null removes it)
+         study_material_file_path = CASE WHEN CAST(@studyFileSet AS BOOLEAN) THEN @studyFilePath ELSE study_material_file_path END,
+         study_material_file_name = CASE WHEN CAST(@studyFileSet AS BOOLEAN) THEN @studyFileName ELSE study_material_file_name END
      WHERE id = @id AND manager_id = @managerId
      RETURNING *`,
     {
@@ -445,6 +243,9 @@ async function updateTemplate(id, managerId, data) {
       durationMonths: data.durationMonths || null,
       interviewType: data.interviewType || null,
       interviewMode: data.interviewMode || null,
+      studyFileSet: data.studyFilePath !== undefined,
+      studyFilePath: data.studyFilePath || null,
+      studyFileName: data.studyFilePath ? (data.studyFileName || null) : null,
     }
   )
   return rows[0] || null
@@ -495,6 +296,7 @@ async function deleteTemplate(id, managerId) {
       { id }
     )
     await tx.query(`DELETE FROM monthly_assessment_enrollments WHERE assessment_id = @id`, { id })
+    await tx.query(`DELETE FROM monthly_assessment_study_texts WHERE assessment_id = @id`, { id })
     const deleted = await tx.query(
       `DELETE FROM monthly_assessments WHERE id = @id AND manager_id = @managerId RETURNING *`,
       { id, managerId }
@@ -503,13 +305,217 @@ async function deleteTemplate(id, managerId) {
   })
 }
 
+// ── Assignment (runs inside one transaction - every function takes `tx`) ────
+
+// Run `work(tx)` in a single transaction (BEGIN/COMMIT, ROLLBACK on throw).
+async function runInTransaction(work) {
+  return db.transaction(work)
+}
+
+// Row-lock a team member so concurrent assignments for the same person serialise.
+async function lockTeamMember(tx, teamMemberId) {
+  await tx.query(
+    `SELECT id
+     FROM team_members
+     WHERE id = @teamMemberId
+     FOR UPDATE`,
+    { teamMemberId }
+  )
+}
+
+// Idempotency guard: returns the new request row, or null if this key was already used.
+async function insertAssignmentRequest(tx, { requestKey, assessmentId, teamMemberId }) {
+  const rows = await tx.query(
+    `INSERT INTO assignment_requests
+       (request_key, assessment_id, team_member_id)
+     VALUES
+       (@requestKey, @assessmentId, @teamMemberId)
+     ON CONFLICT (request_key) DO NOTHING
+     RETURNING *`,
+    { requestKey, assessmentId, teamMemberId }
+  )
+  return rows[0] || null
+}
+
+// The enrollment an earlier request with the same key produced (enrollment_id null if unfinished).
+async function getAssignmentRequestEnrollment(tx, { requestKey, assessmentId, teamMemberId }) {
+  const rows = await tx.query(
+    `SELECT ar.enrollment_id, e.*
+     FROM assignment_requests ar
+     LEFT JOIN monthly_assessment_enrollments e ON e.id = ar.enrollment_id
+     WHERE ar.request_key = @requestKey
+       AND ar.assessment_id = @assessmentId
+       AND ar.team_member_id = @teamMemberId
+     LIMIT 1`,
+    { requestKey, assessmentId, teamMemberId }
+  )
+  return rows[0] || null
+}
+
+async function linkAssignmentRequestEnrollment(tx, { enrollmentId, requestKey }) {
+  await tx.query(
+    `UPDATE assignment_requests
+     SET enrollment_id = @enrollmentId
+     WHERE request_key = @requestKey`,
+    { enrollmentId, requestKey }
+  )
+}
+
+async function getOccurrenceIdsByEnrollment(tx, enrollmentId) {
+  return tx.query(
+    `SELECT id, interview_id
+     FROM monthly_assessment_occurrences
+     WHERE enrollment_id = @enrollmentId
+     ORDER BY period_month ASC`,
+    { enrollmentId }
+  )
+}
+
+// Another live plan from the same manager that overlaps [startDate, endDate) for this member.
+async function findOverlappingEnrollment(tx, { assessmentId, teamMemberId, startDate, endDate }) {
+  const rows = await tx.query(
+    `SELECT e.id, e.assessment_id, e.start_date, e.end_date,
+            a.subject_name, a.duration_months
+     FROM monthly_assessment_enrollments e
+     JOIN monthly_assessments a ON a.id = e.assessment_id
+     JOIN monthly_assessments selected ON selected.id = @assessmentId
+     WHERE e.team_member_id = @teamMemberId
+       AND a.manager_id = selected.manager_id
+       AND COALESCE(e.status, 'pending') != 'cancelled'
+       AND e.start_date < @endDate
+       AND e.end_date > @startDate
+     LIMIT 1`,
+    { assessmentId, teamMemberId, startDate, endDate }
+  )
+  return rows[0] || null
+}
+
+async function insertEnrollment(tx, { assessmentId, teamMemberId, startDate, endDate }) {
+  const rows = await tx.query(
+    `INSERT INTO monthly_assessment_enrollments
+      (assessment_id, team_member_id, start_date, end_date, status)
+     VALUES
+      (@assessmentId, @teamMemberId, @startDate, @endDate, 'scheduled')
+     RETURNING *`,
+    { assessmentId, teamMemberId, startDate, endDate }
+  )
+  return rows[0]
+}
+
+async function insertOccurrence(tx, { enrollmentId, periodMonth, availableFrom, dueAt, durationMinutes, interviewId }) {
+  const rows = await tx.query(
+    `INSERT INTO monthly_assessment_occurrences
+      (enrollment_id, period_month, available_from, due_at, duration_minutes, interview_id, status)
+     VALUES
+      (@enrollmentId, @periodMonth, @availableFrom, @dueAt, @durationMinutes, @interviewId, 'scheduled')
+     RETURNING *`,
+    { enrollmentId, periodMonth, availableFrom, dueAt, durationMinutes, interviewId }
+  )
+  return rows[0]
+}
+
+// ── Candidate view ──────────────────────────────────────────────────────────
+
+// Every non-cancelled enrollment where this user is the enrolled team member,
+// with the plan details and the managing user's name/company.
+async function getCandidateEnrollments(userId) {
+  return db.query(
+    `SELECT
+       e.*,
+       ma.subject_name,
+       ma.difficulty,
+       ma.duration_months,
+       ma.ai_generated_jd,
+       ma.sub_topics,
+       ma.study_material_file_path,
+       ma.study_material_file_name,
+       tm.manager_id,
+       u.first_name AS manager_first_name,
+       u.last_name AS manager_last_name,
+       c.name AS company_name
+     FROM monthly_assessment_enrollments e
+     JOIN monthly_assessments ma ON ma.id = e.assessment_id
+     JOIN team_members tm ON tm.id = e.team_member_id
+     JOIN users u ON u.id = tm.manager_id
+     LEFT JOIN companies c ON c.id = u.company_id
+     WHERE tm.user_id = @userId
+       AND COALESCE(e.status, 'pending') != 'cancelled'
+     ORDER BY e.created DESC`,
+    { userId }
+  )
+}
+
+// Occurrences (with their interview's live status/window) for many enrollments in one
+// query, ordered by month within each enrollment. Callers group by enrollment_id.
+async function getOccurrencesWithInterviewByEnrollmentIds(enrollmentIds) {
+  if (enrollmentIds.length === 0) return []
+  return db.query(
+    `SELECT
+       o.*,
+       i.status AS interview_status,
+       i.available_from AS i_available_from,
+       i.due_at AS i_due_at,
+       i.schedule_timezone,
+       i.duration_minutes AS i_duration_minutes
+     FROM monthly_assessment_occurrences o
+     LEFT JOIN interviews i ON i.id = o.interview_id
+     WHERE o.enrollment_id = ANY(@enrollmentIds)
+     ORDER BY o.enrollment_id, o.period_month ASC`,
+    { enrollmentIds }
+  )
+}
+
+// ── Study-material file text (question generation) ──────────────────────────
+
+// The stored extraction for a subject, or null. file_path says which upload it came from.
+async function getStudyText(assessmentId) {
+  const rows = await db.query(
+    `SELECT assessment_id, file_path, file_text
+     FROM monthly_assessment_study_texts
+     WHERE assessment_id = @assessmentId`,
+    { assessmentId }
+  )
+  return rows[0] || null
+}
+
+async function upsertStudyText(assessmentId, filePath, fileText) {
+  await db.query(
+    `INSERT INTO monthly_assessment_study_texts (assessment_id, file_path, file_text, updated)
+     VALUES (@assessmentId, @filePath, @fileText, NOW())
+     ON CONFLICT (assessment_id) DO UPDATE
+       SET file_path = EXCLUDED.file_path, file_text = EXCLUDED.file_text, updated = NOW()`,
+    { assessmentId, filePath, fileText }
+  )
+}
+
+async function deleteStudyText(assessmentId) {
+  await db.query(`DELETE FROM monthly_assessment_study_texts WHERE assessment_id = @assessmentId`, { assessmentId })
+}
+
+// Everything question generation needs from a subject. The file text only joins when it
+// was extracted from the file currently attached, so a stale extraction is never used.
+async function getQuestionContext(assessmentId) {
+  const rows = await db.query(
+    `SELECT ma.subject_name, ma.sub_topics, ma.ai_generated_jd, ma.study_material_file_name,
+            st.file_text AS study_file_text
+     FROM monthly_assessments ma
+     LEFT JOIN monthly_assessment_study_texts st
+       ON st.assessment_id = ma.id AND st.file_path = ma.study_material_file_path
+     WHERE ma.id = @assessmentId`,
+    { assessmentId }
+  )
+  return rows[0] || null
+}
+
 module.exports = {
-  getAssignmentRequest,
-  createAssignmentRequest,
-  createOccurrences,
-  create, createEnrollment, createWithEnrollments, createTemplate, createEnrollments,
-  getByManager, getByIdForManager,
-  getEnrollmentsByAssessment, getEnrollmentsByManager,
-  getCalendarByManager, updateEnrollmentInterview, cancelEnrollment, deleteEnrollment,
+  getStudyText, upsertStudyText, deleteStudyText, getQuestionContext,
+  runInTransaction, lockTeamMember, insertAssignmentRequest, getAssignmentRequestEnrollment,
+  linkAssignmentRequestEnrollment, getOccurrenceIdsByEnrollment, findOverlappingEnrollment,
+  insertEnrollment, insertOccurrence,
+  getCandidateEnrollments, getOccurrencesWithInterviewByEnrollmentIds,
+  createTemplate, getByIdForManager, getVisibleToUser, getByCompany,
+  getEnrollmentsVisibleToUser, getEnrollmentsByCompany,
+  getCalendarVisibleToUser, getCalendarByCompany,
+  deleteEnrollment,
   updateTemplate, deleteTemplate,
 }

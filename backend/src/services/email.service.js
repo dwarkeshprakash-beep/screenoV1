@@ -1,13 +1,14 @@
 // backend/src/services/email.service.js
 // Transactional email via Brevo.
 //
-// Two send paths — chosen automatically:
-//   1. Brevo HTTP API  (if BREVO_API_KEY is set) — works from any host (HTTPS port 443)
-//   2. Brevo SMTP      (nodemailer, ports 587 → 465 fallback) — works from local dev
+// Two send paths - chosen automatically:
+//   1. Brevo HTTP API  (if BREVO_API_KEY is set) - works from any host (HTTPS port 443)
+//   2. Brevo SMTP      (nodemailer, ports 587 → 465 fallback) - works from local dev
 //
 // EMAIL_REDIRECT_TO can be used in test environments to redirect outbound mail.
 
 const nodemailer = require('nodemailer')
+const { APP_NAME } = require('../config/app.config')
 
 // ── SMTP transporters (local dev) ─────────────────────────────────────────────
 
@@ -21,7 +22,7 @@ const smtpTransporter = nodemailer.createTransport({
   },
 })
 
-// Port 465 fallback — some hosts block 587 but allow 465.
+// Port 465 fallback - some hosts block 587 but allow 465.
 const smtpTransporterAlt = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
   port: 465,
@@ -34,9 +35,9 @@ const smtpTransporterAlt = nodemailer.createTransport({
 
 const SMTP_CONNECTION_ERRORS = ['ETIMEDOUT', 'ESOCKET', 'ECONNECTION', 'ECONNREFUSED']
 
-// ── Static recipients — all mail is redirected here ──────────────────────────
+// ── Static recipients - all mail is redirected here ──────────────────────────
 
-// SMTP_FROM is the single source for the sender — either a plain address
+// SMTP_FROM is the single source for the sender - either a plain address
 // ("noreply@screeno.com") or a combined header value ("Screeno <noreply@screeno.com>").
 function parseFromAddress(value) {
   const match = String(value || '').match(/^\s*"?([^"<]*)"?\s*<([^>]+)>\s*$/)
@@ -45,7 +46,7 @@ function parseFromAddress(value) {
 }
 
 const { name: parsedFromName, email: parsedFromEmail } = parseFromAddress(process.env.SMTP_FROM)
-const FROM_NAME  = parsedFromName || 'Screeno'
+const FROM_NAME  = parsedFromName || APP_NAME
 const FROM_EMAIL = parsedFromEmail || process.env.SMTP_USER
 const EMAIL_TRANSPORT = process.env.EMAIL_TRANSPORT || 'auto'
 
@@ -76,8 +77,17 @@ function getDeliveredRecipients(originalTo) {
   return getRecipients(originalTo)
 }
 
+// Every link into the frontend goes through here. Paths must match a real route in
+// frontend/src/App.jsx - there is no /candidate, /manager or /bde portal any more;
+// every non-admin user lives under /workspace. An unknown path silently falls
+// through to the dashboard, so a wrong one here is easy to miss.
+function appLink(path, baseUrl) {
+  const base = String(baseUrl || process.env.FRONTEND_URL || 'http://localhost:5173').replace(/\/+$/, '')
+  return `${base}${path}`
+}
+
 function senderLabel(companyName) {
-  return companyName || FROM_NAME || 'Screeno'
+  return companyName || FROM_NAME || APP_NAME
 }
 
 /**
@@ -221,8 +231,7 @@ function escapeHtml(value) {
 }
 
 async function sendPasswordReset(to, { name, token, expiresMinutes = 60 }, options = {}) {
-  const frontendUrl = options.frontendUrl || process.env.FRONTEND_URL || 'http://localhost:5173'
-  const link = `${frontendUrl}/login?reset=${encodeURIComponent(token)}`
+  const link = appLink(`/login?reset=${encodeURIComponent(token)}`, options.frontendUrl)
   const safeName = escapeHtml(name || 'there')
 
   if (appsScriptPasswordResetConfigured(options)) {
@@ -232,11 +241,11 @@ async function sendPasswordReset(to, { name, token, expiresMinutes = 60 }, optio
 
   await sendMail({
     to,
-    subject: 'Reset your Screeno password',
+    subject: `Reset your ${APP_NAME} password`,
     text: [
       `Hi ${name || 'there'},`,
       '',
-      'We received a request to reset your Screeno password.',
+      `We received a request to reset your ${APP_NAME} password.`,
       `Reset link: ${link}`,
       '',
       `This link expires in ${expiresMinutes} minutes.`,
@@ -246,7 +255,7 @@ async function sendPasswordReset(to, { name, token, expiresMinutes = 60 }, optio
       <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px">
         <h2 style="color:#0F172A">Reset your password</h2>
         <p>Hi ${safeName},</p>
-        <p>We received a request to reset your Screeno password.</p>
+        <p>We received a request to reset your ${escapeHtml(APP_NAME)} password.</p>
         <p style="margin:24px 0">
           <a href="${link}" style="background:#5B4FE9;color:#fff;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:600">
             Reset Password
@@ -262,18 +271,55 @@ async function sendPasswordReset(to, { name, token, expiresMinutes = 60 }, optio
   })
 }
 
+// Sent once, right after an admin creates a user account. Reuses the same
+// password_reset_tokens mechanism as sendPasswordReset (link lands on the
+// same /login?reset= flow) - only the copy and expiry window differ.
+async function sendWelcomeSetPassword(to, { name, token, expiresMinutes = 60 * 24 * 3 }) {
+  const link = appLink(`/login?reset=${encodeURIComponent(token)}`)
+  const safeName = escapeHtml(name || 'there')
+  const expiresDays = Math.round(expiresMinutes / (60 * 24))
+
+  await sendMail({
+    to,
+    subject: `Welcome to ${APP_NAME} - set your password`,
+    text: [
+      `Hi ${name || 'there'},`,
+      '',
+      `An account has been created for you on ${APP_NAME}.`,
+      `Set your password to get started: ${link}`,
+      '',
+      `This link expires in ${expiresDays} day${expiresDays === 1 ? '' : 's'}.`,
+    ].join('\n'),
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px">
+        <h2 style="color:#0F172A">Welcome to ${escapeHtml(APP_NAME)}</h2>
+        <p>Hi ${safeName},</p>
+        <p>An account has been created for you. Set your password to get started.</p>
+        <p style="margin:24px 0">
+          <a href="${link}" style="background:#5B4FE9;color:#fff;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:600">
+            Set Password
+          </a>
+        </p>
+        <p style="color:#475569;font-size:14px;line-height:1.6">
+          This link expires in ${expiresDays} day${expiresDays === 1 ? '' : 's'}. If the button does not work, copy and paste this link:<br />
+          <a href="${link}" style="color:#5B4FE9;word-break:break-all">${link}</a>
+        </p>
+      </div>
+    `,
+  })
+}
+
 async function sendMagicLink(to, {
   candidateName,
-  interviewToken,
   companyName,
   jobTitle,
   windowDays,
   assessmentDate,
   scheduleTimezone,
   details,
+  meetingUrl,
 }) {
-  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173'
-  const portalLink = `${frontendUrl}/candidate/interviews`
+  const portalLink = appLink('/workspace/interviews')
   const sender = senderLabel(companyName)
   const dateText = assessmentDate
     ? (() => {
@@ -300,9 +346,10 @@ async function sendMagicLink(to, {
       '',
       `You've been invited to complete an interview for ${jobTitle || 'an assessment'} at ${companyName}.`,
       dateText ? `Assessment date: ${dateText}` : '',
+      meetingUrl ? `Meeting: ${meetingUrl}` : '',
       details ? `Details:\n${details}` : '',
       '',
-      'Please log in to your Screeno candidate portal and use the Join/Start button from your interviews page when the interview window opens.',
+      `Please log in to your ${APP_NAME} candidate portal and use the Join/Start button from your interviews page when the interview window opens.`,
       `Candidate portal: ${portalLink}`,
       windowDays ? `The interview window is available for ${windowDays} days once opened by your manager.` : '',
       `This is an automated email from ${sender}. Please do not reply to this email.`,
@@ -312,9 +359,10 @@ async function sendMagicLink(to, {
         <h2 style="color:#0F172A">Hi ${candidateName},</h2>
         <p>You've been invited to complete an interview for <strong>${jobTitle || 'an assessment'}</strong> at <strong>${companyName}</strong>.</p>
         ${dateText ? `<p><strong>Assessment date:</strong> ${escapeHtml(dateText)}</p>` : ''}
+        ${meetingUrl ? `<p><a href="${escapeHtml(meetingUrl)}">Join meeting</a></p>` : ''}
         ${details ? `<div style="background:#F8FAFC;border-left:4px solid #5B4FE9;padding:16px;margin:16px 0;font-size:14px;color:#374151;white-space:pre-line">${escapeHtml(details).slice(0, 3000)}</div>` : ''}
         <div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:10px;padding:14px 16px;margin:20px 0;color:#1E40AF;font-size:14px;line-height:1.6">
-          Please log in to your Screeno candidate portal and use the time-restricted Join/Start button from your interviews page.
+          Please log in to your ${escapeHtml(APP_NAME)} candidate portal and use the time-restricted Join/Start button from your interviews page.
         </div>
         <p style="margin:24px 0">
           <a href="${portalLink}" style="background:#5B4FE9;color:#fff;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:600">
@@ -338,7 +386,12 @@ async function sendMonthlyAssessmentInvite(to, {
   durationMonths,
   scheduleTimezone,
   jdText,
+  studyFileName,
 }) {
+  // The file itself isn't linked here - signed URLs expire, so candidates open it in-app.
+  const studyFileNote = studyFileName
+    ? `A study material file (${studyFileName}) is attached to this subject. Open it from your Interviews page in ${APP_NAME}.`
+    : ''
   const dateText = (() => {
     try {
       return new Date(assessmentDate).toLocaleString('en-US', {
@@ -363,7 +416,7 @@ async function sendMonthlyAssessmentInvite(to, {
 
   await sendMail({
     to,
-    subject: `[${companyName}] Monthly Assessment Assigned — ${subject}`,
+    subject: `[${companyName}] Monthly Assessment Assigned - ${subject}`,
     text: [
       `Dear ${candidateName},`,
       '',
@@ -375,14 +428,15 @@ async function sendMonthlyAssessmentInvite(to, {
       `Duration    : ${durationMonths} month${durationMonths === 1 ? '' : 's'}`,
       '',
       details ? `Study Material / JD:\n${'─'.repeat(40)}\n${details}\n${'─'.repeat(40)}` : '',
+      studyFileNote,
       '',
-      'Use the secure Screeno assessment link sent for this scheduled assessment.',
+      `Use the secure ${APP_NAME} assessment link sent for this scheduled assessment.`,
       'Please ensure you complete the assessment within the scheduled period.',
       '',
       'Should you have any questions, please reach out to your manager.',
       '',
       `Best regards,`,
-      `${companyName} — Screeno Platform`,
+      `${companyName} - ${APP_NAME} Platform`,
       '',
       '──────────────────────────────────────',
       'This is an automated notification. Please do not reply to this email.',
@@ -391,7 +445,7 @@ async function sendMonthlyAssessmentInvite(to, {
       <div style="font-family:'Segoe UI',Arial,sans-serif;max-width:560px;margin:0 auto;background:#ffffff;border:1px solid #E2E8F0;border-radius:12px;overflow:hidden">
         <!-- header -->
         <div style="background:linear-gradient(135deg,#5B4FE9,#4A3FCE);padding:28px 32px">
-          <div style="font-size:20px;font-weight:700;color:#ffffff;letter-spacing:-0.02em">Screeno</div>
+          <div style="font-size:20px;font-weight:700;color:#ffffff;letter-spacing:-0.02em">${escapeHtml(APP_NAME)}</div>
           <div style="font-size:13px;color:rgba(255,255,255,0.7);margin-top:2px">${escapeHtml(companyName)}</div>
         </div>
 
@@ -434,9 +488,13 @@ async function sendMonthlyAssessmentInvite(to, {
           </div>
           ` : ''}
 
+          ${studyFileNote ? `
+          <p style="margin:0 0 24px;font-size:13px;color:#374151;line-height:1.6">${escapeHtml(studyFileNote)}</p>
+          ` : ''}
+
           <div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px;padding:14px 16px;margin-bottom:24px">
             <p style="margin:0;font-size:13px;color:#1E40AF;line-height:1.6">
-              <strong>Next step:</strong> Use the secure Screeno assessment link sent for this scheduled assessment. Please ensure you complete the assessment within the scheduled period.
+              <strong>Next step:</strong> Use the secure ${escapeHtml(APP_NAME)} assessment link sent for this scheduled assessment. Please ensure you complete the assessment within the scheduled period.
             </p>
           </div>
 
@@ -448,7 +506,7 @@ async function sendMonthlyAssessmentInvite(to, {
         <!-- footer -->
         <div style="padding:16px 32px;border-top:1px solid #E2E8F0;background:#F8FAFC;text-align:center">
           <p style="margin:0;font-size:12px;color:#94A3B8">
-            This is an automated notification from ${escapeHtml(companyName)} via Screeno. Please do not reply to this email.
+            This is an automated notification from ${escapeHtml(companyName)} via ${escapeHtml(APP_NAME)}. Please do not reply to this email.
           </p>
         </div>
       </div>
@@ -457,7 +515,7 @@ async function sendMonthlyAssessmentInvite(to, {
 }
 
 async function sendReportReady(to, { candidate, interviewId, companyName }) {
-  const link = `${process.env.FRONTEND_URL}/manager/reports?interview=${interviewId}`
+  const link = appLink(`/workspace/reports?interview=${encodeURIComponent(interviewId)}`)
   const sender = senderLabel(companyName)
 
   await sendMail({
@@ -473,7 +531,7 @@ async function sendReportReady(to, { candidate, interviewId, companyName }) {
           </a>
         </p>
         <p style="color:#94A3B8;font-size:12px">This is an automated email from ${escapeHtml(sender)}. Please do not reply to this email.</p>
-        <p style="color:#94A3B8;font-size:12px">Screeno &middot; ${companyName || ''}</p>
+        <p style="color:#94A3B8;font-size:12px">${escapeHtml(APP_NAME)} &middot; ${companyName || ''}</p>
       </div>
     `,
   })
@@ -489,8 +547,7 @@ async function sendRescheduleRequest(to, {
   expiredAt,
   companyName,
 }) {
-  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173'
-  const link = `${frontendUrl}/manager/schedule`
+  const link = appLink('/workspace/schedule')
   const title = contextTitle || interviewType || 'assessment'
 
   await sendMail({
@@ -505,7 +562,7 @@ async function sendRescheduleRequest(to, {
       expiredAt ? `Expired at: ${expiredAt}` : '',
       '',
       'The candidate tried to access the assessment after the scheduled window expired.',
-      `Open Screeno schedule: ${link}`,
+      `Open ${APP_NAME} schedule: ${link}`,
     ].filter(Boolean).join('\n'),
     html: `
       <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px">
@@ -523,7 +580,7 @@ async function sendRescheduleRequest(to, {
             Open Schedule
           </a>
         </p>
-        <p style="color:#94A3B8;font-size:12px">Screeno${companyName ? ` &middot; ${escapeHtml(companyName)}` : ''}</p>
+        <p style="color:#94A3B8;font-size:12px">${escapeHtml(APP_NAME)}${companyName ? ` &middot; ${escapeHtml(companyName)}` : ''}</p>
       </div>
     `,
   })
@@ -545,7 +602,7 @@ async function sendJDForResumeUpdate(to, { candidateName, clientName, role, jdTe
       '',
       jdText ? `Requirement details:\n${jdText}` : '',
       '',
-      'Log in to your Screeno account to upload your updated resume.',
+      `Log in to your ${APP_NAME} account to upload your updated resume.`,
       `This is an automated email from ${sender}. Please do not reply.`,
     ].join('\n'),
     html: `
@@ -562,12 +619,13 @@ async function sendJDForResumeUpdate(to, { candidateName, clientName, role, jdTe
 }
 
 // JD email with a custom manager message included above the JD text
-async function sendClientJDWithMessage(to, { candidateName, clientName, role, jdText, customMessage, deadline, frontendUrl }) {
-  const portalLink = `${frontendUrl || process.env.FRONTEND_URL || 'http://localhost:5173'}/candidate/mandates`
+async function sendClientJDWithMessage(to, { candidateName, clientName, role, jdText, customMessage, deadline, frontendUrl, clientTeamId }) {
+  // Deep-links to this mandate's card on Outcomes, which shows the JD and the resume upload
+  const portalLink = appLink(`/workspace/outcomes${clientTeamId ? `?mandate=${encodeURIComponent(clientTeamId)}` : ''}`, frontendUrl)
   const deadlineText = deadline ? new Date(deadline).toLocaleDateString('en-IN') : null
   await sendMail({
     to,
-    subject: `[${clientName}] Job opportunity — ${role || 'see details below'}`,
+    subject: `[${clientName}] Job opportunity - ${role || 'see details below'}`,
     text: [
       `Hi ${candidateName},`,
       '',
@@ -576,7 +634,7 @@ async function sendClientJDWithMessage(to, { candidateName, clientName, role, jd
       '',
       jdText ? `Job details:\n${'─'.repeat(40)}\n${jdText}\n${'─'.repeat(40)}` : '',
       '',
-      'Log in to your Screeno portal to submit your resume for this opportunity:',
+      `Log in to your ${APP_NAME} portal to submit your resume for this opportunity:`,
       portalLink,
       '',
       'This is an automated message. Please do not reply.',
@@ -584,7 +642,7 @@ async function sendClientJDWithMessage(to, { candidateName, clientName, role, jd
     html: `
       <div style="font-family:'Segoe UI',Arial,sans-serif;max-width:560px;margin:0 auto;background:#ffffff;border:1px solid #E2E8F0;border-radius:12px;overflow:hidden">
         <div style="background:linear-gradient(135deg,#5B4FE9,#4A3FCE);padding:28px 32px">
-          <div style="font-size:20px;font-weight:700;color:#ffffff">Screeno</div>
+          <div style="font-size:20px;font-weight:700;color:#ffffff">${escapeHtml(APP_NAME)}</div>
           <div style="font-size:13px;color:rgba(255,255,255,0.75);margin-top:2px">${escapeHtml(clientName)}</div>
         </div>
         <div style="padding:32px">
@@ -602,14 +660,14 @@ async function sendClientJDWithMessage(to, { candidateName, clientName, role, jd
             <div style="background:#FAFAFE;border-left:4px solid #5B4FE9;border-radius:0 8px 8px 0;padding:16px;font-size:13px;color:#374151;white-space:pre-line;line-height:1.7">${escapeHtml(jdText).slice(0, 4000)}</div>
           </div>` : ''}
           <div style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:8px;padding:14px 16px;margin:20px 0">
-            <p style="margin:0;font-size:13px;color:#1E40AF"><strong>Action required:</strong> Log in to your Screeno portal to submit your resume for this opportunity.</p>
+            <p style="margin:0;font-size:13px;color:#1E40AF"><strong>Action required:</strong> Log in to your ${escapeHtml(APP_NAME)} portal to submit your resume for this opportunity.</p>
           </div>
           <p style="margin:24px 0">
-            <a href="${portalLink}" style="background:#5B4FE9;color:#fff;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:600">Go to Screeno Portal &rarr;</a>
+            <a href="${portalLink}" style="background:#5B4FE9;color:#fff;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:600">Go to ${escapeHtml(APP_NAME)} Portal &rarr;</a>
           </p>
         </div>
         <div style="padding:16px 32px;border-top:1px solid #E2E8F0;background:#F8FAFC;text-align:center">
-          <p style="margin:0;font-size:12px;color:#94A3B8">Automated notification via Screeno. Please do not reply to this email.</p>
+          <p style="margin:0;font-size:12px;color:#94A3B8">Automated notification via ${escapeHtml(APP_NAME)}. Please do not reply to this email.</p>
         </div>
       </div>
     `,
@@ -623,7 +681,7 @@ async function sendOfflineInterviewInvite(to, { candidateName, clientName, role,
     : 'Date to be confirmed'
   await sendMail({
     to,
-    subject: `[${clientName}] Offline interview scheduled — ${role || ''}`,
+    subject: `[${clientName}] Offline interview scheduled - ${role || ''}`,
     text: [
       `Hi ${candidateName},`,
       '',
@@ -633,14 +691,14 @@ async function sendOfflineInterviewInvite(to, { candidateName, clientName, role,
       location ? `Location    : ${location}` : '',
       notes    ? `Notes       : ${notes}`    : '',
       '',
-      'Please log in to your Screeno portal to view the full details.',
+      `Please log in to your ${APP_NAME} portal to view the full details.`,
       '',
       'This is an automated message. Please do not reply.',
     ].join('\n'),
     html: `
       <div style="font-family:'Segoe UI',Arial,sans-serif;max-width:560px;margin:0 auto;background:#ffffff;border:1px solid #E2E8F0;border-radius:12px;overflow:hidden">
         <div style="background:linear-gradient(135deg,#5B4FE9,#4A3FCE);padding:28px 32px">
-          <div style="font-size:20px;font-weight:700;color:#ffffff">Screeno</div>
+          <div style="font-size:20px;font-weight:700;color:#ffffff">${escapeHtml(APP_NAME)}</div>
           <div style="font-size:13px;color:rgba(255,255,255,0.75);margin-top:2px">${escapeHtml(clientName)}</div>
         </div>
         <div style="padding:32px">
@@ -661,7 +719,7 @@ async function sendOfflineInterviewInvite(to, { candidateName, clientName, role,
           <p style="font-size:13px;color:#374151">Please ensure you are present on time. If you have any questions, reach out to your manager directly.</p>
         </div>
         <div style="padding:16px 32px;border-top:1px solid #E2E8F0;background:#F8FAFC;text-align:center">
-          <p style="margin:0;font-size:12px;color:#94A3B8">Automated notification via Screeno. Please do not reply to this email.</p>
+          <p style="margin:0;font-size:12px;color:#94A3B8">Automated notification via ${escapeHtml(APP_NAME)}. Please do not reply to this email.</p>
         </div>
       </div>
     `,
@@ -670,8 +728,7 @@ async function sendOfflineInterviewInvite(to, { candidateName, clientName, role,
 
 /** Notify an internal candidate that they are conducting an interview. */
 async function sendInterviewerAssignment(to, data) {
-  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173'
-  const assignmentUrl = `${frontendUrl}${data.portalPath || '/candidate/interviews'}`
+  const assignmentUrl = appLink(data.portalPath || '/workspace/interviews')
   const dateText = new Date(data.scheduledAt).toLocaleString('en-IN', {
     dateStyle: 'long', timeStyle: 'short', timeZone: data.scheduleTimezone || undefined,
   })
@@ -700,8 +757,7 @@ async function sendInterviewerAssignment(to, data) {
 }
 
 async function sendInterviewScheduleUpdate(to, data) {
-  const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173'
-  const portalUrl = `${frontendUrl}/candidate/interviews`
+  const portalUrl = appLink('/workspace/interviews')
   const dateText = new Date(data.scheduledAt).toLocaleString('en-IN', {
     dateStyle: 'long', timeStyle: 'short', timeZone: data.scheduleTimezone || undefined,
   })
@@ -737,13 +793,85 @@ async function sendInterviewerAssignmentCancelled(to, data) {
       `Hi ${data.interviewerName},`, '',
       `You are no longer assigned to conduct ${data.stageName} for ${data.candidateName}.`,
       `Client: ${data.clientName}`,
-      'Please use your Screeno portal for your current assignments.',
+      `Please use your ${APP_NAME} portal for your current assignments.`,
     ].join('\n'),
     html: `<div style="font-family:sans-serif;max-width:520px;margin:auto;padding:28px">
       <h2>Interview assignment changed</h2>
       <p>Hi <strong>${escapeHtml(data.interviewerName)}</strong>,</p>
       <p>You are no longer assigned to conduct <strong>${escapeHtml(data.stageName)}</strong> for <strong>${escapeHtml(data.candidateName)}</strong> at ${escapeHtml(data.clientName)}.</p>
     </div>`,
+  })
+}
+
+/** Notify a manager that a BDE created a client mandate and assigned it to them. */
+async function sendMandateAssigned(to, { managerName, bdeName, clientName, requirements, headcount, mandateId }) {
+  const link = appLink(`/workspace/clients/${encodeURIComponent(mandateId)}`)
+
+  await sendMail({
+    to,
+    subject: `New client mandate assigned - ${clientName}`,
+    text: [
+      `Hi ${managerName},`,
+      '',
+      `${bdeName} created a new client mandate for ${clientName} and assigned it to you.`,
+      requirements ? `Requirements: ${requirements}` : '',
+      headcount ? `Headcount: ${headcount}` : '',
+      '',
+      `Open the mandate: ${link}`,
+    ].filter(Boolean).join('\n'),
+    html: `
+      <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px">
+        <h2 style="color:#0F172A">New client mandate assigned to you</h2>
+        <p>Hi <strong>${escapeHtml(managerName)}</strong>,</p>
+        <p><strong>${escapeHtml(bdeName)}</strong> created a new client mandate for <strong>${escapeHtml(clientName)}</strong> and assigned it to you.</p>
+        <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:16px;margin:18px 0;font-size:14px;color:#374151;line-height:1.7">
+          ${requirements ? `<div><strong>Requirements:</strong> ${escapeHtml(requirements)}</div>` : ''}
+          ${headcount ? `<div><strong>Headcount:</strong> ${escapeHtml(String(headcount))}</div>` : ''}
+        </div>
+        <p style="margin:24px 0">
+          <a href="${link}" style="background:#5B4FE9;color:#fff;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:600">
+            Open Mandate &rarr;
+          </a>
+        </p>
+        <p style="color:#94A3B8;font-size:12px">This is an automated email from ${escapeHtml(APP_NAME)}. Please do not reply to this email.</p>
+      </div>
+    `,
+  })
+}
+
+/** Notify a BDE that a manager assigned them to a client mandate. */
+async function sendMandateAssignedToBde(to, { bdeName, managerName, clientName, requirements, headcount, mandateId }) {
+  const link = appLink(`/workspace/clients/${encodeURIComponent(mandateId)}`)
+
+  await sendMail({
+    to,
+    subject: `You've been assigned to a client mandate - ${clientName}`,
+    text: [
+      `Hi ${bdeName},`,
+      '',
+      `${managerName} assigned you to the client mandate for ${clientName}.`,
+      requirements ? `Requirements: ${requirements}` : '',
+      headcount ? `Headcount: ${headcount}` : '',
+      '',
+      `Open the mandate: ${link}`,
+    ].filter(Boolean).join('\n'),
+    html: `
+      <div style="font-family:sans-serif;max-width:520px;margin:0 auto;padding:32px">
+        <h2 style="color:#0F172A">You've been assigned to a client mandate</h2>
+        <p>Hi <strong>${escapeHtml(bdeName)}</strong>,</p>
+        <p><strong>${escapeHtml(managerName)}</strong> assigned you to the client mandate for <strong>${escapeHtml(clientName)}</strong>.</p>
+        <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:10px;padding:16px;margin:18px 0;font-size:14px;color:#374151;line-height:1.7">
+          ${requirements ? `<div><strong>Requirements:</strong> ${escapeHtml(requirements)}</div>` : ''}
+          ${headcount ? `<div><strong>Headcount:</strong> ${escapeHtml(String(headcount))}</div>` : ''}
+        </div>
+        <p style="margin:24px 0">
+          <a href="${link}" style="background:#5B4FE9;color:#fff;padding:14px 28px;border-radius:8px;text-decoration:none;font-weight:600">
+            Open Mandate &rarr;
+          </a>
+        </p>
+        <p style="color:#94A3B8;font-size:12px">This is an automated email from ${escapeHtml(APP_NAME)}. Please do not reply to this email.</p>
+      </div>
+    `,
   })
 }
 
@@ -776,6 +904,7 @@ module.exports = {
   getConfigurationStatus,
   sendMail,
   sendPasswordReset,
+  sendWelcomeSetPassword,
   sendMagicLink,
   sendMonthlyAssessmentInvite,
   sendReportReady,
@@ -787,5 +916,7 @@ module.exports = {
   sendInterviewScheduleUpdate,
   sendInterviewerAssignmentCancelled,
   sendInterviewCancelled,
+  sendMandateAssigned,
+  sendMandateAssignedToBde,
   getDeliveredRecipients,
 }

@@ -1,25 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Search, X } from 'lucide-react'
 import * as api from '../../services/api'
-
-function matchesUser(user, query) {
-  const normalized = query.trim().toLowerCase()
-  if (!normalized) return true
-  const firstName = String(user.first_name || '')
-  const lastName = String(user.last_name || '')
-  const name = `${firstName} ${lastName}`.trim().toLowerCase()
-  const initials = `${firstName[0] || ''}${lastName[0] || ''}`.toLowerCase()
-  return name.includes(normalized)
-    || String(user.email || '').toLowerCase().includes(normalized)
-    || initials.includes(normalized)
-    || String(user.role || '').toLowerCase().includes(normalized)
-}
+import { APP_NAME } from '../../config/app.config'
+import { matchesUserQuery } from '../../utils/helpers'
 
 function ReportRecipientsSelector({
   selectedIds,
   onChange,
   label = 'Report email recipients',
-  help = 'When the interview report is ready, Screeno emails only these selected users. Leave empty to send no report email.',
+  help = `When the interview report is ready, ${APP_NAME} emails only these selected users. Leave empty to send no report email.`,
 }) {
   const [orgUsers, setOrgUsers] = useState([])
   const [query, setQuery] = useState('')
@@ -28,23 +17,24 @@ function ReportRecipientsSelector({
 
   useEffect(() => {
     let active = true
-    setLoading(true)
-    api.getScheduleOrgUsers()
-      .then(response => {
+    async function loadOrgUsers() {
+      setLoading(true)
+      try {
+        const response = await api.getScheduleOrgUsers()
         if (active) setOrgUsers(response.data || [])
-      })
-      .catch(() => {
+      } catch {
         if (active) setOrgUsers([])
-      })
-      .finally(() => {
+      } finally {
         if (active) setLoading(false)
-      })
+      }
+    }
+    loadOrgUsers()
     return () => { active = false }
   }, [])
 
   const selectedUsers = orgUsers.filter(user => selectedSet.has(Number(user.id)))
   const suggestions = orgUsers
-    .filter(user => !selectedSet.has(Number(user.id)) && matchesUser(user, query))
+    .filter(user => !selectedSet.has(Number(user.id)) && matchesUserQuery(user, query))
     .slice(0, 8)
 
   function setNext(nextSet) {

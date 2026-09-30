@@ -71,7 +71,7 @@ app.use('/api/my-route', require('./routes/my.routes'))
 
 Protected routes use `authMiddleware` from `src/middleware/auth.js`. It reads `Authorization: Bearer <token>`, verifies the JWT, and sets `req.user` with `{ id, role, companyId }`.
 
-Role checks use `src/middleware/role.js`.
+Access checks use `src/middleware/access.js`: `loadAccess` loads the caller's modules and permissions (RBAC), `requireModule(moduleKey, { permission })` gates a route by module, and `requirePlatformAdmin` gates the admin API. `req.user.role` is only `admin` or `user`.
 
 Magic-link interview routes use path tokens such as `/api/auth/magic-link/:token` and `/api/exam/:token`; the frontend route is `/interview/:token/*`. Magic-link sessions are exchanged for short-lived interview-scoped JWTs instead of normal dashboard sessions.
 

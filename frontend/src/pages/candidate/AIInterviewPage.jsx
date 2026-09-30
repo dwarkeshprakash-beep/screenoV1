@@ -6,6 +6,7 @@ import useProctoring from '../../hooks/useProctoring'
 import Avatar from '../../components/shared/Avatar'
 import Modal from '../../components/shared/Modal'
 import Button from '../../components/shared/Button'
+import { APP_NAME } from '../../config/app.config'
 
 function clk(s) { return `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}` }
 
@@ -50,17 +51,36 @@ function AIInterviewPage() {
   useEffect(() => { if (phase === 'ended') navigate(`/interview/${token}/done`) }, [phase, navigate, token])
   useEffect(() => {
     let stream
+    let cancelled = false
     if (!navigator.mediaDevices?.getUserMedia) return
 
-    navigator.mediaDevices.getUserMedia({ video: true }).then(mediaStream => {
-      stream = mediaStream
-      if (cameraVideoRef.current) {
-        cameraVideoRef.current.srcObject = mediaStream
-        cameraVideoRef.current.play().then(() => setCameraReady(true)).catch(() => {})
+    async function startCamera() {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: true })
+      } catch {
+        setCameraReady(false)
+        return
       }
-    }).catch(() => setCameraReady(false))
+      // Unmounted while the permission prompt was open - release the camera right away.
+      if (cancelled) {
+        stream.getTracks().forEach(track => track.stop())
+        return
+      }
+      if (!cameraVideoRef.current) return
+      cameraVideoRef.current.srcObject = stream
+      try {
+        await cameraVideoRef.current.play()
+        setCameraReady(true)
+      } catch {
+        // Autoplay can be refused; the preview simply stays hidden.
+      }
+    }
+    startCamera()
 
-    return () => stream?.getTracks().forEach(track => track.stop())
+    return () => {
+      cancelled = true
+      stream?.getTracks().forEach(track => track.stop())
+    }
   }, [])
 
   useEffect(() => {
@@ -219,7 +239,7 @@ function AIInterviewPage() {
 
         <div style={{ textAlign: 'center' }}>
           <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--brand-500)', marginBottom: 4 }}>
-            Screeno AI · {questionProgress}
+            {APP_NAME} AI · {questionProgress}
           </div>
           <div style={{ fontSize: 13, color: orbConfig.labelColor, display: 'inline-flex', alignItems: 'center', gap: 6 }}>
             <orbConfig.Icon size={14} style={{ animation: aiState === 'thinking' ? 'v2spin 1.2s linear infinite' : 'none' }} />
@@ -233,7 +253,7 @@ function AIInterviewPage() {
               {currentQuestion.phase || 'Question'}
             </div>
             <div style={{ fontSize: 16, color: 'var(--slate-900)', lineHeight: 1.5, fontWeight: 500 }}>
-              {isDone ? 'That\'s the last question — thanks! You can end the interview now.' : currentQuestion.text}
+              {isDone ? 'That\'s the last question - thanks! You can end the interview now.' : currentQuestion.text}
             </div>
             {!isDone && isRecording && (
               <div style={{ marginTop: 12, fontSize: 12, color: 'var(--slate-400)', display: 'inline-flex', alignItems: 'center', gap: 5, fontFamily: 'monospace' }}>
@@ -333,7 +353,7 @@ function AIInterviewPage() {
               <div style={{ flex: 1 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3 }}>
                   <span style={{ fontSize: 12, fontWeight: 600, color: (!t.who || t.who === 'ai') ? 'var(--brand-500)' : 'var(--slate-900)' }}>
-                    {(!t.who || t.who === 'ai') ? 'Screeno AI' : candidateName}
+                    {(!t.who || t.who === 'ai') ? `${APP_NAME} AI` : candidateName}
                   </span>
                 </div>
                 <div style={{ fontSize: 14, color: 'var(--slate-700)', lineHeight: 1.65 }}>

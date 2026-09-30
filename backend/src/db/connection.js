@@ -4,6 +4,7 @@
 require('dotenv').config()
 
 const db = require('./supabase.connection')
-console.log('[db] Connected to: PostgreSQL')
+// The pool connects lazily on the first query - GET /health confirms connectivity.
+console.log('[db] PostgreSQL pool configured')
 
 module.exports = db

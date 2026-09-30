@@ -4,8 +4,9 @@ import Modal from '../shared/Modal'
 import Button from '../shared/Button'
 import Avatar from '../shared/Avatar'
 import ReportRecipientsSelector from './ReportRecipientsSelector'
+import GeneralSubjectFields from './GeneralSubjectFields'
 import * as api from '../../services/api'
-import { serializeDatetimeLocal } from '../../utils/helpers'
+import { serializeDatetimeLocal, formatDateTime, matchesUserQuery } from '../../utils/helpers'
 
 const STEPS = ['Type', 'Configure', 'Candidates', 'Report emails', 'Confirm']
 const TYPES = [
@@ -27,25 +28,6 @@ function candidateKey(candidate) {
   return `${candidate.external ? 'external' : 'internal'}:${candidate.id}`
 }
 
-function matchesUser(user, query) {
-  const normalized = query.trim().toLowerCase()
-  if (!normalized) return true
-  const firstName = String(user.first_name || '')
-  const lastName = String(user.last_name || '')
-  const name = `${firstName} ${lastName}`.trim().toLowerCase()
-  const initials = `${firstName[0] || ''}${lastName[0] || ''}`.toLowerCase()
-  let tags
-  try {
-    tags = Array.isArray(user.tags) ? user.tags : JSON.parse(user.tags || '[]')
-  } catch {
-    tags = []
-  }
-  return name.includes(normalized)
-    || String(user.email || '').toLowerCase().includes(normalized)
-    || initials.includes(normalized)
-    || tags.join(' ').toLowerCase().includes(normalized)
-}
-
 function ScheduleModal({
   open,
   onClose,
@@ -62,6 +44,8 @@ function ScheduleModal({
   const [questionCount, setQuestionCount] = useState(10)
   const [durationMinutes, setDurationMinutes] = useState(25)
   const [scheduledAt, setScheduledAt] = useState('')
+  // General-assessment context (only used when there is no mandate/monthly template)
+  const [general, setGeneral] = useState({ subjectName: '', focusAreas: '', contextNotes: '' })
   const [candidates, setCandidates] = useState([])
   const [selectedKeys, setSelectedKeys] = useState(new Set())
   const [candidateQuery, setCandidateQuery] = useState('')
@@ -99,6 +83,7 @@ function ScheduleModal({
     setQuestionCount(10)
     setDurationMinutes(25)
     setScheduledAt('')
+    setGeneral({ subjectName: '', focusAreas: '', contextNotes: '' })
     setCandidateQuery('')
     setReportUserIds([])
     setError(null)
@@ -110,12 +95,10 @@ function ScheduleModal({
           api.getExternalCandidates(),
         ])
         const organizationUsers = orgResponse.data || []
-        const internal = organizationUsers
-          .filter(item => item.role !== 'manager')
-          .map(item => ({
+        const internal = organizationUsers.map(item => ({
           ...item,
           external: false,
-          }))
+        }))
         const external = (externalResponse.data || []).map(item => ({
           ...item,
           external: true,
@@ -151,7 +134,13 @@ function ScheduleModal({
   const selectedCandidates = candidates.filter(candidate =>
     selectedKeys.has(candidateKey(candidate))
   )
-  const visibleCandidates = candidates.filter(candidate => matchesUser(candidate, candidateQuery))
+  const visibleCandidates = candidates.filter(candidate => matchesUserQuery(candidate, candidateQuery))
+  const isGeneral = !context
+  const focusAreaList = general.focusAreas.split('\n').map(item => item.trim()).filter(Boolean)
+
+  function updateGeneral(field, value) {
+    setGeneral(current => ({ ...current, [field]: value }))
+  }
 
   function toggleCandidate(candidate) {
     const key = candidateKey(candidate)
@@ -164,6 +153,14 @@ function ScheduleModal({
   }
 
   function nextStep() {
+    if (step === 2 && isGeneral && !general.subjectName.trim()) {
+      setError('Enter the subject this assessment is for.')
+      return
+    }
+    if (step === 2 && isGeneral && focusAreaList.length > 20) {
+      setError('Add at most 20 focus areas.')
+      return
+    }
     if (step === 2 && !scheduledAt) {
       setError('Choose the scheduled date and time.')
       return
@@ -214,6 +211,11 @@ function ScheduleModal({
           reportUserIds,
           clientTemplateId: context?.clientTemplateId,
           monthlyAssessmentId: context?.monthlyAssessmentId,
+          ...(isGeneral ? {
+            subjectName: general.subjectName.trim(),
+            focusAreas: focusAreaList,
+            contextNotes: general.contextNotes.trim(),
+          } : {}),
         }
         if (candidate.external) payload.candidateId = candidate.id
         else payload.userId = candidate.id
@@ -291,6 +293,15 @@ function ScheduleModal({
             <div style={{ padding: '10px 12px', borderRadius: 8, background: 'var(--brand-50)', color: 'var(--brand-700)', fontSize: 13, fontWeight: 600 }}>
               {context.label}
             </div>
+          )}
+          {isGeneral && (
+            <GeneralSubjectFields
+              subjectName={general.subjectName}
+              focusAreas={general.focusAreas}
+              contextNotes={general.contextNotes}
+              difficulty={difficulty}
+              onChange={updateGeneral}
+            />
           )}
           {type === 'ai_voice' && (
             <div>
@@ -378,16 +389,17 @@ function ScheduleModal({
             ['Type', TYPES.find(option => option.id === type)?.label],
             ['Mode', type === 'exam' ? 'Fixed assessment' : interviewMode],
             ['Difficulty', difficulty],
-            ['Date', scheduledAt ? new Date(scheduledAt).toLocaleString() : 'Not selected'],
+            ['Date', scheduledAt ? formatDateTime(scheduledAt) : 'Not selected'],
             ['Questions', questionCount],
             ...(['ai_voice', 'exam'].includes(type) ? [['Duration', `${durationMinutes} minutes`]] : []),
             ['Candidates', selectedCandidates.length],
             ['Report emails', reportUserIds.length],
-            ['Context', context?.label || 'General assessment'],
+            ['Context', context?.label || `General assessment: ${general.subjectName.trim()}`],
+            ...(isGeneral ? [['Focus areas', focusAreaList.length ? focusAreaList.join(', ') : 'Not set']] : []),
           ].map(([label, value]) => (
-            <div key={label} style={{ display: 'flex', justifyContent: 'space-between', padding: '10px 12px', background: 'var(--bg-surface-alt)', borderRadius: 8, fontSize: 13 }}>
-              <span style={{ color: 'var(--fg-muted)' }}>{label}</span>
-              <strong style={{ color: 'var(--fg-primary)', textTransform: label === 'Difficulty' ? 'capitalize' : 'none' }}>{value}</strong>
+            <div key={label} style={{ display: 'flex', justifyContent: 'space-between', gap: 16, padding: '10px 12px', background: 'var(--bg-surface-alt)', borderRadius: 8, fontSize: 13 }}>
+              <span style={{ color: 'var(--fg-muted)', flexShrink: 0 }}>{label}</span>
+              <strong style={{ color: 'var(--fg-primary)', textAlign: 'right', overflowWrap: 'anywhere', textTransform: label === 'Difficulty' ? 'capitalize' : 'none' }}>{value}</strong>
             </div>
           ))}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--success-600)', fontSize: 12 }}>

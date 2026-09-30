@@ -3,17 +3,18 @@ const bcrypt = require('bcryptjs')
 const crypto = require('crypto')
 const teamMemberRepository = require('../repositories/team-member.repository')
 const userRepository = require('../repositories/user.repository')
+const roleRepository = require('../repositories/role.repository')
 const interviewRepository = require('../repositories/interview.repository')
 const interviewHistoryRepository = require('../repositories/interview-history.repository')
 const externalCandidateRepository = require('../repositories/external-candidate.repository')
 const storageService = require('./storage.service')
-
-function isHttpUrl(value) {
-  return /^https?:\/\//i.test(String(value || ''))
-}
+const {
+  parseStoredArray, parseStoredObject, normalizeSkillList, normalizeCompetencyMap,
+  normalizeExperienceYears, normalizeExperienceMonths, normalizeJoiningDate,
+} = require('../utils/parse')
 
 async function withSignedResumeUrl(profile) {
-  if (!profile?.resume_url || isHttpUrl(profile.resume_url)) return profile
+  if (!profile?.resume_url || storageService.isExternalUrl(profile.resume_url)) return profile
   try {
     return {
       ...profile,
@@ -30,7 +31,10 @@ async function withSignedResumeUrl(profile) {
   }
 }
 
-async function getTeam(managerId, filter = 'all') {
+// scope.viewAll - company-wide roster instead of just the caller's own team (View All
+// tier); scope.companyId is required when viewAll is true.
+async function getTeam(managerId, filter = 'all', scope = {}) {
+  if (scope.viewAll) return teamMemberRepository.getByCompany(scope.companyId, filter)
   return teamMemberRepository.getByManager(managerId, filter)
 }
 
@@ -43,30 +47,11 @@ async function getMember(id, managerId) {
 async function addMember(data, companyId, managerId) {
   if (!data.email) throw new Error('Email is required')
 
-  let userId = data.userId || null
-
-  if (!userId) {
-    const existing = await userRepository.getByEmailForCompany(data.email, companyId)
-    if (existing) {
-      userId = existing.id
-    } else {
-      const tempPw = await bcrypt.hash('TEMP_' + crypto.randomBytes(8).toString('hex'), 10)
-      const newUser = await userRepository.createMinimal(companyId, {
-        firstName:    data.firstName,
-        lastName:     data.lastName,
-        email:        data.email,
-        passwordHash: tempPw,
-      })
-      if (newUser) {
-        userId = newUser.id
-      } else {
-        const found = await userRepository.getByEmailForCompany(data.email, companyId)
-        userId = found?.id
-      }
-    }
-  }
-
-  if (!userId) throw new Error('Could not resolve user — email may not belong to this company')
+  // Team management only links an existing account to a manager's team - it does not
+  // create user accounts. New users are created in the Users module (admin-only).
+  const existing = await userRepository.getByEmailForCompany(data.email, companyId)
+  if (!existing) throw new Error('No user with this email exists yet - create the user first in the Users module')
+  const userId = existing.id
 
   await userRepository.updateOrgProfile(userId, {
     email: data.email,
@@ -88,12 +73,36 @@ async function updateMember(id, data, managerId) {
 
   const hasProfileUpdate = data.firstName !== undefined || data.lastName !== undefined
     || data.resumeUrl !== undefined || data.availability !== undefined
+    || data.experienceYears !== undefined || data.experienceMonths !== undefined
+    || data.joiningDate !== undefined
   if (hasProfileUpdate) {
+    const years = normalizeExperienceYears(data.experienceYears)
+    if (years.error) {
+      const err = new Error(years.error)
+      err.httpStatus = 400
+      throw err
+    }
+    const months = normalizeExperienceMonths(data.experienceMonths)
+    if (months.error) {
+      const err = new Error(months.error)
+      err.httpStatus = 400
+      throw err
+    }
+    const joining = normalizeJoiningDate(data.joiningDate)
+    if (joining.error) {
+      const err = new Error(joining.error)
+      err.httpStatus = 400
+      throw err
+    }
+
     await userRepository.updateProfile(member.user_id, {
       firstName:    data.firstName    || null,
       lastName:     data.lastName     || null,
       resumeUrl:    data.resumeUrl    || null,
       availability: data.availability || null,
+      experienceYears: years.value,
+      experienceMonths: months.value,
+      joiningDate: joining.value,
     })
   }
 
@@ -120,14 +129,56 @@ async function updateMember(id, data, managerId) {
   return teamMemberRepository.getByIdForManager(id, managerId)
 }
 
+// Replaces a team member's skill list (users.tags). Only the member's own manager may edit -
+// getByIdForManager scopes to tm.manager_id, so View All does not widen this. Also drops any
+// competency entries for skills that no longer exist.
+async function updateMemberSkills(id, input, managerId) {
+  const member = await teamMemberRepository.getByIdForManager(id, managerId)
+  if (!member) throw new Error('Member not found')
+
+  const { skills, error } = normalizeSkillList(input)
+  if (error) {
+    const err = new Error(error)
+    err.httpStatus = 400
+    throw err
+  }
+
+  const skillKeys = new Set(skills.map(s => s.toLowerCase()))
+  const competencies = Object.fromEntries(
+    Object.entries(parseStoredObject(member.skill_competencies)).filter(([skill]) => skillKeys.has(skill.toLowerCase()))
+  )
+
+  const updated = await userRepository.updateProfile(member.user_id, { tags: skills, skillCompetencies: competencies })
+  return { tags: parseStoredArray(updated?.tags) }
+}
+
+// Replaces a team member's skill -> competency level map (users.skill_competencies). Only the
+// member's own manager may edit - same scope as updateMemberSkills. Every key must match one of
+// the member's current skills; omitting a skill clears it (N/A).
+async function updateMemberCompetencies(id, input, managerId) {
+  const member = await teamMemberRepository.getByIdForManager(id, managerId)
+  if (!member) throw new Error('Member not found')
+
+  const skills = parseStoredArray(member.tags)
+  const { competencies, error } = normalizeCompetencyMap(input, skills)
+  if (error) {
+    const err = new Error(error)
+    err.httpStatus = 400
+    throw err
+  }
+
+  const updated = await userRepository.updateProfile(member.user_id, { skillCompetencies: competencies })
+  return { competencies: parseStoredObject(updated?.skill_competencies) }
+}
+
 async function removeMember(id, managerId) {
   await teamMemberRepository.removeMember(id, managerId)
 }
 
-async function getStats(managerId) {
+async function getStats(managerId, scope = {}) {
   const [members, interviews] = await Promise.all([
-    teamMemberRepository.getByManager(managerId, 'all'),
-    interviewRepository.getByManager(managerId),
+    scope.viewAll ? teamMemberRepository.getByCompany(scope.companyId) : teamMemberRepository.getByManager(managerId, 'all'),
+    scope.viewAll ? interviewRepository.getByCompany(scope.companyId) : interviewRepository.getByManager(managerId),
   ])
 
   const openInterviews = interviews.filter(i => i.status === 'scheduled' || i.status === 'pending').length
@@ -141,8 +192,10 @@ async function getStats(managerId) {
   }
 }
 
-async function getActivity(managerId) {
-  const interviews = await interviewRepository.getByManager(managerId)
+async function getActivity(managerId, scope = {}) {
+  const interviews = scope.viewAll
+    ? await interviewRepository.getByCompany(scope.companyId)
+    : await interviewRepository.getByManager(managerId)
   return interviews.slice(0, 10).map(i => ({
     what: `${i.type === 'ai_voice' ? 'AI Interview' : 'Exam'} ${i.status}`,
     sub:  `${i.candidate_first} ${i.candidate_last}`,
@@ -188,10 +241,12 @@ function normalizeHeader(header) {
   return String(header || '').toLowerCase().replace(/[^a-z0-9]/g, '')
 }
 
-async function importFromCSV(csvText, companyId, managerId) {
+async function importFromCSV(csvText, companyId, managerId, roleId) {
   if (typeof csvText !== 'string' || !csvText.trim()) {
     throw new Error('CSV content is required')
   }
+  const role = await roleRepository.getById(roleId, companyId)
+  if (!role) throw new Error('Select a valid role to assign to imported members')
 
   const parsed = parseCSV(csvText)
   if (parsed.length < 2) throw new Error('CSV must include a header and at least one row')
@@ -228,7 +283,7 @@ async function importFromCSV(csvText, companyId, managerId) {
   })
 
   const tempPasswordHash = await bcrypt.hash(`TEMP_${crypto.randomBytes(16).toString('hex')}`, 10)
-  const result = await userRepository.bulkUpsert(rows, companyId, managerId, tempPasswordHash)
+  const result = await userRepository.bulkUpsert(rows, companyId, managerId, tempPasswordHash, roleId)
   return { ...result, errors: [...errors, ...result.errors] }
 }
 
@@ -237,7 +292,8 @@ async function getMemberInterviews(id, managerId) {
   return interviewHistoryRepository.getByManager(managerId, member.user_id)
 }
 
-async function getInterviewHistory(managerId) {
+async function getInterviewHistory(managerId, scope = {}) {
+  if (scope.viewAll) return interviewHistoryRepository.getByCompany(scope.companyId)
   return interviewHistoryRepository.getByManager(managerId)
 }
 
@@ -271,12 +327,9 @@ async function getOrganizationMemberProfile(userId, companyId, managerId) {
   if (!profile) return null
   
   // Determine if this user is in the manager's team
-  const tmRows = await require('../db/connection').query(
-    `SELECT id FROM team_members WHERE manager_id = @managerId AND user_id = @userId LIMIT 1`,
-    { managerId, userId }
-  )
-  profile.in_team = tmRows.length > 0
-  profile.team_member_id = tmRows[0]?.id || null
+  const teamMember = await teamMemberRepository.getByManagerAndUser(managerId, userId)
+  profile.in_team = !!teamMember
+  profile.team_member_id = teamMember?.id || null
 
   return withSignedResumeUrl(profile)
 }
@@ -286,7 +339,8 @@ async function getOrganizationMemberInterviews(userId, managerId) {
 }
 
 module.exports = {
-  getTeam, getMember, getOrgUsersNotInTeam, addMember, updateMember,
+  getTeam, getMember, getOrgUsersNotInTeam, addMember, updateMember, updateMemberSkills,
+  updateMemberCompetencies,
   removeMember, getStats, getActivity, importFromCSV, getMemberInterviews, getInterviewHistory,
   parseCSV,
   getExternalCandidates, addExternalCandidate,

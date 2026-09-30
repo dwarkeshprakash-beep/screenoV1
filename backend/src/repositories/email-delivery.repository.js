@@ -18,13 +18,6 @@ async function create(data) {
   return rows[0]
 }
 
-async function updateStatus(id, status, error = null) {
-  await db.query(
-    `UPDATE email_deliveries SET status = @status, error = @error WHERE id = @id`,
-    { id, status, error }
-  )
-}
-
 async function getByInterview(interviewId) {
   return db.query(
     `SELECT * FROM email_deliveries
@@ -34,4 +27,4 @@ async function getByInterview(interviewId) {
   )
 }
 
-module.exports = { create, updateStatus, getByInterview }
+module.exports = { create, getByInterview }

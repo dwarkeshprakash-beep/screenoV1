@@ -3,12 +3,13 @@
 
 const express = require('express')
 const authMiddleware = require('../middleware/auth')
-const requireRole = require('../middleware/role')
+const { loadAccess, requireModule } = require('../middleware/access')
+const accessService = require('../services/access.service')
 const scheduleService = require('../services/schedule.service')
 
 const router = express.Router()
 
-// GET /api/schedule/slots/:token — public route, no auth needed
+// GET /api/schedule/slots/:token - public route, no auth needed
 router.get('/slots/:token', async (req, res) => {
   try {
     const slots = await scheduleService.getAvailableSlots(req.params.token)
@@ -20,7 +21,7 @@ router.get('/slots/:token', async (req, res) => {
   }
 })
 
-router.use(authMiddleware, requireRole('manager'))
+router.use(authMiddleware, loadAccess, requireModule('schedule'))
 
 router.get('/org-users', async (req, res) => {
   try {
@@ -60,6 +61,20 @@ router.post('/email-deliveries/:interviewId/resend', async (req, res) => {
   }
 })
 
+// POST /api/schedule/suggest-focus-areas - AI focus areas for a general assessment subject
+router.post('/suggest-focus-areas', async (req, res) => {
+  try {
+    const focusAreas = await scheduleService.suggestFocusAreas(req.body.subject, req.body.difficulty)
+    res.json({ success: true, data: focusAreas })
+  } catch (err) {
+    console.error('POST /schedule/suggest-focus-areas failed:', err)
+    if (err.message === 'Subject is required') {
+      return res.status(400).json({ success: false, error: err.message })
+    }
+    res.status(500).json({ success: false, error: 'Could not suggest focus areas' })
+  }
+})
+
 // POST /api/schedule
 router.post('/', async (req, res) => {
   try {
@@ -96,7 +111,8 @@ router.post('/', async (req, res) => {
       'Invalid scheduled date and time',
       'Scheduled time must be in the future',
       'Some report recipients are not in your organization',
-    ].includes(err.message)) {
+      'Subject is required for a general assessment',
+    ].includes(err.message) || /^(Subject|Notes) must be|^Add at most/.test(err.message)) {
       return res.status(400).json({ success: false, error: err.message })
     }
     if (['Client template not found', 'Monthly assessment not found'].includes(err.message)) {
@@ -112,11 +128,17 @@ router.post('/', async (req, res) => {
 router.get('/interviews', async (req, res) => {
   try {
     const category = ['mandate', 'monthly', 'general'].includes(req.query.category) ? req.query.category : null
-    const events = await scheduleService.getScheduledInterviews(req.user.id, {
-      dateFrom: req.query.dateFrom,
-      dateTo: req.query.dateTo,
-      category,
-    })
+    const events = accessService.hasModulePermission(req.access, 'schedule', 'View All')
+      ? await scheduleService.getScheduledInterviewsForCompany(req.access.companyId, {
+          dateFrom: req.query.dateFrom,
+          dateTo: req.query.dateTo,
+          category,
+        })
+      : await scheduleService.getScheduledInterviews(req.user.id, {
+          dateFrom: req.query.dateFrom,
+          dateTo: req.query.dateTo,
+          category,
+        })
     res.json({ success: true, data: events })
   } catch (err) {
     console.error('GET /schedule/interviews failed:', err)

@@ -6,6 +6,7 @@
 const db = require('../db/connection')
 
 const VALID_OUTCOMES = ['pending', 'passed', 'failed', 'on_hold', 'offer_made', 'hired', 'withdrawn']
+const TERMINAL_OUTCOMES = new Set(['passed', 'failed', 'offer_made', 'hired', 'withdrawn'])
 
 function validateOutcome(outcome) {
   if (outcome && !VALID_OUTCOMES.includes(outcome)) {
@@ -23,14 +24,6 @@ async function listByClientTeamId(clientTeamId, mandateId) {
      ORDER BY cr.round_number ASC`,
     { clientTeamId, mandateId }
   )
-}
-
-async function getById(id) {
-  const rows = await db.query(
-    `SELECT * FROM client_interview_rounds WHERE id = @id`,
-    { id }
-  )
-  return rows[0] || null
 }
 
 async function getByIdForMandate(id, mandateId) {
@@ -82,7 +75,7 @@ async function create(clientTeamId, mandateId, managerId, data) {
 }
 
 async function update(id, clientTeamId, mandateId, managerId, data) {
-  // Cannot edit a published round — must unpublish first
+  // Cannot edit a published round - must unpublish first
   const existing = await getByIdForMandate(id, mandateId)
   if (!existing) throw new Error('Round not found or access denied')
   if (existing.client_team_id !== clientTeamId) throw new Error('Forbidden')
@@ -142,6 +135,23 @@ async function unpublish(id, clientTeamId, mandateId) {
   return rows[0]
 }
 
+// True once every client_team member on this mandate has a terminal outcome
+// (passed/failed/offer_made/hired/withdrawn) on their latest round. A candidate
+// with no rounds at all, or whose latest round is still pending/on_hold, blocks this.
+async function allCandidatesResolved(mandateId) {
+  const rows = await db.query(
+    `SELECT ct.id AS client_team_id,
+            (SELECT cr.outcome FROM client_interview_rounds cr
+             WHERE cr.client_team_id = ct.id
+             ORDER BY cr.round_number DESC LIMIT 1) AS latest_outcome
+     FROM client_teams ct
+     WHERE ct.mandate_id = @mandateId`,
+    { mandateId }
+  )
+  if (rows.length === 0) return false
+  return rows.every(row => row.latest_outcome && TERMINAL_OUTCOMES.has(row.latest_outcome))
+}
+
 // ── Candidate: safe DTO (no manager_notes) ────────────────────────────────────
 
 function toSafeDto(round) {
@@ -156,7 +166,7 @@ function toSafeDto(round) {
     published_at: round.published_at,
     created: round.created,
     updated: round.updated,
-    // manager_notes: OMITTED — never included in candidate DTO
+    // manager_notes: OMITTED - never included in candidate DTO
   }
 }
 
@@ -175,13 +185,13 @@ async function listVisibleByClientTeamId(clientTeamId) {
 
 module.exports = {
   listByClientTeamId,
-  getById,
   getByIdForMandate,
   create,
   update,
   publish,
   unpublish,
   listVisibleByClientTeamId,
+  allCandidatesResolved,
   VALID_OUTCOMES,
   toSafeDto,
 }

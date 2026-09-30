@@ -82,7 +82,7 @@ The active schema includes the V2 core tables plus client mandate workflow table
 - `interview_assignments`
 - `interview_assignment_files`
 
-`backend/migrations/020_interview_flows.sql` is the latest migration. `backend/src/db/schema.js` and `docs/database-schema.md` must agree with it.
+Migrations are numbered files in `backend/migrations/` (latest: `047_index_cleanup.sql`), applied by `npm run migrate`. `docs/database-schema.md` must agree with them - there is no separate schema file in code.
 
 ## Critical Flows
 

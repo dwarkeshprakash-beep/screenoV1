@@ -1,14 +1,17 @@
 // frontend/src/main.jsx
-// React entry point — mounts the app into #root, wraps with BrowserRouter.
+// React entry point - mounts the app into #root, wraps with BrowserRouter.
 
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
 import App from './App.jsx'
 import ErrorBoundary from './components/shared/ErrorBoundary.jsx'
+import { APP_NAME } from './config/app.config'
 import '@tokens'                    // design tokens from project root (alias in vite.config.js)
 import './styles/globals.css'        // global resets
 import './styles/product-ui.css'
+
+document.title = APP_NAME
 
 window.addEventListener('unhandledrejection', (event) => {
   console.error('Unhandled promise rejection:', event.reason)

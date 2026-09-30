@@ -7,7 +7,7 @@
  * @returns {string} e.g. "Jun 3, 2026"
  */
 export function formatDate(date) {
-  if (!date) return '—'
+  if (!date) return '-'
   return new Date(date).toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
@@ -21,7 +21,7 @@ export function formatDate(date) {
  * @returns {string}
  */
 export function formatDateTime(date) {
-  if (!date) return '—'
+  if (!date) return '-'
   const d = new Date(date)
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
        + ' · '
@@ -29,24 +29,8 @@ export function formatDateTime(date) {
 }
 
 /**
- * Truncate a string to maxLen characters, adding ellipsis if cut.
- * @param {string} str
- * @param {number} maxLen
- * @returns {string}
- */
-export function truncate(str, maxLen = 80) {
-  if (!str || str.length <= maxLen) return str
-  return str.slice(0, maxLen).trim() + '…'
-}
-
-/**
- * Map interview status strings to Badge variant names.
- * @param {string} status
- * @returns {'success'|'warning'|'danger'|'neutral'}
- */
-/**
  * Parse a JSON-stringified array or pass through a real array.
- * Returns [] on any failure — safe for tags, topics, and other stored arrays.
+ * Returns [] on any failure - safe for tags, topics, and other stored arrays.
  * @param {any} value
  * @returns {any[]}
  */
@@ -61,6 +45,64 @@ export function parseStoredArray(value) {
   }
 }
 
+/**
+ * Parse a JSON-stringified object or pass through a real plain object.
+ * Returns {} on any failure - safe for skill_competencies and other stored maps.
+ * @param {any} value
+ * @returns {Object<string,any>}
+ */
+export function parseStoredObject(value) {
+  if (value && typeof value === 'object' && !Array.isArray(value)) return value
+  if (!value) return {}
+  try {
+    const parsed = JSON.parse(value)
+    return (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
+const INTERVIEW_TYPE_LABELS = {
+  ai_voice: 'AI Voice',
+  exam: 'Coding Exam',
+  human: 'Video Interview',
+  offline: 'Offline Interview',
+  client: 'Client Interview',
+}
+
+/**
+ * Human-readable label for an interview type.
+ * @param {string} type - e.g. 'ai_voice'
+ * @returns {string} e.g. 'AI Voice'; unknown types fall back to the raw value, de-underscored
+ */
+export function interviewTypeLabel(type) {
+  return INTERVIEW_TYPE_LABELS[type] || (type ? type.replace(/_/g, ' ') : 'Interview')
+}
+
+/**
+ * Case-insensitive people search: matches name, initials, email, or any stored tag.
+ * @param {{first_name?: string, last_name?: string, email?: string, tags?: any}} user
+ * @param {string} query
+ * @returns {boolean} true for an empty query
+ */
+export function matchesUserQuery(user, query) {
+  const normalized = query.trim().toLowerCase()
+  if (!normalized) return true
+  const firstName = String(user.first_name || '')
+  const lastName = String(user.last_name || '')
+  const name = `${firstName} ${lastName}`.trim().toLowerCase()
+  const initials = `${firstName[0] || ''}${lastName[0] || ''}`.toLowerCase()
+  return name.includes(normalized)
+    || String(user.email || '').toLowerCase().includes(normalized)
+    || initials.includes(normalized)
+    || parseStoredArray(user.tags).join(' ').toLowerCase().includes(normalized)
+}
+
+/**
+ * Map interview status strings to Badge variant names.
+ * @param {string} status
+ * @returns {'success'|'warning'|'danger'|'info'|'neutral'}
+ */
 export function statusVariant(status) {
   const map = {
     completed: 'success',

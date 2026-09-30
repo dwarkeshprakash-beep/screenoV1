@@ -1,15 +1,29 @@
 // backend/src/routes/auth.routes.js
-// Auth endpoints — login, token refresh, logout, magic link.
+// Auth endpoints - login, token refresh, logout, magic link.
 // HTTP layer only: validate input, call service, respond.
 
 const express = require('express')
 const authMiddleware = require('../middleware/auth')
 const authService = require('../services/auth.service')
+const accessService = require('../services/access.service')
 const { getRefreshCookieOptions } = require('../config/auth')
 
 const router = express.Router()
 
 const COOKIE_NAME = 'refreshToken'
+
+// GET /api/auth/me/access - what modules/permissions the logged-in user actually
+// has, resolved fresh from the RBAC tables. The frontend uses this to filter the
+// sidebar and guard routes - see components/layout/Sidebar.jsx and RequireModule.
+router.get('/me/access', authMiddleware, async (req, res) => {
+  try {
+    const access = await accessService.getClientAccess(req.user.id)
+    res.json({ success: true, data: access })
+  } catch (err) {
+    console.error('GET /auth/me/access failed:', err.message)
+    res.status(500).json({ success: false, error: 'Could not load access' })
+  }
+})
 
 // POST /api/auth/login
 router.post('/login', async (req, res) => {
@@ -25,6 +39,11 @@ router.post('/login', async (req, res) => {
     res.json({ success: true, data: { accessToken, user } })
   } catch (err) {
     console.error('POST /auth/login failed:', err)
+    if (err.message === 'Your account has no role assigned yet. Contact your administrator.') {
+      // Same NO_ROLE_ASSIGNED code /refresh uses for the same condition, so the
+      // frontend can branch on a stable code instead of matching message text.
+      return res.status(403).json({ success: false, error: err.message, code: 'NO_ROLE_ASSIGNED' })
+    }
     const unavailableCodes = ['ENOTFOUND', 'EAI_AGAIN', 'ECONNRESET', 'ETIMEDOUT']
     if (unavailableCodes.includes(err.code)) {
       return res.status(503).json({
@@ -32,7 +51,7 @@ router.post('/login', async (req, res) => {
         error: 'Login service is temporarily unavailable. Please try again.',
       })
     }
-    // Always return the same message — don't reveal if email exists
+    // Always return the same message - don't reveal if email exists
     res.status(401).json({ success: false, error: 'Invalid email or password' })
   }
 })
@@ -62,12 +81,20 @@ router.post('/refresh', async (req, res) => {
       'Refresh token expired',
       'Token reuse detected',
       'User not found',
+      // An admin can revoke a user's last role while they're mid-session - the next
+      // silent refresh must log them out cleanly, not surface a retry-able 503.
+      'Your account has no role assigned yet',
     ]
     const isSessionError = sessionErrors.some(message => err.message.includes(message))
     if (isSessionError) {
       res.clearCookie(COOKIE_NAME, getRefreshCookieOptions(req, { clear: true }))
-      const errCode = err.message.includes('reuse') ? 'TOKEN_REUSE' : 'SESSION_EXPIRED'
-      return res.status(401).json({ success: false, error: errCode, message: 'Session expired. Please log in again.' })
+      const errCode = err.message.includes('reuse')
+        ? 'TOKEN_REUSE'
+        : err.message.includes('no role assigned')
+          ? 'NO_ROLE_ASSIGNED'
+          : 'SESSION_EXPIRED'
+      const message = errCode === 'NO_ROLE_ASSIGNED' ? err.message : 'Session expired. Please log in again.'
+      return res.status(401).json({ success: false, error: errCode, message })
     }
     res.status(503).json({
       success: false,
@@ -112,7 +139,7 @@ router.post('/forgot-password', async (req, res) => {
   }
 })
 
-// GET /api/auth/reset-password/:token — check validity before the candidate fills the form
+// GET /api/auth/reset-password/:token - check validity before the candidate fills the form
 router.get('/reset-password/:token', async (req, res) => {
   try {
     await authService.validateResetToken(req.params.token)

@@ -50,42 +50,6 @@ async function runFetch(endpoint, options, token) {
   })
 }
 
-function generateTabId() {
-  const id = Math.random().toString(36).substring(2, 9)
-  sessionStorage.setItem('tabId', id)
-  return id
-}
-const TAB_ID = sessionStorage.getItem('tabId') || generateTabId()
-
-async function acquireFallbackLock(lockName, ttlMs = 10000) {
-  const now = Date.now()
-  const lockDataStr = localStorage.getItem(lockName)
-  let lockData = null
-  try { lockData = JSON.parse(lockDataStr) } catch { /* ignore */ }
-
-  if (lockData && lockData.owner !== TAB_ID && now < lockData.expires) {
-    return false // Locked by another tab, still valid
-  }
-
-  // Acquire or renew lock
-  localStorage.setItem(lockName, JSON.stringify({ owner: TAB_ID, expires: now + ttlMs }))
-  
-  // Double-check (prevent race conditions in localStorage)
-  await new Promise(r => setTimeout(r, 20)) 
-  const check = JSON.parse(localStorage.getItem(lockName) || '{}')
-  return check.owner === TAB_ID
-}
-
-function releaseFallbackLock(lockName) {
-  const lockDataStr = localStorage.getItem(lockName)
-  try {
-    const lockData = JSON.parse(lockDataStr)
-    if (lockData && lockData.owner === TAB_ID) {
-      localStorage.removeItem(lockName)
-    }
-  } catch { /* ignore */ }
-}
-
 async function doRefreshFetch() {
   const response = await fetch(`${BASE_URL}/api/auth/refresh`, {
     method: 'POST',
@@ -109,81 +73,37 @@ async function doRefreshFetch() {
   if (!body?.data?.accessToken) throw new Error('Session refresh failed')
   localStorage.setItem('accessToken', body.data.accessToken)
   if (body.data.user) localStorage.setItem('user', JSON.stringify(body.data.user))
-  
-  const channel = new BroadcastChannel('auth_channel')
-  channel.postMessage({ type: 'token_refreshed', accessToken: body.data.accessToken })
-  channel.close()
-  
   return body.data.accessToken
 }
 
-async function refreshAccessToken() {
+// Returns a fresh access token after `failedToken` was rejected with a 401.
+// - Within a tab, concurrent 401s share one in-flight refresh (refreshPromise).
+// - Across tabs, an exclusive Web Lock serialises refreshes. A tab that waited on the
+//   lock re-reads localStorage (shared by all tabs) first: if another tab already
+//   swapped the token, it reuses that one instead of refreshing again, so it never
+//   replays the refresh cookie the other tab just rotated.
+// - A request that got its 401 back after another request in this tab already
+//   refreshed sees a newer token in localStorage and just retries with it.
+async function refreshAccessToken(failedToken) {
+  const current = localStorage.getItem('accessToken')
+  if (current && current !== failedToken) return current
   if (refreshPromise) return refreshPromise
 
-  refreshPromise = new Promise((resolve, reject) => {
-    let resolved = false
+  const runRefresh = async () => {
+    const latest = localStorage.getItem('accessToken')
+    if (latest && latest !== failedToken) return latest
+    return doRefreshFetch()
+  }
 
-    // Listen for cross-tab refresh completion
-    const channel = new BroadcastChannel('auth_channel')
-    const resolveRefresh = token => {
-      if (resolved) return
-      resolved = true
-      channel.close()
+  refreshPromise = (async () => {
+    try {
+      return navigator.locks
+        ? await navigator.locks.request('auth_refresh_lock', runRefresh)
+        : await runRefresh()
+    } finally {
       refreshPromise = null
-      resolve(token)
     }
-    const rejectRefresh = error => {
-      if (resolved) return
-      resolved = true
-      channel.close()
-      refreshPromise = null
-      reject(error)
-    }
-    channel.onmessage = (event) => {
-      if (event.data?.type === 'token_refreshed') {
-        resolveRefresh(event.data.accessToken)
-      } else if (event.data === 'auth_expired') {
-        rejectRefresh(new RefreshError('Session expired', 'SESSION_EXPIRED', 401))
-      }
-    }
-
-    const runRefresh = async () => {
-      try {
-        resolveRefresh(await doRefreshFetch())
-      } catch (err) {
-        rejectRefresh(err)
-      }
-    }
-
-    if (navigator.locks) {
-      navigator.locks.request('auth_refresh_lock', { ifAvailable: true }, async (lock) => {
-        if (lock) {
-          await runRefresh()
-        } else {
-          // Wait for BroadcastChannel to resolve this promise, or timeout after 10s
-          setTimeout(() => {
-            rejectRefresh(new RefreshError('Refresh timeout waiting for other tab', 'SESSION_REFRESH_TIMEOUT', 503))
-          }, 10000)
-        }
-      }).catch(rejectRefresh)
-    } else {
-      acquireFallbackLock('auth_refresh_lock_fallback')
-        .then(async gotLock => {
-          if (gotLock) {
-            try {
-              await runRefresh()
-            } finally {
-              releaseFallbackLock('auth_refresh_lock_fallback')
-            }
-          } else {
-            setTimeout(() => {
-              rejectRefresh(new RefreshError('Refresh timeout waiting for other tab', 'SESSION_REFRESH_TIMEOUT', 503))
-            }, 10000)
-          }
-        })
-        .catch(rejectRefresh)
-    }
-  })
+  })()
 
   return refreshPromise
 }
@@ -209,11 +129,15 @@ async function request(endpoint, options = {}) {
     requestToken
   )
 
-  const isAuthEndpoint = endpoint.startsWith('/api/auth/')
+  // Login/refresh/logout/reset/magic-link must never trigger a refresh (loops, or a 401
+  // there means bad credentials, not an expired token). /api/auth/me/* are ordinary
+  // bearer-token endpoints though, and must refresh like everything else - otherwise
+  // an expired access token leaves /me/access 401-ing forever and the sidebar empty.
+  const isAuthEndpoint = endpoint.startsWith('/api/auth/') && !endpoint.startsWith('/api/auth/me/')
   const canRefresh = !skipAuthRedirect && !isAuthEndpoint && !omitAuth && !useInterviewAuth && authToken === undefined
   if (response.status === 401 && canRefresh) {
     try {
-      response = await runFetch(endpoint, fetchOptions, await refreshAccessToken())
+      response = await runFetch(endpoint, fetchOptions, await refreshAccessToken(requestToken))
     } catch (err) {
       if (err instanceof RefreshError && err.statusCode === 401) {
         clearSession()
@@ -262,6 +186,7 @@ export const resetPassword = (token, newPassword) =>
     omitAuth: true,
   })
 export const logout = () => request('/api/auth/logout', { method: 'POST' })
+export const getMyAccess = () => request('/api/auth/me/access')
 export const previewMagicLink = token =>
   request(`/api/auth/magic-link/${token}`, { method: 'GET', skipAuthRedirect: true, omitAuth: true })
 export const claimMagicLink = token =>
@@ -275,6 +200,12 @@ export const getTeamActivity = () => request('/api/team/activity')
 export const getInterviewHistory = () => request('/api/team/interview-history')
 export const getMember = id => request(`/api/team/member/${id}`)
 export const getMemberInterviews = id => request(`/api/team/member/${id}/interviews`)
+// Replaces a team member's skill list (own team only); returns { tags }
+export const updateMemberSkills = (id, skills) =>
+  request(`/api/team/member/${id}/skills`, { method: 'PUT', body: JSON.stringify({ skills }) })
+// Replaces a team member's skill competency map (own team only); returns { competencies }
+export const updateMemberCompetencies = (id, competencies) =>
+  request(`/api/team/member/${id}/competencies`, { method: 'PUT', body: JSON.stringify({ competencies }) })
 export const getOrganizationUser = id => request(`/api/team/organization-users/${id}`)
 export const getOrganizationUserInterviews = id => request(`/api/team/organization-users/${id}/interviews`)
 export const addMember = data =>
@@ -283,12 +214,14 @@ export const updateMember = (id, data) =>
   request(`/api/team/member/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
 export const removeMember = id =>
   request(`/api/team/member/${id}`, { method: 'DELETE' })
-export const importTeamCSV = csv =>
-  request('/api/team/import', { method: 'POST', body: JSON.stringify({ csv }) })
+export const importTeamCSV = (csv, roleId) =>
+  request('/api/team/import', { method: 'POST', body: JSON.stringify({ csv, roleId }) })
 export const getExternalCandidates = () => request('/api/team/external')
 export const addExternalCandidate = data =>
   request('/api/team/external', { method: 'POST', body: JSON.stringify(data) })
 
+export const suggestScheduleFocusAreas = data =>
+  request('/api/schedule/suggest-focus-areas', { method: 'POST', body: JSON.stringify(data) })
 export const createSchedule = data =>
   request('/api/schedule', { method: 'POST', body: JSON.stringify(data) })
 export const getInterview = interviewId =>
@@ -349,15 +282,15 @@ export const saveTextAnswer = (id, data) =>
   })
 export const getInterviewTranscript = id =>
   request(`/api/interviews/${id}/transcript`)
+// Candidate's own report for one interview, via the interview session token.
+// data is null until the report job has produced it.
+export const getInterviewReport = id =>
+  request(`/api/interviews/${id}/report`, { useInterviewAuth: true, skipAuthRedirect: true })
 
 export const getCandidateInterviews = () => request('/api/candidate/interviews')
 export const launchCandidateInterview = id =>
   request(`/api/candidate/interviews/${id}/launch`, { method: 'POST' })
-export const getCandidateOwnReport = (interviewScoped = false) =>
-  request('/api/candidate/report', {
-    skipAuthRedirect: interviewScoped,
-    useInterviewAuth: interviewScoped,
-  })
+export const getCandidateOwnReport = () => request('/api/candidate/report')
 export const getCandidateFeedbackHistory = () => request('/api/candidate/reports')
 
 export const getExam = token =>
@@ -381,6 +314,20 @@ export const extractTextFromFile = file => {
   formData.append('file', file)
   return request('/api/upload/extract-text', { method: 'POST', body: formData })
 }
+// Uploads the actual JD file (kept in storage) and also returns its extracted text,
+// so a bad extraction never loses the source document.
+export const uploadJdFile = file => {
+  const formData = new FormData()
+  formData.append('file', file)
+  return request('/api/upload/jd', { method: 'POST', body: formData })
+}
+// Uploads a monthly subject's study-material file. Returns { filePath, fileName, fileUrl };
+// the path is saved on the subject when the wizard is submitted.
+export const uploadStudyMaterialFile = file => {
+  const formData = new FormData()
+  formData.append('file', file)
+  return request('/api/upload/study-material', { method: 'POST', body: formData })
+}
 export const analyzeResumeMatch = (jd, resume) =>
   request('/api/upload/analyze-resume', {
     method: 'POST',
@@ -394,11 +341,21 @@ export const updateManagerProfile = data =>
 export const updateCandidateProfile = updateManagerProfile
 export const changePassword = data =>
   request('/api/profile', { method: 'PATCH', body: JSON.stringify(data) })
+// Replaces the signed-in user's skill list; returns { tags }
+export const updateOwnSkills = skills =>
+  request('/api/profile/skills', { method: 'PUT', body: JSON.stringify({ skills }) })
+// Replaces the signed-in user's skill competency map; returns { competencies }
+export const updateOwnCompetencies = competencies =>
+  request('/api/profile/competencies', { method: 'PUT', body: JSON.stringify({ competencies }) })
 export const uploadOwnResume = file => {
   const formData = new FormData()
   formData.append('resume', file)
   return request('/api/profile/resume', { method: 'POST', body: formData })
 }
+export const getResumes = () => request('/api/profile/resumes')
+export const deleteResume = assetId => request(`/api/profile/resume/${assetId}`, { method: 'DELETE' })
+export const setDefaultResume = assetId =>
+  request(`/api/profile/resume/${assetId}/default`, { method: 'PATCH' })
 
 export const getMonthlyAssessments = () => request('/api/assessments/monthly')
 export const createMonthlyAssessment = data =>
@@ -432,7 +389,11 @@ export const generateAssessmentJD = data =>
 export const getCandidateMonthlyAssessments = () => request('/api/candidate/monthly-assessments')
 
 export const getClientTemplates = (state = 'active') => request(`/api/templates/client?state=${state}`)
+export const getClientTemplateManagers = () => request('/api/templates/client/managers')
+export const getClientTemplateBdes = () => request('/api/templates/client/bdes')
 export const getClientTemplate = id => request(`/api/templates/client/${id}`)
+export const getMandateStatus = id => request(`/api/templates/client/${id}/status`)
+export const markMandateComplete = id => request(`/api/templates/client/${id}/status/complete`, { method: 'POST' })
 export const archiveClientTemplate = id => request(`/api/templates/client/${id}/archive`, { method: 'POST' })
 export const restoreClientTemplate = id => request(`/api/templates/client/${id}/restore`, { method: 'POST' })
 export const deleteClientTemplate = id => request(`/api/templates/client/${id}`, { method: 'DELETE' })
@@ -511,8 +472,6 @@ export const updateInterviewerFeedback = (assignmentId, feedback) =>
   request(`/api/interview-flows/assignments/${assignmentId}/feedback`, {
     method: 'PATCH', body: JSON.stringify({ feedback }),
   })
-export const getVideoPlatforms = () => request('/api/templates/client/video-platforms')
-
 // Outcome rounds (new multi-round model)
 export const getOutcomeRounds = (id, ctId) =>
   request(`/api/templates/client/${id}/team/${ctId}/rounds`)
@@ -546,6 +505,11 @@ export const useExistingResumeForClient = ctId =>
     method: 'POST',
     body: JSON.stringify({ useExisting: true }),
   })
+export const submitExistingResumeForClient = (ctId, resumeAssetId) =>
+  request(`/api/candidate/client-mandates/${ctId}/resume`, {
+    method: 'POST',
+    body: JSON.stringify({ resumeAssetId }),
+  })
 
 export const get = (url, opts) => request(url, { ...opts, method: 'GET' })
 export const post = (url, body, opts) => request(url, { ...opts, method: 'POST', body: body ? JSON.stringify(body) : undefined })
@@ -559,4 +523,93 @@ const _delete = (url, opts = {}) => {
   })
 }
 export { _delete as delete }
+
+// Admin - RBAC Roles module (roles are per-company; admin picks a company first)
+export const getAdminCompanies = () => request('/api/admin/companies')
+export const getRoles = (companyId, { page, pageSize, search } = {}) => {
+  const params = new URLSearchParams({ companyId })
+  if (page) params.set('page', page)
+  if (pageSize) params.set('pageSize', pageSize)
+  if (search) params.set('search', search)
+  return request(`/api/roles?${params.toString()}`)
+}
+export const getRole = (id, companyId) => request(`/api/roles/${id}?companyId=${companyId}`)
+export const getRoleUsers = (id, companyId, { page, pageSize } = {}) => {
+  const params = new URLSearchParams({ companyId })
+  if (page) params.set('page', page)
+  if (pageSize) params.set('pageSize', pageSize)
+  return request(`/api/roles/${id}/users?${params.toString()}`)
+}
+export const createRole = data => request('/api/roles', { method: 'POST', body: JSON.stringify(data) })
+export const updateRole = (id, data) =>
+  request(`/api/roles/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
+export const deleteRole = (id, companyId) =>
+  request(`/api/roles/${id}?companyId=${companyId}`, { method: 'DELETE' })
+
+// Admin - RBAC Modules catalog (global - only the display name is editable, the key
+// is fixed). Also where an ACL gets linked to the module it gates, per company.
+export const getModules = companyId => request(companyId ? `/api/modules?companyId=${companyId}` : '/api/modules')
+export const updateModule = (id, data) =>
+  request(`/api/modules/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
+export const getUnassignedAcls = companyId => request(`/api/modules/unassigned-acls?companyId=${companyId}`)
+export const assignModuleAcl = (moduleId, companyId, aclId) =>
+  request(`/api/modules/${moduleId}/assign-acl`, { method: 'POST', body: JSON.stringify({ companyId, aclId }) })
+
+// Admin - RBAC Users module (users are per-company; admin picks a company first)
+export const getUsers = (companyId, { page, pageSize, search } = {}) => {
+  const params = new URLSearchParams({ companyId })
+  if (page) params.set('page', page)
+  if (pageSize) params.set('pageSize', pageSize)
+  if (search) params.set('search', search)
+  return request(`/api/users?${params.toString()}`)
+}
+export const getUser = (id, companyId) => request(`/api/users/${id}?companyId=${companyId}`)
+export const getUserAccess = (id, companyId) => request(`/api/users/${id}/access?companyId=${companyId}`)
+export const getUserInterviews = (id, companyId) => request(`/api/users/${id}/interviews?companyId=${companyId}`)
+export const createUser = data => request('/api/users', { method: 'POST', body: JSON.stringify(data) })
+export const updateUser = (id, data) =>
+  request(`/api/users/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
+export const deleteUser = (id, companyId) =>
+  request(`/api/users/${id}?companyId=${companyId}`, { method: 'DELETE' })
+
+// Admin - RBAC ACLs module (ACLs are per-company; each gates exactly one module)
+export const getAcls = (companyId, { page, pageSize, search } = {}) => {
+  const params = new URLSearchParams({ companyId })
+  if (page) params.set('page', page)
+  if (pageSize) params.set('pageSize', pageSize)
+  if (search) params.set('search', search)
+  return request(`/api/acls?${params.toString()}`)
+}
+export const getAcl = (id, companyId) => request(`/api/acls/${id}?companyId=${companyId}`)
+export const createAcl = data => request('/api/acls', { method: 'POST', body: JSON.stringify(data) })
+export const updateAcl = (id, data) =>
+  request(`/api/acls/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
+export const deleteAcl = (id, companyId) =>
+  request(`/api/acls/${id}?companyId=${companyId}`, { method: 'DELETE' })
+export const getAclPermissions = (id, companyId) =>
+  request(`/api/acls/${id}/permissions?companyId=${companyId}`)
+export const updateAclPermissions = (id, companyId, grants) =>
+  request(`/api/acls/${id}/permissions`, { method: 'PUT', body: JSON.stringify({ companyId, grants }) })
+
+// Admin - Permissions module (global catalog of grantable actions, not per-company;
+// add-only - permissions can't be renamed or deleted once created)
+export const getPermissions = () => request('/api/permissions')
+export const getPermission = id => request(`/api/permissions/${id}`)
+export const getPermissionRoles = id => request(`/api/permissions/${id}/roles`)
+export const createPermission = data => request('/api/permissions', { method: 'POST', body: JSON.stringify(data) })
+
+// Admin - Organizations module (the tenant/company entities themselves)
+export const getOrganizations = ({ page, pageSize, search } = {}) => {
+  const params = new URLSearchParams()
+  if (page) params.set('page', page)
+  if (pageSize) params.set('pageSize', pageSize)
+  if (search) params.set('search', search)
+  const query = params.toString()
+  return request(`/api/organizations${query ? `?${query}` : ''}`)
+}
+export const getOrganizationSummary = id => request(`/api/organizations/${id}/summary`)
+export const createOrganization = data => request('/api/organizations', { method: 'POST', body: JSON.stringify(data) })
+export const updateOrganization = (id, data) =>
+  request(`/api/organizations/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
+export const deleteOrganization = id => request(`/api/organizations/${id}`, { method: 'DELETE' })
 

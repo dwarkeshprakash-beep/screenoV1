@@ -62,7 +62,7 @@ async function getByManager(managerId) {
            COALESCE(iu.first_name, ec.first_name) AS candidate_first,
            COALESCE(iu.last_name, ec.last_name) AS candidate_last,
            COALESCE(iu.email, ec.email) AS candidate_email,
-           COALESCE(ct.client_name, ma.subject_name) AS context_title
+           COALESCE(ct.client_name, ma.subject_name, i.subject_name) AS context_title
     FROM report_jobs j
     JOIN interviews i ON i.id = j.interview_id
     LEFT JOIN users iu ON iu.id = i.internal_user_id

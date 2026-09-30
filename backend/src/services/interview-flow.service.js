@@ -4,6 +4,7 @@ const clientTeamRepository = require('../repositories/client-team.repository')
 const userRepository = require('../repositories/user.repository')
 const interviewRepository = require('../repositories/interview.repository')
 const emailDeliveryRepository = require('../repositories/email-delivery.repository')
+const accessService = require('./access.service')
 const scheduleService = require('./schedule.service')
 const emailService = require('./email.service')
 const storageService = require('./storage.service')
@@ -33,9 +34,11 @@ async function validateReportRecipients(value, companyId) {
 
 /** Send and record an interviewer assignment notification. */
 async function notifyInterviewer(interviewId, interviewer, data) {
+  // The Interviews module is the same merged page for everyone now (own interviews +
+  // "I'm Interviewing" tab) - no more per-portal deep link to resolve.
   const notificationData = {
     ...data,
-    portalPath: interviewer.role === 'manager' ? '/manager/interviewer' : '/candidate/interviews',
+    portalPath: '/workspace/interviews',
   }
   try {
     await emailService.sendInterviewerAssignment(interviewer.email, notificationData)
@@ -160,11 +163,22 @@ async function createFlow(data, managerId, companyId) {
   return flow
 }
 
-/** List flow definitions for a mandate. */
-async function listFlows(mandateId, managerId) {
-  const template = await clientTemplateRepository.getById(Number(mandateId), managerId)
+/** Load a mandate for viewing under the View/View All permission tiers - View All sees
+ * any mandate in the company, plain View is self-scoped (owner, creator, assigned
+ * collaborator, or a client_teams participant). */
+async function loadMandateForAccess(mandateId, userId, access) {
+  return accessService.hasModulePermission(access, 'client_mandates', 'View All')
+    ? clientTemplateRepository.getByIdForCompany(Number(mandateId), access.companyId)
+    : clientTemplateRepository.getByIdVisibleToUser(Number(mandateId), userId)
+}
+
+/** List flow definitions for a mandate. `access` is the caller's full access context -
+ * View All sees any mandate in the company, plain View is limited to mandates the
+ * caller owns, created, or collaborates on. */
+async function listFlows(mandateId, userId, access) {
+  const template = await loadMandateForAccess(mandateId, userId, access)
   if (!template) throw new Error('Mandate not found')
-  return groupFlows(await flowRepository.listByMandate(template.id, managerId))
+  return groupFlows(await flowRepository.listByMandate(template.id, template.manager_id))
 }
 
 function editableFlow(flow) {
@@ -285,7 +299,7 @@ async function updateFlow(flowId, data, managerId, companyId, { allowRunSpecific
       : []
     if (flow.status === 'run_specific' && synchronized.length > 0) {
       const previousStage = flow.stages.find(item => Number(item.id) === Number(saved.id)) || null
-      await notifyUpdatedStageInterviews(synchronized, previousStage, saved, managerId, companyId)
+      await notifyUpdatedStageInterviews(synchronized, previousStage, saved, companyId)
     }
     updated.stages.push(saved)
   }
@@ -301,15 +315,14 @@ function stageScheduleChanged(previous, current) {
   return fields.some(field => String(previous[field] ?? '') !== String(current[field] ?? ''))
 }
 
-async function notifyUpdatedStageInterviews(interviews, previousStage, stage, managerId, companyId) {
+async function notifyUpdatedStageInterviews(interviews, previousStage, stage, companyId) {
   const scheduleChanged = stageScheduleChanged(previousStage, stage)
   for (const row of interviews) {
     const interview = await interviewRepository.getById(row.id)
     if (!interview) continue
     const pendingCalendarRetry = !!interview.calendar_sync_error
     if (!scheduleChanged && !pendingCalendarRetry) continue
-    const [manager, newInterviewer, assignedInterviewer] = await Promise.all([
-      userRepository.getByIdForCompany(managerId, companyId),
+    const [newInterviewer, assignedInterviewer] = await Promise.all([
       stage.interviewer_user_id
         ? userRepository.getByIdForCompany(stage.interviewer_user_id, companyId)
         : null,
@@ -324,7 +337,6 @@ async function notifyUpdatedStageInterviews(interviews, previousStage, stage, ma
     const endAt = new Date(
       new Date(stage.scheduled_at).getTime() + Number(stage.duration_minutes || 60) * 60000
     ).toISOString()
-    const attendeeEmails = [interview.candidate_email, newInterviewer?.email, manager?.email].filter(Boolean)
     try {
       if (stage.type !== 'human' && calendarEventId) {
         const cancelled = await googleMeetService.cancelMeeting(calendarEventId)
@@ -350,12 +362,12 @@ async function notifyUpdatedStageInterviews(interviews, previousStage, stage, ma
         const meeting = calendarEventId
           ? await googleMeetService.updateMeeting(calendarEventId, {
             summary: `${stage.name} - ${interview.context_title || 'Interview'}`,
-            startAt: stage.scheduled_at, endAt, attendeeEmails,
+            startAt: stage.scheduled_at, endAt,
           })
           : !meetingUrl
             ? await googleMeetService.createMeeting({
               summary: `${stage.name} - ${interview.context_title || 'Interview'}`,
-              startAt: stage.scheduled_at, endAt, attendeeEmails,
+              startAt: stage.scheduled_at, endAt,
             })
             : null
         if (calendarEventId && !meeting) throw new Error('Could not update the Google Calendar event')
@@ -465,26 +477,28 @@ async function deleteRun(runId, managerId) {
   return { id: deleted.id, deleted: true }
 }
 
-/** List manager-visible run progress and sign feedback documents. */
-async function listRuns(mandateId, managerId) {
-  const template = await clientTemplateRepository.getById(Number(mandateId), managerId)
+/** List manager-visible run progress and sign feedback documents. `access` is the
+ * caller's full access context - see loadMandateForAccess. */
+async function listRuns(mandateId, userId, access) {
+  const template = await loadMandateForAccess(mandateId, userId, access)
   if (!template) throw new Error('Mandate not found')
-  await processExpiredFlows({ managerId, mandateId: template.id })
+  await processExpiredFlows({ managerId: template.manager_id, mandateId: template.id })
     .catch(err => console.error('Expired flow processing failed while listing runs:', err.message))
-  const rows = await flowRepository.listRunsByMandate(template.id, managerId)
+  const rows = await flowRepository.listRunsByMandate(template.id, template.manager_id)
   return Promise.all(rows.map(async row => ({
     ...row,
     file_url: row.storage_path ? await storageService.getSignedUrl(row.storage_path).catch(() => null) : null,
   })))
 }
 
-/** List one-off and flow-generated interview records for the manager schedule view. */
-async function listSchedules(mandateId, managerId) {
-  const template = await clientTemplateRepository.getById(Number(mandateId), managerId)
+/** List one-off and flow-generated interview records for the manager schedule view.
+ * `access` is the caller's full access context - see loadMandateForAccess. */
+async function listSchedules(mandateId, userId, access) {
+  const template = await loadMandateForAccess(mandateId, userId, access)
   if (!template) throw new Error('Mandate not found')
-  await processExpiredFlows({ managerId, mandateId: template.id })
+  await processExpiredFlows({ managerId: template.manager_id, mandateId: template.id })
     .catch(err => console.error('Expired flow processing failed while listing schedules:', err.message))
-  return flowRepository.listSchedulesByMandate(template.id, managerId)
+  return flowRepository.listSchedulesByMandate(template.id, template.manager_id)
 }
 
 /** Resolve unattended expired automated stages and apply their configured pass rule.
@@ -548,12 +562,10 @@ async function activateStage(run, stage, stageRun, managerId, companyId, schedul
   }
   if (stage.type === 'human' && !meetingUrl) {
     if (!googleMeetService.isConfigured()) throw new Error('Google Meet is not configured and this stage has no meeting link')
-    const manager = await userRepository.getByIdForCompany(managerId, companyId)
     const endAt = new Date(new Date(scheduledAt).getTime() + Number(stage.duration_minutes || 60) * 60000).toISOString()
     const meeting = await googleMeetService.createMeeting({
       summary: `${stage.name} - ${run.client_name}`,
       startAt: scheduledAt, endAt,
-      attendeeEmails: [candidate?.email, interviewer?.email, manager?.email].filter(Boolean),
     })
     if (!meeting?.joinUrl) throw new Error('Could not create Google Meet for the human interview stage')
     meetingUrl = meeting.joinUrl
@@ -742,16 +754,13 @@ async function continueRun(runId, managerId, companyId) {
 async function completeAssignment(assignmentId, userId, data, file) {
   const assignment = await flowRepository.getAssignmentForUser(Number(assignmentId), userId)
   if (!assignment) throw new Error('Interviewer assignment not found')
-  if (!['pass', 'fail'].includes(data.outcome)) throw new Error('Choose pass or fail')
+  if (!['pass', 'fail', 'on_hold'].includes(data.outcome)) throw new Error('Choose pass, fail, or on hold')
   if (assignment.interview_status === 'cancelled') throw new Error('This interview has been cancelled')
   if (assignment.status === 'completed') {
-    await interviewRepository.markCompleted(assignment.interview_id, assignment.outcome || data.outcome)
-    if (assignment.stage_run_id) {
-      await handleInterviewResult(
-        assignment.interview_id,
-        assignment.outcome || data.outcome,
-        (assignment.outcome || data.outcome) === 'pass' ? 10 : 0
-      )
+    const finalOutcome = assignment.outcome || data.outcome
+    await interviewRepository.markCompleted(assignment.interview_id, finalOutcome)
+    if (assignment.stage_run_id && finalOutcome !== 'on_hold') {
+      await handleInterviewResult(assignment.interview_id, finalOutcome, finalOutcome === 'pass' ? 10 : 0)
     }
     return assignment
   }
@@ -763,7 +772,8 @@ async function completeAssignment(assignmentId, userId, data, file) {
   }
   const completed = await flowRepository.completeAssignment(assignment.id, userId, data.outcome, String(data.feedback || '').trim() || null)
   await interviewRepository.markCompleted(assignment.interview_id, data.outcome)
-  if (assignment.stage_run_id) {
+  // On hold means the interviewer hasn't reached a final call - don't auto-advance or auto-fail the mandate flow.
+  if (assignment.stage_run_id && data.outcome !== 'on_hold') {
     await handleInterviewResult(assignment.interview_id, data.outcome, data.outcome === 'pass' ? 10 : 0)
   }
   return completed

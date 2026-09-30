@@ -1,4 +1,4 @@
-// ErrorMessage — displayed when an API call fails.
+// ErrorMessage - displayed when an API call fails.
 // Pass a human-readable message (never a raw JS error).
 
 function ErrorMessage({ message = 'Something went wrong. Please try again.', onRetry }) {

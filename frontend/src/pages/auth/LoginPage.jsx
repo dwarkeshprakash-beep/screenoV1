@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import { Eye, EyeOff } from 'lucide-react'
 import * as api from '../../services/api'
 import { PASSWORD_RULES, validatePassword } from '../../utils/password-policy'
+import { APP_NAME } from '../../config/app.config'
 
 function initialsFor(account) {
   const source = account.name || account.email || account.role || 'U'
@@ -94,14 +95,24 @@ const DEMO_ACCOUNTS = mergeDemoAccounts([
 ])
 
 function roleRedirect(role) {
-  if (role === 'manager') return '/manager/dashboard'
-  if (role === 'candidate') return '/candidate/dashboard'
   if (role === 'admin') return '/admin/dashboard'
+  if (role === 'user') return '/workspace/dashboard'
   return '/login'
+}
+
+// Where to go after login: the page the user was sent here from (RequireAuth puts it
+// in location.state.from), but only if it's an internal path inside their own area -
+// otherwise their home. Never follows an absolute or protocol-relative URL.
+function postLoginPath(role, from) {
+  const home = roleRedirect(role)
+  const area = role === 'admin' ? '/admin/' : '/workspace/'
+  if (typeof from === 'string' && from.startsWith(area) && !from.startsWith('//')) return from
+  return home
 }
 
 function LoginPage() {
   const navigate = useNavigate()
+  const location = useLocation()
   const initialResetToken = (() => {
     try { return new URLSearchParams(window.location.search).get('reset') || '' } catch { return '' }
   })()
@@ -121,10 +132,16 @@ function LoginPage() {
   useEffect(() => {
     if (mode !== 'reset' || !resetToken) return
     let cancelled = false
-    setResetTokenStatus('checking')
-    api.validateResetToken(resetToken)
-      .then(() => { if (!cancelled) setResetTokenStatus('valid') })
-      .catch(() => { if (!cancelled) setResetTokenStatus('invalid') })
+    async function checkResetToken() {
+      setResetTokenStatus('checking')
+      try {
+        await api.validateResetToken(resetToken)
+        if (!cancelled) setResetTokenStatus('valid')
+      } catch {
+        if (!cancelled) setResetTokenStatus('invalid')
+      }
+    }
+    checkResetToken()
     return () => { cancelled = true }
   }, [mode, resetToken])
 
@@ -134,13 +151,13 @@ function LoginPage() {
     setLoading(true)
     try {
       const result = await api.login(loginEmail, loginPassword)
-      if (!['manager', 'candidate', 'admin'].includes(result.data.user.role)) {
-        throw new Error('This account type is paused in Screeno V2.')
+      if (!['admin', 'user'].includes(result.data.user.role)) {
+        throw new Error(`This account type is paused in ${APP_NAME} V2.`)
       }
       localStorage.setItem('accessToken', result.data.accessToken)
       localStorage.setItem('user', JSON.stringify(result.data.user))
       window.dispatchEvent(new Event('user_login'))
-      navigate(roleRedirect(result.data.user.role))
+      navigate(postLoginPath(result.data.user.role, location.state?.from), { replace: true })
     } catch (err) {
       setError(err.message || 'Could not sign in. Please try again.')
     } finally {
@@ -220,7 +237,7 @@ function LoginPage() {
               <div style={{ position: 'absolute', left: '25%', top: '32%', width: '50%', height: '10%', background: 'var(--bg-surface)', borderRadius: '0.125rem', opacity: 0.95 }} />
               <div style={{ position: 'absolute', left: '25%', top: '56%', width: '50%', height: '10%', background: 'var(--bg-surface)', borderRadius: '0.125rem', opacity: 0.6 }} />
             </div>
-            <span style={{ fontSize: '1.75rem', fontWeight: 700, color: 'var(--bg-surface)', letterSpacing: '-0.025em' }}>Screeno</span>
+            <span style={{ fontSize: '1.75rem', fontWeight: 700, color: 'var(--bg-surface)', letterSpacing: '-0.025em' }}>{APP_NAME}</span>
           </div>
           <p style={{ fontSize: '0.875rem', color: '#64748B' }}>AI-powered hiring platform</p>
         </div>
@@ -269,7 +286,7 @@ function LoginPage() {
               <button type="submit" disabled={loading} style={{ width: '100%', padding: '0.75rem', background: 'var(--brand-500)', color: 'var(--bg-surface)', border: 'none', borderRadius: '0.5rem', fontSize: '0.875rem', fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1, marginTop: '0.25rem' }}>
                 {loading ? 'Signing in...' : 'Sign in'}
               </button>
-              <button type="button" onClick={() => { setMode('forgot'); setError(null); setMessage(null) }} style={{ background: 'transparent', border: 0, color: '#94A3B8', fontSize: '0.8125rem', cursor: 'pointer', padding: '0.25rem' }}>
+              <button type="button" onClick={() => { setMode('forgot'); setError(null); setMessage(null) }} style={{ background: 'transparent', border: 0, color: 'var(--slate-400)', fontSize: '0.8125rem', cursor: 'pointer', padding: '0.25rem' }}>
                 Forgot password?
               </button>
             </form>
@@ -286,14 +303,14 @@ function LoginPage() {
               <button type="submit" disabled={loading} style={{ width: '100%', padding: '0.75rem', background: 'var(--brand-500)', color: 'var(--bg-surface)', border: 'none', borderRadius: '0.5rem', fontSize: '0.875rem', fontWeight: 600, cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1, marginTop: '0.25rem' }}>
                 {loading ? 'Sending...' : 'Send reset link'}
               </button>
-              <button type="button" onClick={() => { setMode('login'); setError(null); setMessage(null) }} style={{ background: 'transparent', border: 0, color: '#94A3B8', fontSize: '0.8125rem', cursor: 'pointer', padding: '0.25rem' }}>
+              <button type="button" onClick={() => { setMode('login'); setError(null); setMessage(null) }} style={{ background: 'transparent', border: 0, color: 'var(--slate-400)', fontSize: '0.8125rem', cursor: 'pointer', padding: '0.25rem' }}>
                 Back to sign in
               </button>
             </form>
           )}
 
           {mode === 'reset' && resetTokenStatus === 'checking' && (
-            <p style={{ fontSize: '0.8125rem', color: '#94A3B8', textAlign: 'center' }}>Checking your reset link...</p>
+            <p style={{ fontSize: '0.8125rem', color: 'var(--slate-400)', textAlign: 'center' }}>Checking your reset link...</p>
           )}
 
           {mode === 'reset' && resetTokenStatus === 'invalid' && (
@@ -321,8 +338,8 @@ function LoginPage() {
                 <label style={{ color: 'var(--slate-400)', fontSize: '0.8125rem', fontWeight: 500, display: 'block', marginBottom: '0.375rem' }}>Confirm password</label>
                 <input type={showPassword ? 'text' : 'password'} placeholder="Confirm password" value={confirmPassword} onChange={event => setConfirmPassword(event.target.value)} required style={inputStyle} />
               </div>
-              <p style={{ fontSize: '0.75rem', lineHeight: 1.45, color: '#94A3B8', margin: 0 }}>{PASSWORD_RULES}</p>
-              <button type="button" onClick={() => setShowPassword(p => !p)} style={{ background: 'transparent', border: 0, color: '#94A3B8', fontSize: '0.8125rem', cursor: 'pointer', padding: '0.25rem', alignSelf: 'flex-start' }}>
+              <p style={{ fontSize: '0.75rem', lineHeight: 1.45, color: 'var(--slate-400)', margin: 0 }}>{PASSWORD_RULES}</p>
+              <button type="button" onClick={() => setShowPassword(p => !p)} style={{ background: 'transparent', border: 0, color: 'var(--slate-400)', fontSize: '0.8125rem', cursor: 'pointer', padding: '0.25rem', alignSelf: 'flex-start' }}>
                 {showPassword ? 'Hide password' : 'Show password'}
               </button>
               {error && <p role="alert" style={{ fontSize: '0.8125rem', color: '#EF4444' }}>{error}</p>}

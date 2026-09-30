@@ -12,16 +12,22 @@ export default function DeleteMandateModal({ template, open, onClose, onSuccess 
   const [deleting, setDeleting] = useState(false)
 
   useEffect(() => {
-    if (open && template) {
+    if (!open || !template) return
+    async function loadImpact() {
       setLoading(true)
       setError(null)
       setImpact(null)
       setConfirmText('')
-      api.deleteClientTemplatePreview(template.id)
-        .then(res => setImpact(res.data))
-        .catch(err => setError(err.message || 'Could not load deletion impact.'))
-        .finally(() => setLoading(false))
+      try {
+        const res = await api.deleteClientTemplatePreview(template.id)
+        setImpact(res.data)
+      } catch (err) {
+        setError(err.message || 'Could not load deletion impact.')
+      } finally {
+        setLoading(false)
+      }
     }
+    loadImpact()
   }, [open, template])
 
   if (!open || !template) return null

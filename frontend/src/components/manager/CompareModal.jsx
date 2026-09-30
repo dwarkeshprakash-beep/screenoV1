@@ -1,8 +1,18 @@
-// CompareModal — side-by-side comparison of two team members.
+// CompareModal - side-by-side comparison of two team members.
 // Shows skills match/gap, assessment status, scores, and basic info.
 
 import Modal from '../shared/Modal'
 import Avatar from '../shared/Avatar'
+import { formatDate, parseStoredArray } from '../../utils/helpers'
+
+// Combines the two experience columns into "4y 9m" (drops a part when it's 0/unset).
+function formatExperience(years, months) {
+  const parts = []
+  if (years) parts.push(`${years}y`)
+  if (months) parts.push(`${months}m`)
+  if (parts.length === 0) return years != null || months != null ? '0y' : '-'
+  return parts.join(' ')
+}
 
 function assessLabel(lastAssessed) {
   if (!lastAssessed) return { label: 'Never assessed', bg: 'var(--danger-50)', fg: 'var(--danger-500)' }
@@ -48,13 +58,8 @@ function CompareModal({ open, onClose, members = [] }) {
   const assessB = assessLabel(b.last_assessed)
 
   // Tags are stored as JSON string in the DB
-  function parseTags(raw) {
-    if (!raw) return []
-    if (Array.isArray(raw)) return raw
-    try { return JSON.parse(raw) } catch { return [] }
-  }
-  const skillsA = parseTags(a.tags)
-  const skillsB = parseTags(b.tags)
+  const skillsA = parseStoredArray(a.tags)
+  const skillsB = parseStoredArray(b.tags)
   const allSkills = [...new Set([...skillsA, ...skillsB])]
 
   return (
@@ -88,18 +93,28 @@ function CompareModal({ open, onClose, members = [] }) {
         <div style={{ fontSize: 12, fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--slate-400)', marginBottom: 6 }}>Profile</div>
         <Row
           label="ROLE"
-          left={a.current_position || '—'}
-          right={b.current_position || '—'}
+          left={a.current_position || '-'}
+          right={b.current_position || '-'}
         />
         <Row
           label="LOCATION"
-          left={a.location || '—'}
-          right={b.location || '—'}
+          left={a.location || '-'}
+          right={b.location || '-'}
+        />
+        <Row
+          label="EXPERIENCE"
+          left={formatExperience(a.experience_years, a.experience_months)}
+          right={formatExperience(b.experience_years, b.experience_months)}
+        />
+        <Row
+          label="JOINED"
+          left={a.joining_date ? formatDate(a.joining_date) : '-'}
+          right={b.joining_date ? formatDate(b.joining_date) : '-'}
         />
         <Row
           label="LAST"
-          left={a.last_assessed ? new Date(a.last_assessed).toLocaleDateString() : 'Never'}
-          right={b.last_assessed ? new Date(b.last_assessed).toLocaleDateString() : 'Never'}
+          left={a.last_assessed ? formatDate(a.last_assessed) : 'Never'}
+          right={b.last_assessed ? formatDate(b.last_assessed) : 'Never'}
         />
       </div>
 

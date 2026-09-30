@@ -10,22 +10,8 @@ const transcriptionService = require('./transcription.service')
 const emailService = require('./email.service')
 const pdfService = require('./pdf.service')
 const storageService = require('./storage.service')
-const { parseStoredArray } = require('../utils/parse')
-
-function buildResumeContext(interview) {
-  const parts = []
-  if (interview.candidate_resume_text) {
-    parts.push(`Resume text:\n${String(interview.candidate_resume_text).slice(0, 4000)}`)
-  }
-  if (interview.candidate_resume_url) {
-    parts.push(`Resume file URL: ${interview.candidate_resume_url}`)
-  }
-  const tags = parseStoredArray(interview.candidate_tags)
-  if (tags.length > 0) {
-    parts.push(`Candidate resume/profile tags: ${tags.join(', ')}`)
-  }
-  return parts.join('\n') || null
-}
+const { buildResumeContext } = require('../utils/resume-context')
+const { buildQuestionContext } = require('./question-context.service')
 
 async function getCandidateInterview(interviewId, identity) {
   candidateIdentityService.assertInterviewScope(identity, interviewId)
@@ -45,8 +31,7 @@ async function getOrCreateQuestions(interview) {
   const generated = await llmService.generateQuestions({
     candidateName: interview.candidate_first,
     resume: buildResumeContext(interview),
-    jd: interview.context_text,
-    focusAreas: interview.context_focus_areas,
+    context: await buildQuestionContext(interview),
     difficulty: interview.difficulty,
     count,
     mode: interview.interview_mode,
@@ -148,7 +133,11 @@ async function saveAnswer({
     }
   }
 
-  const nextQuestionText = await llmService.getAdaptiveQuestion(history, interview.question_count)
+  const nextQuestionText = await llmService.getAdaptiveQuestion(
+    history,
+    interview.question_count,
+    await buildQuestionContext(interview)
+  )
   if (!nextQuestionText) {
     return { complete: true, transcribedText: answerText }
   }
@@ -365,10 +354,43 @@ async function generateReport(interviewId) {
   }
 }
 
+// Q&A transcript of an AI voice interview, for the manager who owns it. Null when the
+// interview is missing, not theirs, or not an AI voice interview.
+async function getManagerTranscript(interviewId, managerId) {
+  const interview = await interviewRepository.getById(interviewId)
+  if (!interview || interview.manager_id !== managerId || interview.type !== 'ai_voice') return null
+  return transcriptRepository.getByInterview(interviewId)
+}
+
+// The fields of a report a candidate may see about themselves.
+function toCandidateReportSummary(report) {
+  return {
+    id: report.id,
+    interview_id: report.interview_id,
+    status: report.status,
+    summary: report.summary,
+    strengths: report.strengths,
+    created: report.created,
+  }
+}
+
+// The candidate's own feedback for an interview they just finished. Null until the
+// report job has finished ('ready') - callers keep polling. Throws Unauthorized when the
+// session token is scoped to a different interview.
+async function getCandidateReportSummary(interviewId, identity) {
+  candidateIdentityService.assertInterviewScope(identity, interviewId)
+  const report = await reportRepository.getLatestByCandidateIdentity(identity, interviewId)
+  if (!report || report.status !== 'ready') return null
+  return toCandidateReportSummary(report)
+}
+
 module.exports = {
   startInterview,
   saveAnswer,
   completeInterview,
   logProctoringEvent,
   generateReport,
+  getManagerTranscript,
+  getCandidateReportSummary,
+  toCandidateReportSummary,
 }

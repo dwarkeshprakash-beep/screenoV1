@@ -1,14 +1,14 @@
 const express = require('express')
 const authMiddleware = require('../middleware/auth')
-const requireRole = require('../middleware/role')
+const { loadAccess, requireModule } = require('../middleware/access')
 const { documentUpload } = require('../middleware/upload')
 const flowService = require('../services/interview-flow.service')
 
 const router = express.Router()
-router.use(authMiddleware)
+router.use(authMiddleware, loadAccess)
 
 /** Create an ordered flow for a client mandate. */
-router.post('/', requireRole('manager'), async (req, res) => {
+router.post('/', requireModule('client_mandates'), async (req, res) => {
   try {
     const flow = await flowService.createFlow(req.body, req.user.id, req.user.companyId)
     res.status(201).json({ success: true, data: flow })
@@ -19,7 +19,7 @@ router.post('/', requireRole('manager'), async (req, res) => {
 })
 
 /** Edit a saved flow definition. */
-router.patch('/:flowId', requireRole('manager'), async (req, res) => {
+router.patch('/:flowId', requireModule('client_mandates'), async (req, res) => {
   try {
     const flow = await flowService.updateFlow(req.params.flowId, req.body, req.user.id, req.user.companyId)
     res.json({ success: true, data: flow })
@@ -30,7 +30,7 @@ router.patch('/:flowId', requireRole('manager'), async (req, res) => {
 })
 
 /** Delete an unused saved flow definition. */
-router.delete('/:flowId', requireRole('manager'), async (req, res) => {
+router.delete('/:flowId', requireModule('client_mandates'), async (req, res) => {
   try {
     const result = await flowService.deleteFlow(req.params.flowId, req.user.id)
     res.json({ success: true, data: result })
@@ -40,10 +40,10 @@ router.delete('/:flowId', requireRole('manager'), async (req, res) => {
   }
 })
 
-/** List definitions for an owned mandate. */
-router.get('/mandate/:mandateId', requireRole('manager'), async (req, res) => {
+/** List definitions for an owned (or BDE-visible) mandate. */
+router.get('/mandate/:mandateId', requireModule('client_mandates'), async (req, res) => {
   try {
-    const flows = await flowService.listFlows(req.params.mandateId, req.user.id)
+    const flows = await flowService.listFlows(req.params.mandateId, req.user.id, req.access)
     res.json({ success: true, data: flows })
   } catch (err) {
     console.error('GET /interview-flows/mandate failed:', err.message)
@@ -52,9 +52,9 @@ router.get('/mandate/:mandateId', requireRole('manager'), async (req, res) => {
 })
 
 /** List candidate run progress and interviewer feedback for a mandate. */
-router.get('/mandate/:mandateId/runs', requireRole('manager'), async (req, res) => {
+router.get('/mandate/:mandateId/runs', requireModule('client_mandates'), async (req, res) => {
   try {
-    const runs = await flowService.listRuns(req.params.mandateId, req.user.id)
+    const runs = await flowService.listRuns(req.params.mandateId, req.user.id, req.access)
     res.json({ success: true, data: runs })
   } catch (err) {
     console.error('GET /interview-flows/mandate/runs failed:', err.message)
@@ -62,10 +62,10 @@ router.get('/mandate/:mandateId/runs', requireRole('manager'), async (req, res) 
   }
 })
 
-/** List one-off and flow-generated schedules for an owned mandate. */
-router.get('/mandate/:mandateId/schedules', requireRole('manager'), async (req, res) => {
+/** List one-off and flow-generated schedules for an owned (or BDE-visible) mandate. */
+router.get('/mandate/:mandateId/schedules', requireModule('client_mandates'), async (req, res) => {
   try {
-    const schedules = await flowService.listSchedules(req.params.mandateId, req.user.id)
+    const schedules = await flowService.listSchedules(req.params.mandateId, req.user.id, req.access)
     res.json({ success: true, data: schedules })
   } catch (err) {
     console.error('GET /interview-flows/mandate/schedules failed:', err.message)
@@ -74,7 +74,7 @@ router.get('/mandate/:mandateId/schedules', requireRole('manager'), async (req, 
 })
 
 /** Start a flow for one candidate already on the mandate team. */
-router.post('/:flowId/runs', requireRole('manager'), async (req, res) => {
+router.post('/:flowId/runs', requireModule('client_mandates'), async (req, res) => {
   try {
     const run = await flowService.startRun(req.params.flowId, req.body.clientTeamId, req.user.id, req.user.companyId)
     res.status(201).json({ success: true, data: run })
@@ -85,7 +85,7 @@ router.post('/:flowId/runs', requireRole('manager'), async (req, res) => {
 })
 
 /** Load one candidate's isolated flow definition for editing. */
-router.get('/runs/:runId/definition', requireRole('manager'), async (req, res) => {
+router.get('/runs/:runId/definition', requireModule('client_mandates'), async (req, res) => {
   try {
     const flow = await flowService.getRunFlow(req.params.runId, req.user.id)
     res.json({ success: true, data: flow })
@@ -95,7 +95,7 @@ router.get('/runs/:runId/definition', requireRole('manager'), async (req, res) =
 })
 
 /** Edit only this candidate's flow without changing the reusable template. */
-router.patch('/runs/:runId/definition', requireRole('manager'), async (req, res) => {
+router.patch('/runs/:runId/definition', requireModule('client_mandates'), async (req, res) => {
   try {
     const flow = await flowService.updateRunFlow(
       req.params.runId,
@@ -111,7 +111,7 @@ router.patch('/runs/:runId/definition', requireRole('manager'), async (req, res)
 })
 
 /** Retry the paused stage at a manager-selected future time. */
-router.post('/runs/:runId/retry', requireRole('manager'), async (req, res) => {
+router.post('/runs/:runId/retry', requireModule('client_mandates'), async (req, res) => {
   try {
     const result = await flowService.retryRun(req.params.runId, req.body.scheduledAt, req.user.id, req.user.companyId)
     res.json({ success: true, data: result })
@@ -122,7 +122,7 @@ router.post('/runs/:runId/retry', requireRole('manager'), async (req, res) => {
 })
 
 /** Override a failed pass gate and activate the next stage. */
-router.post('/runs/:runId/continue', requireRole('manager'), async (req, res) => {
+router.post('/runs/:runId/continue', requireModule('client_mandates'), async (req, res) => {
   try {
     const result = await flowService.continueRun(req.params.runId, req.user.id, req.user.companyId)
     res.json({ success: true, data: result })
@@ -133,7 +133,7 @@ router.post('/runs/:runId/continue', requireRole('manager'), async (req, res) =>
 })
 
 /** Resolve a current stage that expired without candidate attendance. */
-router.post('/runs/:runId/process-expired', requireRole('manager'), async (req, res) => {
+router.post('/runs/:runId/process-expired', requireModule('client_mandates'), async (req, res) => {
   try {
     const result = await flowService.processExpiredRun(req.params.runId, req.user.id)
     res.json({ success: true, data: result })
@@ -144,7 +144,7 @@ router.post('/runs/:runId/process-expired', requireRole('manager'), async (req, 
 })
 
 /** Permanently delete one candidate's flow and its generated interviews. */
-router.delete('/runs/:runId', requireRole('manager'), async (req, res) => {
+router.delete('/runs/:runId', requireModule('client_mandates'), async (req, res) => {
   try {
     const result = await flowService.deleteRun(req.params.runId, req.user.id)
     res.json({ success: true, data: result })
@@ -154,8 +154,8 @@ router.delete('/runs/:runId', requireRole('manager'), async (req, res) => {
   }
 })
 
-/** Candidate accounts can see all interviews assigned to them as interviewer. */
-router.get('/my-assignments', requireRole('candidate', 'manager'), async (req, res) => {
+/** Any account can see all interviews assigned to them as interviewer. */
+router.get('/my-assignments', requireModule('interviews'), async (req, res) => {
   try {
     const assignments = await flowService.listAssignments(req.user.id)
     res.json({ success: true, data: assignments })
@@ -165,8 +165,14 @@ router.get('/my-assignments', requireRole('candidate', 'manager'), async (req, r
   }
 })
 
+// Completing / commenting on an interview YOU were assigned to conduct is self-scoped
+// (the service looks the assignment up by assignmentId AND req.user.id), same as
+// launching/joining your own interview in candidate.routes.js - so View-level access
+// is enough, not the POST/PATCH default of Save. With the Save default, an interviewer
+// whose role only grants View on Interviews could see the assignment but got 403 on submit.
+
 /** A completed interviewer may edit only the written comment. */
-router.patch('/assignments/:assignmentId/feedback', requireRole('candidate', 'manager'), async (req, res) => {
+router.patch('/assignments/:assignmentId/feedback', requireModule('interviews', { permission: 'View' }), async (req, res) => {
   try {
     const updated = await flowService.updateAssignmentFeedback(
       req.params.assignmentId,
@@ -181,7 +187,7 @@ router.patch('/assignments/:assignmentId/feedback', requireRole('candidate', 'ma
 })
 
 /** Complete human/offline work with optional feedback document. */
-router.post('/assignments/:assignmentId/complete', requireRole('candidate', 'manager'), documentUpload.single('file'), async (req, res) => {
+router.post('/assignments/:assignmentId/complete', requireModule('interviews', { permission: 'View' }), documentUpload.single('file'), async (req, res) => {
   try {
     const completed = await flowService.completeAssignment(req.params.assignmentId, req.user.id, req.body, req.file)
     res.json({ success: true, data: completed })

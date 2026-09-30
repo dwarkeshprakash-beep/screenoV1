@@ -1,7 +1,10 @@
+// Only ever called from a route already gated by requireModule('interviews'/'feedback'/
+// 'outcomes') or the magic-link session token (scoped to one interview by construction) -
+// the caller's own id/externalCandidateId is what identifies "their" rows.
 function fromUser(user) {
   const externalCandidateId = user.externalCandidateId || null
   const internalUserId = user.internalUserId
-    || (!externalCandidateId && user.role === 'candidate' ? user.id : null)
+    || (!externalCandidateId ? user.id : null)
   return {
     internalUserId: internalUserId || null,
     externalCandidateId,

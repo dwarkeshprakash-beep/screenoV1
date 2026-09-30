@@ -1,18 +1,29 @@
 // backend/src/routes/interview.routes.js
 const express = require('express')
 const authMiddleware = require('../middleware/auth')
-const requireRole = require('../middleware/role')
+const { loadAccess, requireModule } = require('../middleware/access')
 const { audioUpload } = require('../middleware/upload')
 const interviewService = require('../services/interview.service')
-const transcriptRepository = require('../repositories/transcript.repository')
-const interviewRepository = require('../repositories/interview.repository')
 const candidateIdentityService = require('../services/candidate-identity.service')
 
 const router = express.Router()
 
 router.use(authMiddleware)
 
-router.post('/:id/start', requireRole('candidate'), async (req, res) => {
+// The start/answer/proctoring/complete routes below are only ever reached with the
+// short-lived magic-link session token (signCandidateSession in auth.service.js),
+// which carries its own hardcoded role: 'candidate' claim and no user id - it is not
+// derived from any DB column, so it doesn't go through loadAccess/access.service.
+// (interview.service.js's assertInterviewScope separately requires identity.interviewId,
+// which only that token type carries, so a regular dashboard JWT can't reach these anyway.)
+function requireCandidateToken(req, res, next) {
+  if (req.user?.role !== 'candidate') {
+    return res.status(403).json({ success: false, error: 'Not authorized' })
+  }
+  next()
+}
+
+router.post('/:id/start', requireCandidateToken, async (req, res) => {
   try {
     const interviewId = parseInt(req.params.id, 10)
     const identity = candidateIdentityService.fromUser(req.user)
@@ -27,7 +38,7 @@ router.post('/:id/start', requireRole('candidate'), async (req, res) => {
   }
 })
 
-router.post('/:id/answer', requireRole('candidate'), audioUpload.single('audio'), async (req, res) => {
+router.post('/:id/answer', requireCandidateToken, audioUpload.single('audio'), async (req, res) => {
   try {
     const interviewId = parseInt(req.params.id, 10)
     const {
@@ -79,7 +90,7 @@ router.post('/:id/answer', requireRole('candidate'), audioUpload.single('audio')
   }
 })
 
-router.post('/:id/proctoring', requireRole('candidate'), async (req, res) => {
+router.post('/:id/proctoring', requireCandidateToken, async (req, res) => {
   try {
     const interviewId = parseInt(req.params.id, 10)
     const { type, severity, occurred, details } = req.body
@@ -104,14 +115,11 @@ router.post('/:id/proctoring', requireRole('candidate'), async (req, res) => {
   }
 })
 
-router.get('/:id/transcript', requireRole('manager'), async (req, res) => {
+router.get('/:id/transcript', loadAccess, requireModule('team'), async (req, res) => {
   try {
     const interviewId = parseInt(req.params.id, 10)
-    const interview = await interviewRepository.getById(interviewId)
-    if (!interview || interview.manager_id !== req.user.id || interview.type !== 'ai_voice') {
-      return res.status(404).json({ success: false, error: 'Interview not found' })
-    }
-    const qa = await transcriptRepository.getByInterview(interviewId)
+    const qa = await interviewService.getManagerTranscript(interviewId, req.user.id)
+    if (!qa) return res.status(404).json({ success: false, error: 'Interview not found' })
     res.json({ success: true, data: qa })
   } catch (err) {
     console.error('GET /interviews/:id/transcript failed:', err)
@@ -119,7 +127,28 @@ router.get('/:id/transcript', requireRole('manager'), async (req, res) => {
   }
 })
 
-router.post('/:id/complete', requireRole('candidate'), async (req, res) => {
+// GET /api/interviews/:id/report - the candidate's own feedback for the interview
+// they just finished, read with the same interview-scoped session token as
+// start/answer/complete. /api/candidate/report can't serve this: it runs loadAccess,
+// which needs a user id that this token type doesn't carry (always 401s).
+router.get('/:id/report', requireCandidateToken, async (req, res) => {
+  try {
+    const interviewId = parseInt(req.params.id, 10)
+    const identity = candidateIdentityService.fromUser(req.user)
+    // null (not generated / still 'generating') is a normal state while the report job
+    // runs, not an error - the client keeps polling until it's 'ready'
+    const report = await interviewService.getCandidateReportSummary(interviewId, identity)
+    res.json({ success: true, data: report })
+  } catch (err) {
+    if (err.message.includes('Unauthorized')) {
+      return res.status(403).json({ success: false, error: err.message })
+    }
+    console.error('GET /interviews/:id/report failed:', err)
+    res.status(500).json({ success: false, error: 'Could not load report' })
+  }
+})
+
+router.post('/:id/complete', requireCandidateToken, async (req, res) => {
   try {
     const interviewId = parseInt(req.params.id, 10)
     const { status } = req.body

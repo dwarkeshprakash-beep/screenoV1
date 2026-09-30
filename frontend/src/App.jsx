@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect } from 'react'
 import { Navigate, Route, Routes, useNavigate, useLocation } from 'react-router-dom'
 import AppLayout from './components/layout/AppLayout'
 import CandidateLayout from './components/layout/CandidateLayout'
-import CandidateDashboardLayout from './components/layout/CandidateDashboardLayout'
+import RequireModule from './components/layout/RequireModule'
 import Spinner from './components/shared/Spinner'
 
 const LoginPage = lazy(() => import('./pages/auth/LoginPage'))
@@ -11,30 +11,36 @@ const TeamPage = lazy(() => import('./pages/manager/TeamPage'))
 const MemberProfilePage = lazy(() => import('./pages/manager/MemberProfilePage'))
 const SchedulePage = lazy(() => import('./pages/manager/SchedulePage'))
 const ReportsPage = lazy(() => import('./pages/manager/ReportsPage'))
-const ManagerProfilePage = lazy(() => import('./pages/manager/ManagerProfilePage'))
+const ProfilePage = lazy(() => import('./pages/workspace/ProfilePage'))
 const ResumeAnalyzerPage = lazy(() => import('./pages/manager/ResumeAnalyzerPage'))
 const MonthlyAssessmentPage = lazy(() => import('./pages/manager/MonthlyAssessmentPage'))
 const ClientInterviewsPage = lazy(() => import('./pages/manager/ClientInterviewsPage'))
-const ManagerInterviewerPage = lazy(() => import('./pages/manager/ManagerInterviewerPage'))
+const InterviewsPage = lazy(() => import('./pages/workspace/InterviewsPage'))
+const FeedbackPage = lazy(() => import('./pages/workspace/FeedbackPage'))
+const ClientOutcomesPage = lazy(() => import('./pages/workspace/ClientOutcomesPage'))
 const InterviewLandingPage = lazy(() => import('./pages/candidate/InterviewLandingPage'))
 const DeviceCheckPage = lazy(() => import('./pages/candidate/DeviceCheckPage'))
 const ConsentPage = lazy(() => import('./pages/candidate/ConsentPage'))
 const AIInterviewPage = lazy(() => import('./pages/candidate/AIInterviewPage'))
 const ExamPage = lazy(() => import('./pages/candidate/ExamPage'))
 const DonePage = lazy(() => import('./pages/candidate/DonePage'))
-const CandidateOverviewPage = lazy(() => import('./pages/candidate/CandidateOverviewPage'))
-const CandidateInterviewsPage = lazy(() => import('./pages/candidate/CandidateInterviewsPage'))
-const CandidateProfilePage = lazy(() => import('./pages/candidate/CandidateProfilePage'))
-const CandidateMandatesPage = lazy(() => import('./pages/candidate/CandidateMandatesPage'))
-const CandidateMonthlyPage = lazy(() => import('./pages/candidate/CandidateMonthlyPage'))
-const CandidateFeedbackPage = lazy(() => import('./pages/candidate/CandidateFeedbackPage'))
-const CandidateClientOutcomesPage = lazy(() => import('./pages/candidate/CandidateClientOutcomesPage'))
 
 // Admin Pages
 const AdminDashboardPage = lazy(() => import('./pages/admin/AdminDashboardPage'))
 const AdminMandatesPage = lazy(() => import('./pages/admin/AdminMandatesPage'))
 const AdminInterviewsPage = lazy(() => import('./pages/admin/AdminInterviewsPage'))
 const AdminBrokenStatesPage = lazy(() => import('./pages/admin/AdminBrokenStatesPage'))
+const AdminRolesPage = lazy(() => import('./pages/admin/AdminRolesPage'))
+const RoleDetailPage = lazy(() => import('./pages/admin/RoleDetailPage'))
+const AdminUsersPage = lazy(() => import('./pages/admin/AdminUsersPage'))
+const UserDetailPage = lazy(() => import('./pages/admin/UserDetailPage'))
+const AdminModulesPage = lazy(() => import('./pages/admin/AdminModulesPage'))
+const AdminAclsPage = lazy(() => import('./pages/admin/AdminAclsPage'))
+const AclDetailPage = lazy(() => import('./pages/admin/AclDetailPage'))
+const AdminPermissionsPage = lazy(() => import('./pages/admin/AdminPermissionsPage'))
+const PermissionDetailPage = lazy(() => import('./pages/admin/PermissionDetailPage'))
+const AdminOrganizationsPage = lazy(() => import('./pages/admin/AdminOrganizationsPage'))
+const OrganizationDetailPage = lazy(() => import('./pages/admin/OrganizationDetailPage'))
 
 function AuthProvider({ children }) {
   const navigate = useNavigate()
@@ -95,10 +101,13 @@ function storedSession() {
   }
 }
 
+// There is no portal split anymore - every non-admin user shares one app
+// ('/workspace'), and what they see inside it is entirely ACL/module-driven.
+// 'role' here is only ever 'admin' or 'user' (see auth.service.js#resolveUserRole) -
+// just enough to pick a shell.
 function roleHome(role) {
-  if (role === 'manager') return '/manager/dashboard'
-  if (role === 'candidate') return '/candidate/overview'
   if (role === 'admin') return '/admin/dashboard'
+  if (role === 'user') return '/workspace/dashboard'
   return '/login'
 }
 
@@ -107,12 +116,24 @@ function HomeRedirect() {
   return <Navigate to={token ? roleHome(role) : '/login'} replace />
 }
 
-function RequireAuth({ children, role }) {
+function RequireAuth({ children, adminOnly }) {
+  const location = useLocation()
   const { token, role: storedRole } = storedSession()
-  if (!token) return <Navigate to="/login" replace />
+  // Remember the deep link (e.g. from an email) so login can return the user to it
+  if (!token) return <Navigate to="/login" replace state={{ from: `${location.pathname}${location.search}` }} />
 
-  if (role && storedRole !== role) return <Navigate to={roleHome(storedRole)} replace />
+  if (adminOnly && storedRole !== 'admin') return <Navigate to={roleHome(storedRole)} replace />
+  if (!adminOnly && storedRole === 'admin') return <Navigate to={roleHome(storedRole)} replace />
   return children
+}
+
+// End of an interview/exam. A signed-in workspace user gets the confirmation inside
+// the normal shell (sidebar to move on); a magic-link-only candidate has no account
+// to navigate, so they keep the standalone page.
+function InterviewDoneRoute() {
+  const { token, role } = storedSession()
+  if (token && role === 'user') return <Navigate to="/workspace/interview-complete" replace />
+  return <DonePage />
 }
 
 function RedirectIfAuthed({ children }) {
@@ -129,52 +150,49 @@ function App() {
           <Route path="/login" element={<RedirectIfAuthed><LoginPage /></RedirectIfAuthed>} />
 
           <Route
-            path="/manager"
-            element={<RequireAuth role="manager"><AppLayout role="manager" /></RequireAuth>}
+            path="/workspace"
+            element={<RequireAuth><AppLayout role="workspace" /></RequireAuth>}
           >
             <Route index element={<Navigate to="dashboard" replace />} />
             <Route path="dashboard" element={<DashboardPage />} />
-            <Route path="team" element={<TeamPage />} />
-            <Route path="team/:id" element={<MemberProfilePage />} />
-            <Route path="organization/:userId" element={<MemberProfilePage />} />
-            <Route path="monthly" element={<MonthlyAssessmentPage />} />
-            <Route path="monthly/plan" element={<Navigate to="/manager/monthly" replace />} />
-            <Route path="clients" element={<ClientInterviewsPage />} />
-            <Route path="clients/:mandateId" element={<ClientInterviewsPage />} />
-            <Route path="schedule" element={<SchedulePage />} />
-            <Route path="reports" element={<ReportsPage />} />
-            <Route path="interviewer" element={<ManagerInterviewerPage />} />
-            <Route path="resume-analyzer" element={<ResumeAnalyzerPage />} />
-            <Route path="profile" element={<ManagerProfilePage />} />
-          </Route>
-
-          <Route
-            path="/candidate"
-            element={<RequireAuth role="candidate"><CandidateLayout /></RequireAuth>}
-          >
-            <Route index element={<Navigate to="overview" replace />} />
-            <Route path="dashboard" element={<Navigate to="/candidate/overview" replace />} />
-            <Route element={<CandidateDashboardLayout />}>
-              <Route path="overview"   element={<CandidateOverviewPage />} />
-              <Route path="interviews" element={<CandidateInterviewsPage />} />
-              <Route path="monthly"    element={<CandidateMonthlyPage />} />
-              <Route path="feedback"   element={<CandidateFeedbackPage />} />
-              <Route path="mandates"   element={<CandidateMandatesPage />} />
-              <Route path="outcomes"   element={<CandidateClientOutcomesPage />} />
-              <Route path="profile"    element={<CandidateProfilePage />} />
-            </Route>
+            <Route path="team" element={<RequireModule moduleKey="team" redirectTo="/workspace/profile"><TeamPage /></RequireModule>} />
+            <Route path="team/:id" element={<RequireModule moduleKey="team" redirectTo="/workspace/profile"><MemberProfilePage /></RequireModule>} />
+            <Route path="organization/:userId" element={<RequireModule moduleKey="team" redirectTo="/workspace/profile"><MemberProfilePage /></RequireModule>} />
+            <Route path="monthly" element={<RequireModule moduleKey="monthly_assessments" redirectTo="/workspace/profile"><MonthlyAssessmentPage /></RequireModule>} />
+            <Route path="monthly/plan" element={<Navigate to="/workspace/monthly" replace />} />
+            <Route path="clients" element={<RequireModule moduleKey="client_mandates" redirectTo="/workspace/profile"><ClientInterviewsPage /></RequireModule>} />
+            <Route path="clients/:mandateId" element={<RequireModule moduleKey="client_mandates" redirectTo="/workspace/profile"><ClientInterviewsPage /></RequireModule>} />
+            <Route path="schedule" element={<RequireModule moduleKey="schedule" redirectTo="/workspace/profile"><SchedulePage /></RequireModule>} />
+            <Route path="reports" element={<RequireModule moduleKey="reports" redirectTo="/workspace/profile"><ReportsPage /></RequireModule>} />
+            <Route path="interviews" element={<RequireModule moduleKey="interviews" redirectTo="/workspace/profile"><InterviewsPage /></RequireModule>} />
+            <Route path="feedback" element={<RequireModule moduleKey="feedback" redirectTo="/workspace/profile"><FeedbackPage /></RequireModule>} />
+            <Route path="outcomes" element={<RequireModule moduleKey="outcomes" redirectTo="/workspace/profile"><ClientOutcomesPage /></RequireModule>} />
+            <Route path="resume-analyzer" element={<RequireModule moduleKey="resume_analyzer" redirectTo="/workspace/profile"><ResumeAnalyzerPage /></RequireModule>} />
+            <Route path="interview-complete" element={<DonePage inWorkspace />} />
+            <Route path="profile" element={<ProfilePage />} />
           </Route>
 
           <Route
             path="/admin"
-            element={<RequireAuth role="admin"><AppLayout role="admin" /></RequireAuth>}
+            element={<RequireAuth adminOnly><AppLayout role="admin" /></RequireAuth>}
           >
             <Route index element={<Navigate to="dashboard" replace />} />
             <Route path="dashboard" element={<AdminDashboardPage />} />
             <Route path="mandates" element={<AdminMandatesPage />} />
             <Route path="interviews" element={<AdminInterviewsPage />} />
             <Route path="broken-states" element={<AdminBrokenStatesPage />} />
-            <Route path="profile" element={<ManagerProfilePage />} />
+            <Route path="organizations" element={<AdminOrganizationsPage />} />
+            <Route path="organizations/:id" element={<OrganizationDetailPage />} />
+            <Route path="roles" element={<AdminRolesPage />} />
+            <Route path="roles/:id" element={<RoleDetailPage />} />
+            <Route path="users" element={<AdminUsersPage />} />
+            <Route path="users/:id" element={<UserDetailPage />} />
+            <Route path="modules" element={<AdminModulesPage />} />
+            <Route path="acls" element={<AdminAclsPage />} />
+            <Route path="acls/:id" element={<AclDetailPage />} />
+            <Route path="permissions" element={<AdminPermissionsPage />} />
+            <Route path="permissions/:id" element={<PermissionDetailPage />} />
+            <Route path="profile" element={<ProfilePage />} />
           </Route>
 
           <Route path="/interview/:token" element={<CandidateLayout />}>
@@ -183,7 +201,7 @@ function App() {
             <Route path="consent" element={<ConsentPage />} />
             <Route path="ai" element={<AIInterviewPage />} />
             <Route path="exam" element={<ExamPage />} />
-            <Route path="done" element={<DonePage />} />
+            <Route path="done" element={<InterviewDoneRoute />} />
           </Route>
 
           <Route path="/" element={<HomeRedirect />} />

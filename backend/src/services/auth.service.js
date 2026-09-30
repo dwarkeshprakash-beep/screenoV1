@@ -3,8 +3,8 @@ const crypto = require('crypto')
 const bcrypt = require('bcryptjs')
 const jwt = require('jsonwebtoken')
 
-const db = require('../db/connection')
 const userRepository = require('../repositories/user.repository')
+const accessService = require('./access.service')
 const refreshTokenRepository = require('../repositories/refresh-token.repository')
 const passwordResetRepository = require('../repositories/password-reset.repository')
 const emailOutboxRepository = require('../repositories/email-outbox.repository')
@@ -23,15 +23,24 @@ function hashToken(token) {
   return crypto.createHash('sha256').update(token).digest('hex')
 }
 
-function applicationRole(user) {
-  return user.role === 'employee' ? 'candidate' : user.role
+// Access is resolved fresh from the RBAC tables, not stored on the token - see
+// access.service.js. The JWT/user-object `role` here is only ever 'admin' or 'user' -
+// just enough for the frontend to pick a shell (admin vs everyone else) right after
+// login/refresh. Actual module/permission visibility always comes from
+// AccessContext (GET /api/auth/me/access), never from this field.
+async function resolveUserRole(user) {
+  const access = await accessService.getUserAccessContext(user.id, user)
+  if (!access.isPlatformAdmin && access.roleIds.length === 0) {
+    throw new Error('Your account has no role assigned yet. Contact your administrator.')
+  }
+  return { access, role: access.isPlatformAdmin ? 'admin' : 'user' }
 }
 
-function signAccessToken(user) {
+function signAccessToken(user, role) {
   return jwt.sign(
     {
       id: user.id,
-      role: applicationRole(user),
+      role,
       companyId: user.company_id,
       name: `${user.first_name} ${user.last_name}`,
     },
@@ -141,10 +150,10 @@ async function createLaunchPayload(interview) {
   }
 }
 
-function publicUser(user) {
+function publicUser(user, role) {
   return {
     id: user.id,
-    role: applicationRole(user),
+    role,
     companyId: user.company_id,
     first_name: user.first_name,
     last_name: user.last_name,
@@ -163,7 +172,8 @@ async function login(email, password) {
   const match = await bcrypt.compare(password, user.password)
   if (!match) throw new Error('Invalid credentials')
 
-  const accessToken = signAccessToken(user)
+  const { role } = await resolveUserRole(user)
+  const accessToken = signAccessToken(user, role)
 
   const rawRefresh = crypto.randomBytes(64).toString('hex')
   const tokenHash = hashToken(rawRefresh)
@@ -174,7 +184,7 @@ async function login(email, password) {
   return {
     accessToken,
     refreshToken: rawRefresh,
-    user: publicUser(user),
+    user: publicUser(user, role),
   }
 }
 
@@ -204,10 +214,11 @@ async function refresh(rawRefreshToken) {
       // The client route should maintain the existing refresh cookie.
       const user = await userRepository.getById(stored.user_id)
       if (!user) throw new Error('User not found')
+      const { role } = await resolveUserRole(user)
       return {
-        accessToken: signAccessToken(user),
+        accessToken: signAccessToken(user, role),
         refreshToken: null, // Signals route to not set a new cookie
-        user: publicUser(user),
+        user: publicUser(user, role),
       }
     } else {
       // Token reuse detected! Revoke the entire family.
@@ -233,10 +244,11 @@ async function refresh(rawRefreshToken) {
   // 2. Mark old token as replaced, starting the 30-second grace period
   await refreshTokenRepository.markReplaced(stored.id, nextTokenHash, 30000)
 
+  const { role } = await resolveUserRole(user)
   return {
-    accessToken: signAccessToken(user),
+    accessToken: signAccessToken(user, role),
     refreshToken: nextRefreshToken,
-    user: publicUser(user),
+    user: publicUser(user, role),
   }
 }
 
@@ -283,31 +295,9 @@ async function resetPassword(token, newPassword) {
   const tokenHash = hashToken(token)
   const passwordHash = await bcrypt.hash(String(newPassword), 10)
 
-  // Lock the token row for the duration of the check+update so two concurrent
-  // submits (e.g. a double-click, or the link opened in two tabs) can't both
-  // pass the validity check before either marks it used.
-  const claimed = await db.transaction(async (tx) => {
-    const rows = await tx.query(
-      `SELECT * FROM password_reset_tokens
-       WHERE token_hash = @tokenHash AND used = FALSE AND expires > NOW()
-       FOR UPDATE`,
-      { tokenHash }
-    )
-    const stored = rows[0]
-    if (!stored) return null
-
-    await tx.query(`UPDATE password_reset_tokens SET used = TRUE WHERE id = @id`, { id: stored.id })
-    await tx.query(`UPDATE users SET password = @passwordHash WHERE id = @userId`, {
-      passwordHash, userId: stored.user_id,
-    })
-    return stored
-  })
-
+  // Row-locked in the repository so concurrent submits can't both use the token.
+  const claimed = await passwordResetRepository.consumeAndSetPassword(tokenHash, passwordHash)
   if (!claimed) throw new Error('Reset link is invalid or expired')
-}
-
-async function validateMagicLink(token) {
-  return claimMagicLink(token)
 }
 
 function assertMagicLinkUsable(interview) {
@@ -336,28 +326,10 @@ async function claimMagicLink(token) {
   if (!token) throw new Error('Invalid link')
   const tokenHash = hashToken(token)
 
-  const lockedInterview = await db.transaction(async (tx) => {
-    const rows = await tx.query(
-      `SELECT *
-       FROM interviews
-       WHERE token = @tokenHash
-       FOR UPDATE`,
-      { tokenHash }
-    )
-    const interview = rows[0]
-    if (!interview) return null
-
+  // The link is single-use: validated and cleared under a row lock (see repository).
+  const lockedInterview = await interviewRepository.claimByTokenHash(tokenHash, async (interview) => {
     assertMagicLinkUsable(interview)
     await ensureLaunchWindow(interview)
-
-    await tx.query(
-      `UPDATE interviews
-       SET token = NULL,
-           token_expires = NULL
-       WHERE id = @id`,
-      { id: interview.id }
-    )
-    return interview
   })
 
   if (!lockedInterview) throw new Error('Invalid link')
@@ -384,8 +356,6 @@ module.exports = {
   validateResetToken,
   previewMagicLink,
   claimMagicLink,
-  validateMagicLink,
   createCandidateLaunch,
   hashToken,
-  applicationRole,
 }

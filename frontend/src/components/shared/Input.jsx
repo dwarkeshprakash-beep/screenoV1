@@ -1,4 +1,4 @@
-// Input — labeled text field with inline error display.
+// Input - labeled text field with inline error display.
 
 /**
  * @param {string} label - visible label above the input

@@ -2,11 +2,71 @@ const monthlyAssessmentRepository = require('../repositories/monthly-assessment.
 const teamMemberRepository = require('../repositories/team-member.repository')
 const companyRepository = require('../repositories/company.repository')
 const userRepository = require('../repositories/user.repository')
+const interviewRepository = require('../repositories/interview.repository')
+const emailOutboxRepository = require('../repositories/email-outbox.repository')
 const emailService = require('./email.service')
-const scheduleService = require('./schedule.service')
+const storageService = require('./storage.service')
+const documentTextService = require('./document-text.service')
 const { parseStoredArray } = require('../utils/parse')
 
 const parseArray = parseStoredArray
+
+/**
+ * Read the optional study-material file from a create/update body.
+ * Returns {} when the body doesn't mention it (leave as-is), { studyFilePath: null }
+ * to remove it, or the path + name to attach. The path must sit in this manager's own
+ * upload folder, so a crafted body can't point candidates at someone else's file.
+ */
+function parseStudyFile(body, managerId) {
+  if (!body || body.study_material_file_path === undefined) return {}
+  const path = String(body.study_material_file_path || '').trim()
+  if (!path) return { studyFilePath: null, studyFileName: null }
+  if (!path.startsWith(storageService.studyMaterialPrefix(managerId)) || path.includes('..')) {
+    throw new Error('Study material file is invalid')
+  }
+  const name = String(body.study_material_file_name || '').trim().slice(0, 255)
+  return { studyFilePath: path, studyFileName: name || path.split('/').pop() }
+}
+
+// Adds a short-lived signed study_material_file_url for display; the raw path stays for saves.
+async function withStudyFileUrl(row) {
+  if (!row?.study_material_file_path) return { ...row, study_material_file_url: null }
+  return { ...row, study_material_file_url: await storageService.resolveFileUrl(row.study_material_file_path) }
+}
+
+// Cap on stored extracted text; prompts use far less (llm.service CONTEXT_BUDGETS).
+const STUDY_TEXT_MAX_CHARS = 20000
+
+/**
+ * Keep the extracted text of the subject's study-material file in step with the file
+ * that is attached. Text is re-extracted server-side from storage (never taken from the
+ * client) and only when the file changed. Never throws - a failed extraction just means
+ * questions fall back to the sub-topics and free-text material.
+ */
+async function syncStudyText(assessment) {
+  try {
+    const path = assessment.study_material_file_path
+    if (!path) {
+      await monthlyAssessmentRepository.deleteStudyText(assessment.id)
+      return
+    }
+    const existing = await monthlyAssessmentRepository.getStudyText(assessment.id)
+    if (existing?.file_path === path) return
+
+    const buffer = await storageService.downloadFile(path)
+    // The storage path keeps the real extension, which picks the extractor.
+    const text = await documentTextService.extractTextFromBuffer(buffer, null, path)
+    await monthlyAssessmentRepository.upsertStudyText(assessment.id, path, String(text || '').trim().slice(0, STUDY_TEXT_MAX_CHARS))
+  } catch (err) {
+    console.error(`Study material text extraction failed for assessment ${assessment.id}:`, err.message)
+  }
+}
+
+// Best-effort removal of a study-material file that is no longer referenced.
+function cleanupStudyFile(oldPath, newPath) {
+  if (!oldPath || oldPath === newPath) return
+  storageService.deleteFile(oldPath).catch(err => console.error('Failed to clean up study material file:', err.message))
+}
 
 function addMonths(date, months) {
   const result = new Date(date)
@@ -92,8 +152,10 @@ async function createAssessment(body, managerId, companyId) {
     }
     parseStartDate(body)
   }
+  const studyFile = parseStudyFile(body, managerId)
 
   const assessment = await monthlyAssessmentRepository.createTemplate({
+    ...studyFile,
     managerId,
     subjectName,
     difficulty: ['easy', 'medium', 'hard'].includes(body.difficulty) ? body.difficulty : 'medium',
@@ -106,6 +168,7 @@ async function createAssessment(body, managerId, companyId) {
       ? (['simple', 'adaptive'].includes(body.interview_mode) ? body.interview_mode : 'simple')
       : 'simple',
   })
+  if (assessment.study_material_file_path) await syncStudyText(assessment)
 
   if (teamMemberIds.length === 0) {
     return { ...assessment, enrollments: [], invitations: { sent: 0, failed: 0 } }
@@ -147,6 +210,7 @@ async function sendAssignmentInvitations({
       assessmentEndDate: endDate,
       durationMonths: assessment.duration_months,
       jdText: assessment.ai_generated_jd || '',
+      studyFileName: assessment.study_material_file_name || null,
     })
   }))
   return {
@@ -196,8 +260,7 @@ async function assignCandidates(assessmentId, body, managerId, companyId) {
   const company = await companyRepository.getById(companyId)
   const newlyAssignedTeamMemberIds = new Set()
   
-  const db = require('../db/connection')
-  const scheduledEnrollments = await db.transaction(async (tx) => {
+  const scheduledEnrollments = await monthlyAssessmentRepository.runInTransaction(async (tx) => {
     const enrollments = []
     const memberByTeamMemberId = new Map(ownedMembers.map(member => [Number(member.id), member]))
     const interviewType = assessment.interview_type === 'ai_voice' ? 'ai_voice' : 'exam'
@@ -209,53 +272,17 @@ async function assignCandidates(assessmentId, body, managerId, companyId) {
       const memberRequestKey = requestKey ? `${requestKey}:${teamMemberId}` : null
       const member = memberByTeamMemberId.get(Number(teamMemberId))
 
-      await tx.query(
-        `SELECT id
-         FROM team_members
-         WHERE id = @teamMemberId
-         FOR UPDATE`,
-        { teamMemberId }
-      )
+      await monthlyAssessmentRepository.lockTeamMember(tx, teamMemberId)
 
       if (memberRequestKey) {
-        const requestRows = await tx.query(
-          `INSERT INTO assignment_requests
-             (request_key, assessment_id, team_member_id)
-           VALUES
-             (@requestKey, @assessmentId, @teamMemberId)
-           ON CONFLICT (request_key) DO NOTHING
-           RETURNING *`,
-          {
-            requestKey: memberRequestKey,
-            assessmentId: assessment.id,
-            teamMemberId,
-          }
-        )
+        const requestIdentity = { requestKey: memberRequestKey, assessmentId: assessment.id, teamMemberId }
+        const newRequest = await monthlyAssessmentRepository.insertAssignmentRequest(tx, requestIdentity)
 
-        if (requestRows.length === 0) {
-          const existingRows = await tx.query(
-            `SELECT ar.enrollment_id, e.*
-             FROM assignment_requests ar
-             LEFT JOIN monthly_assessment_enrollments e ON e.id = ar.enrollment_id
-             WHERE ar.request_key = @requestKey
-               AND ar.assessment_id = @assessmentId
-               AND ar.team_member_id = @teamMemberId
-             LIMIT 1`,
-            {
-              requestKey: memberRequestKey,
-              assessmentId: assessment.id,
-              teamMemberId,
-            }
-          )
-          const existing = existingRows[0]
+        // Same request key seen before: return the earlier result instead of assigning twice.
+        if (!newRequest) {
+          const existing = await monthlyAssessmentRepository.getAssignmentRequestEnrollment(tx, requestIdentity)
           if (existing?.enrollment_id) {
-            const occurrenceRows = await tx.query(
-              `SELECT id, interview_id
-               FROM monthly_assessment_occurrences
-               WHERE enrollment_id = @enrollmentId
-               ORDER BY period_month ASC`,
-              { enrollmentId: existing.enrollment_id }
-            )
+            const occurrenceRows = await monthlyAssessmentRepository.getOccurrenceIdsByEnrollment(tx, existing.enrollment_id)
             enrollments.push({
               ...existing,
               first_interview_id: occurrenceRows.find(row => row.interview_id)?.interview_id || null,
@@ -270,27 +297,13 @@ async function assignCandidates(assessmentId, body, managerId, companyId) {
         }
       }
 
-      const overlapping = await tx.query(
-        `SELECT e.id, e.assessment_id, e.start_date, e.end_date,
-                a.subject_name, a.duration_months
-         FROM monthly_assessment_enrollments e
-         JOIN monthly_assessments a ON a.id = e.assessment_id
-         JOIN monthly_assessments selected ON selected.id = @assessmentId
-         WHERE e.team_member_id = @teamMemberId
-           AND a.manager_id = selected.manager_id
-           AND COALESCE(e.status, 'pending') != 'cancelled'
-           AND e.start_date < @endDate
-           AND e.end_date > @startDate
-         LIMIT 1`,
-        {
-          assessmentId: assessment.id,
-          teamMemberId,
-          startDate,
-          endDate,
-        }
-      )
-      if (overlapping[0]) {
-        const conflict = overlapping[0]
+      const conflict = await monthlyAssessmentRepository.findOverlappingEnrollment(tx, {
+        assessmentId: assessment.id,
+        teamMemberId,
+        startDate,
+        endDate,
+      })
+      if (conflict) {
         const error = new Error(
           `Candidate already has "${conflict.subject_name}" scheduled from `
           + `${new Date(conflict.start_date).toISOString().slice(0, 10)} to `
@@ -301,20 +314,12 @@ async function assignCandidates(assessmentId, body, managerId, companyId) {
         throw error
       }
 
-      const eRows = await tx.query(
-        `INSERT INTO monthly_assessment_enrollments
-          (assessment_id, team_member_id, start_date, end_date, status)
-         VALUES
-          (@assessmentId, @teamMemberId, @startDate, @endDate, 'scheduled')
-         RETURNING *`,
-        {
-          assessmentId: assessment.id,
-          teamMemberId,
-          startDate,
-          endDate,
-        }
-      )
-      const enrollment = eRows[0]
+      const enrollment = await monthlyAssessmentRepository.insertEnrollment(tx, {
+        assessmentId: assessment.id,
+        teamMemberId,
+        startDate,
+        endDate,
+      })
       const occurrenceIds = []
       let firstInterviewId = null
       const durationMonths = Number(assessment.duration_months) || 1
@@ -328,51 +333,32 @@ async function assignCandidates(assessmentId, body, managerId, companyId) {
           1
         ))
 
-        const iRows = await tx.query(
-          `INSERT INTO interviews
-            (manager_id, internal_user_id, type, interview_mode, difficulty, question_count,
-             duration_minutes, scheduled_at, available_from, due_at, schedule_timezone,
-             monthly_assessment_id, report_emails)
-           VALUES
-            (@managerId, @internalUserId, @interviewType, @interviewMode, @difficulty, @questionCount,
-             @durationMinutes, @scheduledAt, @availableFrom, @dueAt, @scheduleTimezone,
-             @monthlyAssessmentId, @reportEmails)
-           RETURNING *`,
-          {
-            managerId,
-            internalUserId: member.user_id,
-            interviewType,
-            interviewMode,
-            difficulty: assessment.difficulty || 'medium',
-            questionCount,
-            durationMinutes,
-            scheduledAt: occurrenceAvailableFrom.toISOString(),
-            availableFrom: occurrenceAvailableFrom.toISOString(),
-            dueAt: occurrenceDue.toISOString(),
-            scheduleTimezone,
-            monthlyAssessmentId: assessment.id,
-            reportEmails,
-          }
-        )
-        const interview = iRows[0]
+        const interview = await interviewRepository.createMonthlyOccurrenceInterview(tx, {
+          managerId,
+          internalUserId: member.user_id,
+          interviewType,
+          interviewMode,
+          difficulty: assessment.difficulty || 'medium',
+          questionCount,
+          durationMinutes,
+          scheduledAt: occurrenceAvailableFrom.toISOString(),
+          availableFrom: occurrenceAvailableFrom.toISOString(),
+          dueAt: occurrenceDue.toISOString(),
+          scheduleTimezone,
+          monthlyAssessmentId: assessment.id,
+          reportEmails,
+        })
         if (!firstInterviewId) firstInterviewId = interview.id
 
-        const occurrenceRows = await tx.query(
-          `INSERT INTO monthly_assessment_occurrences
-            (enrollment_id, period_month, available_from, due_at, duration_minutes, interview_id, status)
-           VALUES
-            (@enrollmentId, @periodMonth, @availableFrom, @dueAt, @durationMinutes, @interviewId, 'scheduled')
-           RETURNING *`,
-          {
-            enrollmentId: enrollment.id,
-            periodMonth: periodMonth.toISOString().slice(0, 10),
-            availableFrom: occurrenceAvailableFrom.toISOString(),
-            dueAt: occurrenceDue.toISOString(),
-            durationMinutes,
-            interviewId: interview.id,
-          }
-        )
-        occurrenceIds.push(occurrenceRows[0].id)
+        const occurrence = await monthlyAssessmentRepository.insertOccurrence(tx, {
+          enrollmentId: enrollment.id,
+          periodMonth: periodMonth.toISOString().slice(0, 10),
+          availableFrom: occurrenceAvailableFrom.toISOString(),
+          dueAt: occurrenceDue.toISOString(),
+          durationMinutes,
+          interviewId: interview.id,
+        })
+        occurrenceIds.push(occurrence.id)
 
         if (member && member.email) {
           const payload = {
@@ -381,18 +367,13 @@ async function assignCandidates(assessmentId, body, managerId, companyId) {
             jobTitle: assessment.subject_name,
             details: assessment.ai_generated_jd || null,
           }
-          await tx.query(
-            `INSERT INTO email_outbox_jobs (event_key, interview_id, recipient, payload, send_after, status)
-             VALUES (@eventKey, @interviewId, @recipient, @payload, @sendAfter, 'pending')
-             ON CONFLICT (event_key) DO NOTHING`,
-            {
-              eventKey: `monthly_occurrence_${enrollment.id}_${periodMonth.toISOString().slice(0, 7)}`,
-              interviewId: interview.id,
-              recipient: member.email,
-              payload: JSON.stringify(payload),
-              sendAfter: occurrenceAvailableFrom.toISOString(),
-            }
-          )
+          await emailOutboxRepository.enqueueMonthlyOccurrence(tx, {
+            eventKey: `monthly_occurrence_${enrollment.id}_${periodMonth.toISOString().slice(0, 7)}`,
+            interviewId: interview.id,
+            recipient: member.email,
+            payload: JSON.stringify(payload),
+            sendAfter: occurrenceAvailableFrom.toISOString(),
+          })
         }
       }
 
@@ -406,15 +387,10 @@ async function assignCandidates(assessmentId, body, managerId, companyId) {
       newlyAssignedTeamMemberIds.add(Number(teamMemberId))
 
       if (memberRequestKey) {
-        await tx.query(
-          `UPDATE assignment_requests
-           SET enrollment_id = @enrollmentId
-           WHERE request_key = @requestKey`,
-          {
-            enrollmentId: enrollment.id,
-            requestKey: memberRequestKey,
-          }
-        )
+        await monthlyAssessmentRepository.linkAssignmentRequestEnrollment(tx, {
+          enrollmentId: enrollment.id,
+          requestKey: memberRequestKey,
+        })
       }
     }
     return enrollments
@@ -434,21 +410,40 @@ async function assignCandidates(assessmentId, body, managerId, companyId) {
   }
 }
 
-async function getAssessments(managerId) {
-  const [assessments, enrollments] = await Promise.all([
-    monthlyAssessmentRepository.getByManager(managerId),
-    monthlyAssessmentRepository.getEnrollmentsByManager(managerId),
-  ])
+// scope: { viewAll, companyId } - viewAll=true (caller has the "View All" permission)
+// returns every subject/enrollment in the caller's company; otherwise (the "View"
+// permission) returns subjects the caller manages UNION subjects they are personally
+// enrolled in as a team member, each scoped to only their own enrollment row for the
+// subjects they don't manage (see getEnrollmentsVisibleToUser for how that's enforced).
+async function getAssessments(userId, scope = {}) {
+  const { viewAll, companyId } = scope
+  const [assessments, enrollments] = viewAll
+    ? await Promise.all([
+      monthlyAssessmentRepository.getByCompany(companyId),
+      monthlyAssessmentRepository.getEnrollmentsByCompany(companyId),
+    ])
+    : await Promise.all([
+      monthlyAssessmentRepository.getVisibleToUser(userId),
+      monthlyAssessmentRepository.getEnrollmentsVisibleToUser(userId),
+    ])
   const byAssessment = new Map()
   for (const enrollment of enrollments) {
     const list = byAssessment.get(enrollment.assessment_id) || []
     list.push(enrollment)
     byAssessment.set(enrollment.assessment_id, list)
   }
-  return assessments.map(assessment => ({
-    ...assessment,
+  return Promise.all(assessments.map(async assessment => ({
+    ...(await withStudyFileUrl(assessment)),
     enrollments: byAssessment.get(assessment.id) || [],
-  }))
+  })))
+}
+
+// Calendar rows, scoped the same way as getAssessments.
+async function getCalendar(userId, scope = {}) {
+  const { viewAll, companyId } = scope
+  return viewAll
+    ? monthlyAssessmentRepository.getCalendarByCompany(companyId)
+    : monthlyAssessmentRepository.getCalendarVisibleToUser(userId)
 }
 
 function monthIndexForDate(startDate, year, month) {
@@ -457,7 +452,7 @@ function monthIndexForDate(startDate, year, month) {
   return (year - start.getUTCFullYear()) * 12 + (month - start.getUTCMonth())
 }
 
-async function getMonthPlan(managerId, monthValue) {
+async function getMonthPlan(userId, monthValue, scope = {}) {
   if (!/^\d{4}-\d{2}$/.test(String(monthValue || ''))) {
     throw new Error('Month must use YYYY-MM format')
   }
@@ -465,11 +460,23 @@ async function getMonthPlan(managerId, monthValue) {
   if (monthNumber < 1 || monthNumber > 12) throw new Error('Month must use YYYY-MM format')
   const monthIndex = monthNumber - 1
 
-  const [assessments, enrollments, teamMembers] = await Promise.all([
-    monthlyAssessmentRepository.getByManager(managerId),
-    monthlyAssessmentRepository.getEnrollmentsByManager(managerId),
-    teamMemberRepository.getByManager(managerId),
-  ])
+  const { viewAll, companyId } = scope
+  const [assessments, enrollments, teamMembers] = viewAll
+    ? await Promise.all([
+      monthlyAssessmentRepository.getByCompany(companyId),
+      monthlyAssessmentRepository.getEnrollmentsByCompany(companyId),
+      teamMemberRepository.getByCompany(companyId),
+    ])
+    : await Promise.all([
+      monthlyAssessmentRepository.getVisibleToUser(userId),
+      monthlyAssessmentRepository.getEnrollmentsVisibleToUser(userId),
+      // A self-scoped viewer who is only an assigned team member (not a manager
+      // themselves) owns no team_members rows, so this returns [] for them - the
+      // "members without an assessment" panel simply has nothing to show, which is
+      // correct since that panel is a manager's assignment-gap tool, not something
+      // relevant to what a team member sees about themselves.
+      teamMemberRepository.getByManager(userId),
+    ])
   const activeEnrollments = enrollments.filter(enrollment => {
     const index = monthIndexForDate(enrollment.start_date, year, monthIndex)
     const assessment = assessments.find(item => item.id === enrollment.assessment_id)
@@ -500,15 +507,6 @@ async function getMonthPlan(managerId, monthValue) {
   }
 }
 
-async function cancelEnrollment(enrollmentId, managerId) {
-  const enrollment = await monthlyAssessmentRepository.cancelEnrollment(
-    Number(enrollmentId),
-    managerId
-  )
-  if (!enrollment) throw new Error('Monthly enrollment not found')
-  return enrollment
-}
-
 async function deleteEnrollment(enrollmentId, managerId) {
   const enrollment = await monthlyAssessmentRepository.deleteEnrollment(
     Number(enrollmentId),
@@ -519,13 +517,21 @@ async function deleteEnrollment(enrollmentId, managerId) {
 }
 
 async function updateAssessment(id, managerId, data) {
+  const studyFile = parseStudyFile(data, managerId)
+  const existing = studyFile.studyFilePath !== undefined
+    ? await monthlyAssessmentRepository.getByIdForManager(Number(id), managerId)
+    : null
   const assessment = await monthlyAssessmentRepository.updateTemplate(
     Number(id),
     managerId,
-    data
+    { ...data, ...studyFile }
   )
   if (!assessment) throw new Error('Monthly assessment not found')
-  return assessment
+  if (existing) {
+    cleanupStudyFile(existing.study_material_file_path, assessment.study_material_file_path)
+    await syncStudyText(assessment)
+  }
+  return withStudyFileUrl(assessment)
 }
 
 async function deleteAssessment(id, managerId) {
@@ -534,6 +540,7 @@ async function deleteAssessment(id, managerId) {
     managerId
   )
   if (!assessment) throw new Error('Monthly assessment not found')
+  cleanupStudyFile(assessment.study_material_file_path, null)
   return assessment
 }
 
@@ -541,8 +548,8 @@ module.exports = {
   createAssessment,
   assignCandidates,
   getAssessments,
+  getCalendar,
   getMonthPlan,
-  cancelEnrollment,
   deleteEnrollment,
   updateAssessment,
   deleteAssessment,

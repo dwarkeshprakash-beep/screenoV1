@@ -88,21 +88,25 @@ function InterviewFlowModal({ open, mandate, member, initialFlowId = '', initial
 
   useEffect(() => {
     if (!open) return
-    setError(null)
-    Promise.all([
-      api.getScheduleOrgUsers(),
-      api.getMandateInterviewFlows(mandate.id),
-      initialRunId ? api.getInterviewFlowRunDefinition(initialRunId) : Promise.resolve(null),
-    ])
-      .then(([userRes, flowRes, runFlowRes]) => {
+    async function loadFlowSetup() {
+      setError(null)
+      try {
+        const [userRes, flowRes, runFlowRes] = await Promise.all([
+          api.getScheduleOrgUsers(),
+          api.getMandateInterviewFlows(mandate.id),
+          initialRunId ? api.getInterviewFlowRunDefinition(initialRunId) : Promise.resolve(null),
+        ])
         setUsers((userRes.data || []).filter(user => Number(user.id) !== Number(member.user_id)))
         const loadedFlows = flowRes.data || []
         setFlows(loadedFlows)
         const selected = runFlowRes?.data
           || loadedFlows.find(flow => Number(flow.id) === Number(initialFlowId))
         if (selected) populateFlow(selected)
-      })
-      .catch(() => setError('Could not load flow setup information.'))
+      } catch {
+        setError('Could not load flow setup information.')
+      }
+    }
+    loadFlowSetup()
   }, [open, mandate.id, member.user_id, initialFlowId, initialRunId])
 
   function populateFlow(flow) {

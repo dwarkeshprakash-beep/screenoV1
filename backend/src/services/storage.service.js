@@ -1,5 +1,5 @@
 // backend/src/services/storage.service.js
-// Supabase Storage helpers — upload and delete raw files (resumes, reports).
+// Supabase Storage helpers - upload and delete raw files (resumes, reports).
 // Files are streamed from memory buffer; nothing is written to disk.
 
 const { createClient } = require('@supabase/supabase-js')
@@ -29,7 +29,7 @@ async function uploadResumeAsset(buffer, ownerId, file = {}) {
   const uuid = crypto.randomUUID()
   const path = `resumes/${ownerId}/${uuid}.${extension}`
 
-  const { data, error } = await supabase.storage.from(BUCKET).upload(path, buffer, {
+  const { error } = await supabase.storage.from(BUCKET).upload(path, buffer, {
     contentType,
     upsert: false,
   })
@@ -74,18 +74,6 @@ async function uploadReportAsset(buffer, reportId) {
   return { path }
 }
 
-/**
- * Alias for uploadReportAsset that also returns a signed URL.
- * @param {Buffer} buffer
- * @param {number|string} reportId
- * @returns {Promise<{ path: string, url: string }>}
- */
-async function uploadReport(buffer, reportId) {
-  const { path } = await uploadReportAsset(buffer, reportId)
-  const url = await getSignedUrl(path)
-  return { path, url }
-}
-
 /** Upload an optional document attached to interviewer feedback. */
 async function uploadInterviewFeedbackAsset(buffer, assignmentId, file = {}) {
   const safeName = String(file.originalname || 'attachment').replace(/[^a-zA-Z0-9._-]/g, '_')
@@ -98,6 +86,86 @@ async function uploadInterviewFeedbackAsset(buffer, assignmentId, file = {}) {
 }
 
 /**
+ * Upload the original JD document a manager/BDE attaches to a mandate or role profile.
+ * Kept alongside the extracted jd_text so a bad extraction never loses the source file.
+ * @param {Buffer} buffer
+ * @param {number|string} ownerId - uploader's user id (mandate may not exist yet while drafting)
+ * @param {object} file - file metadata from multer
+ * @returns {Promise<{ path: string, size: number, mimeType: string, originalName: string }>}
+ */
+async function uploadJdAsset(buffer, ownerId, file = {}) {
+  const extensionByMime = {
+    'application/pdf': 'pdf',
+    'application/msword': 'doc',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+    'text/plain': 'txt',
+  }
+  const extension = extensionByMime[file.mimetype] || 'pdf'
+  const contentType = file.mimetype || 'application/pdf'
+  const uuid = crypto.randomUUID()
+  const path = `jd/${ownerId}/${uuid}.${extension}`
+
+  const { error } = await supabase.storage.from(BUCKET).upload(path, buffer, {
+    contentType,
+    upsert: false,
+  })
+  if (error) throw error
+
+  return {
+    path,
+    size: buffer.length,
+    mimeType: contentType,
+    originalName: file.originalname || `jd.${extension}`,
+  }
+}
+
+const STUDY_MATERIAL_EXTENSIONS = {
+  'application/pdf': 'pdf',
+  'application/msword': 'doc',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+  'application/vnd.ms-powerpoint': 'ppt',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation': 'pptx',
+  'text/plain': 'txt',
+}
+
+/**
+ * Storage folder for one manager's monthly study-material files. Used both to build
+ * upload paths and to check that a path submitted on save belongs to that manager.
+ * @param {number|string} ownerId
+ * @returns {string}
+ */
+function studyMaterialPrefix(ownerId) {
+  return `study-material/${ownerId}/`
+}
+
+/**
+ * Upload a study-material document a manager attaches to a monthly subject.
+ * The subject may not exist yet (create wizard), so the file is keyed by uploader.
+ * @param {Buffer} buffer
+ * @param {number|string} ownerId - uploader's user id
+ * @param {object} file - file metadata from multer
+ * @returns {Promise<{ path: string, size: number, mimeType: string, originalName: string }>}
+ */
+async function uploadStudyMaterialAsset(buffer, ownerId, file = {}) {
+  const extension = STUDY_MATERIAL_EXTENSIONS[file.mimetype] || 'pdf'
+  const contentType = file.mimetype || 'application/pdf'
+  const path = `${studyMaterialPrefix(ownerId)}${crypto.randomUUID()}.${extension}`
+
+  const { error } = await supabase.storage.from(BUCKET).upload(path, buffer, {
+    contentType,
+    upsert: false,
+  })
+  if (error) throw error
+
+  return {
+    path,
+    size: buffer.length,
+    mimeType: contentType,
+    originalName: file.originalname || `study-material.${extension}`,
+  }
+}
+
+/**
  * Fetch a short-lived signed URL for a file in storage.
  * @param {string} path - storage path
  * @param {number} expiresIn - expiration in seconds (default 3600)
@@ -107,6 +175,33 @@ async function getSignedUrl(path, expiresIn = 3600) {
   const { data, error } = await supabase.storage.from(BUCKET).createSignedUrl(path, expiresIn)
   if (error) throw error
   return data.signedUrl
+}
+
+/**
+ * True when a stored file reference is already a full http(s) URL (legacy rows)
+ * rather than a Supabase Storage path that still needs signing.
+ * @param {string} value
+ * @returns {boolean}
+ */
+function isExternalUrl(value) {
+  return /^https?:\/\//i.test(String(value || ''))
+}
+
+/**
+ * Turn a stored file reference into a downloadable URL: full URLs pass through,
+ * storage paths are signed. Never throws - returns null if signing fails.
+ * @param {string} value - storage path or URL
+ * @returns {Promise<string|null>}
+ */
+async function resolveFileUrl(value) {
+  if (!value) return null
+  if (isExternalUrl(value)) return value
+  try {
+    return await getSignedUrl(value)
+  } catch (err) {
+    console.error('Failed to sign storage URL:', err.message)
+    return null
+  }
 }
 
 /**
@@ -134,46 +229,30 @@ async function cleanupOrphanedFiles(paths) {
 }
 
 /**
- * Create an immutable copy of an existing resume for mandate-specific submission.
- * This prevents the original file from being overwritten if the user updates their profile resume.
- * @param {string} sourcePath - path to the source resume file
- * @param {number|string} mandateId - mandate ID for immutable storage path
- * @param {number|string} clientTeamId - client team ID for immutable storage path
- * @returns {Promise<{ path: string }>}
+ * Download a file's raw bytes from storage (e.g. to re-extract text from a resume
+ * that's being set as the default without a fresh upload).
+ * @param {string} path - storage path
+ * @returns {Promise<Buffer>}
  */
-async function copyResumeForMandateSnapshot(sourcePath, mandateId, clientTeamId) {
-  if (!sourcePath) throw new Error('Source path is required')
-  
-  const uuid = crypto.randomUUID()
-  const extension = sourcePath.split('.').pop() || 'pdf'
-  const snapshotPath = `resumes/mandates/${mandateId}/${clientTeamId}/${uuid}.${extension}`
-
-  const { data: sourceFile, error: downloadError } = await supabase.storage
-    .from(BUCKET)
-    .download(sourcePath)
-    
-  if (downloadError) throw downloadError
-
-  const { data, error: uploadError } = await supabase.storage
-    .from(BUCKET)
-    .upload(snapshotPath, sourceFile, {
-      contentType: sourceFile.type || 'application/pdf',
-      upsert: false,
-    })
-    
-  if (uploadError) throw uploadError
-
-  return { path: snapshotPath }
+async function downloadFile(path) {
+  const { data, error } = await supabase.storage.from(BUCKET).download(path)
+  if (error) throw error
+  const arrayBuffer = await data.arrayBuffer()
+  return Buffer.from(arrayBuffer)
 }
 
-module.exports = { 
+module.exports = {
   uploadResumeAsset,
   uploadResume,
-  uploadReportAsset, 
-  uploadReport,
-  getSignedUrl, 
-  deleteFile, 
+  uploadReportAsset,
+  uploadJdAsset,
+  uploadStudyMaterialAsset,
+  studyMaterialPrefix,
+  getSignedUrl,
+  isExternalUrl,
+  resolveFileUrl,
+  deleteFile,
   cleanupOrphanedFiles,
-  copyResumeForMandateSnapshot,
+  downloadFile,
   uploadInterviewFeedbackAsset,
 }
