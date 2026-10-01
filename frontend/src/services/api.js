@@ -571,6 +571,9 @@ export const updateUser = (id, data) =>
   request(`/api/users/${id}`, { method: 'PATCH', body: JSON.stringify(data) })
 export const deleteUser = (id, companyId) =>
   request(`/api/users/${id}?companyId=${companyId}`, { method: 'DELETE' })
+// One-time bulk backfill tool - see AdminUsersPage.jsx's "Import CSV" button.
+export const importAdminUsersCSV = (companyId, csv, sendInviteEmails = false) =>
+  request('/api/admin/users/import', { method: 'POST', body: JSON.stringify({ companyId, csv, sendInviteEmails }) })
 
 // Admin - RBAC ACLs module (ACLs are per-company; each gates exactly one module)
 export const getAcls = (companyId, { page, pageSize, search } = {}) => {
