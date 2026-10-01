@@ -15,6 +15,7 @@ const storageService = require('./storage.service')
 const authService = require('./auth.service')
 const { resolvePagination, buildPaginationMeta } = require('../utils/pagination')
 const { toSearchPattern } = require('../utils/sql-search')
+const { parseCSV, normalizeHeader } = require('../utils/csv')
 
 const BCRYPT_SALT_ROUNDS = 10
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -204,7 +205,166 @@ async function createUserWithRole(companyId, { email, firstName, lastName, roleI
   return { id: created.id, email: cleanEmail }
 }
 
+// Admin-only bulk import for one organization - e.g. backfilling users from another
+// environment. Each row accepts the same shape the migration tooling exports
+// (empNumber, firstName, lastName, email, jobTitle, location, departmentName,
+// roleNames, tags, skillCompetencies, availability, experienceYears/Months,
+// joiningDate, resumeUrl, resumeText, isPlatformAdmin). Any `password`/`passwordHash`
+// field on a row is ignored - this never accepts a caller-supplied hash, since that
+// would let a client set an arbitrary credential; every imported user gets a fresh
+// random temp password and (optionally) the existing welcome-email flow, same as
+// createUser() above.
+//
+// Idempotent per row: a row whose email already exists anywhere in the database is
+// skipped and reported, never overwritten - re-posting the same batch after a
+// partial failure is safe.
+async function bulkImportUsers(companyId, users, { sendInviteEmails = false } = {}) {
+  if (!Array.isArray(users) || users.length === 0) {
+    throw Object.assign(new Error('users must be a non-empty array'), { httpStatus: 400 })
+  }
+  if (users.length > 1000) {
+    throw Object.assign(new Error('Import is limited to 1000 users per request'), { httpStatus: 400 })
+  }
+
+  const company = await companyRepository.getById(companyId)
+  if (!company) throw Object.assign(new Error('Organization not found'), { httpStatus: 404 })
+
+  const roles = await roleRepository.getByCompany(companyId)
+  const roleIdByName = new Map(roles.map(r => [r.name.toLowerCase(), r.id]))
+
+  const result = { inserted: [], skippedExisting: 0, conflicts: [], missingRoles: [], errors: [] }
+
+  for (const row of users) {
+    try {
+      const email = String(row.email || '').trim().toLowerCase()
+      const firstName = String(row.firstName || '').trim()
+      if (!email || !EMAIL_PATTERN.test(email)) { result.errors.push(`(row with no valid email): invalid email`); continue }
+      if (!firstName) { result.errors.push(`${email}: firstName is required`); continue }
+
+      const existing = await userRepository.getByEmailAnyCompany(email)
+      if (existing) {
+        if (existing.company_id === companyId) result.skippedExisting += 1
+        else result.conflicts.push(`${email} already exists under a different organization (company_id ${existing.company_id})`)
+        continue
+      }
+
+      const roleNames = Array.isArray(row.roleNames) ? row.roleNames : []
+      const resolvedRoleIds = roleNames.map(n => roleIdByName.get(String(n).toLowerCase())).filter(Boolean)
+      const unmatched = roleNames.filter(n => !roleIdByName.has(String(n).toLowerCase()))
+      if (unmatched.length > 0) result.missingRoles.push(`${email}: no match for role(s) ${unmatched.join(', ')}`)
+      else if (resolvedRoleIds.length === 0 && !row.isPlatformAdmin) result.missingRoles.push(`${email}: no role provided`)
+
+      const departmentId = await userRepository.findOrCreateDepartment(row.departmentName)
+      const passwordHash = await bcrypt.hash('TEMP_' + crypto.randomBytes(8).toString('hex'), BCRYPT_SALT_ROUNDS)
+
+      const created = await userRepository.createForImport(companyId, {
+        empNumber: row.empNumber,
+        firstName,
+        lastName: row.lastName,
+        email,
+        departmentId,
+        jobTitle: row.jobTitle,
+        location: row.location,
+        passwordHash,
+        resumeUrl: row.resumeUrl,
+        resumeText: row.resumeText,
+        tags: row.tags,
+        skillCompetencies: row.skillCompetencies,
+        availability: row.availability,
+        experienceYears: row.experienceYears,
+        experienceMonths: row.experienceMonths,
+        joiningDate: row.joiningDate,
+        isPlatformAdmin: row.isPlatformAdmin,
+      })
+
+      if (resolvedRoleIds.length > 0) await userRoleRepository.replaceForUser(created.id, resolvedRoleIds)
+
+      if (sendInviteEmails) {
+        await emailOutboxRepository.enqueueWelcomeSetPassword({
+          eventKey: `welcome_set_password_${created.id}_${crypto.randomUUID()}`,
+          userId: created.id,
+          recipient: email,
+          name: `${firstName} ${row.lastName || ''}`.trim(),
+        })
+      }
+
+      result.inserted.push({ id: created.id, email })
+    } catch (err) {
+      result.errors.push(`${row.email || '(unknown)'}: ${err.message}`)
+    }
+  }
+
+  return result
+}
+
+// CSV column headers this accepts (order doesn't matter, case/punctuation-insensitive
+// via normalizeHeader): firstName*, lastName, email*, empNumber, jobTitle, location,
+// departmentName, roleNames (semicolon-separated, e.g. "Manager;Interviewer"),
+// availability, experienceYears, experienceMonths, joiningDate, tags, skillCompetencies.
+// (* required). Resume fields and the platform-admin flag are intentionally not
+// CSV-importable - bulk-setting admin access from a spreadsheet is too risky, and
+// resume text doesn't fit a single CSV cell sensibly.
+function parseUsersCSV(csvText) {
+  if (typeof csvText !== 'string' || !csvText.trim()) {
+    throw Object.assign(new Error('CSV content is required'), { httpStatus: 400 })
+  }
+  const parsed = parseCSV(csvText)
+  if (parsed.length < 2) {
+    throw Object.assign(new Error('CSV must include a header and at least one row'), { httpStatus: 400 })
+  }
+
+  const headers = parsed[0].map(normalizeHeader)
+  const indexOf = (...names) => headers.findIndex(h => names.includes(h))
+  const col = {
+    firstName: indexOf('firstname', 'first'),
+    lastName: indexOf('lastname', 'last', 'surname'),
+    email: indexOf('email', 'emailaddress'),
+    empNumber: indexOf('empnumber', 'employeenumber', 'employeeid', 'empid'),
+    jobTitle: indexOf('jobtitle', 'position', 'currentposition'),
+    location: indexOf('location', 'office'),
+    departmentName: indexOf('departmentname', 'department'),
+    roleNames: indexOf('rolenames', 'roles', 'role'),
+    availability: indexOf('availability'),
+    experienceYears: indexOf('experienceyears'),
+    experienceMonths: indexOf('experiencemonths'),
+    joiningDate: indexOf('joiningdate'),
+    tags: indexOf('tags'),
+    skillCompetencies: indexOf('skillcompetencies'),
+  }
+  if (col.email < 0 || col.firstName < 0) {
+    throw Object.assign(new Error('CSV headers must include firstName and email'), { httpStatus: 400 })
+  }
+
+  const cell = (columns, index) => (index >= 0 ? String(columns[index] || '').trim() : '')
+  const numberCell = (columns, index) => {
+    const value = cell(columns, index)
+    return value === '' ? undefined : Number(value)
+  }
+
+  return parsed.slice(1).map(columns => ({
+    firstName: cell(columns, col.firstName),
+    lastName: cell(columns, col.lastName),
+    email: cell(columns, col.email),
+    empNumber: cell(columns, col.empNumber),
+    jobTitle: cell(columns, col.jobTitle),
+    location: cell(columns, col.location),
+    departmentName: cell(columns, col.departmentName),
+    roleNames: cell(columns, col.roleNames).split(';').map(s => s.trim()).filter(Boolean),
+    availability: cell(columns, col.availability),
+    experienceYears: numberCell(columns, col.experienceYears),
+    experienceMonths: numberCell(columns, col.experienceMonths),
+    joiningDate: cell(columns, col.joiningDate),
+    tags: cell(columns, col.tags),
+    skillCompetencies: cell(columns, col.skillCompetencies),
+  }))
+}
+
+async function importUsersFromCSV(companyId, csvText, opts) {
+  const rows = parseUsersCSV(csvText)
+  return bulkImportUsers(companyId, rows, opts)
+}
+
 module.exports = {
   listUsers, getUser, getUserAccess, getUserInterviews,
-  createUser, updateUser, deleteUser, createUserWithRole,
+  createUser, updateUser, deleteUser, createUserWithRole, bulkImportUsers, importUsersFromCSV,
 }

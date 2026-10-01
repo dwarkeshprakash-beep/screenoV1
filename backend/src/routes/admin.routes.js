@@ -85,6 +85,26 @@ router.post('/users', async (req, res) => {
   }
 })
 
+// Admin-only CSV bulk import for one organization - e.g. backfilling users from
+// another environment. Call with { companyId, csv, sendInviteEmails? } - see
+// userService.parseUsersCSV for the accepted column headers. Any password column
+// is ignored even if present - every user gets a fresh random temp password.
+router.post('/users/import', async (req, res) => {
+  try {
+    const companyId = parseInt(req.body.companyId, 10)
+    if (!Number.isInteger(companyId)) {
+      return res.status(400).json({ success: false, error: 'companyId is required' })
+    }
+
+    const result = await userService.importUsersFromCSV(companyId, req.body.csv, {
+      sendInviteEmails: Boolean(req.body.sendInviteEmails),
+    })
+    res.status(201).json({ success: true, data: result })
+  } catch (err) {
+    sendAdminError(res, err, 'POST /users/import', 'Could not import users')
+  }
+})
+
 router.patch('/mandates/:id/force-status', async (req, res) => {
   try {
     const { archived } = req.body
