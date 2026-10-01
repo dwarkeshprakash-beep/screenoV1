@@ -431,70 +431,9 @@ async function getOrganizationMemberProfile(userId, companyId) {
   return rows[0] || null
 }
 
-// Cross-company lookup, unlike getByEmailForCompany - email is globally unique
-// (users.email UNIQUE), so a bulk import must check for a clash under ANY
-// company before inserting, not just the target one.
-async function getByEmailAnyCompany(email) {
-  const rows = await db.query(
-    `SELECT id, company_id FROM users WHERE LOWER(email) = LOWER(@email) LIMIT 1`,
-    { email }
-  )
-  return rows[0] || null
-}
-
-// Full-field insert for admin bulk import - unlike createMinimal (name/email/password
-// only), this carries every importable profile field. Plain INSERT, no ON CONFLICT -
-// the service checks getByEmailAnyCompany() first so a clash is reported, not silently
-// swallowed here.
-async function createForImport(companyId, fields) {
-  const rows = await db.query(
-    `INSERT INTO users
-       (company_id, emp_number, first_name, last_name, email, department_id, job_title, location,
-        password, resume_url, resume_text, tags, skill_competencies, availability,
-        experience_years, experience_months, joining_date, is_platform_admin)
-     VALUES
-       (@companyId, @empNumber, @firstName, @lastName, @email, @departmentId, @jobTitle, @location,
-        @password, @resumeUrl, @resumeText, @tags, @skillCompetencies, @availability,
-        @experienceYears, @experienceMonths, @joiningDate, @isPlatformAdmin)
-     RETURNING id`,
-    {
-      companyId,
-      empNumber: fields.empNumber || null,
-      firstName: fields.firstName,
-      lastName: fields.lastName || '',
-      email: fields.email,
-      departmentId: fields.departmentId || null,
-      jobTitle: fields.jobTitle || null,
-      location: fields.location || null,
-      password: fields.passwordHash,
-      resumeUrl: fields.resumeUrl || null,
-      resumeText: fields.resumeText || null,
-      tags: fields.tags || null,
-      skillCompetencies: fields.skillCompetencies || null,
-      availability: fields.availability || 'bench',
-      experienceYears: fields.experienceYears ?? null,
-      experienceMonths: fields.experienceMonths ?? null,
-      joiningDate: fields.joiningDate || null,
-      isPlatformAdmin: Boolean(fields.isPlatformAdmin),
-    }
-  )
-  return rows[0]
-}
-
-// departments is a global table (no company_id) - same find-or-create pattern as
-// updateOrgProfile() above, factored out so bulk import can use it too.
-async function findOrCreateDepartment(name) {
-  const cleaned = String(name || '').trim()
-  if (!cleaned) return null
-  const existing = await db.query(`SELECT id FROM departments WHERE LOWER(name) = LOWER(@name) LIMIT 1`, { name: cleaned })
-  if (existing[0]) return existing[0].id
-  const created = await db.query(`INSERT INTO departments (name) VALUES (@name) RETURNING id`, { name: cleaned })
-  return created[0].id
-}
-
 module.exports = {
-  getByEmail, getByEmailForCompany, getByEmailAnyCompany, getById, getAuthProfile, getByIdWithPassword, getNotInTeam,
+  getByEmail, getByEmailForCompany, getById, getAuthProfile, getByIdWithPassword, getNotInTeam,
   getByCompany, getByCompanyPage, getByIdForCompany, getByIdsForCompany, getByModulePermission,
   updateProfile, updatePassword, updateOrgProfile, updateBasicInfo, remove, hasBlockingReferences,
-  bulkUpsert, createMinimal, createForImport, findOrCreateDepartment, getOrganizationMemberProfile, countByCompany
+  bulkUpsert, createMinimal, getOrganizationMemberProfile, countByCompany
 }

@@ -14,10 +14,6 @@ frontend/build/
 frontend/dist/
 backend/dist/
 
-# One-off data exports - never commit real user/org data dumped to disk locally
-backend/*-export.json
-backend/*-import.csv
-
 # Logs
 *.log
 *.err
