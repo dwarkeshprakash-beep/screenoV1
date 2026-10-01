@@ -4,18 +4,6 @@ Last reviewed: 2026-07-10
 
 The current code builds, lints, passes backend unit tests, and passes the API regression suite against a fresh local backend. The items below are the remaining product and release-readiness gaps after the July cleanup.
 
-## Temporary - remove after the one-time production user backfill
-
-Added to migrate existing users into the production database for one organization (see `backend/scripts/export-users.js`/`import-users.js` for the earlier script-based attempt, superseded by this UI/API path). Remove once the backfill is confirmed done:
-
-- `POST /api/admin/users/import` route in `backend/src/routes/admin.routes.js`
-- `userService.bulkImportUsers` / `userService.importUsersFromCSV` / `parseUsersCSV` in `backend/src/services/user.service.js`
-- `userRepository.getByEmailAnyCompany` / `createForImport` / `findOrCreateDepartment` in `backend/src/repositories/user.repository.js`
-- `backend/src/utils/csv.js`
-- "Import CSV" button + `handleImportFile` + related state in `frontend/src/pages/admin/AdminUsersPage.jsx`
-- `extraActions` prop on `frontend/src/components/admin/CompanyScopedToolbar.jsx` (only remove if nothing else starts using it)
-- `importAdminUsersCSV` in `frontend/src/services/api.js`
-
 ## P1 - Before Public Production
 
 ### Run migrations 017-019 on existing databases

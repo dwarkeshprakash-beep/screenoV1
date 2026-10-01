@@ -7,7 +7,7 @@ import { ChevronDown, Search } from 'lucide-react'
 
 function CompanyScopedToolbar({
   companies, companyId, onCompanyChange, searchValue, onSearchChange, searchPlaceholder,
-  itemLabel, count, showCount, addLabel, addIcon: AddIcon, onAdd, extraActions,
+  itemLabel, count, showCount, addLabel, addIcon: AddIcon, onAdd,
 }) {
   const labelStyle = { fontSize: 11, fontWeight: 600, color: 'var(--fg-subtle)', textTransform: 'uppercase', letterSpacing: '0.04em' }
   const selectStyle = {
@@ -66,7 +66,6 @@ function CompanyScopedToolbar({
             {count} {itemLabel}{count === 1 ? '' : 's'}{selectedCompanyName ? ` at ${selectedCompanyName}` : ''}
           </span>
         )}
-        {extraActions}
         {onAdd && (
           <button
             type="button"

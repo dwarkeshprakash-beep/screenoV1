@@ -355,7 +355,6 @@ GET    /api/admin/companies
 GET    /api/admin/mandates
 PATCH  /api/admin/mandates/:id/reassign
 POST   /api/admin/users
-POST   /api/admin/users/import
 PATCH  /api/admin/mandates/:id/force-status
 DELETE /api/admin/mandates/:id/force-delete
 GET    /api/admin/interviews
